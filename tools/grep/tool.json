@@ -12,7 +12,7 @@
       },
       "path": {
         "type": "string",
-        "description": "The file or directory to search in"
+        "description": "The file or directory to search in. Supports relative paths from workspace, absolute paths, or home paths."
       },
       "include": {
         "type": "string",

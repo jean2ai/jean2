@@ -8,7 +8,7 @@
     "properties": {
       "path": {
         "type": "string",
-        "description": "The absolute path to the file to write"
+        "description": "Path to the file. Supports relative paths from workspace (e.g., \"src/file.ts\"), absolute paths (e.g., \"/full/path/file.ts\"), or home paths (e.g., \"~/file.ts\")."
       },
       "content": {
         "type": "string",

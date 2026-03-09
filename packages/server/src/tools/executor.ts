@@ -29,13 +29,14 @@ export interface ExecuteToolOptions {
   tool: DiscoveredTool;
   args: Record<string, unknown>;
   workspacePath?: string;
+  sessionId?: string;
   timeout?: number;
 }
 
 export async function executeTool(
   options: ExecuteToolOptions
 ): Promise<ToolResult> {
-  const { tool, args, workspacePath, timeout = 30000 } = options;
+  const { tool, args, workspacePath, sessionId, timeout = 30000 } = options;
   const { definition, path: toolPath } = tool;
   const scriptPath = join(toolPath, definition.script);
   
@@ -77,8 +78,15 @@ export async function executeTool(
       proc.kill();
     }, timeout);
     
+    // Build input with Jean2-provided context
+    const scriptInput = {
+      ...args,
+      workspacePath: workspacePath || process.cwd(),
+      sessionId: sessionId || '',
+    };
+
     // Send input via stdin
-    proc.stdin?.write(JSON.stringify(args));
+    proc.stdin?.write(JSON.stringify(scriptInput));
     proc.stdin?.end();
     
     proc.stdout?.on('data', (data) => {

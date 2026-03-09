@@ -5,6 +5,7 @@ import type { Message, ContentBlock, ToolCallBlock, Preconfig, ToolExecutionCont
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel } from '@/config';
+import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { randomUUID } from 'crypto';
 
 // Structured API keys from environment
@@ -302,7 +303,7 @@ async function buildAiSdkTools(
         }
 
         // Execute the tool with workspacePath
-        const execResult = await executeTool({ tool: discoveredTool, args, workspacePath });
+        const execResult = await executeTool({ tool: discoveredTool, args, workspacePath, sessionId });
         if (!execResult.success) {
           return { error: execResult.error };
         }
@@ -332,8 +333,13 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<
   const toolNames = preconfig.tools || [];
   const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onToolApprovalRequired, onPermissionRequest);
 
-  // Build system message
-  const systemMessage = preconfig.systemPrompt;
+  // Build system message with workspace context
+  let systemMessage = preconfig.systemPrompt || '';
+
+  if (workspacePath) {
+    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath);
+    systemMessage = systemMessage + '\n\n' + workspaceContext;
+  }
 
   // Convert messages for ai-sdk
   const aiMessages = await convertToAiSdkMessages(messages);

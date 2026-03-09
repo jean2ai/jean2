@@ -12,7 +12,7 @@
       },
       "path": {
         "type": "string",
-        "description": "The directory to search in"
+        "description": "The directory to search in. Supports relative paths from workspace, absolute paths, or home paths. Defaults to workspace root."
       }
     },
     "required": ["pattern"]

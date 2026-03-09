@@ -99,6 +99,7 @@ export async function executeToolWithSecurity(
             tool,
             args,
             workspacePath: context.workspacePath,
+            sessionId: context.sessionId,
             timeout,
           }).then((result) => ({
             ...result,
@@ -152,6 +153,7 @@ export async function executeToolWithSecurity(
     tool,
     args,
     workspacePath: context.workspacePath,
+    sessionId: context.sessionId,
     timeout,
   });
 

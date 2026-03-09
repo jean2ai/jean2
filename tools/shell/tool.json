@@ -12,7 +12,7 @@
       },
       "cwd": {
         "type": "string",
-        "description": "Working directory for the command"
+        "description": "Working directory for the command. Defaults to the workspace directory. Use this instead of 'cd <directory> && <command>' patterns."
       }
     },
     "required": ["command"]

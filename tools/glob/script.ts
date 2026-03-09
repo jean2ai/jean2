@@ -1,14 +1,32 @@
 import { readdir, stat } from "fs/promises";
 import { join, relative, resolve } from "path";
+import path from 'node:path';
+import os from 'node:os';
 
 interface Input {
   pattern: string;
   path?: string;
+  workspacePath: string;
 }
 
 interface Output {
   files: string[];
   error?: string;
+}
+
+function resolvePath(p: string, ws: string): string {
+  // Expand home directory
+  if (p === '~' || p.startsWith('~/')) {
+    p = p.replace('~', os.homedir());
+  }
+  
+  // If absolute, return as-is
+  if (path.isAbsolute(p)) {
+    return path.resolve(p);
+  }
+  
+  // If relative, join with workspace
+  return path.resolve(ws, p);
 }
 
 /**
@@ -165,7 +183,7 @@ async function main() {
     return;
   }
 
-  const { pattern, path } = input;
+  const { pattern, path: inputPath, workspacePath } = input;
 
   if (!pattern) {
     const output: Output = { files: [], error: "Pattern is required" };
@@ -174,7 +192,7 @@ async function main() {
   }
 
   try {
-    const cwd = path || process.cwd();
+    const cwd = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;
     const files = await glob(pattern, cwd);
     const output: Output = { files };
     console.log(JSON.stringify(output));

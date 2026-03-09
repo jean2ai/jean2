@@ -1,8 +1,29 @@
+import path from 'node:path';
+import os from 'node:os';
+
 const input = JSON.parse(await Bun.stdin.text());
-const { pattern, path, _include } = input;
+const { pattern, path: inputPath, _include, workspacePath } = input;
+
+function resolvePath(p: string, ws: string): string {
+  // Expand home directory
+  if (p === '~' || p.startsWith('~/')) {
+    p = p.replace('~', os.homedir());
+  }
+
+  // If absolute, return as-is
+  if (path.isAbsolute(p)) {
+    return path.resolve(p);
+  }
+
+  // If relative, join with workspace
+  return path.resolve(ws, p);
+}
+
+// Resolve the search path, default to workspacePath
+const searchPath = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;
 
 // Simple grep implementation using ripgrep if available, otherwise fallback
-const result = Bun.spawnSync(['rg', '-n', '--json', pattern, path], {
+const result = Bun.spawnSync(['rg', '-n', '--json', pattern, searchPath], {
   maxBuffer: 1024 * 1024 * 10,
 });
 
