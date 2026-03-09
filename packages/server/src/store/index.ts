@@ -101,6 +101,35 @@ function initializeSchema(db: Database): void {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tool_permissions (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      permission_type TEXT NOT NULL,
+      permission_key TEXT NOT NULL,
+      allowed INTEGER NOT NULL,
+      granted_at TEXT NOT NULL,
+      granted_by TEXT,
+      revoked_at TEXT,
+      revoked_by TEXT,
+      metadata TEXT,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Index for fast permission lookups
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_lookup 
+    ON tool_permissions(workspace_id, tool_name, permission_type, permission_key, allowed, revoked_at)`);
+
+  // Index for listing workspace permissions
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_workspace 
+    ON tool_permissions(workspace_id, revoked_at)`);
+
+  // Index for history queries
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history 
+    ON tool_permissions(workspace_id, granted_at)`);
 }
 
 export { Database };
@@ -111,3 +140,4 @@ export * from './messages';
 export * from './tool-executions';
 export * from './tool-approvals';
 export * from './workspaces';
+export * from './permissions';

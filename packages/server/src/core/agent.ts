@@ -1,8 +1,9 @@
 import { streamText, tool, stepCountIs, jsonSchema, type LanguageModel, type Tool, type ModelMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import type { Message, ContentBlock, ToolCallBlock, Preconfig } from '@jean2/shared';
-import { getTool, executeTool } from '@/tools';
+import type { Message, ContentBlock, ToolCallBlock, Preconfig, ToolExecutionContext } from '@jean2/shared';
+import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
+import type { PermissionRequestCallback } from '@/tools';
 import { findModel } from '@/config';
 import { randomUUID } from 'crypto';
 
@@ -104,9 +105,11 @@ export interface ChatOptions {
   modelId?: string;  // Override model from session/preconfig
   providerId?: string;  // Directly from session
   workspacePath?: string;  // Workspace path for tool execution
+  workspaceId?: string;  // NEW: workspace ID for permission caching
   onDelta?: (delta: string) => void;
   onToolCall?: (toolCall: ToolCallBlock) => void;
   onToolApprovalRequired?: (toolCall: ToolCallBlock, dangerous: boolean) => Promise<boolean>;
+  onPermissionRequest?: PermissionRequestCallback;  // NEW: permission callback
 }
 
 export interface ChatResult {
@@ -216,7 +219,10 @@ async function convertToAiSdkMessages(messages: Message[]): Promise<ModelMessage
 async function buildAiSdkTools(
   toolNames: string[],
   workspacePath: string | undefined,
-  onToolApprovalRequired?: (toolCall: ToolCallBlock, dangerous: boolean) => Promise<boolean>
+  workspaceId: string | undefined,
+  sessionId: string,
+  onToolApprovalRequired?: (toolCall: ToolCallBlock, dangerous: boolean) => Promise<boolean>,
+  onPermissionRequest?: PermissionRequestCallback
 ): Promise<Record<string, Tool>> {
   const tools: Record<string, Tool> = {};
 
@@ -233,8 +239,6 @@ async function buildAiSdkTools(
       // Don't use AI SDK's needsApproval - we handle approval ourselves in execute
       // needsApproval,
       execute: async (args: Record<string, unknown>) => {
-        // If approval is required, AI SDK v6 will handle the approval flow
-        // We execute here and return the result
         const toolCall: ToolCallBlock = {
           type: 'tool_call',
           toolCallId: randomUUID(),
@@ -242,6 +246,40 @@ async function buildAiSdkTools(
           args,
         };
 
+        // Build execution context
+        const context: ToolExecutionContext = {
+          workspacePath,
+          sessionId,
+          workspaceId,
+        };
+
+        // If tool has security check, use enhanced executor
+        if (hasSecurityCheck(discoveredTool)) {
+          const result = await executeToolWithSecurity({
+            tool: discoveredTool,
+            args,
+            context,
+            onPermissionRequest,
+          });
+
+          if (!result.success) {
+            // Check if it was a user rejection
+            if (result.error === 'USER_REJECTION' || result.permissionGranted === false) {
+              return {
+                error: 'USER_REJECTION',
+                message: `The user denied permission to execute this tool (${name}). ` +
+                         `Do NOT retry this tool call. Acknowledge this rejection and ask what they would like to do instead.`,
+                toolName: name,
+                args,
+              };
+            }
+            return { error: result.error };
+          }
+
+          return result.result;
+        }
+
+        // Fall back to legacy approval handling for tools without security check
         if (needsApproval && onToolApprovalRequired) {
           const approved = await onToolApprovalRequired(toolCall, definition.dangerous);
           if (!approved) {
@@ -249,20 +287,17 @@ async function buildAiSdkTools(
               error: 'USER_REJECTION',
               message: `The user explicitly denied permission to execute this tool (${name}). ` +
                        `Do NOT retry this tool call or similar variations. ` +
-                       `Acknowledge this rejection to the user and ask what they would like you to do instead, ` +
-                       `or suggest alternative approaches that don't require this specific action.`,
+                       `Acknowledge this rejection to the user and ask what they would like to do instead.`,
               toolName: name,
-              args: args
+              args,
             };
           }
         } else if (needsApproval && !onToolApprovalRequired) {
           return {
             error: 'USER_REJECTION',
-            message: `No approval callback was configured, so the tool (${name}) could not be executed. ` +
-                     `This is a configuration error - do NOT retry this tool call. ` +
-                     `Inform the user that the tool execution was not possible due to missing approval configuration.`,
+            message: `No approval callback was configured, so the tool (${name}) could not be executed.`,
             toolName: name,
-            args: args
+            args,
           };
         }
 
@@ -288,14 +323,14 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<
   | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string }
   | { type: 'complete'; message: Message }
 > {
-  const { sessionId: _sessionId, preconfig, messages, onToolApprovalRequired, modelId, providerId, workspacePath } = options;
+  const { sessionId: _sessionId, preconfig, messages, onToolApprovalRequired, modelId, providerId, workspacePath, workspaceId, onPermissionRequest } = options;
 
   // Resolve model: session override > preconfig > env default
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
   const model = await getModel(resolvedModelId, providerId);
 
   const toolNames = preconfig.tools || [];
-  const aiTools = await buildAiSdkTools(toolNames, workspacePath, onToolApprovalRequired);
+  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onToolApprovalRequired, onPermissionRequest);
 
   // Build system message
   const systemMessage = preconfig.systemPrompt;

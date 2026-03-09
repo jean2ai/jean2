@@ -56,6 +56,29 @@ export interface SessionRenameMessage {
   title: string;
 }
 
+export interface PermissionResponseMessage {
+  type: 'permission.response';
+  toolCallId: string;
+  allowed: boolean;
+  alwaysAllow: boolean;
+}
+
+export interface PermissionListRequestMessage {
+  type: 'permission.list';
+  workspaceId: string;
+  includeRevoked?: boolean;
+}
+
+export interface PermissionRevokeMessage {
+  type: 'permission.revoke';
+  permissionId: string;
+}
+
+export interface PermissionRevokeAllMessage {
+  type: 'permission.revoke_all';
+  workspaceId: string;
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
@@ -66,4 +89,8 @@ export type ClientMessage =
   | SessionUpdateModelMessage
   | SessionReopenMessage
   | SessionDeleteMessage
-  | SessionRenameMessage;
+  | SessionRenameMessage
+  | PermissionResponseMessage
+  | PermissionListRequestMessage
+  | PermissionRevokeMessage
+  | PermissionRevokeAllMessage;

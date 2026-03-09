@@ -1,5 +1,6 @@
 import type { Session } from '../types/session';
 import type { Message, ToolCallBlock } from '../types/message';
+import type { PermissionType, ToolPermission } from '../types/permission';
 
 export interface SessionCreatedMessage {
   type: 'session.created';
@@ -108,6 +109,42 @@ export interface ChatUserMessageMessage {
   message: Message;
 }
 
+export interface PermissionRequestMessage {
+  type: 'permission.request';
+  sessionId: string;
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  permissionType: PermissionType;
+  permissionKey: string;
+  message: string;
+  details?: Record<string, unknown>;
+  dangerous?: boolean;
+}
+
+export interface PermissionGrantedMessage {
+  type: 'permission.granted';
+  toolCallId: string;
+  cached: boolean;
+}
+
+export interface PermissionListMessage {
+  type: 'permission.list';
+  workspaceId: string;
+  permissions: ToolPermission[];
+}
+
+export interface PermissionRevokedMessage {
+  type: 'permission.revoked';
+  permissionId: string;
+}
+
+export interface PermissionAllRevokedMessage {
+  type: 'permission.all_revoked';
+  workspaceId: string;
+  count: number;
+}
+
 export type ServerMessage =
   | SessionCreatedMessage
   | SessionResumedMessage
@@ -124,4 +161,9 @@ export type ServerMessage =
   | SessionDeletedMessage
   | SessionRenamedMessage
   | ChatUsageMessage
-  | ChatUserMessageMessage;
+  | ChatUserMessageMessage
+  | PermissionRequestMessage
+  | PermissionGrantedMessage
+  | PermissionListMessage
+  | PermissionRevokedMessage
+  | PermissionAllRevokedMessage;

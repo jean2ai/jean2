@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { Message as MessageType, ContentBlock, ToolCallBlock, ToolResultBlock } from '@jean2/shared';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import PermissionRequestBlock from '@/components/PermissionRequestBlock';
 import './Message.css';
 
 interface Props {
   message: MessageType;
   onApproveTool?: (toolCallId: string, approved: boolean) => void;
+  onApprovePermission?: (toolCallId: string, alwaysAllow: boolean) => void;
+  onDenyPermission?: (toolCallId: string) => void;
 }
 
-export default function Message({ message, onApproveTool }: Props) {
+export default function Message({ message, onApproveTool, onApprovePermission, onDenyPermission }: Props) {
   const roleClass = message.role === 'user' ? 'user' : 'assistant';
   
   // Group tool_call and tool_result blocks together by toolCallId
@@ -19,7 +22,13 @@ export default function Message({ message, onApproveTool }: Props) {
       <div className="message-role">{message.role}</div>
       <div className="message-content">
         {groupedContent.map((item, i) => (
-          <ContentBlockComponent key={i} item={item} onApproveTool={onApproveTool} />
+          <ContentBlockComponent 
+            key={i} 
+            item={item} 
+            onApproveTool={onApproveTool}
+            onApprovePermission={onApprovePermission}
+            onDenyPermission={onDenyPermission}
+          />
         ))}
       </div>
     </div>
@@ -195,7 +204,12 @@ function CollapsibleToolResultBlock({ block }: { block: ToolResultBlock }) {
   );
 }
 
-function ContentBlockComponent({ item, onApproveTool }: { item: ContentItem; onApproveTool?: (toolCallId: string, approved: boolean) => void }) {
+function ContentBlockComponent({ item, onApproveTool, onApprovePermission, onDenyPermission }: { 
+  item: ContentItem; 
+  onApproveTool?: (toolCallId: string, approved: boolean) => void;
+  onApprovePermission?: (toolCallId: string, alwaysAllow: boolean) => void;
+  onDenyPermission?: (toolCallId: string) => void;
+}) {
   
   // Handle grouped tool call + result
   if (item.type === 'grouped_tool') {
@@ -229,6 +243,21 @@ function ContentBlockComponent({ item, onApproveTool }: { item: ContentItem; onA
         <div className="image-block">
           <img src={block.url} alt="" />
         </div>
+      );
+    
+    case 'permission_request':
+      return (
+        <PermissionRequestBlock
+          toolName={block.toolName}
+          args={block.args}
+          permissionType={block.permissionType}
+          permissionKey={block.permissionKey}
+          message={block.message}
+          details={block.details}
+          dangerous={block.dangerous}
+          onApprove={(alwaysAllow) => onApprovePermission?.(block.toolCallId, alwaysAllow)}
+          onDeny={() => onDenyPermission?.(block.toolCallId)}
+        />
       );
     
     default:

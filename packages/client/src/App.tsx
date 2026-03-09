@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Session, Message, ServerMessage, ClientMessage, Preconfig, ToolCallBlock, Workspace } from '@jean2/shared';
+import type { Session, Message, ServerMessage, ClientMessage, Preconfig, ToolCallBlock, Workspace, ToolPermission } from '@jean2/shared';
 import SessionList from '@/components/SessionList';
 import ChatView from '@/components/ChatView';
 import './App.css';
@@ -14,7 +14,11 @@ type ClientMessagePayload =
   | { sessionId: string; content: string }
   | { toolCallId: string; approved: boolean }
   | { sessionId: string; preconfigId?: string }
-  | { sessionId: string; modelId: string; providerId: string };
+  | { sessionId: string; modelId: string; providerId: string }
+  | { toolCallId: string; allowed: boolean; alwaysAllow: boolean }
+  | { workspaceId: string; includeRevoked?: boolean }
+  | { permissionId: string }
+  | { workspaceId: string };
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -42,6 +46,10 @@ function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [sessionFilter, setSessionFilter] = useState<'active' | 'all'>('active');
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Permission state
+  const [permissions, setPermissions] = useState<ToolPermission[]>([]);
 
   // Ref to store the latest handleServerMessage for the WebSocket
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
@@ -92,37 +100,16 @@ function App() {
       .catch(console.error);
   }, []);
 
-  // Create default workspace helper
-  const createDefaultWorkspace = async () => {
-    const res = await fetch(`${API_URL}/workspaces`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'My Virtual Workspace',
-        path: '', // Let server generate path
-        isVirtual: true,
-      }),
-    });
-    const data = await res.json();
-    setWorkspaces([data.workspace]);
-    setActiveWorkspace(data.workspace);
-  };
-
   // Load workspaces on mount
   useEffect(() => {
     fetch(`${API_URL}/workspaces`)
       .then(res => res.json())
       .then(data => {
         setWorkspaces(data.workspaces);
-        // If no workspaces exist, create a default virtual workspace
-        if (data.workspaces.length === 0) {
-          createDefaultWorkspace();
-        } else {
-          // Set first workspace as active, or restore from localStorage
-          const savedId = localStorage.getItem('activeWorkspaceId');
-          const saved = data.workspaces.find((w: Workspace) => w.id === savedId);
-          setActiveWorkspace(saved || data.workspaces[0]);
-        }
+        // Set first workspace as active, or restore from localStorage
+        const savedId = localStorage.getItem('activeWorkspaceId');
+        const saved = data.workspaces.find((w: Workspace) => w.id === savedId);
+        setActiveWorkspace(saved || data.workspaces[0]);
       })
       .catch(console.error);
   }, []);
@@ -513,6 +500,68 @@ function App() {
           setCurrentSession(msg.session);
         }
         break;
+
+      case 'permission.request': {
+        // Add permission_request block to the last assistant message's content
+        setMessagesBySession(prev => {
+          if (!currentSession) return prev;
+          
+          const sessionMessages = prev[currentSession.id] || [];
+          
+          // Find the last assistant message
+          for (let i = sessionMessages.length - 1; i >= 0; i--) {
+            const m = sessionMessages[i];
+            if (m.role === 'assistant') {
+              // Add permission_request block to this message's content
+              const permissionBlock = {
+                type: 'permission_request' as const,
+                toolCallId: msg.toolCallId,
+                toolName: msg.toolName,
+                args: msg.args,
+                permissionType: msg.permissionType,
+                permissionKey: msg.permissionKey,
+                message: msg.message,
+                details: msg.details,
+                dangerous: msg.dangerous,
+              };
+              
+              const updatedMessages = [
+                ...sessionMessages.slice(0, i),
+                { ...m, content: [...m.content, permissionBlock] },
+                ...sessionMessages.slice(i + 1),
+              ];
+              
+              return {
+                ...prev,
+                [currentSession.id]: updatedMessages
+              };
+            }
+          }
+          
+          return prev;
+        });
+        break;
+      }
+
+      case 'permission.list': {
+        setPermissions(msg.permissions);
+        break;
+      }
+
+      case 'permission.revoked': {
+        setPermissions(prev => prev.map(p => 
+          p.id === msg.permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
+        ));
+        break;
+      }
+
+      case 'permission.all_revoked': {
+        setPermissions(prev => {
+          const now = new Date().toISOString();
+          return prev.map(p => ({ ...p, revokedAt: now }));
+        });
+        break;
+      }
     }
   }, [currentSession, defaultModel]);
 
@@ -607,6 +656,29 @@ function App() {
     });
   }, [currentSession, sendMessage]);
 
+  const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
+    // Send response to server
+    sendMessage('permission.response', {
+      toolCallId,
+      allowed,
+      alwaysAllow,
+    });
+  }, [sendMessage]);
+
+  const handleApprovePermission = useCallback((toolCallId: string, alwaysAllow: boolean) => {
+    handlePermissionResponse(toolCallId, true, alwaysAllow);
+  }, [handlePermissionResponse]);
+
+  const handleDenyPermission = useCallback((toolCallId: string) => {
+    handlePermissionResponse(toolCallId, false, false);
+  }, [handlePermissionResponse]);
+
+  const refreshPermissions = useCallback(() => {
+    if (activeWorkspace) {
+      sendMessage('permission.list', { workspaceId: activeWorkspace.id });
+    }
+  }, [activeWorkspace, sendMessage]);
+
   // Filter sessions by active workspace
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
@@ -635,24 +707,35 @@ function App() {
           onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
           onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
           onDeleteWorkspace={deleteWorkspace}
+          
+          // Settings modal props
+          showSettings={showSettings}
+          onToggleSettings={() => setShowSettings(!showSettings)}
+          permissions={permissions}
+          onRefreshPermissions={refreshPermissions}
+          ws={ws}
         />
       </aside>
       <main className="main">
         {currentSession ? (
-          <ChatView
-            session={currentSession}
-            messages={messages}
-            preconfigs={preconfigs}
-            models={models}
-            defaultModel={defaultModel}
-            onSendMessage={sendChatMessage}
-            onChangePreconfig={updateSessionPreconfig}
-            onChangeModel={updateSessionModel}
-            onApproveTool={handleToolApproval}
-            onRename={handleRenameSession}
-            usage={sessionUsage}
-            modelName={currentModel}
-          />
+          <>
+            <ChatView
+              session={currentSession}
+              messages={messages}
+              preconfigs={preconfigs}
+              models={models}
+              defaultModel={defaultModel}
+              onSendMessage={sendChatMessage}
+              onChangePreconfig={updateSessionPreconfig}
+              onChangeModel={updateSessionModel}
+              onApproveTool={handleToolApproval}
+              onApprovePermission={handleApprovePermission}
+              onDenyPermission={handleDenyPermission}
+              onRename={handleRenameSession}
+              usage={sessionUsage}
+              modelName={currentModel}
+            />
+          </>
         ) : (
           <div className="empty-state">
             <h2>Select or create a session</h2>

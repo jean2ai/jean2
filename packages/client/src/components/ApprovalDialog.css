@@ -17,6 +17,30 @@
   border-radius: 12px;
   max-width: 500px;
   width: 90%;
+  position: relative;
+}
+
+.approval-close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #444;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #e0e0e0;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.approval-close-button:hover {
+  background: #555;
+  color: #fff;
 }
 
 .approval-dialog h3 {
@@ -70,4 +94,65 @@
 .approve {
   background: #4a9eff;
   color: white;
+}
+
+.message {
+  margin-top: 12px;
+  padding: 8px;
+  background: #3a3a3a;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+details {
+  margin-top: 12px;
+}
+
+details summary {
+  cursor: pointer;
+  color: #888;
+  font-size: 12px;
+}
+
+details summary:hover {
+  color: #aaa;
+}
+
+.details-content {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #444;
+}
+
+.details-content p {
+  margin-bottom: 4px;
+}
+
+.details-content pre {
+  font-size: 11px;
+  background: #2a2a2a;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.always-allow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px;
+  background: #333;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.always-allow input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.always-allow:hover {
+  background: #3a3a3a;
 }

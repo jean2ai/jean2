@@ -10,6 +10,15 @@ export interface ToolDefinition {
   timeout: number;
   requireApproval: boolean;
   dangerous: boolean;
+  hasSecurityCheck?: boolean;
+  securityScript?: string;
+  securityTimeout?: number;
+}
+
+export interface ToolExecutionContext {
+  workspacePath?: string;
+  sessionId: string;
+  workspaceId?: string;
 }
 
 export interface ToolExecution {

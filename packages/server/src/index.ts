@@ -2,10 +2,11 @@ import { createApp } from './app';
 import { initializePreconfigs, getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, Message, ToolCallBlock } from '@jean2/shared';
+import type { ServerMessage, ClientMessage, Message, ToolCallBlock, SecurityCheckResult } from '@jean2/shared';
 import { createSession, getSession, updateSession, deleteSession } from '@/store';
 import { listMessages, createMessage } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
+import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
 import { streamChat } from './core/agent';
 import { createPendingApproval, resolveApproval } from './core/approvals';
 import { getModelsConfig, findModel } from './config';
@@ -16,6 +17,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Store connected clients with their session info
 const clients = new Map<ServerWebSocket, { sessionId?: string }>();
+
+// Store pending permission requests by toolCallId
+const pendingPermissions = new Map<string, { 
+  resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void 
+}>();
 
 function getWsForSession(sessionId: string): ServerWebSocket | undefined {
   for (const [ws, data] of clients.entries()) {
@@ -253,6 +259,35 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
     
+    case 'permission.response': {
+      const pending = pendingPermissions.get(msg.toolCallId);
+      if (pending) {
+        pendingPermissions.delete(msg.toolCallId);
+        pending.resolve({ allowed: msg.allowed, alwaysAllow: msg.alwaysAllow });
+      } else {
+        console.warn('permission.response received for unknown toolCallId:', msg.toolCallId);
+      }
+      break;
+    }
+
+    case 'permission.list': {
+      const permissions = getWorkspacePermissions(msg.workspaceId, msg.includeRevoked);
+      send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, permissions });
+      break;
+    }
+
+    case 'permission.revoke': {
+      revokePermission(msg.permissionId, null);
+      send(ws, { type: 'permission.revoked', permissionId: msg.permissionId });
+      break;
+    }
+
+    case 'permission.revoke_all': {
+      const count = revokeAllWorkspacePermissions(msg.workspaceId, null);
+      send(ws, { type: 'permission.all_revoked', workspaceId: msg.workspaceId, count });
+      break;
+    }
+    
     default:
       send(ws, { type: 'error', code: 'unknown_message', message: 'Unknown message type' });
   }
@@ -373,6 +408,50 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     return createPendingApproval(toolCall, dangerous);
   };
 
+  // Permission request callback for new security system
+  const onPermissionRequest = async (
+    toolName: string,
+    args: Record<string, unknown>,
+    securityResult: SecurityCheckResult
+  ): Promise<{ allowed: boolean; alwaysAllow: boolean }> => {
+    // Generate a unique ID for this permission request
+    const toolCallId = crypto.randomUUID();
+    
+    // Send permission request to client
+    const clientWs = getWsForSession(sessionId);
+    
+    if (clientWs) {
+      send(clientWs, {
+        type: 'permission.request',
+        sessionId,
+        toolCallId,
+        toolName,
+        args,
+        permissionType: securityResult.permissionType,
+        permissionKey: securityResult.permissionKey,
+        message: securityResult.message,
+        details: securityResult.details,
+      });
+    } else {
+      console.warn('Could not find client WebSocket for session:', sessionId);
+      return { allowed: false, alwaysAllow: false };
+    }
+    
+    // Wait for client response
+    return new Promise((resolve) => {
+      pendingPermissions.set(toolCallId, { resolve });
+      
+      // Set timeout (5 minutes)
+      setTimeout(() => {
+        const pending = pendingPermissions.get(toolCallId);
+        if (pending) {
+          pendingPermissions.delete(toolCallId);
+          resolve({ allowed: false, alwaysAllow: false });
+        }
+      }, 5 * 60 * 1000);
+    });
+  };
+
   try {
     // Stream the response
     for await (const event of streamChat({
@@ -380,9 +459,11 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
       preconfig,
       messages: history,
       onToolApprovalRequired,
+      onPermissionRequest,
       modelId: modelId,
       providerId: provider,
       workspacePath,
+      workspaceId: session.workspaceId || undefined,
     })) {
       switch (event.type) {
         case 'delta':

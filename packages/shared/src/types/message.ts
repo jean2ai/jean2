@@ -1,4 +1,6 @@
 // Content blocks (ACP-lite)
+import type { PermissionType } from './permission';
+
 export interface TextBlock {
   type: 'text';
   text: string;
@@ -28,7 +30,19 @@ export interface ImageBlock {
   mimeType?: string;
 }
 
-export type ContentBlock = TextBlock | ToolCallBlock | ToolResultBlock | ImageBlock;
+export interface PermissionRequestBlock {
+  type: 'permission_request';
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  permissionType: PermissionType;
+  permissionKey: string;
+  message: string;
+  details?: Record<string, unknown>;
+  dangerous?: boolean;
+}
+
+export type ContentBlock = TextBlock | ToolCallBlock | ToolResultBlock | ImageBlock | PermissionRequestBlock;
 
 // Message
 export interface Message {

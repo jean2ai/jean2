@@ -58,3 +58,6 @@ temp/
 
 # PWA
 vite.config.ts.sig
+
+# Kontexted sync
+.kontexted/

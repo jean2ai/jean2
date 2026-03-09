@@ -53,6 +53,14 @@ import { listTools, getTool } from './tools';
 // Import config functions
 import { getModelsConfig, getAllModels } from './config';
 
+// Helper function to expand ~ to user's home directory
+function expandPath(path: string): string {
+  if (path.startsWith('~/')) {
+    return path.replace('~', homedir());
+  }
+  return path;
+}
+
 export function createApp() {
   const app = new Hono();
 
@@ -188,7 +196,30 @@ export function createApp() {
 
   // GET /api/workspaces - List all workspaces
   app.get('/api/workspaces', async (c) => {
-    const workspaces = listWorkspaces();
+    let workspaces = listWorkspaces();
+
+    // Auto-create default virtual workspace if none exist
+    if (workspaces.length === 0) {
+      const path = join(homedir(), '.jean2', 'workspaces', crypto.randomUUID());
+
+      // Create directory if it doesn't exist
+      try {
+        mkdirSync(path, { recursive: true });
+      } catch (err) {
+        console.error('Failed to create workspace directory:', err);
+        return c.json({ error: 'Internal Server Error', message: 'Failed to create workspace directory' }, 500);
+      }
+
+      const defaultWorkspace = createWorkspace({
+        id: crypto.randomUUID(),
+        name: 'Virtual Workspace',
+        path,
+        isVirtual: true,
+      });
+
+      workspaces = [defaultWorkspace];
+    }
+
     return c.json({ workspaces });
   });
 
@@ -212,7 +243,9 @@ export function createApp() {
 
     // Create directory if it doesn't exist
     try {
-      mkdirSync(path, { recursive: true });
+      const expandedPath = expandPath(path);
+      mkdirSync(expandedPath, { recursive: true });
+      path = expandedPath; // Update to use expanded path
     } catch (err) {
       console.error('Failed to create workspace directory:', err);
       return c.json({ error: 'Internal Server Error', message: 'Failed to create workspace directory' }, 500);

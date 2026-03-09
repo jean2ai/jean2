@@ -1,5 +1,6 @@
-import type { Session, Preconfig, Workspace } from '@jean2/shared';
+import type { Session, Preconfig, Workspace, ToolPermission } from '@jean2/shared';
 import WorkspaceSelector from './WorkspaceSelector';
+import PermissionManager from './PermissionManager';
 import './SessionList.css';
 
 interface Props {
@@ -22,6 +23,13 @@ interface Props {
   onCreateVirtualWorkspace: () => void;
   onCreatePhysicalWorkspace: (path: string) => void;
   onDeleteWorkspace: (id: string) => void;
+  
+  // Settings modal props
+  showSettings: boolean;
+  onToggleSettings: () => void;
+  permissions: ToolPermission[];
+  onRefreshPermissions: () => void;
+  ws: WebSocket | null;
 }
 
 export default function SessionList({
@@ -42,6 +50,11 @@ export default function SessionList({
   onCreateVirtualWorkspace,
   onCreatePhysicalWorkspace,
   onDeleteWorkspace,
+  showSettings,
+  onToggleSettings,
+  permissions,
+  onRefreshPermissions,
+  ws,
 }: Props) {
   const defaultPreconfig = preconfigs.find(p => p.isDefault) || preconfigs[0];
   
@@ -52,15 +65,44 @@ export default function SessionList({
   
   return (
     <div className="session-list">
-      {/* Workspace selector at the top */}
-      <WorkspaceSelector
-        workspaces={workspaces}
-        activeWorkspace={activeWorkspace}
-        onSelectWorkspace={onSelectWorkspace}
-        onCreateVirtualWorkspace={onCreateVirtualWorkspace}
-        onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
-        onDeleteWorkspace={onDeleteWorkspace}
-      />
+      {/* Workspace selector with settings button */}
+      <div className="workspace-header">
+        <WorkspaceSelector
+          workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+          onSelectWorkspace={onSelectWorkspace}
+          onCreateVirtualWorkspace={onCreateVirtualWorkspace}
+          onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
+          onDeleteWorkspace={onDeleteWorkspace}
+        />
+        <button 
+          className="settings-btn"
+          onClick={onToggleSettings}
+          title="Workspace Settings"
+        >
+          ⚙️
+        </button>
+      </div>
+      
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="modal-backdrop" onClick={onToggleSettings}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Workspace Settings</h2>
+              <button className="modal-close" onClick={onToggleSettings}>×</button>
+            </div>
+            <div className="modal-body">
+              <PermissionManager
+                workspaceId={activeWorkspace?.id || ''}
+                ws={ws}
+                permissions={permissions}
+                onRefresh={onRefreshPermissions}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="session-list-header">
         <h3>Sessions</h3>

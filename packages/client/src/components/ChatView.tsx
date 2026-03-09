@@ -22,6 +22,8 @@ interface Props {
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   onApproveTool: (toolCallId: string, approved: boolean) => void;
+  onApprovePermission: (toolCallId: string, alwaysAllow: boolean) => void;
+  onDenyPermission: (toolCallId: string) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
     promptTokens: number;
@@ -31,7 +33,7 @@ interface Props {
   modelName: string;
 }
 
-export default function ChatView({ session, messages, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, onApproveTool, onRename, usage, modelName }: Props) {
+export default function ChatView({ session, messages, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, onApproveTool, onApprovePermission, onDenyPermission, onRename, usage, modelName }: Props) {
   const [input, setInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -161,7 +163,13 @@ export default function ChatView({ session, messages, preconfigs, models, defaul
           </div>
         ) : (
           messages.map(msg => (
-            <MessageComponent key={msg.id} message={msg} onApproveTool={onApproveTool} />
+            <MessageComponent 
+              key={msg.id} 
+              message={msg} 
+              onApproveTool={onApproveTool}
+              onApprovePermission={onApprovePermission}
+              onDenyPermission={onDenyPermission}
+            />
           ))
         )}
         <div ref={messagesEndRef} />
