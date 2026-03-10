@@ -2,10 +2,12 @@ import { streamText, tool, stepCountIs, jsonSchema, type LanguageModel, type Too
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type { Message, ContentBlock, ToolCallBlock, Preconfig, ToolExecutionContext } from '@jean2/shared';
+import { listMessages, createMessage } from '@/store';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
+import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { randomUUID } from 'crypto';
 
 // Structured API keys from environment
@@ -111,6 +113,7 @@ export interface ChatOptions {
   onToolCall?: (toolCall: ToolCallBlock) => void;
   onToolApprovalRequired?: (toolCall: ToolCallBlock, dangerous: boolean) => Promise<boolean>;
   onPermissionRequest?: PermissionRequestCallback;  // NEW: permission callback
+  maxSteps?: number;  // Override default step limit (default: 10)
 }
 
 export interface ChatResult {
@@ -227,7 +230,37 @@ async function buildAiSdkTools(
 ): Promise<Record<string, Tool>> {
   const tools: Record<string, Tool> = {};
 
-  for (const name of toolNames) {
+  // Auto-inject 'task' tool if depth allows and not already present
+  const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task');
+  const effectiveToolNames = shouldIncludeTask ? [...toolNames, 'task'] : toolNames;
+
+  for (const name of effectiveToolNames) {
+    // Special handling for 'task' tool - use subagent instead of regular tool executor
+    if (name === 'task') {
+      const subagentDefinition = await getSubagentToolDefinition();
+
+      tools[name] = tool({
+        description: subagentDefinition.description,
+        inputSchema: jsonSchema(subagentDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>) => {
+          // Build subagent input with required fields from context
+          const subagentInput: SubagentInput = {
+            description: args.description as string,
+            prompt: args.prompt as string,
+            subagent_type: args.subagent_type as string,
+            task_id: args.task_id as string | undefined,
+            sessionId,
+            workspaceId,
+            workspacePath,
+          };
+
+          const result = await executeSubagent(subagentInput);
+          return result as SubagentOutput;
+        },
+      });
+      continue;
+    }
+
     const discoveredTool = await getTool(name);
     if (!discoveredTool) continue;
 
@@ -324,7 +357,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<
   | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string }
   | { type: 'complete'; message: Message }
 > {
-  const { sessionId: _sessionId, preconfig, messages, onToolApprovalRequired, modelId, providerId, workspacePath, workspaceId, onPermissionRequest } = options;
+  const { sessionId: _sessionId, preconfig, messages, onToolApprovalRequired, modelId, providerId, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
 
   // Resolve model: session override > preconfig > env default
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
@@ -351,7 +384,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<
     tools: aiTools,
     maxOutputTokens: LLM_MAX_TOKENS,
     temperature: (preconfig.settings?.temperature ?? LLM_TEMPERATURE) as number,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(maxSteps ?? 10),
   });
 
   const contentBlocks: ContentBlock[] = [];
@@ -491,5 +524,110 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
   return {
     message: finalMessage!,
     toolCalls,
+  };
+}
+
+/**
+ * Execute a child session synchronously (for Task tool)
+ * Returns the final message content without streaming to client
+ */
+export async function executeChildSession(options: {
+  parentSessionId: string;
+  childSessionId: string;
+  preconfig: Preconfig;
+  prompt: string;
+  workspacePath?: string;
+  workspaceId?: string;
+  resumeFromHistory?: boolean;
+  modelId?: string | null;
+  providerId?: string | null;
+}): Promise<{
+  content: ContentBlock[];
+  error?: string;
+}> {
+  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId } = options;
+
+  // Build initial message
+  let messages: Message[];
+  
+  if (resumeFromHistory) {
+    // Load existing messages and append new prompt
+    messages = listMessages(childSessionId);
+    messages.push({
+      id: randomUUID(),
+      role: 'user',
+      content: [{ type: 'text', text: prompt }],
+      createdAt: new Date().toISOString(),
+    });
+  } else {
+    // Start fresh
+    messages = [{
+      id: randomUUID(),
+      role: 'user',
+      content: [{ type: 'text', text: prompt }],
+      createdAt: new Date().toISOString(),
+    }];
+  }
+
+  // Store the user message
+  // - For new sessions: the only message in the array
+  // - For resumed sessions: the last message (the new prompt we just added)
+  const userMessage = resumeFromHistory
+    ? messages[messages.length - 1]
+    : messages[0];
+
+  createMessage({
+    id: userMessage.id,
+    sessionId: childSessionId,
+    role: 'user',
+    content: userMessage.content,
+  });
+
+  let finalContent: ContentBlock[] = [];
+  let error: string | undefined;
+
+  try {
+    // Run the agent loop without streaming callbacks
+    for await (const event of streamChat({
+      sessionId: childSessionId,
+      preconfig,
+      messages,
+      workspacePath,
+      workspaceId,
+      modelId: modelId ?? undefined,
+      providerId: providerId ?? undefined,
+      maxSteps: 50,
+      // No callbacks - we just collect the final result
+      onDelta: undefined,
+      onToolCall: undefined,
+      onToolApprovalRequired: async () => {
+        // Auto-approve for subagents
+        return true;
+      },
+      onPermissionRequest: async () => {
+        // Auto-approve for subagents
+        return { allowed: true, alwaysAllow: true };
+      },
+    })) {
+      if (event.type === 'complete') {
+        finalContent = event.message.content;
+
+        // Store assistant message
+        createMessage({
+          id: event.message.id,
+          sessionId: childSessionId,
+          role: 'assistant',
+          content: event.message.content,
+        });
+      }
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+    console.error(`[Child Session ${childSessionId}] Error:`, error);
+  }
+
+  return {
+    content: finalContent,
+    error,
   };
 }

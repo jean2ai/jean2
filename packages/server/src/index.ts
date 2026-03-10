@@ -148,6 +148,8 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         title: msg.title || 'New Session',
         status: 'active',
         metadata: null,
+        parentId: null,
+        agentName: null,
       });
       clients.set(ws, { sessionId: session.id });
       send(ws, { type: 'session.created', session });

@@ -143,6 +143,8 @@ export function createApp() {
       title: body.title || 'New Session',
       status: 'active',
       metadata: body.metadata || null,
+      parentId: null,
+      agentName: null,
     });
     
     return c.json({ session }, 201);

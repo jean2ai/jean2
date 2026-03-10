@@ -130,6 +130,20 @@ function initializeSchema(db: Database): void {
   // Index for history queries
   db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history 
     ON tool_permissions(workspace_id, granted_at)`);
+
+  // Migration: Add parent_id and agent_name columns for subagent support
+  const tableInfo = db.query("PRAGMA table_info(sessions)").all() as { name: string }[];
+  const columnNames = tableInfo.map(row => row.name);
+  
+  if (!columnNames.includes('parent_id')) {
+    console.log('Migrating: Adding parent_id column to sessions table');
+    db.run('ALTER TABLE sessions ADD COLUMN parent_id TEXT');
+  }
+  
+  if (!columnNames.includes('agent_name')) {
+    console.log('Migrating: Adding agent_name column to sessions table');
+    db.run('ALTER TABLE sessions ADD COLUMN agent_name TEXT');
+  }
 }
 
 export { Database };

@@ -14,4 +14,6 @@ export interface Session {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  parentId: string | null;    // ID of parent session (null for top-level)
+  agentName: string | null;   // Name of the agent/preconfig running this session
 }

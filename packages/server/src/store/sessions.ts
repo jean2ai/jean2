@@ -17,6 +17,8 @@ interface SessionRow {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  parent_id: string | null;
+  agent_name: string | null;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -29,8 +31,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -41,7 +43,9 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.updatedAt,
     s.metadata ? JSON.stringify(s.metadata) : null,
     s.selectedModel ?? null,
-    s.selectedProvider ?? null
+    s.selectedProvider ?? null,
+    s.parentId ?? null,
+    s.agentName ?? null,
   ]);
   
   return s;
@@ -77,7 +81,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -120,6 +124,14 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
     setClauses.push('total_tokens = ?');
     values.push(updates.totalTokens);
   }
+  if (updates.parentId !== undefined) {
+    setClauses.push('parent_id = ?');
+    values.push(updates.parentId);
+  }
+  if (updates.agentName !== undefined) {
+    setClauses.push('agent_name = ?');
+    values.push(updates.agentName);
+  }
   
   values.push(id);
   
@@ -154,5 +166,13 @@ function mapRowToSession(row: SessionRow): Session {
     promptTokens: row.prompt_tokens ?? undefined,
     completionTokens: row.completion_tokens ?? undefined,
     totalTokens: row.total_tokens ?? undefined,
+    parentId: row.parent_id ?? null,
+    agentName: row.agent_name ?? null,
   };
+}
+
+export function getChildSessions(parentId: string): Session[] {
+  const db = getDatabase();
+  const rows = db.query('SELECT * FROM sessions WHERE parent_id = ? ORDER BY created_at ASC').all(parentId) as SessionRow[];
+  return rows.map(mapRowToSession);
 }

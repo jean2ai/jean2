@@ -1,3 +1,5 @@
+export type PreconfigMode = 'primary' | 'subagent';
+
 export interface Preconfig {
   id: string;
   name: string;
@@ -8,4 +10,5 @@ export interface Preconfig {
   provider: string | null;
   settings: Record<string, unknown> | null;
   isDefault: boolean;
+  mode?: PreconfigMode; // Default: 'primary'
 }

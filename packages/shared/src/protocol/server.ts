@@ -145,6 +145,32 @@ export interface PermissionAllRevokedMessage {
   count: number;
 }
 
+export interface SubagentStartedMessage {
+  type: 'subagent.started';
+  parentSessionId: string;
+  childSessionId: string;
+  subagentType: string;
+  description: string;
+}
+
+export interface SubagentCompletedMessage {
+  type: 'subagent.completed';
+  parentSessionId: string;
+  childSessionId: string;
+  subagentType: string;
+  result: string;
+  error?: string;
+}
+
+export interface SubagentProgressMessage {
+  type: 'subagent.progress';
+  parentSessionId: string;
+  childSessionId: string;
+  status: 'thinking' | 'tool_call' | 'tool_result';
+  toolName?: string;
+  delta?: string;
+}
+
 export type ServerMessage =
   | SessionCreatedMessage
   | SessionResumedMessage
@@ -166,4 +192,7 @@ export type ServerMessage =
   | PermissionGrantedMessage
   | PermissionListMessage
   | PermissionRevokedMessage
-  | PermissionAllRevokedMessage;
+  | PermissionAllRevokedMessage
+  | SubagentStartedMessage
+  | SubagentCompletedMessage
+  | SubagentProgressMessage;
