@@ -11,6 +11,15 @@
   gap: 12px;
   margin-bottom: 12px;
   font-size: 13px;
+  align-items: center;
+}
+
+.permission-subagent {
+  background: #5a4a2a;
+  color: #ffb86b;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
 }
 
 .permission-type {

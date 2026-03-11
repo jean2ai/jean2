@@ -2,14 +2,30 @@ import { createApp } from './app';
 import { initializePreconfigs, getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, Message, ToolCallBlock, SecurityCheckResult } from '@jean2/shared';
-import { createSession, getSession, updateSession, deleteSession } from '@/store';
-import { listMessages, createMessage } from '@/store';
+import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
+import type { PermissionType } from '@jean2/shared';
+import { 
+  createSession, 
+  getSession, 
+  updateSession, 
+  deleteSession,
+  createMessage,
+  updateMessage,
+  createPart,
+
+  listMessagesWithParts
+} from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
+import { 
+  createToolApproval, 
+  updateToolApproval, 
+  listPendingApprovals 
+} from '@/store/tool-approvals';
 import { streamChat } from './core/agent';
-import { createPendingApproval, resolveApproval } from './core/approvals';
 import { getModelsConfig, findModel } from './config';
+import { compactMessages } from './core/compaction';
+import { revertToStep } from './core/revert';
 import type { ServerWebSocket } from 'bun';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -18,8 +34,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 // Store connected clients with their session info
 const clients = new Map<ServerWebSocket, { sessionId?: string }>();
 
-// Store pending permission requests by toolCallId
-const pendingPermissions = new Map<string, { 
+// Store only the resolve functions in memory (can't persist these)
+// The actual permission data is stored in the database
+const pendingPermissionResolvers = new Map<string, { 
   resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void 
 }>();
 
@@ -138,6 +155,99 @@ function send(ws: ServerWebSocket, msg: ServerMessage) {
   ws.send(JSON.stringify(msg));
 }
 
+// Centralized permission handler that routes to parent session for subagents
+function createPermissionRequestHandler(sessionId: string) {
+  return async (
+    toolCallId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    securityResult: SecurityCheckResult
+  ): Promise<{ allowed: boolean; alwaysAllow: boolean }> => {
+    const session = getSession(sessionId);
+
+    // Find root parent session (for subagents)
+    let parentSessionId = sessionId;
+    let currentSession = session;
+    while (currentSession?.parentId) {
+      parentSessionId = currentSession.parentId;
+      currentSession = getSession(parentSessionId);
+    }
+
+    const clientWs = getWsForSession(parentSessionId);
+
+    if (!clientWs) {
+      return { allowed: false, alwaysAllow: false };
+    }
+
+    // Determine subagent name if this is a subagent session
+    let subagentName: string | undefined;
+    if (session?.parentId) {
+      // Extract agent name from title (format: "Task (subagent@claude)")
+      const titleParts = session.title?.split('(');
+      if (titleParts && titleParts.length > 1) {
+        const agentPart = titleParts[1].split('@')[1]?.split(' ')[0];
+        if (agentPart) {
+          subagentName = agentPart;
+        }
+      }
+      if (!subagentName) {
+        subagentName = 'subagent';
+      }
+    }
+
+    // Send permission request to parent session
+    send(clientWs, {
+      type: 'permission.request',
+      sessionId: parentSessionId,
+      childSessionId: sessionId !== parentSessionId ? sessionId : undefined,
+      subagentName,
+      toolCallId,
+      toolName,
+      args,
+      permissionType: securityResult.permissionType,
+      permissionKey: securityResult.permissionKey,
+      message: securityResult.message,
+      details: securityResult.details,
+    });
+
+    // Store the approval in database
+    createToolApproval({
+      id: toolCallId,
+      sessionId: parentSessionId,
+      childSessionId: sessionId !== parentSessionId ? sessionId : undefined,
+      subagentName,
+      toolCallId,
+      toolName,
+      args,
+      permissionType: securityResult.permissionType,
+      permissionKey: securityResult.permissionKey,
+      message: securityResult.message,
+      details: securityResult.details,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+    });
+
+    return new Promise((resolve) => {
+      // Store only the resolve function in memory
+      pendingPermissionResolvers.set(toolCallId, { resolve });
+      
+      // 5 minute timeout
+      setTimeout(() => {
+        const pending = pendingPermissionResolvers.get(toolCallId);
+        if (pending) {
+          pendingPermissionResolvers.delete(toolCallId);
+          // Update database status to timeout
+          updateToolApproval(toolCallId, { 
+            status: 'timeout',
+            respondedAt: new Date().toISOString()
+          });
+          resolve({ allowed: false, alwaysAllow: false });
+        }
+      }, 5 * 60 * 1000);
+    });
+  };
+}
+
 async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Promise<void> {
   switch (msg.type) {
     case 'session.create': {
@@ -163,15 +273,39 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         return;
       }
       clients.set(ws, { sessionId: session.id });
+      
+      // Get full conversation state
+      const messages = listMessagesWithParts(session.id);
+      
       send(ws, { 
         type: 'session.resumed', 
         session,
+        messages,
         usage: session.totalTokens ? {
           promptTokens: session.promptTokens ?? 0,
           completionTokens: session.completionTokens ?? 0,
           totalTokens: session.totalTokens ?? 0,
         } : undefined,
       });
+
+      // Send any pending permission requests for this session from database
+      const pendingApprovals = listPendingApprovals(msg.sessionId);
+
+      for (const approval of pendingApprovals) {
+        send(ws, {
+          type: 'permission.request',
+          sessionId: approval.sessionId,
+          childSessionId: approval.childSessionId,
+          subagentName: approval.subagentName,
+          toolCallId: approval.toolCallId,
+          toolName: approval.toolName,
+          args: approval.args,
+          permissionType: (approval.permissionType || 'tool') as PermissionType,
+          permissionKey: approval.permissionKey || '',
+          message: approval.message || '',
+          details: approval.details,
+        });
+      }
       break;
     }
 
@@ -253,18 +387,18 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
     
-    case 'tool.approval': {
-      const resolved = resolveApproval(msg.toolCallId, msg.approved);
-      if (!resolved) {
-        console.warn('tool.approval received for unknown or expired toolCallId:', msg.toolCallId);
-      }
-      break;
-    }
-    
     case 'permission.response': {
-      const pending = pendingPermissions.get(msg.toolCallId);
+      const pending = pendingPermissionResolvers.get(msg.toolCallId);
       if (pending) {
-        pendingPermissions.delete(msg.toolCallId);
+        pendingPermissionResolvers.delete(msg.toolCallId);
+        
+        // Update database with the response
+        updateToolApproval(msg.toolCallId, {
+          status: msg.allowed ? 'approved' : 'denied',
+          respondedAt: new Date().toISOString(),
+        });
+        
+        // Resolve the promise
         pending.resolve({ allowed: msg.allowed, alwaysAllow: msg.alwaysAllow });
       } else {
         console.warn('permission.response received for unknown toolCallId:', msg.toolCallId);
@@ -289,9 +423,98 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       send(ws, { type: 'permission.all_revoked', workspaceId: msg.workspaceId, count });
       break;
     }
+
+    case 'session.compact': {
+      await handleSessionCompact(ws, msg);
+      break;
+    }
+
+    case 'session.revert': {
+      await handleSessionRevert(ws, msg);
+      break;
+    }
     
     default:
       send(ws, { type: 'error', code: 'unknown_message', message: 'Unknown message type' });
+  }
+}
+
+async function handleSessionCompact(
+  ws: ServerWebSocket,
+  msg: { sessionId: string; messageIds: string[] }
+) {
+  try {
+    const session = getSession(msg.sessionId);
+    if (!session) {
+      send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      return;
+    }
+
+    const result = await compactMessages({
+      sessionId: msg.sessionId,
+      messageIds: msg.messageIds,
+    });
+
+    broadcast({
+      type: 'part.created',
+      sessionId: msg.sessionId,
+      part: result.compactionPart,
+    });
+
+    send(ws, {
+      type: 'compaction.complete',
+      sessionId: msg.sessionId,
+      compactedCount: msg.messageIds.length,
+      tokensUsed: result.tokensUsed,
+    });
+
+    // Persist compaction tokens to database
+    const currentSession = getSession(msg.sessionId);
+    if (currentSession) {
+      updateSession(msg.sessionId, {
+        promptTokens: result.tokensUsed.prompt,
+        completionTokens: result.tokensUsed.completion,
+        totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Compaction failed';
+    send(ws, { type: 'error', code: 'compaction_error', message });
+  }
+}
+
+async function handleSessionRevert(
+  ws: ServerWebSocket,
+  msg: { sessionId: string; stepPartId: string }
+) {
+  try {
+    const session = getSession(msg.sessionId);
+    if (!session) {
+      send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      return;
+    }
+
+    const result = await revertToStep({
+      sessionId: msg.sessionId,
+      targetStepPartId: msg.stepPartId,
+    });
+
+    broadcast({
+      type: 'session.reverted',
+      sessionId: msg.sessionId,
+      revertedTo: result.revertedTo,
+      removed: result.removed,
+    });
+
+    const currentState = listMessagesWithParts(msg.sessionId);
+    broadcast({
+      type: 'session.state',
+      sessionId: msg.sessionId,
+      messages: currentState,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Revert failed';
+    send(ws, { type: 'error', code: 'revert_error', message });
   }
 }
 
@@ -326,25 +549,23 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   const config = getModelsConfig();
   const configDefaultModel = config.defaultModel;
 
-  // Determine which model and provider will be used:
-  // session > preconfig > config default
+  // Determine which model and provider will be used
   const modelId = session.selectedModel || preconfig?.model || configDefaultModel;
   const provider = session.selectedProvider || 
                   (preconfig?.model ? findProviderFromModel(preconfig.model) : null) || 
                   config.defaultProvider;
 
-  // Helper function to find provider from model (for preconfig fallback)
+  // Helper function to find provider from model
   function findProviderFromModel(m: string): string {
     const modelInfo = findModel(m);
     if (modelInfo) return modelInfo.providerId;
-    // Fallback parsing
     if (m.includes('/')) return 'openrouter';
     if (m.startsWith('claude-')) return 'anthropic';
     if (m.startsWith('gemini-')) return 'google';
     return 'openai';
   }
   
-  // Map provider to API key env var
+  // Check API key
   type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google';
   const apiKeyEnvMap: Record<Provider, string> = {
     'openai': 'LLM_OPENAI_API_KEY',
@@ -359,132 +580,73 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     return;
   }
   
-  // Store user message
+  // Create user message FIRST (before loading history)
   const userMsgId = crypto.randomUUID();
-  createMessage({
+  
+  // Create user message in DB
+  const userMessage = {
     id: userMsgId,
     sessionId,
-    role: 'user',
-    content: [{ type: 'text', text: content }],
-  });
-  
-  // Broadcast user message to all clients
-  broadcast({
-    type: 'chat.user_message',
-    sessionId,
-    message: {
-      id: userMsgId,
-      role: 'user',
-      content: [{ type: 'text', text: content }],
-      createdAt: new Date().toISOString(),
-    }
-  });
-  
-  // Get message history
-  const history = listMessages(sessionId);
-  
-  // Generate assistant message ID
-  const assistantMsgId = crypto.randomUUID();
-  
-  // Send chat start
-  broadcast({ type: 'chat.start', sessionId, messageId: assistantMsgId });
-
-  // Create approval callback that communicates with client
-  const onToolApprovalRequired = async (toolCall: ToolCallBlock, dangerous: boolean): Promise<boolean> => {
-    // Send approval request to client
-    const clientWs = getWsForSession(sessionId);
-    
-    if (clientWs) {
-      send(clientWs, {
-        type: 'tool.approval_required',
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
-        args: toolCall.args,
-        dangerous,
-      });
-    } else {
-      console.warn('Could not find client WebSocket for session:', sessionId);
-    }
-    
-    // Wait for client response
-    return createPendingApproval(toolCall, dangerous);
+    role: 'user' as const,
+    createdAt: Date.now(),
   };
-
-  // Permission request callback for new security system
-  const onPermissionRequest = async (
-    toolName: string,
-    args: Record<string, unknown>,
-    securityResult: SecurityCheckResult
-  ): Promise<{ allowed: boolean; alwaysAllow: boolean }> => {
-    // Generate a unique ID for this permission request
-    const toolCallId = crypto.randomUUID();
-    
-    // Send permission request to client
-    const clientWs = getWsForSession(sessionId);
-    
-    if (clientWs) {
-      send(clientWs, {
-        type: 'permission.request',
-        sessionId,
-        toolCallId,
-        toolName,
-        args,
-        permissionType: securityResult.permissionType,
-        permissionKey: securityResult.permissionKey,
-        message: securityResult.message,
-        details: securityResult.details,
-      });
-    } else {
-      console.warn('Could not find client WebSocket for session:', sessionId);
-      return { allowed: false, alwaysAllow: false };
-    }
-    
-    // Wait for client response
-    return new Promise((resolve) => {
-      pendingPermissions.set(toolCallId, { resolve });
-      
-      // Set timeout (5 minutes)
-      setTimeout(() => {
-        const pending = pendingPermissions.get(toolCallId);
-        if (pending) {
-          pendingPermissions.delete(toolCallId);
-          resolve({ allowed: false, alwaysAllow: false });
-        }
-      }, 5 * 60 * 1000);
-    });
+  createMessage(userMessage);
+  
+  // Create text part for user message
+  const textPartId = crypto.randomUUID();
+  const textPart = {
+    id: textPartId,
+    messageId: userMsgId,
+    createdAt: Date.now(),
+    type: 'text' as const,
+    text: content,
   };
+  createPart(textPart, sessionId);
+  
+  // Send user message and part to client
+  broadcast({ type: 'message.created', message: userMessage });
+  broadcast({ type: 'part.created', sessionId, part: textPart });
+  
+  // Get message history (NOW as MessageWithParts)
+  const history = listMessagesWithParts(sessionId);
+
+  // Permission request callback - routes to parent session for subagents
+  const onPermissionRequest = createPermissionRequestHandler(sessionId);
 
   try {
-    // Stream the response
+    // Stream the response - agent now handles all message/part creation
     for await (const event of streamChat({
       sessionId,
       preconfig,
       messages: history,
-      onToolApprovalRequired,
       onPermissionRequest,
       modelId: modelId,
       providerId: provider,
       workspacePath,
       workspaceId: session.workspaceId || undefined,
     })) {
+      // Relay all events directly to client
       switch (event.type) {
-        case 'delta':
-          broadcast({ type: 'chat.delta', sessionId, messageId: assistantMsgId, delta: event.content });
+        case 'message.created':
+          broadcast(event);
           break;
           
-        case 'tool_call':
-          broadcast({ type: 'chat.tool_call', sessionId, messageId: assistantMsgId, toolCall: event.toolCall });
+        case 'message.updated':
+          // Persist the message update to database (status, tokens, etc.)
+          updateMessage(event.message.id, event.message);
+          broadcast(event);
           break;
           
-        case 'tool_result':
-          broadcast({ 
-            type: 'chat.tool_result', 
-            sessionId, 
-            messageId: assistantMsgId,
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            result: event.result 
-          });
+        case 'part.created':
+          broadcast(event);
+          break;
+          
+        case 'part.updated':
+          broadcast(event);
+          break;
+          
+        case 'part.append':
+          broadcast(event);
           break;
           
         case 'usage': {
@@ -498,29 +660,11 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
           const currentSession = getSession(sessionId);
           if (currentSession) {
             updateSession(sessionId, {
-              promptTokens: (currentSession.promptTokens ?? 0) + event.usage.promptTokens,
-              completionTokens: (currentSession.completionTokens ?? 0) + event.usage.completionTokens,
-              totalTokens: (currentSession.totalTokens ?? 0) + event.usage.totalTokens,
+              promptTokens: event.usage.promptTokens,
+              completionTokens: event.usage.completionTokens,
+              totalTokens: event.usage.totalTokens,
             });
           }
-          break;
-        }
-        
-        case 'complete': {
-          // Store assistant message
-          const assistantMessage: Message = {
-            id: assistantMsgId,
-            role: 'assistant',
-            content: event.message.content,
-            createdAt: event.message.createdAt,
-          };
-          createMessage({
-            id: assistantMsgId,
-            sessionId,
-            role: 'assistant',
-            content: event.message.content,
-          });
-          broadcast({ type: 'chat.complete', sessionId, message: assistantMessage });
           break;
         }
       }
@@ -536,3 +680,5 @@ main().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
+
+export { createPermissionRequestHandler };

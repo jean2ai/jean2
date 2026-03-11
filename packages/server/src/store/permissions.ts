@@ -23,12 +23,12 @@ export function checkCachedPermission(
 ): { allowed: boolean; permission: ToolPermission } | null {
   const db = getDatabase();
   const row = db.query(`
-    SELECT * FROM tool_permissions 
-    WHERE workspace_id = ? AND tool_name = ? AND permission_type = ? 
+    SELECT * FROM tool_permissions
+    WHERE workspace_id = ? AND tool_name = ? AND permission_type = ?
       AND permission_key = ? AND allowed = 1 AND revoked_at IS NULL
     LIMIT 1
   `).get(workspaceId, toolName, permissionType, permissionKey) as ToolPermissionRow | undefined;
-  
+
   if (!row) return null;
   return { allowed: true, permission: mapRowToToolPermission(row) };
 }
@@ -37,7 +37,7 @@ export function grantPermission(permission: Omit<ToolPermission, 'id' | 'granted
   const db = getDatabase();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  
+
   const p: ToolPermission = {
     id,
     ...permission,
@@ -45,9 +45,9 @@ export function grantPermission(permission: Omit<ToolPermission, 'id' | 'granted
     revokedAt: null,
     revokedBy: null,
   };
-  
+
   db.run(`
-    INSERT INTO tool_permissions 
+    INSERT INTO tool_permissions
     (id, workspace_id, tool_name, permission_type, permission_key, allowed, granted_at, granted_by, revoked_at, revoked_by, metadata)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
@@ -63,7 +63,7 @@ export function grantPermission(permission: Omit<ToolPermission, 'id' | 'granted
     p.revokedBy,
     p.metadata ? JSON.stringify(p.metadata) : null,
   ]);
-  
+
   return p;
 }
 
@@ -87,7 +87,7 @@ export function getWorkspacePermissions(workspaceId: string, includeRevoked = fa
 export function getWorkspacePermissionsHistory(workspaceId: string, limit = 100): ToolPermission[] {
   const db = getDatabase();
   const rows = db.query(`
-    SELECT * FROM tool_permissions WHERE workspace_id = ? 
+    SELECT * FROM tool_permissions WHERE workspace_id = ?
     ORDER BY granted_at DESC LIMIT ?
   `).all(workspaceId, limit) as ToolPermissionRow[];
   return rows.map(mapRowToToolPermission);
@@ -97,7 +97,7 @@ export function revokeAllWorkspacePermissions(workspaceId: string, revokedBy: st
   const db = getDatabase();
   const now = new Date().toISOString();
   const result = db.run(`
-    UPDATE tool_permissions SET revoked_at = ?, revoked_by = ? 
+    UPDATE tool_permissions SET revoked_at = ?, revoked_by = ?
     WHERE workspace_id = ? AND revoked_at IS NULL
   `, [now, revokedBy, workspaceId]);
   return result.changes;

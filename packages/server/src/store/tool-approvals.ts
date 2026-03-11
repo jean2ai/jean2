@@ -5,43 +5,51 @@ import type { ToolApproval, ToolApprovalStatus } from '@jean2/shared';
 interface ToolApprovalRow {
   id: string;
   session_id: string;
+  child_session_id: string | null;
+  subagent_name: string | null;
   tool_call_id: string;
   tool_name: string;
   args: string;
+  permission_type: string | null;
+  permission_key: string | null;
+  message: string | null;
+  details: string | null;
   status: string;
   requested_at: string;
   responded_at: string | null;
 }
 
-export function createToolApproval(approval: Omit<ToolApproval, 'respondedAt'> & { respondedAt?: string | null }): ToolApproval {
+export function createToolApproval(approval: ToolApproval): ToolApproval {
   const db = getDatabase();
-  const a: ToolApproval = {
-    ...approval,
-    respondedAt: approval.respondedAt || null,
-  };
   
   db.run(`
-    INSERT INTO tool_approvals (id, session_id, tool_call_id, tool_name, args, status, requested_at, responded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tool_approvals (id, session_id, child_session_id, subagent_name, tool_call_id, tool_name, args, permission_type, permission_key, message, details, status, requested_at, responded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    a.id,
-    a.sessionId,
-    a.toolCallId,
-    a.toolName,
-    JSON.stringify(a.args),
-    a.status,
-    a.requestedAt,
-    a.respondedAt
+    approval.id,
+    approval.sessionId,
+    approval.childSessionId || null,
+    approval.subagentName || null,
+    approval.toolCallId,
+    approval.toolName,
+    JSON.stringify(approval.args),
+    approval.permissionType || null,
+    approval.permissionKey || null,
+    approval.message || null,
+    approval.details ? JSON.stringify(approval.details) : null,
+    approval.status,
+    approval.requestedAt,
+    approval.respondedAt || null
   ]);
   
-  return a;
+  return approval;
 }
 
-export function updateToolApproval(id: string, updates: { status: ToolApprovalStatus; respondedAt: string }): void {
+export function updateToolApproval(id: string, updates: { status: ToolApprovalStatus; respondedAt?: string }): void {
   const db = getDatabase();
   db.run(`
     UPDATE tool_approvals SET status = ?, responded_at = ? WHERE id = ?
-  `, [updates.status, updates.respondedAt, id]);
+  `, [updates.status, updates.respondedAt || null, id]);
 }
 
 export function getToolApproval(id: string): ToolApproval | null {
@@ -68,9 +76,15 @@ function mapRowToToolApproval(row: ToolApprovalRow): ToolApproval {
   return {
     id: row.id,
     sessionId: row.session_id,
+    childSessionId: row.child_session_id || undefined,
+    subagentName: row.subagent_name || undefined,
     toolCallId: row.tool_call_id,
     toolName: row.tool_name,
     args: JSON.parse(row.args),
+    permissionType: row.permission_type || undefined,
+    permissionKey: row.permission_key || undefined,
+    message: row.message || undefined,
+    details: row.details ? JSON.parse(row.details) : undefined,
     status: row.status as ToolApprovalStatus,
     requestedAt: row.requested_at,
     respondedAt: row.responded_at,

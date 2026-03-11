@@ -1,13 +1,27 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Session, Message, Preconfig } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, PermissionType } from '@jean2/shared';
 import MessageComponent from '@/components/Message';
 import TokenUsage from '@/components/TokenUsage';
 import ModelSelector from '@/components/ModelSelector';
+import PermissionRequestBlock from '@/components/PermissionRequestBlock';
 import './ChatView.css';
+
+interface PendingPermissionRequest {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  permissionType: string;
+  permissionKey?: string;
+  message: string;
+  details?: Record<string, unknown>;
+  dangerous?: boolean;
+  childSessionId?: string;
+  subagentName?: string;
+}
 
 interface Props {
   session: Session;
-  messages: Message[];
+  messagesWithParts: MessageWithParts[];
   preconfigs: Preconfig[];
   models: Array<{
     id: string;
@@ -21,9 +35,8 @@ interface Props {
   onSendMessage: (content: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
-  onApproveTool: (toolCallId: string, approved: boolean) => void;
-  onApprovePermission: (toolCallId: string, alwaysAllow: boolean) => void;
-  onDenyPermission: (toolCallId: string) => void;
+  pendingPermissions: PendingPermissionRequest[];
+  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
     promptTokens: number;
@@ -33,7 +46,7 @@ interface Props {
   modelName: string;
 }
 
-export default function ChatView({ session, messages, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, onApproveTool, onApprovePermission, onDenyPermission, onRename, usage, modelName }: Props) {
+export default function ChatView({ session, messagesWithParts, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, pendingPermissions, onPermissionResponse, onRename, usage, modelName }: Props) {
   const [input, setInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -52,7 +65,7 @@ export default function ChatView({ session, messages, preconfigs, models, defaul
   
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messagesWithParts]);
   
   // Auto-focus and select text when entering edit mode
   useEffect(() => {
@@ -90,6 +103,18 @@ export default function ChatView({ session, messages, preconfigs, models, defaul
       setInput('');
     }
   };
+  
+  // Find permissions without matching tool parts (from subagents)
+  const orphanedPermissions = pendingPermissions.filter(p => {
+    const hasMatchingPart = messagesWithParts.some(mwp =>
+      mwp.parts.some(part =>
+        part.type === 'tool' &&
+        'callId' in part &&
+        part.callId === p.toolCallId
+      )
+    );
+    return !hasMatchingPart;
+  });
   
   return (
     <div className="chat-view">
@@ -157,20 +182,40 @@ export default function ChatView({ session, messages, preconfigs, models, defaul
             <span className="archived-hint">You can reopen it from the sessions panel</span>
           </div>
         )}
-        {messages.length === 0 ? (
+        {messagesWithParts.length === 0 ? (
           <div className="no-messages">
             Start a conversation by sending a message below.
           </div>
         ) : (
-          messages.map(msg => (
+          messagesWithParts.map(mwp => (
             <MessageComponent 
-              key={msg.id} 
-              message={msg} 
-              onApproveTool={onApproveTool}
-              onApprovePermission={onApprovePermission}
-              onDenyPermission={onDenyPermission}
+              key={mwp.message.id} 
+              message={mwp.message}
+              parts={mwp.parts}
+              pendingPermissions={pendingPermissions}
+              onPermissionResponse={onPermissionResponse}
             />
           ))
+        )}
+        {orphanedPermissions.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            {orphanedPermissions.map(p => (
+              <div key={p.toolCallId}>
+                <PermissionRequestBlock
+                  toolName={p.toolName}
+                  args={p.args}
+                  permissionType={p.permissionType as PermissionType}
+                  permissionKey={p.permissionKey || ''}
+                  message={p.message}
+                  details={p.details}
+                  dangerous={p.dangerous}
+                  subagentName={p.subagentName}
+                  onApprove={() => onPermissionResponse(p.toolCallId, true, false)}
+                  onDeny={() => onPermissionResponse(p.toolCallId, false, false)}
+                />
+              </div>
+            ))}
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>

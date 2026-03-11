@@ -1,5 +1,5 @@
 import type { Session } from '../types/session';
-import type { Message, ToolCallBlock } from '../types/message';
+import type { Message, Part, MessageWithParts } from '../types/message';
 import type { PermissionType, ToolPermission } from '../types/permission';
 
 export interface SessionCreatedMessage {
@@ -10,6 +10,7 @@ export interface SessionCreatedMessage {
 export interface SessionResumedMessage {
   type: 'session.resumed';
   session: Session;
+  messages: MessageWithParts[];
   usage?: {
     promptTokens: number;
     completionTokens: number;
@@ -17,34 +18,34 @@ export interface SessionResumedMessage {
   };
 }
 
-export interface ChatStartMessage {
-  type: 'chat.start';
-  sessionId: string;
-  messageId: string;
+export interface MessageCreatedMessage {
+  type: 'message.created';
+  message: Message;
 }
 
-export interface ChatDeltaMessage {
-  type: 'chat.delta';
+export interface MessageUpdatedMessage {
+  type: 'message.updated';
+  message: Message;
+}
+
+export interface PartCreatedMessage {
+  type: 'part.created';
   sessionId: string;
-  messageId: string;
+  part: Part;
+}
+
+export interface PartUpdatedMessage {
+  type: 'part.updated';
+  sessionId: string;
+  part: Part;
+}
+
+export interface PartAppendMessage {
+  type: 'part.append';
+  sessionId: string;
+  partId: string;
+  field: 'text' | 'reasoning';
   delta: string;
-}
-
-export interface ChatToolCallMessage {
-  type: 'chat.tool_call';
-  sessionId: string;
-  messageId: string;
-  toolCall: ToolCallBlock;
-}
-
-export interface ChatToolResultMessage {
-  type: 'chat.tool_result';
-  sessionId: string;
-  messageId: string;
-  toolCallId: string;
-  toolName: string;
-  result: unknown;
-  isError?: boolean;
 }
 
 export interface ToolApprovalRequiredMessage {
@@ -53,12 +54,6 @@ export interface ToolApprovalRequiredMessage {
   toolName: string;
   args: Record<string, unknown>;
   dangerous: boolean;
-}
-
-export interface ChatCompleteMessage {
-  type: 'chat.complete';
-  sessionId: string;
-  message: Message;
 }
 
 export interface ErrorMessage {
@@ -103,15 +98,11 @@ export interface ChatUsageMessage {
   model: string;
 }
 
-export interface ChatUserMessageMessage {
-  type: 'chat.user_message';
-  sessionId: string;
-  message: Message;
-}
-
 export interface PermissionRequestMessage {
   type: 'permission.request';
   sessionId: string;
+  childSessionId?: string;
+  subagentName?: string;
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
@@ -171,23 +162,59 @@ export interface SubagentProgressMessage {
   delta?: string;
 }
 
+// =============================================================================
+// Compaction Messages
+// =============================================================================
+
+export interface CompactionCompleteMessage {
+  type: 'compaction.complete';
+  sessionId: string;
+  compactedCount: number;
+  tokensUsed: {
+    prompt: number;
+    completion: number;
+  };
+}
+
+// =============================================================================
+// Revert Messages
+// =============================================================================
+
+export interface SessionRevertedMessage {
+  type: 'session.reverted';
+  sessionId: string;
+  revertedTo: {
+    stepNumber: number;
+    messageCount: number;
+  };
+  removed: {
+    messageIds: string[];
+    partCount: number;
+  };
+}
+
+export interface SessionStateMessage {
+  type: 'session.state';
+  sessionId: string;
+  messages: MessageWithParts[];
+}
+
 export type ServerMessage =
+  | MessageCreatedMessage
+  | MessageUpdatedMessage
+  | PartCreatedMessage
+  | PartUpdatedMessage
+  | PartAppendMessage
   | SessionCreatedMessage
   | SessionResumedMessage
-  | ChatStartMessage
-  | ChatDeltaMessage
-  | ChatToolCallMessage
-  | ChatToolResultMessage
-  | ToolApprovalRequiredMessage
-  | ChatCompleteMessage
+  | ChatUsageMessage
   | ErrorMessage
   | SessionClosedMessage
   | SessionUpdatedMessage
   | SessionReopenedMessage
   | SessionDeletedMessage
   | SessionRenamedMessage
-  | ChatUsageMessage
-  | ChatUserMessageMessage
+  | ToolApprovalRequiredMessage
   | PermissionRequestMessage
   | PermissionGrantedMessage
   | PermissionListMessage
@@ -195,4 +222,7 @@ export type ServerMessage =
   | PermissionAllRevokedMessage
   | SubagentStartedMessage
   | SubagentCompletedMessage
-  | SubagentProgressMessage;
+  | SubagentProgressMessage
+  | CompactionCompleteMessage
+  | SessionRevertedMessage
+  | SessionStateMessage;

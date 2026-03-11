@@ -10,6 +10,7 @@ import { checkCachedPermission, grantPermission } from '@/store';
 
 export interface PermissionRequestCallback {
   (
+    toolCallId: string,
     toolName: string,
     args: Record<string, unknown>,
     securityResult: SecurityCheckResult
@@ -20,6 +21,7 @@ export interface EnhancedExecuteOptions {
   tool: DiscoveredTool;
   args: Record<string, unknown>;
   context: ToolExecutionContext;
+  toolCallId: string;
   timeout?: number;
   onPermissionRequest?: PermissionRequestCallback;
 }
@@ -48,7 +50,7 @@ export interface EnhancedExecuteResult extends ToolResult {
 export async function executeToolWithSecurity(
   options: EnhancedExecuteOptions
 ): Promise<EnhancedExecuteResult> {
-  const { tool, args, context, timeout, onPermissionRequest } = options;
+  const { tool, args, context, toolCallId, timeout, onPermissionRequest } = options;
   const { definition } = tool;
 
   // Phase 1: Run security check if configured
@@ -112,6 +114,7 @@ export async function executeToolWithSecurity(
       // Need to request approval
       if (onPermissionRequest) {
         const response = await onPermissionRequest(
+          toolCallId,
           definition.name,
           args,
           securityResult

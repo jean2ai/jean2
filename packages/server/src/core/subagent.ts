@@ -1,4 +1,4 @@
-import type { ToolDefinition, TextBlock } from '@jean2/shared';
+import type { ToolDefinition, TextPart } from '@jean2/shared';
 import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession } from '@/store';
 import { executeChildSession } from './agent';
@@ -79,8 +79,8 @@ Usage notes:
 1. Launch multiple agents concurrently whenever possible, to maximize performance
 2. The agent's outputs should generally be trusted
 3. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
-4. Clearly tell the agent whether you expect it to write code or just do research (search, file reads, web fetches), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
-5. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask you to do so first. Use your judgement.
+4. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
+5. If the agent description mentions that it should be proactively used, then you should try your best to use it without the user having to ask you to do so first. Use your judgement.
 
 Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents at the maximum depth.`,
     script: 'internal',
@@ -102,7 +102,7 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
         },
         subagent_type: {
           type: 'string',
-          description: 'The type of specialized agent to use for this task',
+          description: 'The type of specialized agent to use for this agent',
         },
         task_id: {
           type: 'string',
@@ -214,9 +214,10 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     });
 
     // Extract ONLY the last text part - matching OpenCode behavior
-    const text = result.content
-      .filter((block): block is TextBlock => block.type === 'text')
-      .map((block) => block.text || '')
+    // Note: executeChildSession now returns parts instead of content
+    const text = result.parts
+      .filter((part): part is TextPart => part.type === 'text')
+      .map((part) => part.text || '')
       .pop() ?? '';
 
     // If there's an error and no text, return it directly

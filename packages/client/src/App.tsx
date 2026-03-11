@@ -1,13 +1,35 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Session, Message, ServerMessage, ClientMessage, Preconfig, ToolCallBlock, Workspace, ToolPermission } from '@jean2/shared';
+import type { 
+  Session, 
+  Message, 
+  Part,
+  MessageWithParts,
+  ServerMessage, 
+  ClientMessage, 
+  Preconfig, 
+  Workspace, 
+  ToolPermission 
+} from '@jean2/shared';
 import SessionList from '@/components/SessionList';
 import ChatView from '@/components/ChatView';
 import './App.css';
 
+interface PendingPermissionRequest {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  permissionType: string;
+  permissionKey?: string;
+  message: string;
+  details?: Record<string, unknown>;
+  dangerous?: boolean;
+  childSessionId?: string;
+  subagentName?: string;
+}
+
 const WS_URL = `ws://${window.location.hostname}:3000/ws`;
 const API_URL = `http://${window.location.hostname}:3000/api`;
 
-// Type for client message payloads based on message type
 type ClientMessagePayload = 
   | { preconfigId?: string; title?: string; workspaceId?: string }
   | { sessionId: string }
@@ -25,7 +47,7 @@ function App() {
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
-  const messages = currentSession ? (messagesBySession[currentSession.id] || []) : [];
+  const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [sessionUsage, setSessionUsage] = useState<{ 
@@ -48,13 +70,21 @@ function App() {
   const [sessionFilter, setSessionFilter] = useState<'active' | 'all'>('active');
   const [showSettings, setShowSettings] = useState(false);
 
-  // Permission state
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
+  const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
 
-  // Ref to store the latest handleServerMessage for the WebSocket
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
 
-  // Connect WebSocket
+  const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
+    const messages = messagesBySession[sessionId] || [];
+    const partsMap = partsBySession[sessionId] || {};
+    
+    return messages.map(message => ({
+      message,
+      parts: (partsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
+    }));
+  }, [messagesBySession, partsBySession]);
+
   useEffect(() => {
     const socket = new WebSocket(WS_URL);
     
@@ -70,7 +100,6 @@ function App() {
     
     socket.onmessage = (event) => {
       const msg: ServerMessage = JSON.parse(event.data);
-      // Use the ref to get the latest handler
       handleServerMessageRef.current?.(msg);
     };
     
@@ -79,7 +108,6 @@ function App() {
     return () => socket.close();
   }, []);
 
-  // Load initial data
   useEffect(() => {
     fetch(`${API_URL}/sessions`)
       .then(res => res.json())
@@ -100,13 +128,11 @@ function App() {
       .catch(console.error);
   }, []);
 
-  // Load workspaces on mount
   useEffect(() => {
     fetch(`${API_URL}/workspaces`)
       .then(res => res.json())
       .then(data => {
         setWorkspaces(data.workspaces);
-        // Set first workspace as active, or restore from localStorage
         const savedId = localStorage.getItem('activeWorkspaceId');
         const saved = data.workspaces.find((w: Workspace) => w.id === savedId);
         setActiveWorkspace(saved || data.workspaces[0]);
@@ -114,14 +140,12 @@ function App() {
       .catch(console.error);
   }, []);
 
-  // Persist active workspace to localStorage
   useEffect(() => {
     if (activeWorkspace) {
       localStorage.setItem('activeWorkspaceId', activeWorkspace.id);
     }
   }, [activeWorkspace]);
 
-  // Restore session filter from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('sessionFilter');
     if (saved === 'active' || saved === 'all') {
@@ -129,13 +153,11 @@ function App() {
     }
   }, []);
 
-  // Persist session filter to localStorage
   useEffect(() => {
     localStorage.setItem('sessionFilter', sessionFilter);
   }, [sessionFilter]);
 
 
-  // Workspace CRUD functions
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const res = await fetch(`${API_URL}/workspaces`, {
       method: 'POST',
@@ -149,7 +171,7 @@ function App() {
 
   const selectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setCurrentSession(null); // Clear current session when switching workspace
+    setCurrentSession(null);
   };
 
   const deleteWorkspace = async (id: string) => {
@@ -167,7 +189,6 @@ function App() {
   };
 
   const handleCreatePhysicalWorkspace = async (path: string) => {
-    // Extract folder name from path for the workspace name
     const name = path.split('/').pop() || path.split('\\').pop() || 'Workspace';
     await createWorkspace(name, path, false);
   };
@@ -181,255 +202,124 @@ function App() {
           ...prev,
           [msg.session.id]: []
         }));
+        setPartsBySession(prev => ({
+          ...prev,
+          [msg.session.id]: {}
+        }));
         setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         setCurrentModel(defaultModel);
         break;
       
       case 'session.resumed':
         setCurrentSession(msg.session);
-        // Always fetch from API to get the latest persisted messages,
-        // then merge with any in-memory messages (for mid-stream joins)
-        fetch(`${API_URL}/sessions/${msg.session.id}/messages`)
-          .then(res => res.json())
-          .then(data => {
-            setMessagesBySession(prev => {
-              const dbMessages: Message[] = data.messages || [];
-              const inMemoryMessages: Message[] = prev[msg.session.id] || [];
-              
-              // Merge: Start with DB messages, then add/update with in-memory messages
-              // In-memory messages take precedence (they have streaming content)
-              const mergedMap = new Map<string, Message>(dbMessages.map((m) => [m.id, m]));
-              
-              // Add/update with in-memory messages
-              for (const m of inMemoryMessages) {
-                mergedMap.set(m.id, m);
-              }
-              
-              // Convert back to array, sorted by createdAt
-              const merged = Array.from(mergedMap.values()).sort((a, b) => 
-                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-              );
-              
-              return {
-                ...prev,
-                [msg.session.id]: merged
-              };
-            });
-            setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-            setCurrentModel(msg.session.selectedModel || defaultModel);
-          })
-          .catch(console.error);
+        
+        if (msg.messages) {
+          setMessagesBySession(prev => ({
+            ...prev,
+            [msg.session.id]: msg.messages.map(mwp => mwp.message)
+          }));
+          setPartsBySession(prev => {
+            const newParts: Record<string, Record<string, Part[]>> = { ...prev };
+            newParts[msg.session.id] = {};
+            for (const mwp of msg.messages) {
+              newParts[msg.session.id][mwp.message.id] = mwp.parts;
+            }
+            return newParts;
+          });
+        }
+        
+        setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        setCurrentModel(msg.session.selectedModel || defaultModel);
         break;
       
-      case 'chat.start':
-        // Add placeholder message for streaming
+      case 'message.created':
         setMessagesBySession(prev => ({
           ...prev,
-          [msg.sessionId]: [...(prev[msg.sessionId] || []), {
-            id: msg.messageId,
-            role: 'assistant',
-            content: [{ type: 'text', text: '' }],
-            createdAt: new Date().toISOString(),
-          }]
+          [msg.message.sessionId]: [...(prev[msg.message.sessionId] || []), msg.message]
+        }));
+        setPartsBySession(prev => ({
+          ...prev,
+          [msg.message.sessionId]: {
+            ...prev[msg.message.sessionId],
+            [msg.message.id]: []
+          }
         }));
         break;
-      
-      case 'chat.delta':
-        // Append delta to the streaming message
-        setMessagesBySession(prev => {
-          const sessionMessages = prev[msg.sessionId] || [];
+
+      case 'message.updated':
+        setMessagesBySession(prev => ({
+          ...prev,
+          [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m => 
+            m.id === msg.message.id ? msg.message : m
+          )
+        }));
+        break;
+
+      case 'part.created':
+        setPartsBySession(prev => {
+          const sessionParts = prev[msg.sessionId] || {};
+          const messageParts = sessionParts[msg.part.messageId] || [];
           return {
             ...prev,
-            [msg.sessionId]: sessionMessages.map(m => {
-              if (m.id === msg.messageId) {
-                const currentText = (m.content[0] as { type: 'text'; text: string }).text || '';
-                return { ...m, content: [{ type: 'text', text: currentText + msg.delta }] };
-              }
-              return m;
-            })
+            [msg.sessionId]: {
+              ...sessionParts,
+              [msg.part.messageId]: [...messageParts, msg.part]
+            }
           };
         });
         break;
-      
-      case 'chat.tool_call':
-        // Add tool call block to the current streaming message
-        setMessagesBySession(prev => {
-          const sessionMessages = prev[msg.sessionId] || [];
+
+      case 'part.updated':
+        setPartsBySession(prev => {
+          const sessionParts = prev[msg.sessionId] || {};
+          const messageParts = sessionParts[msg.part.messageId] || [];
           return {
             ...prev,
-            [msg.sessionId]: sessionMessages.map(m => {
-              if (m.id === msg.messageId) {
-                // Check if a tool_call with this toolName and needsApproval already exists
-                // (race condition: tool.approval_required may have added it already)
-                const existingToolCall = m.content.find(
-                  block => block.type === 'tool_call' && block.toolName === msg.toolCall.toolName && (block as ToolCallBlock).needsApproval
-                );
-                if (existingToolCall) {
-                  // Block already exists from tool.approval_required - keep it as-is
-                  // Don't update the toolCallId, the approval system uses the one from tool.approval_required
-                  return m;
-                }
-                
-                // No existing block, add new one
-                return {
-                  ...m,
-                  content: [...m.content, { 
-                    type: 'tool_call', 
-                    toolCallId: msg.toolCall.toolCallId,
-                    toolName: msg.toolCall.toolName,
-                    args: msg.toolCall.args,
-                    pending: true
-                  }]
-                };
-              }
-              return m;
-            })
+            [msg.sessionId]: {
+              ...sessionParts,
+              [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
+            }
           };
         });
         break;
-      
-      case 'chat.tool_result':
-        // Update the message to add the tool result
-        setMessagesBySession(prev => {
-          const sessionMessages = prev[msg.sessionId] || [];
-          return {
-            ...prev,
-            [msg.sessionId]: sessionMessages.map(m => {
-              if (m.id === msg.messageId) {
-                const hasToolCall = m.content.some(
-                  block => block.type === 'tool_call' && block.toolCallId === msg.toolCallId
-                );
-                if (hasToolCall) {
-                  // Remove pending flag from tool_call and add tool_result
-                  const updatedContent = m.content.map(block => {
-                    if (block.type === 'tool_call' && block.toolCallId === msg.toolCallId) {
-                      const { pending: _pending, ...rest } = block as ToolCallBlock;
-                      return rest; // Remove pending flag
-                    }
-                    return block;
-                  });
-                  return {
-                    ...m,
-                    content: [...updatedContent, {
-                      type: 'tool_result',
-                      toolCallId: msg.toolCallId,
-                      toolName: msg.toolName,
-                      result: msg.result,
-                      isError: !!(msg.result && typeof msg.result === 'object' && 'error' in msg.result)
-                    }]
-                  };
-                }
-              }
-              return m;
-            })
-          };
-        });
-        break;
-      
-      case 'tool.approval_required':
-        console.log('[DEBUG] tool.approval_required received:', msg);
-        
-        setMessagesBySession(prev => {
-          if (!currentSession) return prev;
-          console.log('[DEBUG] Current messages:', prev[currentSession.id]);
+
+      case 'part.append':
+        setPartsBySession(prev => {
+          const sessionParts = prev[msg.sessionId] || {};
           
-          const sessionMessages = prev[currentSession.id] || [];
-          
-          // Search for existing tool_call block by toolName
-          for (let i = sessionMessages.length - 1; i >= 0; i--) {
-            const m = sessionMessages[i];
-            if (m.role !== 'assistant') continue;
-            
-            for (let j = 0; j < m.content.length; j++) {
-              const block = m.content[j];
-              if (block.type === 'tool_call') {
-                console.log(`[DEBUG] Found tool_call: toolName=${block.toolName}, needsApproval=${(block as ToolCallBlock).needsApproval}`);
-              }
-              if (
-                block.type === 'tool_call' && 
-                block.toolName === msg.toolName &&
-                !(block as ToolCallBlock).needsApproval
-              ) {
-                console.log('[DEBUG] Match found! Updating block');
-                // Found it! Update this block
-                const updatedContent = [...m.content];
-                updatedContent[j] = {
-                  ...block,
-                  toolCallId: msg.toolCallId, // Update to match the approval ID
-                  needsApproval: true,
-                  dangerous: msg.dangerous,
-                  pending: false,
+          for (const messageId of Object.keys(sessionParts)) {
+            const parts = sessionParts[messageId];
+            const partIndex = parts.findIndex(p => p.id === msg.partId);
+            if (partIndex !== -1) {
+              const existingPart = parts[partIndex];
+              if (existingPart.type === 'text' || existingPart.type === 'reasoning') {
+                const updatedParts = [...parts];
+                updatedParts[partIndex] = {
+                  ...existingPart,
+                  text: existingPart.text + msg.delta
                 };
-                const updatedMessages = [
-                  ...sessionMessages.slice(0, i),
-                  { ...m, content: updatedContent },
-                  ...sessionMessages.slice(i + 1),
-                ];
                 return {
                   ...prev,
-                  [currentSession.id]: updatedMessages
+                  [msg.sessionId]: {
+                    ...sessionParts,
+                    [messageId]: updatedParts
+                  }
                 };
               }
             }
-            
-            // Didn't find tool_call in this message, but it's an assistant message
-            // Add the tool_call block here (race condition: approval arrived before tool_call)
-            console.log('[DEBUG] No tool_call found in assistant message, adding new block');
-            const newToolCallBlock = {
-              type: 'tool_call' as const,
-              toolCallId: msg.toolCallId,
-              toolName: msg.toolName,
-              args: msg.args,
-              needsApproval: true,
-              dangerous: msg.dangerous,
-              pending: false,
-            };
-            const updatedMessages = [
-              ...sessionMessages.slice(0, i),
-              { ...m, content: [...m.content, newToolCallBlock] },
-              ...sessionMessages.slice(i + 1),
-            ];
-            return {
-              ...prev,
-              [currentSession.id]: updatedMessages
-            };
           }
-          
-          console.log('[DEBUG] No assistant message found');
           return prev;
         });
         break;
       
-      case 'chat.complete':
-        // Replace the streaming message with the final one
-        setMessagesBySession(prev => {
-          const sessionMessages = prev[msg.sessionId] || [];
-          return {
-            ...prev,
-            [msg.sessionId]: sessionMessages.map(m => m.id === msg.message.id ? msg.message : m)
-          };
-        });
-        break;
-      
       case 'chat.usage':
-        // Only process messages for the current session
         if (msg.sessionId !== currentSession?.id) return;
-        // Update cumulative usage for this session
-        setSessionUsage(prev => ({
-          promptTokens: prev.promptTokens + msg.usage.promptTokens,
-          completionTokens: prev.completionTokens + msg.usage.completionTokens,
-          totalTokens: prev.totalTokens + msg.usage.totalTokens,
-        }));
-        // Update the current model from the server
+        setSessionUsage({
+          promptTokens: msg.usage.promptTokens,
+          completionTokens: msg.usage.completionTokens,
+          totalTokens: msg.usage.totalTokens,
+        });
         setCurrentModel(msg.model);
-        break;
-      
-      case 'chat.user_message':
-        // Add user message to the session's messages
-        setMessagesBySession(prev => ({
-          ...prev,
-          [msg.sessionId]: [...(prev[msg.sessionId] || []), msg.message]
-        }));
         break;
       
       case 'error':
@@ -437,12 +327,15 @@ function App() {
         break;
       
       case 'session.closed':
-        // Update the session status to 'closed' instead of removing it
         setSessions(prev => prev.map(s => 
           s.id === msg.sessionId ? { ...s, status: 'closed' } : s
         ));
-        // Clear that session's messages from the map
         setMessagesBySession(prev => {
+          const newMap = { ...prev };
+          delete newMap[msg.sessionId];
+          return newMap;
+        });
+        setPartsBySession(prev => {
           const newMap = { ...prev };
           delete newMap[msg.sessionId];
           return newMap;
@@ -453,23 +346,23 @@ function App() {
         break;
 
       case 'session.reopened':
-        // Update the session in the sessions list (it's now active again)
         setSessions(prev => prev.map(s => 
           s.id === msg.session.id ? msg.session : s
         ));
-        // Update current session if it matches
         if (currentSession?.id === msg.session.id) {
           setCurrentSession(msg.session);
         }
-        // Auto-switch to Active tab so user sees the reopened session
         setSessionFilter('active');
         break;
 
       case 'session.deleted':
-        // Permanently remove session from state
         setSessions(prev => prev.filter(s => s.id !== msg.sessionId));
-        // Clear that session's messages from the map
         setMessagesBySession(prev => {
+          const newMap = { ...prev };
+          delete newMap[msg.sessionId];
+          return newMap;
+        });
+        setPartsBySession(prev => {
           const newMap = { ...prev };
           delete newMap[msg.sessionId];
           return newMap;
@@ -480,92 +373,63 @@ function App() {
         break;
 
       case 'session.updated':
-        // Update the session in the sessions list
         setSessions(prev => prev.map(s => 
           s.id === msg.session.id ? msg.session : s
         ));
-        // Update current session if it matches
         if (currentSession?.id === msg.session.id) {
           setCurrentSession(msg.session);
         }
         break;
 
       case 'session.renamed':
-        // Update the session in the sessions list with the new title
         setSessions(prev => prev.map(s => 
           s.id === msg.session.id ? msg.session : s
         ));
-        // Update current session if it matches
         if (currentSession?.id === msg.session.id) {
           setCurrentSession(msg.session);
         }
         break;
 
-      case 'permission.request': {
-        // Add permission_request block to the last assistant message's content
-        setMessagesBySession(prev => {
-          if (!currentSession) return prev;
-          
-          const sessionMessages = prev[currentSession.id] || [];
-          
-          // Find the last assistant message
-          for (let i = sessionMessages.length - 1; i >= 0; i--) {
-            const m = sessionMessages[i];
-            if (m.role === 'assistant') {
-              // Add permission_request block to this message's content
-              const permissionBlock = {
-                type: 'permission_request' as const,
-                toolCallId: msg.toolCallId,
-                toolName: msg.toolName,
-                args: msg.args,
-                permissionType: msg.permissionType,
-                permissionKey: msg.permissionKey,
-                message: msg.message,
-                details: msg.details,
-                dangerous: msg.dangerous,
-              };
-              
-              const updatedMessages = [
-                ...sessionMessages.slice(0, i),
-                { ...m, content: [...m.content, permissionBlock] },
-                ...sessionMessages.slice(i + 1),
-              ];
-              
-              return {
-                ...prev,
-                [currentSession.id]: updatedMessages
-              };
-            }
-          }
-          
-          return prev;
-        });
-        break;
-      }
-
-      case 'permission.list': {
+      case 'permission.list':
         setPermissions(msg.permissions);
         break;
-      }
 
-      case 'permission.revoked': {
+      case 'permission.revoked':
         setPermissions(prev => prev.map(p => 
           p.id === msg.permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
         ));
         break;
-      }
 
-      case 'permission.all_revoked': {
+      case 'permission.all_revoked':
         setPermissions(prev => {
           const now = new Date().toISOString();
           return prev.map(p => ({ ...p, revokedAt: now }));
         });
         break;
+
+      case 'permission.request': {
+        const request: PendingPermissionRequest = {
+          toolCallId: msg.toolCallId,
+          toolName: msg.toolName,
+          args: msg.args,
+          permissionType: msg.permissionType,
+          permissionKey: msg.permissionKey,
+          message: msg.message,
+          details: msg.details,
+          dangerous: msg.dangerous,
+          childSessionId: msg.childSessionId,
+          subagentName: msg.subagentName,
+        };
+        setPendingPermissions(prev => [...prev, request]);
+        break;
       }
+
+      case 'permission.granted':
+        setPendingPermissions(prev => prev.filter(p => p.toolCallId !== msg.toolCallId));
+        break;
     }
   }, [currentSession, defaultModel]);
 
-  // Keep the ref updated with the latest handler
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
   }, [handleServerMessage]);
@@ -581,6 +445,8 @@ function App() {
   }, [sendMessage, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string) => {
+    // Clear pending permissions from previous session
+    setPendingPermissions([]);
     sendMessage('session.resume', { sessionId });
   }, [sendMessage]);
 
@@ -618,46 +484,10 @@ function App() {
     }
   }, [currentSession, sendMessage]);
 
-  const handleToolApproval = useCallback((toolCallId: string, approved: boolean) => {
-    // Send approval response to server
-    sendMessage('tool.approval', {
-      toolCallId,
-      approved,
-    });
-    
-    // Update the message to remove needsApproval flag (add pending back while executing)
-    setMessagesBySession(prev => {
-      if (!currentSession) return prev;
-      const sessionMessages = prev[currentSession.id] || [];
-      return {
-        ...prev,
-        [currentSession.id]: sessionMessages.map(m => {
-          const hasToolCall = m.content.some(
-            block => block.type === 'tool_call' && block.toolCallId === toolCallId
-          );
-          if (hasToolCall) {
-            return {
-              ...m,
-              content: m.content.map(block => {
-                if (block.type === 'tool_call' && block.toolCallId === toolCallId) {
-                  const { needsApproval: _needsApproval, dangerous: _dangerous, ...rest } = block as ToolCallBlock;
-                  return {
-                    ...rest,
-                    pending: approved, // Show pending if approved, otherwise stays without pending (denied)
-                  };
-                }
-                return block;
-              })
-            };
-          }
-          return m;
-        })
-      };
-    });
-  }, [currentSession, sendMessage]);
-
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
-    // Send response to server
+    // Remove from pending list
+    setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
+    
     sendMessage('permission.response', {
       toolCallId,
       allowed,
@@ -665,22 +495,15 @@ function App() {
     });
   }, [sendMessage]);
 
-  const handleApprovePermission = useCallback((toolCallId: string, alwaysAllow: boolean) => {
-    handlePermissionResponse(toolCallId, true, alwaysAllow);
-  }, [handlePermissionResponse]);
-
-  const handleDenyPermission = useCallback((toolCallId: string) => {
-    handlePermissionResponse(toolCallId, false, false);
-  }, [handlePermissionResponse]);
-
   const refreshPermissions = useCallback(() => {
     if (activeWorkspace) {
       sendMessage('permission.list', { workspaceId: activeWorkspace.id });
     }
   }, [activeWorkspace, sendMessage]);
 
-  // Filter sessions by active workspace
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
+
+  const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
   return (
     <div className="app">
@@ -694,13 +517,11 @@ function App() {
           onResumeSession={resumeSession}
           onCloseSession={closeSession}
           
-          // NEW PROPS:
           sessionFilter={sessionFilter}
           onSetSessionFilter={setSessionFilter}
           onReopenSession={reopenSession}
           onPermanentlyDeleteSession={permanentlyDeleteSession}
           
-          // Workspace props
           workspaces={workspaces}
           activeWorkspace={activeWorkspace}
           onSelectWorkspace={selectWorkspace}
@@ -708,7 +529,6 @@ function App() {
           onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
           onDeleteWorkspace={deleteWorkspace}
           
-          // Settings modal props
           showSettings={showSettings}
           onToggleSettings={() => setShowSettings(!showSettings)}
           permissions={permissions}
@@ -721,16 +541,15 @@ function App() {
           <>
             <ChatView
               session={currentSession}
-              messages={messages}
+              messagesWithParts={messagesWithParts}
               preconfigs={preconfigs}
               models={models}
               defaultModel={defaultModel}
               onSendMessage={sendChatMessage}
               onChangePreconfig={updateSessionPreconfig}
               onChangeModel={updateSessionModel}
-              onApproveTool={handleToolApproval}
-              onApprovePermission={handleApprovePermission}
-              onDenyPermission={handleDenyPermission}
+              pendingPermissions={pendingPermissions}
+              onPermissionResponse={handlePermissionResponse}
               onRename={handleRenameSession}
               usage={sessionUsage}
               modelName={currentModel}

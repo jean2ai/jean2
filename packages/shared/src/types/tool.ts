@@ -33,15 +33,21 @@ export interface ToolExecution {
   completedAt: string | null;
 }
 
-export type ToolApprovalStatus = 'pending' | 'approved' | 'denied';
+export type ToolApprovalStatus = 'pending' | 'approved' | 'denied' | 'timeout';
 
 export interface ToolApproval {
   id: string;
   sessionId: string;
+  childSessionId?: string;
+  subagentName?: string;
   toolCallId: string;
   toolName: string;
   args: Record<string, unknown>;
+  permissionType?: string;
+  permissionKey?: string;
+  message?: string;
+  details?: Record<string, unknown>;
   status: ToolApprovalStatus;
   requestedAt: string;
-  respondedAt: string | null;
+  respondedAt?: string | null;
 }

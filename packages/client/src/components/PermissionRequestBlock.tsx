@@ -10,6 +10,7 @@ interface Props {
   message: string;
   details?: Record<string, unknown>;
   dangerous?: boolean;
+  subagentName?: string;
   onApprove: (alwaysAllow: boolean) => void;
   onDeny: () => void;
 }
@@ -20,6 +21,7 @@ export default function PermissionRequestBlock({
   permissionKey,
   message,
   dangerous,
+  subagentName,
   onApprove,
   onDeny,
 }: Props) {
@@ -37,6 +39,9 @@ export default function PermissionRequestBlock({
   return (
     <div className="permission-request-block">
       <div className="permission-request-header">
+        {subagentName && (
+          <span className="permission-subagent">Subagent ({subagentName}) requests:</span>
+        )}
         <span className="permission-type">{permissionType}</span>
         <span className="permission-key">{permissionKey}</span>
       </div>

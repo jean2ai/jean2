@@ -1,7 +1,7 @@
-import type { ToolCallBlock } from '@jean2/shared';
+import type { ToolPart } from '@jean2/shared';
 
 interface PendingApproval {
-  toolCall: ToolCallBlock;
+  toolPart: ToolPart;
   dangerous: boolean;
   resolve: (approved: boolean) => void;
   createdAt: number;
@@ -18,13 +18,13 @@ const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
  * Returns a Promise that resolves when the client approves/denies or times out.
  */
 export function createPendingApproval(
-  toolCall: ToolCallBlock,
+  toolPart: ToolPart,
   dangerous: boolean
 ): Promise<boolean> {
   return new Promise((resolve) => {
     // Store the approval with its resolver
-    pendingApprovals.set(toolCall.toolCallId, {
-      toolCall,
+    pendingApprovals.set(toolPart.callId, {
+      toolPart,
       dangerous,
       resolve,
       createdAt: Date.now(),
@@ -32,9 +32,9 @@ export function createPendingApproval(
     
     // Set up timeout
     setTimeout(() => {
-      const pending = pendingApprovals.get(toolCall.toolCallId);
+      const pending = pendingApprovals.get(toolPart.callId);
       if (pending) {
-        pendingApprovals.delete(toolCall.toolCallId);
+        pendingApprovals.delete(toolPart.callId);
         resolve(false); // Deny on timeout
       }
     }, APPROVAL_TIMEOUT_MS);
@@ -44,21 +44,21 @@ export function createPendingApproval(
 /**
  * Get a pending approval by ID.
  */
-export function getPendingApproval(toolCallId: string): PendingApproval | undefined {
-  return pendingApprovals.get(toolCallId);
+export function getPendingApproval(callId: string): PendingApproval | undefined {
+  return pendingApprovals.get(callId);
 }
 
 /**
  * Resolve a pending approval with the client's response.
  * Returns true if the approval was found and resolved.
  */
-export function resolveApproval(toolCallId: string, approved: boolean): boolean {
-  const pending = pendingApprovals.get(toolCallId);
+export function resolveApproval(callId: string, approved: boolean): boolean {
+  const pending = pendingApprovals.get(callId);
   if (!pending) {
     return false;
   }
   
-  pendingApprovals.delete(toolCallId);
+  pendingApprovals.delete(callId);
   pending.resolve(approved);
   return true;
 }

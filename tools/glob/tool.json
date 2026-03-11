@@ -28,5 +28,6 @@
   },
   "timeout": 30000,
   "requireApproval": false,
-  "dangerous": false
+  "dangerous": false,
+  "hasSecurityCheck": true
 }

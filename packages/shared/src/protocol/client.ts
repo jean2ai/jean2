@@ -79,6 +79,26 @@ export interface PermissionRevokeAllMessage {
   workspaceId: string;
 }
 
+// =============================================================================
+// Compaction Messages
+// =============================================================================
+
+export interface SessionCompactMessage {
+  type: 'session.compact';
+  sessionId: string;
+  messageIds: string[];
+}
+
+// =============================================================================
+// Revert Messages
+// =============================================================================
+
+export interface SessionRevertMessage {
+  type: 'session.revert';
+  sessionId: string;
+  stepPartId: string;
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
@@ -93,4 +113,6 @@ export type ClientMessage =
   | PermissionResponseMessage
   | PermissionListRequestMessage
   | PermissionRevokeMessage
-  | PermissionRevokeAllMessage;
+  | PermissionRevokeAllMessage
+  | SessionCompactMessage
+  | SessionRevertMessage;

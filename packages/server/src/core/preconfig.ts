@@ -35,7 +35,7 @@ const DEFAULT_PRECONFIGS: Preconfig[] = [
     model: null,
     provider: null,
     settings: { temperature: 0.5 },
-    isDefault: true,
+    isDefault: false,
     mode: 'primary',
   },
   {
@@ -47,7 +47,7 @@ const DEFAULT_PRECONFIGS: Preconfig[] = [
     model: null,
     provider: null,
     settings: { temperature: 0.3 },
-    isDefault: false,
+    isDefault: true,
     mode: 'primary',
   },
   {
@@ -129,11 +129,11 @@ async function ensureDir(): Promise<void> {
 
 export async function initializePreconfigs(): Promise<void> {
   await ensureDir();
-  
+
   // Check if any preconfigs exist
   const files = await readdir(PRECONFIGS_DIR).catch(() => []);
   const jsonFiles = files.filter(f => f.endsWith('.json'));
-  
+
   if (jsonFiles.length === 0) {
     // Create default preconfigs
     for (const preconfig of DEFAULT_PRECONFIGS) {
@@ -145,10 +145,10 @@ export async function initializePreconfigs(): Promise<void> {
 
 export async function listPreconfigs(): Promise<Preconfig[]> {
   await ensureDir();
-  
+
   const files = await readdir(PRECONFIGS_DIR).catch(() => []);
   const jsonFiles = files.filter(f => f.endsWith('.json'));
-  
+
   const preconfigs: Preconfig[] = [];
   for (const file of jsonFiles) {
     try {
@@ -158,7 +158,7 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
       console.error(`Failed to read preconfig ${file}:`, e);
     }
   }
-  
+
   return preconfigs.sort((a, b) => {
     if (a.isDefault) return -1;
     if (b.isDefault) return 1;
@@ -168,7 +168,7 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
 
 export async function getPreconfig(id: string): Promise<Preconfig | null> {
   await ensureDir();
-  
+
   try {
     const content = await readFile(join(PRECONFIGS_DIR, `${id}.json`), 'utf-8');
     return JSON.parse(content) as Preconfig;
@@ -179,35 +179,35 @@ export async function getPreconfig(id: string): Promise<Preconfig | null> {
 
 export async function createPreconfig(preconfig: Omit<Preconfig, 'id'> & { id?: string }): Promise<Preconfig> {
   await ensureDir();
-  
+
   const newPreconfig: Preconfig = {
     ...preconfig,
     id: preconfig.id || randomUUID(),
   };
-  
+
   await writeFile(
     join(PRECONFIGS_DIR, `${newPreconfig.id}.json`),
     JSON.stringify(newPreconfig, null, 2)
   );
-  
+
   return newPreconfig;
 }
 
 export async function updatePreconfig(id: string, updates: Partial<Omit<Preconfig, 'id'>>): Promise<Preconfig | null> {
   const existing = await getPreconfig(id);
   if (!existing) return null;
-  
+
   const updated: Preconfig = {
     ...existing,
     ...updates,
     id, // Ensure id is not changed
   };
-  
+
   await writeFile(
     join(PRECONFIGS_DIR, `${id}.json`),
     JSON.stringify(updated, null, 2)
   );
-  
+
   return updated;
 }
 
@@ -230,9 +230,9 @@ export async function getDefaultPreconfig(): Promise<Preconfig | null> {
  */
 export async function listPreconfigsByMode(mode?: PreconfigMode): Promise<Preconfig[]> {
   const preconfigs = await listPreconfigs();
-  
+
   if (!mode) return preconfigs;
-  
+
   return preconfigs.filter(p => {
     const preconfigMode = p.mode ?? 'primary';
     return preconfigMode === mode;

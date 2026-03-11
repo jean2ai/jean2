@@ -112,8 +112,8 @@ async function walkDirectory(
       const relativePath = relative(basePath, fullPath).replace(/\\/g, "/");
 
       if (entry.isDirectory()) {
-        // Recurse into subdirectories if pattern is recursive or has wildcards in path
-        if (recursive || pattern.includes("*") || pattern.includes("?")) {
+        // Recurse into subdirectories only if pattern explicitly uses ** for recursive matching
+        if (recursive) {
           await walkDirectory(fullPath, pattern, basePath, results, recursive);
         }
       } else if (entry.isFile()) {
