@@ -1,5 +1,7 @@
 export type SessionStatus = 'active' | 'closed';
 
+export type SubagentStatus = 'running' | 'completed' | 'error';
+
 export interface Session {
   id: string;
   workspaceId: string;  // FK to workspace
@@ -16,4 +18,5 @@ export interface Session {
   totalTokens?: number;
   parentId: string | null;    // ID of parent session (null for top-level)
   agentName: string | null;   // Name of the agent/preconfig running this session
+  subagentStatus?: SubagentStatus | null;  // Status for subagent sessions only
 }

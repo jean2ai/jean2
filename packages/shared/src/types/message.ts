@@ -17,6 +17,7 @@ export interface ToolStatePending extends ToolStateBase {
 export interface ToolStateRunning extends ToolStateBase {
   status: 'running';
   startedAt: number; // Unix timestamp in ms
+  childSessionId?: string; // For 'task' tool: ID of the child/subagent session
 }
 
 export interface ToolStateCompleted extends ToolStateBase {
@@ -24,6 +25,7 @@ export interface ToolStateCompleted extends ToolStateBase {
   output: unknown;
   startedAt: number;
   completedAt: number;
+  childSessionId?: string; // For 'task' tool: ID of the child/subagent session
 }
 
 export interface ToolStateError extends ToolStateBase {

@@ -168,6 +168,11 @@ function initializeSchema(db: Database): void {
     console.log('Migrating: Adding agent_name column to sessions table');
     db.run('ALTER TABLE sessions ADD COLUMN agent_name TEXT');
   }
+
+  if (!columnNames.includes('subagent_status')) {
+    console.log('Migrating: Adding subagent_status column to sessions table');
+    db.run('ALTER TABLE sessions ADD COLUMN subagent_status TEXT');
+  }
 }
 
 export { Database };

@@ -2,7 +2,7 @@ import { streamText, tool, stepCountIs, jsonSchema, type LanguageModel, type Too
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
-import { createMessage, listMessages as storeListMessages, createPart, updatePart, updateMessage, getSession, updateSession } from '@/store';
+import { createMessage, listMessages as storeListMessages, createPart, updatePart, updateMessage, getSession, updateSession, transitionToolToRunningByCallId, getPart } from '@/store';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel } from '@/config';
@@ -276,7 +276,7 @@ async function buildAiSdkTools(
       tools[name] = tool({
         description: subagentDefinition.description,
         inputSchema: jsonSchema(subagentDefinition.inputSchema),
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
           // Build subagent input with required fields from context
           const subagentInput: SubagentInput = {
             description: args.description as string,
@@ -286,6 +286,9 @@ async function buildAiSdkTools(
             sessionId,
             workspaceId,
             workspacePath,
+            onSessionCreated: (childSessionId: string) => {
+              transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
+            },
           };
 
           const result = await executeSubagent(subagentInput);
@@ -560,6 +563,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         const existingToolPart = toolParts.find((tp) => tp.callId === delta.toolCallId);
         
         if (existingToolPart) {
+          // Get the latest state from database (might have childSessionId from subagent start)
+          // The local toolParts array doesn't get updated when transitionToolToRunningByCallId is called
+          const latestPart = getPart(existingToolPart.id) as ToolPart | null;
+          const latestState = latestPart?.state;
+
           // Extract the result from the output
           let resultData: unknown;
           if (typeof delta.output === 'string') {
@@ -577,6 +585,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           // Check if it's an error result
           const isErrorResult = !!(resultData && typeof resultData === 'object' && 'error' in resultData);
 
+          // Preserve childSessionId from the latest database state
+          const existingChildSessionId = latestState && 'childSessionId' in latestState 
+            ? latestState.childSessionId 
+            : undefined;
+
           // Update the tool part
           const updatedToolPart: ToolPart = {
             ...existingToolPart,
@@ -587,6 +600,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
                   error: String((resultData as { error: unknown }).error),
                   startedAt: Date.now(),
                   failedAt: Date.now(),
+                  ...(existingChildSessionId && { childSessionId: existingChildSessionId }),
                 }
               : {
                   status: 'completed' as const,
@@ -594,6 +608,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
                   output: resultData,
                   startedAt: Date.now(),
                   completedAt: Date.now(),
+                  ...(existingChildSessionId && { childSessionId: existingChildSessionId }),
                 },
           };
 

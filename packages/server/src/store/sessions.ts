@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { Session, SessionStatus, Workspace } from '@jean2/shared';
+import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
 import { getWorkspace } from './workspaces';
 
 // Interface for raw database row from sessions table
@@ -19,6 +19,7 @@ interface SessionRow {
   total_tokens: number;
   parent_id: string | null;
   agent_name: string | null;
+  subagent_status: string | null;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -31,8 +32,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -46,6 +47,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.selectedProvider ?? null,
     s.parentId ?? null,
     s.agentName ?? null,
+    s.subagentStatus ?? null,
   ]);
   
   return s;
@@ -81,7 +83,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -132,6 +134,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
     setClauses.push('agent_name = ?');
     values.push(updates.agentName);
   }
+  if (updates.subagentStatus !== undefined) {
+    setClauses.push('subagent_status = ?');
+    values.push(updates.subagentStatus);
+  }
   
   values.push(id);
   
@@ -168,6 +174,7 @@ function mapRowToSession(row: SessionRow): Session {
     totalTokens: row.total_tokens ?? undefined,
     parentId: row.parent_id ?? null,
     agentName: row.agent_name ?? null,
+    subagentStatus: row.subagent_status as SubagentStatus | null ?? null,
   };
 }
 

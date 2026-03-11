@@ -263,3 +263,67 @@
   overflow-y: auto;
   flex: 1;
 }
+
+/* Session item group (parent + children) */
+.session-item-group {
+  margin-bottom: 4px;
+}
+
+/* Expand/collapse chevron */
+.session-expand {
+  width: 20px;
+  font-size: 10px;
+  color: #888;
+  cursor: pointer;
+  padding: 4px;
+  margin-right: 4px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-expand:hover {
+  background: #444;
+  color: #e0e0e0;
+}
+
+/* Spacer when no children */
+.session-expand-spacer {
+  width: 20px;
+  margin-right: 4px;
+  display: inline-block;
+}
+
+/* Container for child sessions */
+.session-children {
+  margin-left: 16px;
+  border-left: 2px solid #444;
+  padding-left: 8px;
+}
+
+/* Child session styling */
+.session-item.session-child {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.session-item.session-child .session-title {
+  font-size: 13px;
+  color: #aaa;
+}
+
+.session-item.session-child:hover {
+  background: #2a2a2a;
+}
+
+.session-item.session-child.active {
+  background: #2a3a4a;
+}
+
+/* Status icon for subagents */
+.session-status-icon {
+  margin-right: 6px;
+  font-size: 12px;
+}

@@ -478,6 +478,12 @@ function App() {
     sendMessage('session.rename', { sessionId, title });
   }, [sendMessage]);
 
+  const handleNavigateBack = useCallback(() => {
+    if (currentSession?.parentId) {
+      resumeSession(currentSession.parentId);
+    }
+  }, [currentSession, resumeSession]);
+
   const sendChatMessage = useCallback((content: string) => {
     if (currentSession) {
       sendMessage('chat.message', { sessionId: currentSession.id, content });
@@ -553,6 +559,8 @@ function App() {
               onRename={handleRenameSession}
               usage={sessionUsage}
               modelName={currentModel}
+              onNavigateToSubagent={resumeSession}
+              onNavigateBack={handleNavigateBack}
             />
           </>
         ) : (

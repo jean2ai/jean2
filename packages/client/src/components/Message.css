@@ -249,3 +249,54 @@
 .approval-approve:hover {
   background: #3a5a3a;
 }
+
+/* View subagent session button */
+.view-subagent-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: #2a4a6a;
+  border: 1px solid #3a5a8a;
+  border-radius: 6px;
+  color: #8ac4ff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.view-subagent-btn:hover {
+  background: #3a5a8a;
+  border-color: #4a6a9a;
+  color: #a8d4ff;
+}
+
+/* Compact view button in tool header */
+.view-subagent-btn-header {
+  background: #2a4a6a;
+  border: 1px solid #3a5a8a;
+  border-radius: 4px;
+  color: #8ac4ff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.view-subagent-btn-header:hover {
+  background: #3a5a8a;
+  border-color: #4a6a9a;
+  color: #a8d4ff;
+}
+
+/* Subagent navigation section */
+.tool-subagent-nav {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #444;
+}

@@ -44,9 +44,11 @@ interface Props {
     totalTokens: number;
   };
   modelName: string;
+  onNavigateToSubagent?: (sessionId: string) => void;
+  onNavigateBack?: () => void;
 }
 
-export default function ChatView({ session, messagesWithParts, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, pendingPermissions, onPermissionResponse, onRename, usage, modelName }: Props) {
+export default function ChatView({ session, messagesWithParts, preconfigs, models, defaultModel, onSendMessage, onChangePreconfig, onChangeModel, pendingPermissions, onPermissionResponse, onRename, usage, modelName, onNavigateToSubagent, onNavigateBack }: Props) {
   const [input, setInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -120,6 +122,15 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
     <div className="chat-view">
       <header className="chat-header">
         <div className="chat-header-left">
+          {session.parentId && onNavigateBack && (
+            <button
+              className="back-to-parent-btn"
+              onClick={onNavigateBack}
+              title="Back to parent session"
+            >
+              ← Back
+            </button>
+          )}
           {isEditing ? (
             <input
               ref={setTitleInputRef}
@@ -194,6 +205,7 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
               parts={mwp.parts}
               pendingPermissions={pendingPermissions}
               onPermissionResponse={onPermissionResponse}
+              onNavigateToSubagent={onNavigateToSubagent}
             />
           ))
         )}
@@ -220,7 +232,7 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
         <div ref={messagesEndRef} />
       </div>
       
-      {session.status === 'active' && (
+      {session.status === 'active' && !session.parentId && (
         <form className="input-area" onSubmit={handleSubmit}>
           <input
             type="text"
@@ -231,6 +243,13 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
           />
           <button type="submit">Send</button>
         </form>
+      )}
+
+      {session.parentId && (
+        <div className="subagent-read-only">
+          <span className="read-only-icon">🔒</span>
+          <span className="read-only-text">This is a subagent session (read-only)</span>
+        </div>
       )}
     </div>
   );

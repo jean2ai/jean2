@@ -350,7 +350,10 @@ export function createToolPartPending(
   return part;
 }
 
-export function transitionToolToRunning(partId: string): ToolPart | null {
+export function transitionToolToRunning(
+  partId: string,
+  childSessionId?: string,
+): ToolPart | null {
   const existing = getPart(partId);
   if (!existing || existing.type !== 'tool') return null;
 
@@ -363,6 +366,7 @@ export function transitionToolToRunning(partId: string): ToolPart | null {
       status: 'running',
       input: toolPart.state.input,
       startedAt: Date.now(),
+      ...(childSessionId && { childSessionId }),
     },
   };
 
@@ -388,6 +392,7 @@ export function transitionToolToCompleted(
       output,
       startedAt: toolPart.state.startedAt,
       completedAt: now,
+      ...(toolPart.state.childSessionId && { childSessionId: toolPart.state.childSessionId }),
     },
   };
 
@@ -416,6 +421,31 @@ export function transitionToolToError(partId: string, error: string): ToolPart |
   };
 
   return updatePart(partId, { state: updated.state }) as ToolPart;
+}
+
+export function transitionToolToRunningByCallId(
+  sessionId: string,
+  callId: string,
+  childSessionId?: string,
+): ToolPart | null {
+  const allParts = getPartsBySession(sessionId);
+  const toolPart = allParts.find(
+    (p) => p.type === 'tool' && (p as ToolPart).callId === callId,
+  ) as ToolPart | undefined;
+
+  if (!toolPart || toolPart.state.status !== 'pending') return null;
+
+  const updated: ToolPart = {
+    ...toolPart,
+    state: {
+      status: 'running',
+      input: toolPart.state.input,
+      startedAt: Date.now(),
+      ...(childSessionId && { childSessionId }),
+    },
+  };
+
+  return updatePart(toolPart.id, { state: updated.state }) as ToolPart;
 }
 
 // =============================================================================

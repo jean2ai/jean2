@@ -1,6 +1,6 @@
-import type { ToolDefinition, TextPart } from '@jean2/shared';
+import type { ToolDefinition, TextPart, Session } from '@jean2/shared';
 import { getPreconfig, listSubagentPreconfigs } from './preconfig';
-import { createSession, getSession } from '@/store';
+import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './agent';
 import { getModelsConfig, findModel } from '@/config';
 import { randomUUID } from 'crypto';
@@ -51,6 +51,7 @@ export interface SubagentInput {
   sessionId: string;
   workspaceId?: string;
   workspacePath?: string;
+  onSessionCreated?: (childSessionId: string) => void;
 }
 
 export interface SubagentOutput {
@@ -124,7 +125,7 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
 }
 
 export async function executeSubagent(input: SubagentInput): Promise<SubagentOutput> {
-  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath } = input;
+  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, onSessionCreated } = input;
 
   // Get parent session for model inheritance
   const parentSession = getSession(sessionId);
@@ -153,6 +154,9 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     };
   }
 
+  let childSession: Session | undefined | null;
+  let resumeFromHistory = false;
+
   try {
     const subagentPreconfig = await getPreconfig(subagent_type);
     if (!subagentPreconfig) {
@@ -164,9 +168,6 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         error: `Unknown subagent type: "${subagent_type}". Available subagents: ${availableNames || 'none'}`,
       };
     }
-
-    let childSession;
-    let resumeFromHistory = false;
 
     if (task_id) {
       childSession = getSession(task_id);
@@ -180,6 +181,11 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         };
       } else {
         resumeFromHistory = true;
+        updateSession(childSession.id, { subagentStatus: 'running' });
+        // Notify caller of the child session ID for resumed sessions too
+        if (onSessionCreated) {
+          onSessionCreated(childSession.id);
+        }
       }
     }
 
@@ -193,7 +199,13 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         metadata: null,
         parentId: sessionId,
         agentName: subagent_type,
+        subagentStatus: 'running',
       });
+    }
+
+    // Notify caller of the child session ID immediately
+    if (onSessionCreated) {
+      onSessionCreated(childSession.id);
     }
 
     const result = await executeChildSession({
@@ -212,6 +224,13 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         ? subagentPreconfig.provider
         : parentProviderId,
     });
+
+    // Update subagent status based on execution result
+    if (result.error) {
+      updateSession(childSession.id, { subagentStatus: 'error' });
+    } else {
+      updateSession(childSession.id, { subagentStatus: 'completed' });
+    }
 
     // Extract ONLY the last text part - matching OpenCode behavior
     // Note: executeChildSession now returns parts instead of content
@@ -244,8 +263,11 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       ...(result.error && { error: result.error }),
     };
   } catch (err) {
+    if (childSession) {
+      updateSession(childSession.id, { subagentStatus: 'error' });
+    }
     return {
-      task_id: '',
+      task_id: childSession?.id ?? '',
       result: '',
       error: `Task tool error: ${err instanceof Error ? err.message : String(err)}`,
     };

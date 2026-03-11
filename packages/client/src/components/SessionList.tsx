@@ -1,4 +1,5 @@
-import type { Session, Preconfig, Workspace, ToolPermission } from '@jean2/shared';
+import { useState } from 'react';
+import type { Session, Preconfig, Workspace, ToolPermission, SubagentStatus } from '@jean2/shared';
 import WorkspaceSelector from './WorkspaceSelector';
 import PermissionManager from './PermissionManager';
 import './SessionList.css';
@@ -58,10 +59,34 @@ export default function SessionList({
 }: Props) {
   const defaultPreconfig = preconfigs.find(p => p.isDefault) || preconfigs[0];
   
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (sessionId: string) => {
+    setExpandedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+  
   // Filter sessions based on the current filter
   const filteredSessions = sessionFilter === 'active' 
     ? sessions.filter(s => s.status === 'active')
     : sessions.filter(s => s.status === 'closed');
+  
+  const getSubagentStatusIcon = (status: SubagentStatus | null | undefined): string => {
+    if (!status) return '';
+    switch (status) {
+      case 'running': return '🔄';
+      case 'completed': return '✅';
+      case 'error': return '❌';
+      default: return '';
+    }
+  };
   
   return (
     <div className="session-list">
@@ -135,54 +160,94 @@ export default function SessionList({
       </div>
       
       <div className="sessions">
-        {filteredSessions.map(session => (
-          <div
-            key={session.id}
-            className={`session-item ${currentSession?.id === session.id ? 'active' : ''} ${session.status === 'closed' ? 'archived' : ''}`}
-            onClick={() => onResumeSession(session.id)}
-          >
-            <span className="session-title">{session.title || 'Untitled'}</span>
-            <span className="session-status">{session.status}</span>
-            {session.status === 'closed' ? (
-              <>
-                <button
-                  className="reopen-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReopenSession(session.id);
-                  }}
-                  title="Reopen session"
+        {filteredSessions
+          .filter(session => !session.parentId) // Only show root sessions
+          .map(session => {
+            const childSessions = sessions.filter(s => s.parentId === session.id);
+            const hasChildren = childSessions.length > 0;
+            const isExpanded = expandedSessions.has(session.id);
+            const isCurrentSession = currentSession?.id === session.id;
+            
+            return (
+              <div key={session.id} className="session-item-group">
+                <div
+                  className={`session-item ${isCurrentSession ? 'active' : ''} ${session.status === 'closed' ? 'archived' : ''}`}
+                  onClick={() => onResumeSession(session.id)}
                 >
-                  ↻
-                </button>
-                <button
-                  className="delete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const sessionTitle = session.title || 'Untitled';
-                    if (confirm(`Are you sure you want to permanently delete "${sessionTitle}"?\n\nThis action cannot be undone.`)) {
-                      onPermanentlyDeleteSession(session.id);
-                    }
-                  }}
-                  title="Delete permanently"
-                >
-                  🗑
-                </button>
-              </>
-            ) : (
-              <button
-                className="close-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCloseSession(session.id);
-                }}
-                title="Archive session"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+                  {hasChildren && (
+                    <span 
+                      className="session-expand"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpanded(session.id);
+                      }}
+                    >
+                      {isExpanded ? '▼' : '▶'}
+                    </span>
+                  )}
+                  {!hasChildren && <span className="session-expand-spacer" />}
+                  <span className="session-title">{session.title || 'Untitled'}</span>
+                  <span className="session-status">{session.status}</span>
+                  {session.status === 'closed' ? (
+                    <>
+                      <button
+                        className="reopen-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onReopenSession(session.id);
+                        }}
+                        title="Reopen session"
+                      >
+                        ↻
+                      </button>
+                      <button
+                        className="delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const sessionTitle = session.title || 'Untitled';
+                          if (confirm(`Are you sure you want to permanently delete "${sessionTitle}"?\n\nThis action cannot be undone.`)) {
+                            onPermanentlyDeleteSession(session.id);
+                          }
+                        }}
+                        title="Delete permanently"
+                      >
+                        🗑
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="close-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseSession(session.id);
+                      }}
+                      title="Archive session"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                
+                {/* Child sessions (subagents) */}
+                {isExpanded && hasChildren && (
+                  <div className="session-children">
+                    {childSessions.map(child => (
+                      <div
+                        key={child.id}
+                        className={`session-item session-child ${currentSession?.id === child.id ? 'active' : ''}`}
+                        onClick={() => onResumeSession(child.id)}
+                      >
+                        <span className="session-expand-spacer" />
+                        <span className="session-status-icon">{getSubagentStatusIcon(child.subagentStatus)}</span>
+                        <span className="session-title">{child.title || 'Untitled'}</span>
+                        {/* Children are read-only, no close/reopen buttons */}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
     </div>
   );
