@@ -12,7 +12,6 @@ import type {
 } from '@jean2/shared';
 import SessionList from '@/components/SessionList';
 import ChatView from '@/components/ChatView';
-import './App.css';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -512,8 +511,8 @@ function App() {
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
   return (
-    <div className="app">
-      <aside className="sidebar">
+    <div className="flex w-full h-full">
+      <aside className="w-[280px] bg-surface-800 border-r border-surface-600 flex flex-col">
         <SessionList
           sessions={workspaceSessions}
           preconfigs={preconfigs}
@@ -542,7 +541,7 @@ function App() {
           ws={ws}
         />
       </aside>
-      <main className="main">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {currentSession ? (
           <>
             <ChatView
@@ -564,8 +563,8 @@ function App() {
             />
           </>
         ) : (
-          <div className="empty-state">
-            <h2>Select or create a session</h2>
+          <div className="flex-1 flex flex-col items-center justify-center text-text-dim">
+            <h2 className="mb-2">Select or create a session</h2>
             <p>Choose a session from the sidebar or create a new one to start chatting.</p>
           </div>
         )}

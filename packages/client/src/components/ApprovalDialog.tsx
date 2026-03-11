@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { PermissionType } from '@jean2/shared';
-import './ApprovalDialog.css';
 
 interface Props {
   toolName: string;
@@ -36,45 +35,46 @@ export default function PermissionDialog({
   };
 
   return (
-    <div className="approval-overlay" onClick={handleOverlayClick}>
-      <div className="approval-dialog">
-        <button className="approval-close-button" onClick={onClose} aria-label="Close">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={handleOverlayClick}>
+      <div className="bg-surface-700 p-6 rounded-xl max-w-[500px] w-[90%] relative">
+        <button className="absolute top-3 right-3 bg-surface-500 border-0 rounded-full w-8 h-8 text-text-primary text-xl cursor-pointer flex items-center justify-center leading-none hover:bg-[#555] hover:text-white" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <h3>Permission Required</h3>
+        <h3 className="text-text-primary text-lg mb-4">Permission Required</h3>
         {dangerous && (
-          <div className="warning">⚠️ This operation is marked as dangerous</div>
+          <div className="bg-[#4a2d2d] p-3 rounded-lg mb-4 text-[#ff6b6b]">⚠️ This operation is marked as dangerous</div>
         )}
-        <div className="tool-info">
-          <p><strong>Tool:</strong> {toolName}</p>
-          <p><strong>Permission:</strong> {permissionKey}</p>
-          <p className="message">{message}</p>
-          <details>
-            <summary>View Details</summary>
-            <div className="details-content">
-              <p><strong>Type:</strong> {permissionType}</p>
-              <p><strong>Arguments:</strong></p>
-              <pre>{JSON.stringify(args, null, 2)}</pre>
+        <div className="bg-surface-600 p-3 rounded-lg mb-4">
+          <p className="mb-2 text-text-primary"><strong>Tool:</strong> {toolName}</p>
+          <p className="mb-2 text-text-primary"><strong>Permission:</strong> {permissionKey}</p>
+          <p className="mt-3 p-2 bg-[#3a3a3a] rounded text-sm text-text-primary">{message}</p>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-text-dim text-xs hover:text-text-muted">View Details</summary>
+            <div className="mt-2 pt-2 border-t border-surface-500">
+              <p className="mb-1 text-text-primary"><strong>Type:</strong> {permissionType}</p>
+              <p className="mb-1 text-text-primary"><strong>Arguments:</strong></p>
+              <pre className="text-xs m-0 overflow-x-auto text-text-primary">{JSON.stringify(args, null, 2)}</pre>
               {details && (
                 <>
-                  <p><strong>Additional Info:</strong></p>
-                  <pre>{JSON.stringify(details, null, 2)}</pre>
+                  <p className="mb-1 text-text-primary"><strong>Additional Info:</strong></p>
+                  <pre className="text-xs bg-surface-700 p-2 rounded text-text-primary">{JSON.stringify(details, null, 2)}</pre>
                 </>
               )}
             </div>
           </details>
         </div>
-        <label className="always-allow">
+        <label className="flex items-center gap-2 mb-4 p-2 bg-surface-600 rounded-md cursor-pointer text-sm text-text-primary hover:bg-[#3a3a3a]">
           <input
             type="checkbox"
             checked={alwaysAllow}
             onChange={(e) => setAlwaysAllow(e.target.checked)}
+            className="w-4 h-4 cursor-pointer"
           />
           Always allow this operation
         </label>
-        <div className="actions">
-          <button className="deny" onClick={onDeny}>Deny</button>
-          <button className="approve" onClick={() => onApprove(alwaysAllow)}>
+        <div className="flex gap-3 justify-end">
+          <button className="py-2.5 px-5 rounded-md border-0 cursor-pointer text-sm bg-surface-500 text-text-primary hover:bg-[#555]" onClick={onDeny}>Deny</button>
+          <button className="py-2.5 px-5 rounded-md border-0 cursor-pointer text-sm bg-accent text-white hover:bg-[#3d8ae6]" onClick={() => onApprove(alwaysAllow)}>
             {alwaysAllow ? 'Always Allow' : 'Allow Once'}
           </button>
         </div>

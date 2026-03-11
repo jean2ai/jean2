@@ -1,5 +1,3 @@
-import './ModelSelector.css';
-
 interface ModelSelectorProps {
   models: Array<{
     id: string;
@@ -44,13 +42,13 @@ export default function ModelSelector({
   };
 
   return (
-    <div className="model-selector">
-      <label className="model-selector-label">Model:</label>
+    <div className="flex items-center gap-2">
+      <label className="text-[13px] text-text-dim">Model:</label>
       <select
         value={selectedModelId || ''}
         onChange={(e) => handleChange(e.target.value)}
         disabled={disabled}
-        className="model-selector-dropdown"
+        className="px-2.5 py-1.5 bg-surface-700 border border-surface-500 rounded-md text-text-primary text-[13px] cursor-pointer min-w-[180px] focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {Object.entries(groupedModels).map(([providerName, providerModels]) => (
           <optgroup key={providerName} label={providerName}>

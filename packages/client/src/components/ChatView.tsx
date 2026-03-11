@@ -4,7 +4,6 @@ import MessageComponent from '@/components/Message';
 import TokenUsage from '@/components/TokenUsage';
 import ModelSelector from '@/components/ModelSelector';
 import PermissionRequestBlock from '@/components/PermissionRequestBlock';
-import './ChatView.css';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -119,12 +118,12 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
   });
   
   return (
-    <div className="chat-view">
-      <header className="chat-header">
-        <div className="chat-header-left">
+    <div className="flex flex-col h-full">
+      <header className="flex justify-between items-center px-5 py-4 border-b border-surface-600">
+        <div className="flex items-center gap-3">
           {session.parentId && onNavigateBack && (
             <button
-              className="back-to-parent-btn"
+              className="bg-surface-700 border border-surface-500 rounded-md text-accent cursor-pointer text-sm px-3 py-1.5 mr-2 transition-all duration-200 whitespace-nowrap hover:bg-surface-600 hover:border-accent"
               onClick={onNavigateBack}
               title="Back to parent session"
             >
@@ -135,7 +134,7 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
             <input
               ref={setTitleInputRef}
               type="text"
-              className="chat-header-title-input"
+              className="text-lg font-semibold px-2 py-1 -m-1 bg-surface-700 border border-accent rounded text-text-primary outline-none min-w-[200px]"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={handleTitleSubmit}
@@ -143,16 +142,16 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
             />
           ) : (
             <h2 
-              className="chat-header-title" 
+              className="cursor-pointer px-2 py-1 -m-1 rounded transition-colors duration-150 hover:bg-white/5"
               onDoubleClick={handleTitleDoubleClick}
             >
               {session.title || 'Untitled Session'}
             </h2>
           )}
-          <span className="session-id">{session.id.slice(0, 8)}</span>
+          <span className="text-xs text-text-disabled font-mono">{session.id.slice(0, 8)}</span>
         </div>
-        <div className="chat-header-right">
-          <div className="header-control">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center bg-[#252525] border border-[#383838] rounded-lg px-3 py-1.5 gap-2">
             <TokenUsage
               promptTokens={usage.promptTokens}
               completionTokens={usage.completionTokens}
@@ -161,19 +160,20 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
               contextWindow={contextWindow}
             />
           </div>
-          <div className="header-control">
+          <div className="flex items-center bg-[#252525] border border-[#383838] rounded-lg px-3 py-1.5 gap-2">
             <ModelSelector
               models={models}
               selectedModelId={selectedModel}
               onChangeModel={(modelId, providerId) => onChangeModel(modelId, providerId)}
             />
           </div>
-          <div className="header-control">
-            <label className="preconfig-selector">
-              <span className="preconfig-label">Preconfig:</span>
+          <div className="flex items-center bg-[#252525] border border-[#383838] rounded-lg px-3 py-1.5 gap-2">
+            <label className="flex items-center gap-2">
+              <span className="text-sm text-text-dim">Preconfig:</span>
               <select 
                 value={session.preconfigId || ''} 
                 onChange={(e) => onChangePreconfig(e.target.value)}
+                className="px-2.5 py-1.5 bg-surface-700 border border-surface-500 rounded-md text-text-primary text-sm cursor-pointer focus:outline-none focus:border-accent"
               >
                 {preconfigs.map(p => (
                   <option key={p.id} value={p.id}>
@@ -186,15 +186,15 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
         </div>
       </header>
       
-      <div className="messages">
+      <div className="flex-1 overflow-y-auto p-5">
         {session.status === 'closed' && (
-          <div className="archived-banner">
+          <div className="flex flex-col items-center p-3 bg-[#3d3520] border-b border-[#5a4d2e] text-[#d4a84b] text-sm">
             <span>This session is archived</span>
-            <span className="archived-hint">You can reopen it from the sessions panel</span>
+            <span className="text-[11px] text-[#9a8a4b] mt-1">You can reopen it from the sessions panel</span>
           </div>
         )}
         {messagesWithParts.length === 0 ? (
-          <div className="no-messages">
+          <div className="text-text-disabled text-center p-10">
             Start a conversation by sending a message below.
           </div>
         ) : (
@@ -210,7 +210,7 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
           ))
         )}
         {orphanedPermissions.length > 0 && (
-          <div style={{ marginTop: '16px' }}>
+          <div className="mt-4">
             {orphanedPermissions.map(p => (
               <div key={p.toolCallId}>
                 <PermissionRequestBlock
@@ -233,22 +233,28 @@ export default function ChatView({ session, messagesWithParts, preconfigs, model
       </div>
       
       {session.status === 'active' && !session.parentId && (
-        <form className="input-area" onSubmit={handleSubmit}>
+        <form className="flex p-5 border-t border-surface-600 gap-3" onSubmit={handleSubmit}>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             autoFocus
+            className="flex-1 px-4 py-3 bg-surface-700 border border-surface-500 rounded-lg text-text-primary text-sm focus:outline-none focus:border-text-disabled"
           />
-          <button type="submit">Send</button>
+          <button 
+            type="submit"
+            className="px-6 py-3 bg-accent border-none rounded-lg text-white text-sm cursor-pointer hover:bg-accent-hover"
+          >
+            Send
+          </button>
         </form>
       )}
 
       {session.parentId && (
-        <div className="subagent-read-only">
-          <span className="read-only-icon">🔒</span>
-          <span className="read-only-text">This is a subagent session (read-only)</span>
+        <div className="flex items-center justify-center gap-2 p-5 border-t border-surface-600 bg-[#252525]">
+          <span className="text-base opacity-70">🔒</span>
+          <span className="text-sm text-text-dim italic">This is a subagent session (read-only)</span>
         </div>
       )}
     </div>

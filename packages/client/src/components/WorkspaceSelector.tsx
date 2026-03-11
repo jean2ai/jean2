@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Workspace } from '@jean2/shared';
-import './WorkspaceSelector.css';
 
 interface WorkspaceSelectorProps {
   workspaces: Workspace[];
@@ -63,45 +62,45 @@ export default function WorkspaceSelector({
   };
 
   return (
-    <div className="workspace-selector" ref={dropdownRef}>
+    <div className="relative w-full" ref={dropdownRef}>
       <button
-        className="workspace-selector-trigger"
+        className="flex items-center gap-2 p-[10px_12px] bg-surface-700 border border-surface-500 rounded-md text-text-primary text-sm cursor-pointer w-full box-border hover:bg-surface-600 hover:border-[#555]"
         onClick={() => setIsOpen(!isOpen)}
         type="button"
       >
-        <span className="workspace-name">
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
           {activeWorkspace?.name || 'Select Workspace'}
         </span>
-        <span className="dropdown-arrow">{isOpen ? '▲' : '▼'}</span>
+        <span className="text-[10px] text-text-dim">{isOpen ? '▲' : '▼'}</span>
       </button>
 
       {isOpen && (
-        <div className="workspace-dropdown">
+        <div className="absolute top-full left-0 right-0 w-full mt-1 bg-surface-700 border border-surface-500 rounded-md shadow-lg z-[100] max-h-[300px] overflow-y-auto box-border">
           {workspaces.length > 0 ? (
             workspaces.map((workspace) => (
               <div
                 key={workspace.id}
-                className={`workspace-option ${
-                  workspace.id === activeWorkspace?.id ? 'active' : ''
+                className={`flex items-center gap-2 p-[10px_12px] cursor-pointer text-sm text-text-primary ${
+                  workspace.id === activeWorkspace?.id ? 'bg-surface-600' : 'hover:bg-surface-600'
                 }`}
                 onClick={() => handleSelectWorkspace(workspace)}
               >
-                <span className="workspace-option-check">
+                <span className="w-4 text-[12px] text-success">
                   {workspace.id === activeWorkspace?.id && '✓'}
                 </span>
-                <span className="workspace-option-name">{workspace.name}</span>
-                <span className="workspace-option-type">
+                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{workspace.name}</span>
+                <span className="text-[11px] text-text-dim max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap">
                   {workspace.isVirtual ? (
-                    <span className="virtual-badge">virtual</span>
+                    <span className="px-1.5 py-0.5 bg-[#1e3a5f] rounded text-accent-light">virtual</span>
                   ) : (
-                    <span className="physical-path" title={workspace.path}>
+                    <span className="font-mono text-[10px]" title={workspace.path}>
                       {truncatePath(workspace.path)}
                     </span>
                   )}
                 </span>
                 {workspace.id === activeWorkspace?.id && (
                   <button
-                    className="workspace-delete-btn"
+                    className="bg-transparent border-none text-text-disabled cursor-pointer text-base p-[0_4px] ml-1 rounded hover:text-error hover:bg-error/10"
                     onClick={(e) => handleDeleteWorkspace(e, workspace.id)}
                     title="Delete workspace"
                     type="button"
@@ -112,13 +111,13 @@ export default function WorkspaceSelector({
               </div>
             ))
           ) : (
-            <div className="workspace-option disabled">No workspaces</div>
+            <div className="flex items-center gap-2 p-[10px_12px] cursor-default text-sm text-text-disabled">No workspaces</div>
           )}
 
-          <div className="dropdown-divider" />
+          <div className="h-px bg-surface-500 my-1" />
 
           <div
-            className="workspace-option create-option"
+            className="flex items-center gap-2 p-[10px_12px] cursor-pointer text-sm text-accent-light hover:bg-[#1e3a5f]"
             onClick={() => {
               setIsOpen(false);
               onCreateVirtualWorkspace();
@@ -128,7 +127,7 @@ export default function WorkspaceSelector({
           </div>
 
           <div
-            className="workspace-option create-option"
+            className="flex items-center gap-2 p-[10px_12px] cursor-pointer text-sm text-accent-light hover:bg-[#1e3a5f]"
             onClick={handleDirectoryPicker}
           >
             + Create from Directory...

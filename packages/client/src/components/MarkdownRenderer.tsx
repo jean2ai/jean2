@@ -1,7 +1,6 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Highlight, themes } from 'prism-react-renderer';
-import './MarkdownRenderer.css';
 
 interface MarkdownRendererProps {
   children: string;
@@ -10,7 +9,7 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ children, className }: MarkdownRendererProps) {
   return (
-    <div className={`markdown-renderer ${className || ''}`}>
+    <div className={`leading-relaxed ${className || ''}`}>
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -22,7 +21,10 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
 
             if (isInline) {
               return (
-                <code className="inline-code" {...props}>
+                <code
+                  className="bg-surface-600 px-1.5 py-0.5 rounded font-mono text-sm text-[#f08cbd]"
+                  {...props}
+                >
                   {children}
                 </code>
               );
@@ -36,13 +38,8 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
               >
                 {({ style, tokens, getLineProps, getTokenProps }) => (
                   <pre
-                    className="code-block"
-                    style={{
-                      ...style,
-                      padding: '1rem',
-                      borderRadius: '0.5rem',
-                      margin: '1rem 0',
-                    }}
+                    className="bg-[#1e1e1e] p-4 rounded-lg overflow-x-auto my-4"
+                    style={style}
                   >
                     {tokens.map((line, i) => (
                       <div key={i} {...getLineProps({ line })}>
@@ -62,7 +59,7 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="md-link"
+                className="text-[#60a5fa] no-underline hover:underline transition-all"
                 {...props}
               >
                 {children}
@@ -71,87 +68,108 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
           },
           h1({ children }) {
             return (
-              <h1 className="md-h1">
+              <h1 className="font-bold text-[#e5e5e5] mt-6 mb-3 text-[1.875rem]">
                 {children}
               </h1>
             );
           },
           h2({ children }) {
             return (
-              <h2 className="md-h2">
+              <h2 className="font-bold text-[#e5e5e5] mt-6 mb-3 text-[1.5rem]">
                 {children}
               </h2>
             );
           },
           h3({ children }) {
             return (
-              <h3 className="md-h3">
+              <h3 className="font-bold text-[#e5e5e5] mt-6 mb-3 text-[1.25rem]">
                 {children}
               </h3>
             );
           },
           h4({ children }) {
             return (
-              <h4 className="md-h4">
+              <h4 className="font-bold text-[#e5e5e5] mt-6 mb-3 text-[1.125rem]">
                 {children}
               </h4>
             );
           },
           p({ children }) {
             return (
-              <p className="md-p">
+              <p className="my-4 text-[#d4d4d4]">
                 {children}
               </p>
             );
           },
           ul({ children }) {
             return (
-              <ul className="md-ul">
+              <ul className="my-4 pl-6 text-[#d4d4d4] list-disc">
                 {children}
               </ul>
             );
           },
           ol({ children }) {
             return (
-              <ol className="md-ol">
+              <ol className="my-4 pl-6 text-[#d4d4d4] list-decimal">
                 {children}
               </ol>
             );
           },
           li({ children }) {
-            return <li className="md-li">{children}</li>;
+            return <li className="my-1">{children}</li>;
           },
           blockquote({ children }) {
             return (
-              <blockquote className="md-blockquote">
+              <blockquote className="border-l-4 border-surface-500 pl-4 my-4 italic text-[#a0a0a0]">
                 {children}
               </blockquote>
             );
           },
           hr() {
-            return <hr className="md-hr" />;
+            return <hr className="border-0 border-t border-surface-500 my-8" />;
           },
           img({ src, alt }) {
             return (
               <img
                 src={src}
                 alt={alt || ''}
-                className="md-img"
+                className="max-w-full h-auto rounded-lg my-4"
               />
             );
           },
           strong({ children }) {
             return (
-              <strong className="md-strong">
+              <strong className="font-bold text-[#e5e5e5]">
                 {children}
               </strong>
             );
           },
           em({ children }) {
             return (
-              <em className="md-em">
+              <em className="italic text-[#c0c0c0]">
                 {children}
               </em>
+            );
+          },
+          table({ children }) {
+            return (
+              <table className="border-collapse w-full my-4">
+                {children}
+              </table>
+            );
+          },
+          th({ children }) {
+            return (
+              <th className="border border-surface-500 px-2 py-2 bg-surface-600 font-semibold">
+                {children}
+              </th>
+            );
+          },
+          td({ children }) {
+            return (
+              <td className="border border-surface-500 px-2 py-2">
+                {children}
+              </td>
             );
           },
         }}

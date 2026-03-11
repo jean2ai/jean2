@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { Session, Preconfig, Workspace, ToolPermission, SubagentStatus } from '@jean2/shared';
 import WorkspaceSelector from './WorkspaceSelector';
 import PermissionManager from './PermissionManager';
-import './SessionList.css';
 
 interface Props {
   sessions: Session[];
@@ -89,19 +88,21 @@ export default function SessionList({
   };
   
   return (
-    <div className="session-list">
+    <div className="flex flex-col h-full p-3">
       {/* Workspace selector with settings button */}
-      <div className="workspace-header">
-        <WorkspaceSelector
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          onSelectWorkspace={onSelectWorkspace}
-          onCreateVirtualWorkspace={onCreateVirtualWorkspace}
-          onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
-          onDeleteWorkspace={onDeleteWorkspace}
-        />
+      <div className="flex items-stretch gap-2 mb-4">
+        <div className="flex-1">
+          <WorkspaceSelector
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            onSelectWorkspace={onSelectWorkspace}
+            onCreateVirtualWorkspace={onCreateVirtualWorkspace}
+            onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
+            onDeleteWorkspace={onDeleteWorkspace}
+          />
+        </div>
         <button 
-          className="settings-btn"
+          className="bg-[#2a2a2a] border border-[#444] rounded-md text-[#888] cursor-pointer text-base p-0 w-9 h-9 flex items-center justify-center transition-all flex-shrink-0 hover:bg-[#3a3a3a] hover:text-[#e0e0e0] hover:border-[#555]"
           onClick={onToggleSettings}
           title="Workspace Settings"
         >
@@ -111,13 +112,13 @@ export default function SessionList({
       
       {/* Settings Modal */}
       {showSettings && (
-        <div className="modal-backdrop" onClick={onToggleSettings}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Workspace Settings</h2>
-              <button className="modal-close" onClick={onToggleSettings}>×</button>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onToggleSettings}>
+          <div className="bg-[#2a2a2a] border border-[#444] rounded-lg w-[90%] max-w-[600px] max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 px-5 border-b border-[#444]">
+              <h2 className="text-lg font-semibold m-0 text-[#e0e0e0]">Workspace Settings</h2>
+              <button className="bg-none border-none text-[#888] cursor-pointer text-2xl leading-none p-0 w-8 h-8 flex items-center justify-center rounded transition-all hover:bg-[#3a3a3a] hover:text-[#f44336]" onClick={onToggleSettings}>×</button>
             </div>
-            <div className="modal-body">
+            <div className="p-5 overflow-y-auto flex-1">
               <PermissionManager
                 workspaceId={activeWorkspace?.id || ''}
                 ws={ws}
@@ -129,37 +130,37 @@ export default function SessionList({
         </div>
       )}
       
-      <div className="session-list-header">
-        <h3>Sessions</h3>
-        <span className={`status ${connected ? 'connected' : 'disconnected'}`}>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-sm font-semibold">Sessions</h3>
+        <span className={`text-xs ${connected ? 'text-[#4caf50]' : 'text-[#f44336]'}`}>
           {connected ? '●' : '○'}
         </span>
       </div>
       
       <button
-        className="new-session-btn"
+        className="w-full p-[10px] bg-[#3a3a3a] border border-[#444] rounded-md text-[#e0e0e0] cursor-pointer mb-3 hover:bg-[#4a4a4a] disabled:opacity-50 disabled:cursor-not-allowed"
         onClick={() => onCreateSession(defaultPreconfig?.id)}
         disabled={!connected}
       >
         + New Session
       </button>
       
-      <div className="session-tabs">
+      <div className="flex gap-1 mb-2">
         <button 
-          className={`session-tab ${sessionFilter === 'active' ? 'active' : ''}`}
+          className={`flex-1 p-1.5 px-3 bg-[#2a2a2a] border border-[#444] rounded text-[#888] cursor-pointer text-xs hover:bg-[#333] hover:text-[#ccc] ${sessionFilter === 'active' ? 'bg-[#3a3a3a] text-[#e0e0e0] border-[#666]' : ''}`}
           onClick={() => onSetSessionFilter('active')}
         >
           Active
         </button>
         <button 
-          className={`session-tab ${sessionFilter === 'all' ? 'active' : ''}`}
+          className={`flex-1 p-1.5 px-3 bg-[#2a2a2a] border border-[#444] rounded text-[#888] cursor-pointer text-xs hover:bg-[#333] hover:text-[#ccc] ${sessionFilter === 'all' ? 'bg-[#3a3a3a] text-[#e0e0e0] border-[#666]' : ''}`}
           onClick={() => onSetSessionFilter('all')}
         >
           Archived
         </button>
       </div>
       
-      <div className="sessions">
+      <div className="flex-1 overflow-y-auto">
         {filteredSessions
           .filter(session => !session.parentId) // Only show root sessions
           .map(session => {
@@ -169,14 +170,14 @@ export default function SessionList({
             const isCurrentSession = currentSession?.id === session.id;
             
             return (
-              <div key={session.id} className="session-item-group">
+              <div key={session.id} className="mb-1">
                 <div
-                  className={`session-item ${isCurrentSession ? 'active' : ''} ${session.status === 'closed' ? 'archived' : ''}`}
+                  className={`flex items-center p-2.5 rounded-md cursor-pointer mb-1 hover:bg-[#333] ${isCurrentSession ? 'bg-[#3a3a3a]' : ''} ${session.status === 'closed' ? 'opacity-60' : ''}`}
                   onClick={() => onResumeSession(session.id)}
                 >
                   {hasChildren && (
                     <span 
-                      className="session-expand"
+                      className="w-5 text-[10px] text-[#888] cursor-pointer p-1 mr-1 rounded transition-all flex items-center justify-center hover:bg-[#444] hover:text-[#e0e0e0]"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleExpanded(session.id);
@@ -185,13 +186,13 @@ export default function SessionList({
                       {isExpanded ? '▼' : '▶'}
                     </span>
                   )}
-                  {!hasChildren && <span className="session-expand-spacer" />}
-                  <span className="session-title">{session.title || 'Untitled'}</span>
-                  <span className="session-status">{session.status}</span>
+                  {!hasChildren && <span className="w-5 mr-1 inline-block" />}
+                  <span className="flex-1 text-sm truncate">{session.title || 'Untitled'}</span>
+                  <span className="text-[11px] text-[#888] mr-2">{session.status}</span>
                   {session.status === 'closed' ? (
                     <>
                       <button
-                        className="reopen-btn"
+                        className="bg-none border-none text-[#4caf50] cursor-pointer text-sm p-0 hover:text-[#66bb6a]"
                         onClick={(e) => {
                           e.stopPropagation();
                           onReopenSession(session.id);
@@ -201,7 +202,7 @@ export default function SessionList({
                         ↻
                       </button>
                       <button
-                        className="delete-btn"
+                        className="bg-none border-none text-[#888] cursor-pointer text-xs p-0 ml-0.5 hover:text-[#f44336]"
                         onClick={(e) => {
                           e.stopPropagation();
                           const sessionTitle = session.title || 'Untitled';
@@ -216,7 +217,7 @@ export default function SessionList({
                     </>
                   ) : (
                     <button
-                      className="close-btn"
+                      className="bg-none border-none text-[#888] cursor-pointer text-base p-0 hover:text-[#f44336]"
                       onClick={(e) => {
                         e.stopPropagation();
                         onCloseSession(session.id);
@@ -230,17 +231,16 @@ export default function SessionList({
                 
                 {/* Child sessions (subagents) */}
                 {isExpanded && hasChildren && (
-                  <div className="session-children">
+                  <div className="ml-4 border-l-2 border-[#444] pl-2">
                     {childSessions.map(child => (
                       <div
                         key={child.id}
-                        className={`session-item session-child ${currentSession?.id === child.id ? 'active' : ''}`}
+                        className={`flex items-center p-2 px-2.5 rounded-md cursor-pointer mb-1 text-sm hover:bg-[#2a2a2a] ${currentSession?.id === child.id ? 'bg-[#2a3a4a]' : ''}`}
                         onClick={() => onResumeSession(child.id)}
                       >
-                        <span className="session-expand-spacer" />
-                        <span className="session-status-icon">{getSubagentStatusIcon(child.subagentStatus)}</span>
-                        <span className="session-title">{child.title || 'Untitled'}</span>
-                        {/* Children are read-only, no close/reopen buttons */}
+                        <span className="w-5 mr-1 inline-block" />
+                        <span className="mr-1.5 text-xs">{getSubagentStatusIcon(child.subagentStatus)}</span>
+                        <span className="flex-1 text-sm text-[#aaa] truncate">{child.title || 'Untitled'}</span>
                       </div>
                     ))}
                   </div>

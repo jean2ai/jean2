@@ -1,5 +1,4 @@
 import { getModelContextWindow } from '@jean2/shared';
-import './TokenUsage.css';
 
 interface TokenUsageProps {
   promptTokens: number;
@@ -41,21 +40,27 @@ export default function TokenUsage({
   };
 
   return (
-    <div className="token-usage">
-      <div className="token-row">
-        <span className="token-label">Total:</span>
-        <span className="token-count">
+    <div className="flex flex-col gap-1 text-xs text-text-dim">
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium text-text-muted whitespace-nowrap">Total:</span>
+        <span className="font-mono text-[11px] text-text-secondary whitespace-nowrap">
           {formatCompact(totalTokens)}/{formatCompact(contextWindow)}
         </span>
       </div>
-      <div className="token-row">
-        <div className="token-bar-container">
+      <div className="flex items-center gap-1.5">
+        <div className="w-20 h-1 bg-surface-600 rounded-sm overflow-hidden shrink-0">
           <div
-            className={`token-bar ${getColorClass()}`}
+            className={`h-full rounded-sm transition-all duration-300 ${
+              getColorClass() === 'critical'
+                ? 'bg-gradient-to-r from-[#e74c3c] to-[#ff6b6b]'
+                : getColorClass() === 'warning'
+                  ? 'bg-gradient-to-r from-[#f5a623] to-[#f7b742]'
+                  : 'bg-gradient-to-r from-accent to-accent-light'
+            }`}
             style={{ width: `${percentage}%` }}
           />
         </div>
-        <span className="token-percentage">({percentage}%)</span>
+        <span className="font-medium text-text-muted text-[11px] whitespace-nowrap">({percentage}%)</span>
       </div>
     </div>
   );
