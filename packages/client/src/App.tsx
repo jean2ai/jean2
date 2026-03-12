@@ -10,8 +10,10 @@ import type {
   Workspace, 
   ToolPermission 
 } from '@jean2/shared';
-import SessionList from '@/components/SessionList';
-import ChatView from '@/components/ChatView';
+import { AppSidebar } from '@/components/layout/AppSidebar';
+import { ChatView } from '@/components/chat/ChatView';
+import { SettingsDialog } from '@/components/modals/SettingsDialog';
+import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -66,7 +68,6 @@ function App() {
   const [defaultModel, setDefaultModel] = useState<string>('gpt-4o');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-  const [sessionFilter, setSessionFilter] = useState<'active' | 'all'>('active');
   const [showSettings, setShowSettings] = useState(false);
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
@@ -89,12 +90,10 @@ function App() {
     
     socket.onopen = () => {
       setConnected(true);
-      console.log('WebSocket connected');
     };
     
     socket.onclose = () => {
       setConnected(false);
-      console.log('WebSocket disconnected');
     };
     
     socket.onmessage = (event) => {
@@ -144,18 +143,6 @@ function App() {
       localStorage.setItem('activeWorkspaceId', activeWorkspace.id);
     }
   }, [activeWorkspace]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('sessionFilter');
-    if (saved === 'active' || saved === 'all') {
-      setSessionFilter(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('sessionFilter', sessionFilter);
-  }, [sessionFilter]);
-
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const res = await fetch(`${API_URL}/workspaces`, {
@@ -351,7 +338,6 @@ function App() {
         if (currentSession?.id === msg.session.id) {
           setCurrentSession(msg.session);
         }
-        setSessionFilter('active');
         break;
 
       case 'session.deleted':
@@ -444,7 +430,6 @@ function App() {
   }, [sendMessage, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string) => {
-    // Clear pending permissions from previous session
     setPendingPermissions([]);
     sendMessage('session.resume', { sessionId });
   }, [sendMessage]);
@@ -490,7 +475,6 @@ function App() {
   }, [currentSession, sendMessage]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
-    // Remove from pending list
     setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
     
     sendMessage('permission.response', {
@@ -510,65 +494,75 @@ function App() {
 
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
+  if (!connected && sessions.length === 0) {
+    return (
+      <div className="flex w-full h-full items-center justify-center bg-background">
+        <ConnectingState />
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full h-full">
-      <aside className="w-[280px] bg-surface-800 border-r border-surface-600 flex flex-col">
-        <SessionList
-          sessions={workspaceSessions}
-          preconfigs={preconfigs}
-          currentSession={currentSession}
-          connected={connected}
-          onCreateSession={createSession}
-          onResumeSession={resumeSession}
-          onCloseSession={closeSession}
-          
-          sessionFilter={sessionFilter}
-          onSetSessionFilter={setSessionFilter}
-          onReopenSession={reopenSession}
-          onPermanentlyDeleteSession={permanentlyDeleteSession}
-          
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          onSelectWorkspace={selectWorkspace}
-          onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
-          onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
-          onDeleteWorkspace={deleteWorkspace}
-          
-          showSettings={showSettings}
-          onToggleSettings={() => setShowSettings(!showSettings)}
-          permissions={permissions}
-          onRefreshPermissions={refreshPermissions}
-          ws={ws}
-        />
-      </aside>
+      <AppSidebar
+        sessions={workspaceSessions}
+        currentSession={currentSession}
+        connected={connected}
+        workspaces={workspaces}
+        activeWorkspace={activeWorkspace}
+        permissions={permissions}
+        onCreateSession={() => createSession(preconfigs[0]?.id)}
+        onResumeSession={resumeSession}
+        onCloseSession={closeSession}
+        onReopenSession={reopenSession}
+        onDeleteSession={permanentlyDeleteSession}
+        onRenameSession={handleRenameSession}
+        onSelectWorkspace={selectWorkspace}
+        onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
+        onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
+        onDeleteWorkspace={deleteWorkspace}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+      
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentSession ? (
-          <>
-            <ChatView
-              session={currentSession}
-              messagesWithParts={messagesWithParts}
-              preconfigs={preconfigs}
-              models={models}
-              defaultModel={defaultModel}
-              onSendMessage={sendChatMessage}
-              onChangePreconfig={updateSessionPreconfig}
-              onChangeModel={updateSessionModel}
-              pendingPermissions={pendingPermissions}
-              onPermissionResponse={handlePermissionResponse}
-              onRename={handleRenameSession}
-              usage={sessionUsage}
-              modelName={currentModel}
-              onNavigateToSubagent={resumeSession}
-              onNavigateBack={handleNavigateBack}
-            />
-          </>
+          <ChatView
+            session={currentSession}
+            messagesWithParts={messagesWithParts}
+            preconfigs={preconfigs}
+            models={models}
+            defaultModel={defaultModel}
+            onSendMessage={sendChatMessage}
+            onChangePreconfig={updateSessionPreconfig}
+            onChangeModel={updateSessionModel}
+            pendingPermissions={pendingPermissions}
+            onPermissionResponse={handlePermissionResponse}
+            onRename={handleRenameSession}
+            usage={sessionUsage}
+            modelName={currentModel}
+            onNavigateToSubagent={resumeSession}
+            onNavigateBack={handleNavigateBack}
+          />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-text-dim">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
             <h2 className="mb-2">Select or create a session</h2>
             <p>Choose a session from the sidebar or create a new one to start chatting.</p>
           </div>
         )}
       </main>
+
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        permissions={permissions}
+        onRefreshPermissions={refreshPermissions}
+        onRevokePermission={(permissionId) => {
+          sendMessage('permission.revoke', { permissionId });
+        }}
+        onRevokeAllPermissions={() => {
+          sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
+        }}
+      />
     </div>
   );
 }
