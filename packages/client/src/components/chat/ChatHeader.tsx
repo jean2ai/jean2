@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Archive } from 'lucide-react';
+import { ArrowLeft, Archive, Square } from 'lucide-react';
 import type { Session, Preconfig } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,8 @@ interface ChatHeaderProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateBack?: () => void;
+  isStreaming?: boolean;
+  onInterrupt?: () => void;
 }
 
 export function ChatHeader({
@@ -45,6 +47,8 @@ export function ChatHeader({
   onChangeModel,
   onRename,
   onNavigateBack,
+  isStreaming,
+  onInterrupt,
 }: ChatHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(session.title || '');
@@ -80,8 +84,8 @@ export function ChatHeader({
     }
   };
 
-  const selectedModel = session.selectedModel || 
-    preconfigs.find((p) => p.id === session.preconfigId)?.model || 
+  const selectedModel = session.selectedModel ||
+    preconfigs.find((p) => p.id === session.preconfigId)?.model ||
     modelName;
 
   const currentModelInfo = models.find((m) => m.id === selectedModel);
@@ -90,7 +94,7 @@ export function ChatHeader({
   return (
     <header className="flex flex-col border-b border-border bg-card">
       {/* Top row: Navigation and Title */}
-      <div className="flex items-center justify-between px-4 py-2">
+      <div className="flex items-center justify-start px-4 py-2">
         <div className="flex items-center gap-3">
           {session.parentId && onNavigateBack && (
             <Button
@@ -103,7 +107,7 @@ export function ChatHeader({
               Back
             </Button>
           )}
-          
+
           {isEditing ? (
             <input
               ref={inputRef}
@@ -123,11 +127,11 @@ export function ChatHeader({
               {session.title || 'Untitled Session'}
             </h2>
           )}
-          
+
           <Badge variant="outline" className="font-mono text-xs">
             {session.id.slice(0, 8)}
           </Badge>
-          
+
           {session.status === 'closed' && (
             <Badge variant="secondary">
               <Archive className="size-3" data-icon="inline-start" />
@@ -140,7 +144,7 @@ export function ChatHeader({
       <Separator />
 
       {/* Bottom row: Controls */}
-      <div className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2 flex-wrap">
+      <div className="inline-flex align-middle items-center gap-3 sm:gap-4 px-4 py-2 flex-wrap">
         <TokenMeter
           promptTokens={usage.promptTokens}
           completionTokens={usage.completionTokens}
@@ -149,9 +153,9 @@ export function ChatHeader({
           modelName={modelName}
           compact={isMobile}
         />
-        
-        <Separator orientation="vertical" className="h-6 hidden sm:block" />
-        
+
+        <Separator orientation="vertical" className="hidden sm:block" />
+
         <ModelSelector
           models={models}
           selectedModelId={selectedModel}
@@ -159,7 +163,7 @@ export function ChatHeader({
           disabled={session.status === 'closed'}
           iconOnly={isMobile}
         />
-        
+
         <PreconfigSelector
           preconfigs={preconfigs}
           selectedPreconfigId={session.preconfigId}
@@ -167,6 +171,21 @@ export function ChatHeader({
           disabled={session.status === 'closed'}
           iconOnly={isMobile}
         />
+
+        <Separator orientation="vertical" className="hidden sm:block" />
+
+        {/* Interrupt button - always visible, highlighted when active */}
+        <Button
+          variant={isStreaming ? 'destructive' : 'outline'}
+          size={isMobile ? 'icon' : 'sm'}
+          onClick={onInterrupt}
+          disabled={!onInterrupt}
+          className={!isStreaming ? 'opacity-60 hover:opacity-100' : ''}
+          title={isStreaming ? 'Interrupt operation' : 'Interrupt (no active operation)'}
+        >
+          <Square className="size-4" />
+          {!isMobile && <span className="ml-1">Stop</span>}
+        </Button>
       </div>
     </header>
   );

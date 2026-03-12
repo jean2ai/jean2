@@ -10,6 +10,7 @@ import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { randomUUID } from 'crypto';
 import { createPermissionRequestHandler } from '@/index';
+import { interruptManager } from './interrupt';
 
 // Structured API keys from environment
 const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
@@ -277,22 +278,30 @@ async function buildAiSdkTools(
         description: subagentDefinition.description,
         inputSchema: jsonSchema(subagentDefinition.inputSchema),
         execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
-          // Build subagent input with required fields from context
-          const subagentInput: SubagentInput = {
-            description: args.description as string,
-            prompt: args.prompt as string,
-            subagent_type: args.subagent_type as string,
-            task_id: args.task_id as string | undefined,
-            sessionId,
-            workspaceId,
-            workspacePath,
-            onSessionCreated: (childSessionId: string) => {
-              transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
-            },
-          };
+          // Register tool execution with interrupt manager
+          const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
 
-          const result = await executeSubagent(subagentInput);
-          return result as SubagentOutput;
+          try {
+            // Build subagent input with required fields from context
+            const subagentInput: SubagentInput = {
+              description: args.description as string,
+              prompt: args.prompt as string,
+              subagent_type: args.subagent_type as string,
+              task_id: args.task_id as string | undefined,
+              sessionId,
+              workspaceId,
+              workspacePath,
+              abortSignal: toolAbortController.signal,
+              onSessionCreated: (childSessionId: string) => {
+                transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
+              },
+            };
+
+            const result = await executeSubagent(subagentInput);
+            return result as SubagentOutput;
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+          }
         },
       });
       continue;
@@ -307,47 +316,86 @@ async function buildAiSdkTools(
       description: definition.description,
       inputSchema: jsonSchema(definition.inputSchema),
       execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
-        // Build execution context
-        const context: ToolExecutionContext = {
-          workspacePath,
-          sessionId,
-          workspaceId,
-        };
+        // Register tool execution with interrupt manager
+        const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
 
-        // If tool has security check, use enhanced executor
-        if (hasSecurityCheck(discoveredTool)) {
-          const result = await executeToolWithSecurity({
-            tool: discoveredTool,
-            args,
-            context,
-            toolCallId,
-            onPermissionRequest,
-          });
+        try {
+          // Build execution context
+          const context: ToolExecutionContext = {
+            workspacePath,
+            sessionId,
+            workspaceId,
+          };
 
-          if (!result.success) {
-            // Check if it was a user rejection
-            if (result.error === 'USER_REJECTION' || result.permissionGranted === false) {
-              return {
-                error: 'USER_REJECTION',
-                message: `The user denied permission to execute this tool (${name}). ` +
-                         `Do NOT retry this tool call. Acknowledge this rejection and ask what they would like to do instead.`,
-                toolName: name,
-                args,
-              };
+          // If tool has security check, use enhanced executor
+          if (hasSecurityCheck(discoveredTool)) {
+            const result = await executeToolWithSecurity({
+              tool: discoveredTool,
+              args,
+              context,
+              toolCallId,
+              onPermissionRequest,
+              abortSignal: toolAbortController.signal,
+            });
+
+            if (!result.success) {
+              // Check if it was a user rejection
+              if (result.error === 'USER_REJECTION' || result.permissionGranted === false) {
+                return {
+                  error: 'USER_REJECTION',
+                  message: `The user denied permission to execute this tool (${name}). ` +
+                           `Do NOT retry this tool call. Acknowledge this rejection and ask what they would like to do instead.`,
+                  toolName: name,
+                  args,
+                };
+              }
+
+              // Check for interrupt
+              if (result.interrupted) {
+                return {
+                  error: 'INTERRUPTED',
+                  message: `Tool execution was interrupted`,
+                  toolName: name,
+                  args,
+                  partialOutput: result.partialOutput,
+                };
+              }
+
+              return { error: result.error };
             }
-            return { error: result.error };
+
+            return result.result;
           }
 
-          return result.result;
-        }
+          // Execute the tool with workspacePath
+          const execResult = await executeTool({
+            tool: discoveredTool,
+            args,
+            workspacePath,
+            sessionId,
+            toolCallId,
+            abortSignal: toolAbortController.signal,
+          });
 
-        // Execute the tool with workspacePath
-        const execResult = await executeTool({ tool: discoveredTool, args, workspacePath, sessionId });
-        if (!execResult.success) {
-          return { error: execResult.error };
-        }
+          if (!execResult.success) {
+            // Check for interrupt
+            if (execResult.interrupted) {
+              return {
+                error: 'INTERRUPTED',
+                message: `Tool execution was interrupted`,
+                toolName: name,
+                args,
+                partialOutput: execResult.partialOutput,
+              };
+            }
+            return { error: execResult.error };
+          }
 
-        return execResult.result;
+          return execResult.result;
+        } finally {
+          // Cleanup tool registration
+          interruptManager.unregisterToolExecution(sessionId, toolCallId);
+        }
       },
     });
   }
@@ -357,6 +405,9 @@ async function buildAiSdkTools(
 
 export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string }> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
+
+  // Register session with interrupt manager
+  const abortController = interruptManager.registerSession(_sessionId);
 
   // Resolve model: session override > preconfig > env default
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
@@ -390,6 +441,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     maxOutputTokens: LLM_MAX_TOKENS,
     temperature: (preconfig.settings?.temperature ?? LLM_TEMPERATURE) as number,
     stopWhen: stepCountIs(maxSteps ?? 10),
+    abortSignal: abortController.signal,
     // Use callbacks for step tracking
     experimental_onStepStart: (stepStartEvent) => {
       // Create step started part
@@ -495,9 +547,22 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     callbackEventQueue.push(event);
   };
 
-  for await (const delta of result.fullStream) {
+  try {
+    for await (const delta of result.fullStream) {
 
-    // Process any callback events that were queued
+      // Check for abort
+      if (abortController.signal.aborted) {
+        const interruptedMessage: AssistantMessage = {
+          ...assistantMessage,
+          status: 'error',
+          error: 'Interrupted by user',
+        };
+        yield { type: 'message.updated', message: interruptedMessage };
+        updateMessage(messageId, interruptedMessage);
+        return;
+      }
+
+      // Process any callback events that were queued
     while (callbackEventQueue.length > 0) {
       const event = callbackEventQueue.shift()!;
       yield event;
@@ -659,6 +724,10 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       },
       model: actualModelId,
     };
+  }
+  } finally {
+    // Cleanup interrupt registration
+    interruptManager.unregisterSession(_sessionId);
   }
 }
 

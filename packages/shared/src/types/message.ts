@@ -4,7 +4,7 @@ import type { PermissionType } from './permission';
 // Tool State Types
 // ===========================================
 
-export type ToolStatus = 'pending' | 'running' | 'completed' | 'error';
+export type ToolStatus = 'pending' | 'running' | 'completed' | 'error' | 'interrupted';
 
 interface ToolStateBase {
   input: Record<string, unknown>;
@@ -35,11 +35,22 @@ export interface ToolStateError extends ToolStateBase {
   failedAt: number;
 }
 
+export interface ToolStateInterrupted extends ToolStateBase {
+  status: 'interrupted';
+  input: Record<string, unknown>;
+  startedAt: number;
+  interruptedAt: number;
+  reason: 'user_request' | 'timeout' | 'error' | 'cascade';
+  partialOutput?: unknown; // Save partial results for potential resumption
+  childSessionId?: string; // For 'task' tool: ID of the child/subagent session
+}
+
 export type ToolState =
   | ToolStatePending
   | ToolStateRunning
   | ToolStateCompleted
-  | ToolStateError;
+  | ToolStateError
+  | ToolStateInterrupted;
 
 // ===========================================
 // Part Types

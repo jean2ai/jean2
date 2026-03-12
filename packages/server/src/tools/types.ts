@@ -11,4 +11,6 @@ export interface ToolResult {
   success: boolean;
   result?: unknown;
   error?: string;
+  interrupted?: boolean;
+  partialOutput?: string;
 }

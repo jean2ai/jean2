@@ -1,6 +1,7 @@
 import type { Session } from '../types/session';
 import type { Message, Part, MessageWithParts } from '../types/message';
 import type { PermissionType, ToolPermission } from '../types/permission';
+import type { SessionInterruptResult } from '../types/interrupt';
 
 export interface SessionCreatedMessage {
   type: 'session.created';
@@ -199,6 +200,16 @@ export interface SessionStateMessage {
   messages: MessageWithParts[];
 }
 
+// =============================================================================
+// Interrupt Messages
+// =============================================================================
+
+export interface SessionInterruptedMessage {
+  type: 'session.interrupted';
+  sessionId: string;
+  result: SessionInterruptResult;
+}
+
 export type ServerMessage =
   | MessageCreatedMessage
   | MessageUpdatedMessage
@@ -225,4 +236,5 @@ export type ServerMessage =
   | SubagentProgressMessage
   | CompactionCompleteMessage
   | SessionRevertedMessage
-  | SessionStateMessage;
+  | SessionStateMessage
+  | SessionInterruptedMessage;

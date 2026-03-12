@@ -27,6 +27,7 @@ import { streamChat } from './core/agent';
 import { getModelsConfig, findModel } from './config';
 import { compactMessages } from './core/compaction';
 import { revertToStep } from './core/revert';
+import { interruptManager } from './core/interrupt';
 import type { ServerWebSocket } from 'bun';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -436,6 +437,31 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
 
     case 'session.revert': {
       await handleSessionRevert(ws, msg);
+      break;
+    }
+
+    case 'session.interrupt': {
+      const session = getSession(msg.sessionId);
+      if (!session) {
+        send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+        break;
+      }
+
+      try {
+        const result = await interruptManager.interruptSession(
+          msg.sessionId,
+          msg.reason || 'user_request'
+        );
+
+        broadcast({
+          type: 'session.interrupted',
+          sessionId: msg.sessionId,
+          result,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Interrupt failed';
+        send(ws, { type: 'error', code: 'interrupt_error', message });
+      }
       break;
     }
     

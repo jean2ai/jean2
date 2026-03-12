@@ -52,6 +52,8 @@ interface ChatViewProps {
   modelName: string;
   onNavigateToSubagent?: (sessionId: string) => void;
   onNavigateBack?: () => void;
+  isStreaming?: boolean;
+  onInterrupt?: () => void;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -162,6 +164,8 @@ export function ChatView({
   modelName,
   onNavigateToSubagent,
   onNavigateBack,
+  isStreaming,
+  onInterrupt,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -201,6 +205,8 @@ export function ChatView({
         onChangeModel={onChangeModel}
         onRename={onRename}
         onNavigateBack={onNavigateBack}
+        isStreaming={isStreaming}
+        onInterrupt={onInterrupt}
       />
 
       {session.status === 'closed' && (

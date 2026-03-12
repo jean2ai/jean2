@@ -30,13 +30,15 @@ export interface ExecuteToolOptions {
   args: Record<string, unknown>;
   workspacePath?: string;
   sessionId?: string;
+  toolCallId?: string;
+  abortSignal?: AbortSignal;
   timeout?: number;
 }
 
 export async function executeTool(
   options: ExecuteToolOptions
 ): Promise<ToolResult> {
-  const { tool, args, workspacePath, sessionId, timeout = 30000 } = options;
+  const { tool, args, workspacePath, sessionId, toolCallId: _toolCallId, abortSignal, timeout = 30000 } = options;
   const { definition, path: toolPath } = tool;
   const scriptPath = join(toolPath, definition.script);
   
@@ -65,6 +67,17 @@ export async function executeTool(
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let interrupted = false;
+    
+    // Check if already aborted before spawning
+    if (abortSignal?.aborted) {
+      resolve({
+        success: false,
+        error: 'Tool execution interrupted before start',
+        interrupted: true,
+      });
+      return;
+    }
     
     const proc = spawn(command[0], command.slice(1), {
       cwd,
@@ -77,6 +90,16 @@ export async function executeTool(
       timedOut = true;
       proc.kill();
     }, timeout);
+    
+    // Handle abort signal
+    const abortHandler = () => {
+      interrupted = true;
+      proc.kill('SIGTERM');
+    };
+    
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', abortHandler);
+    }
     
     // Build input with Jean2-provided context
     const scriptInput = {
@@ -99,6 +122,19 @@ export async function executeTool(
     
     proc.on('close', (code) => {
       clearTimeout(timeoutId);
+      if (abortSignal) {
+        abortSignal.removeEventListener('abort', abortHandler);
+      }
+      
+      if (interrupted) {
+        resolve({
+          success: false,
+          error: 'Tool execution interrupted',
+          interrupted: true,
+          partialOutput: stdout || undefined,
+        });
+        return;
+      }
       
       if (timedOut) {
         resolve({
@@ -132,6 +168,20 @@ export async function executeTool(
     
     proc.on('error', (err) => {
       clearTimeout(timeoutId);
+      if (abortSignal) {
+        abortSignal.removeEventListener('abort', abortHandler);
+      }
+      
+      if (interrupted) {
+        resolve({
+          success: false,
+          error: 'Tool execution interrupted',
+          interrupted: true,
+          partialOutput: stdout || undefined,
+        });
+        return;
+      }
+      
       resolve({
         success: false,
         error: `Failed to execute tool: ${err.message}`,

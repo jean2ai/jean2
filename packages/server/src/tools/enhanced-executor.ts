@@ -24,6 +24,7 @@ export interface EnhancedExecuteOptions {
   toolCallId: string;
   timeout?: number;
   onPermissionRequest?: PermissionRequestCallback;
+  abortSignal?: AbortSignal;
 }
 
 export type ExecutionDecision =
@@ -50,7 +51,7 @@ export interface EnhancedExecuteResult extends ToolResult {
 export async function executeToolWithSecurity(
   options: EnhancedExecuteOptions
 ): Promise<EnhancedExecuteResult> {
-  const { tool, args, context, toolCallId, timeout, onPermissionRequest } = options;
+  const { tool, args, context, toolCallId, timeout, onPermissionRequest, abortSignal } = options;
   const { definition } = tool;
 
   // Phase 1: Run security check if configured
@@ -103,6 +104,7 @@ export async function executeToolWithSecurity(
             workspacePath: context.workspacePath,
             sessionId: context.sessionId,
             timeout,
+            abortSignal,
           }).then((result) => ({
             ...result,
             permissionGranted: true,
@@ -158,6 +160,7 @@ export async function executeToolWithSecurity(
     workspacePath: context.workspacePath,
     sessionId: context.sessionId,
     timeout,
+    abortSignal,
   });
 
   return {

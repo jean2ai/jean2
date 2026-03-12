@@ -52,6 +52,7 @@ export interface SubagentInput {
   sessionId: string;
   workspaceId?: string;
   workspacePath?: string;
+  abortSignal?: AbortSignal;
   onSessionCreated?: (childSessionId: string) => void;
 }
 
@@ -126,7 +127,16 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
 }
 
 export async function executeSubagent(input: SubagentInput): Promise<SubagentOutput> {
-  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, onSessionCreated } = input;
+  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, abortSignal, onSessionCreated } = input;
+
+  // Check if already aborted before starting
+  if (abortSignal?.aborted) {
+    return {
+      task_id: '',
+      result: '',
+      error: 'Subagent execution aborted before start',
+    };
+  }
 
   // Get parent session for model inheritance
   const parentSession = getSession(sessionId);
@@ -157,6 +167,19 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
 
   let childSession: Session | undefined | null;
   let resumeFromHistory = false;
+
+  // Set up abort handling variables outside try block for finally access
+  let wasAborted = false;
+  const abortHandler = () => {
+    wasAborted = true;
+    if (childSession) {
+      updateSession(childSession.id, { subagentStatus: 'error' });
+      const updatedSession = getSession(childSession.id);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
+    }
+  };
 
   try {
     const subagentPreconfig = await getPreconfig(subagent_type);
@@ -211,6 +234,11 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       onSessionCreated(childSession.id);
     }
 
+    // Add abort listener to update child session status if parent aborts
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', abortHandler);
+    }
+
     const result = await executeChildSession({
       parentSessionId: sessionId,
       childSessionId: childSession.id,
@@ -227,6 +255,15 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         ? subagentPreconfig.provider
         : parentProviderId,
     });
+
+    // Check if was aborted during execution
+    if (wasAborted) {
+      return {
+        task_id: childSession.id,
+        result: '',
+        error: 'Subagent execution was interrupted',
+      };
+    }
 
     // Update subagent status based on execution result
     if (result.error) {
@@ -273,7 +310,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       result: output,
       ...(result.error && { error: result.error }),
     };
-  } catch (err) {
+  } catch (err: unknown) {
     if (childSession) {
       updateSession(childSession.id, { subagentStatus: 'error' });
       const updatedSession = getSession(childSession.id);
@@ -286,5 +323,9 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       result: '',
       error: `Task tool error: ${err instanceof Error ? err.message : String(err)}`,
     };
+  } finally {
+    if (abortSignal) {
+      abortSignal.removeEventListener('abort', abortHandler);
+    }
   }
 }

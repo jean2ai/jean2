@@ -99,6 +99,16 @@ export interface SessionRevertMessage {
   stepPartId: string;
 }
 
+// =============================================================================
+// Interrupt Messages
+// =============================================================================
+
+export interface SessionInterruptMessage {
+  type: 'session.interrupt';
+  sessionId: string;
+  reason?: 'user_request' | 'timeout' | 'error';
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
@@ -115,4 +125,5 @@ export type ClientMessage =
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage
   | SessionCompactMessage
-  | SessionRevertMessage;
+  | SessionRevertMessage
+  | SessionInterruptMessage;

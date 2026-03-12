@@ -42,7 +42,8 @@ type ClientMessagePayload =
   | { toolCallId: string; allowed: boolean; alwaysAllow: boolean }
   | { workspaceId: string; includeRevoked?: boolean }
   | { permissionId: string }
-  | { workspaceId: string };
+  | { workspaceId: string }
+  | { sessionId: string; reason?: string };
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -428,8 +429,17 @@ function App() {
       case 'permission.granted':
         setPendingPermissions(prev => prev.filter(p => p.toolCallId !== msg.toolCallId));
         break;
+
+      case 'session.interrupted':
+        if (streamingSessionId === msg.sessionId) {
+          setStreamingSessionId(null);
+        }
+        if (msg.result.cascadedTo.length > 0) {
+          console.log(`Session ${msg.sessionId} interrupted. Cascaded to:`, msg.result.cascadedTo);
+        }
+        break;
     }
-  }, [currentSession, defaultModel]);
+  }, [currentSession, defaultModel, streamingSessionId]);
 
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
@@ -502,6 +512,12 @@ function App() {
     });
   }, [sendMessage]);
 
+  const handleInterruptSession = useCallback(() => {
+    if (currentSession) {
+      sendMessage('session.interrupt', { sessionId: currentSession.id });
+    }
+  }, [currentSession, sendMessage]);
+
   const refreshPermissions = useCallback(() => {
     if (activeWorkspace) {
       sendMessage('permission.list', { workspaceId: activeWorkspace.id });
@@ -566,6 +582,8 @@ function App() {
             modelName={currentModel}
             onNavigateToSubagent={resumeSession}
             onNavigateBack={handleNavigateBack}
+            isStreaming={streamingSessionId === currentSession.id}
+            onInterrupt={handleInterruptSession}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground px-6">
