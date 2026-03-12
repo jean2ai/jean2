@@ -285,6 +285,7 @@ export function ChatView({
         <MessageInput
           onSendMessage={onSendMessage}
           disabled={false}
+          workspaceId={session.workspaceId}
         />
       )}
 

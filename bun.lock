@@ -53,6 +53,7 @@
         "@jean2/shared": "workspace:*",
         "@openrouter/ai-sdk-provider": "^2.2.3",
         "ai": "^6.0.0",
+        "fast-glob": "^3.3.2",
         "hono": "^4.0.0",
       },
       "devDependencies": {

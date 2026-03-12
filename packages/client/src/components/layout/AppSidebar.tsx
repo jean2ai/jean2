@@ -2,6 +2,7 @@ import { Plus, Settings, Wifi, WifiOff, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { FileTree } from '@/components/files';
 
 import {
   Sidebar,
@@ -173,6 +174,25 @@ export function AppSidebar({
                     ))}
                   </SidebarMenu>
                 </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
+        {/* File Browser */}
+        {activeWorkspace && !activeWorkspace.isVirtual && (
+          <Collapsible className="group/collapsible">
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center gap-2">
+                  <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                  Files
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <div className="h-64 mt-2">
+                  <FileTree workspaceId={activeWorkspace.id} />
+                </div>
               </CollapsibleContent>
             </SidebarGroup>
           </Collapsible>

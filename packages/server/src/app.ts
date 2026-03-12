@@ -11,7 +11,7 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { mkdirSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 // Import types from shared
 import type {
@@ -52,6 +52,9 @@ import { listTools, getTool } from './tools';
 
 // Import config functions
 import { getModelsConfig, getAllModels } from './config';
+
+// Import file service
+import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
 
 // Helper function to expand ~ to user's home directory
 function expandPath(path: string): string {
@@ -326,6 +329,64 @@ export function createApp() {
 
     const sessions = listSessionsByWorkspace(workspaceId);
     return c.json({ sessions });
+  });
+
+  // ============================================================================
+  // Files API
+  // ============================================================================
+
+  app.get('/api/workspaces/:id/files', async (c) => {
+    const workspaceId = c.req.param('id');
+    const path = c.req.query('path') || '';
+    const search = c.req.query('search');
+    const limit = parseInt(c.req.query('limit') || '20', 10);
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    try {
+      if (search) {
+        const files = await searchFiles(workspace.path, search, limit);
+        return c.json({ files, currentPath: '', mode: 'search' });
+      }
+
+      const fullPath = join(workspace.path, path);
+
+      if (!isPathWithinWorkspace(fullPath, workspace.path)) {
+        return c.json({ error: 'Forbidden', message: 'Path outside workspace' }, 403);
+      }
+
+      const files = await listDirectory(fullPath);
+      return c.json({ files, currentPath: path, mode: 'browse' });
+    } catch (_err: unknown) {
+      const _message = _err instanceof Error ? _err.message : 'Unknown error';
+      return c.json({ error: 'Not Found', message: 'Path not found' }, 404);
+    }
+  });
+
+  app.get('/api/fs/browse', async (c) => {
+    const path = c.req.query('path') || homedir();
+
+    try {
+      const files = await listDirectory(path);
+      return c.json({ files, currentPath: path, mode: 'browse' });
+    } catch (_err: unknown) {
+      return c.json({ error: 'Bad Request', message: 'Cannot access path' }, 400);
+    }
+  });
+
+  app.get('/api/fs/parent', async (c) => {
+    const path = c.req.query('path') || homedir();
+    const parent = dirname(path);
+
+    try {
+      const files = await listDirectory(parent);
+      return c.json({ files, currentPath: parent, mode: 'browse' });
+    } catch (_err: unknown) {
+      return c.json({ error: 'Bad Request', message: 'Cannot access path' }, 400);
+    }
   });
 
   // ============================================================================

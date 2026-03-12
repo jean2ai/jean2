@@ -1,0 +1,134 @@
+import { useState } from 'react';
+import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
+import type { FileEntry } from '@jean2/shared';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+
+interface FileTreeNodeProps {
+  entry: FileEntry;
+  workspaceId: string;
+  parentPath: string;
+  depth: number;
+  onFileSelect?: (file: FileEntry) => void;
+}
+
+const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
+  '.ts': { icon: File, color: 'text-blue-500' },
+  '.tsx': { icon: File, color: 'text-blue-500' },
+  '.js': { icon: File, color: 'text-yellow-500' },
+  '.jsx': { icon: File, color: 'text-yellow-500' },
+  '.json': { icon: File, color: 'text-yellow-600' },
+  '.md': { icon: File, color: 'text-gray-500' },
+  '.css': { icon: File, color: 'text-purple-500' },
+  '.html': { icon: File, color: 'text-orange-500' },
+};
+
+export function FileTreeNode({
+  entry,
+  workspaceId,
+  parentPath,
+  depth,
+  onFileSelect,
+}: FileTreeNodeProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [children, setChildren] = useState<FileEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const fullPath = parentPath ? `${parentPath}/${entry.path}` : entry.path;
+  const isDirectory = entry.type === 'directory';
+
+  const loadChildren = async () => {
+    if (hasLoaded || isLoading) return;
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(
+        `/api/workspaces/${workspaceId}/files?path=${encodeURIComponent(fullPath)}`
+      );
+      const data = await res.json();
+      setChildren(data.files || []);
+      setHasLoaded(true);
+    } catch (err) {
+      console.error('Failed to load children:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleToggle = (open: boolean) => {
+    setIsOpen(open);
+    if (open && isDirectory) {
+      loadChildren();
+    }
+  };
+
+  const handleClick = () => {
+    if (!isDirectory && onFileSelect) {
+      onFileSelect({ ...entry, path: fullPath });
+    }
+  };
+
+  const iconConfig = entry.extension ? FILE_ICONS[entry.extension] : null;
+  const Icon = isDirectory ? (isOpen ? FolderOpen : Folder) : (iconConfig?.icon || File);
+  const iconColor = isDirectory ? 'text-amber-500' : (iconConfig?.color || 'text-muted-foreground');
+
+  if (!isDirectory) {
+    return (
+      <button
+        onClick={handleClick}
+        className={cn(
+          'flex items-center gap-1.5 w-full px-1.5 py-0.5 rounded text-sm',
+          'hover:bg-accent hover:text-accent-foreground',
+          'transition-colors text-left',
+        )}
+        style={{ paddingLeft: `${depth * 12 + 6}px` }}
+      >
+        <Icon className={cn('w-4 h-4 flex-shrink-0', iconColor)} />
+        <span className="truncate">{entry.name}</span>
+      </button>
+    );
+  }
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={handleToggle}>
+      <CollapsibleTrigger asChild>
+        <button
+          className={cn(
+            'flex items-center gap-1.5 w-full px-1.5 py-0.5 rounded text-sm',
+            'hover:bg-accent hover:text-accent-foreground',
+            'transition-colors text-left',
+          )}
+          style={{ paddingLeft: `${depth * 12 + 6}px` }}
+        >
+          {isLoading ? (
+            <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+          ) : (
+            <ChevronRight
+              className={cn(
+                'w-3 h-3 flex-shrink-0 transition-transform',
+                isOpen && 'rotate-90'
+              )}
+            />
+          )}
+          <Icon className={cn('w-4 h-4 flex-shrink-0', iconColor)} />
+          <span className="truncate">{entry.name}</span>
+        </button>
+      </CollapsibleTrigger>
+
+      <CollapsibleContent>
+        {children.map(child => (
+          <FileTreeNode
+            key={`${fullPath}/${child.path}`}
+            entry={child}
+            workspaceId={workspaceId}
+            parentPath={fullPath}
+            depth={depth + 1}
+            onFileSelect={onFileSelect}
+          />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}

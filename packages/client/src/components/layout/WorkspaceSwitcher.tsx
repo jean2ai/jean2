@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, ChevronsUpDown, Folder, Box, Plus } from 'lucide-react';
 import type { Workspace } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
+import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
 import {
   Command,
   CommandEmpty,
@@ -34,9 +35,11 @@ export function WorkspaceSwitcher({
   onCreatePhysicalWorkspace,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -58,10 +61,10 @@ export function WorkspaceSwitcher({
           <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[240px] p-0">
+      <PopoverContent className="w-[240px] p-0 max-h-[80vh]">
         <Command>
           <CommandInput placeholder="Search workspace..." />
-          <CommandList>
+          <CommandList className="max-h-[50vh] overflow-y-auto">
             <CommandEmpty>No workspace found.</CommandEmpty>
             <CommandGroup heading="Workspaces">
               {workspaces.map((workspace) => (
@@ -105,11 +108,8 @@ export function WorkspaceSwitcher({
               </CommandItem>
               <CommandItem
                 onSelect={() => {
-                  const path = prompt('Enter workspace path:');
-                  if (path) {
-                    onCreatePhysicalWorkspace(path);
-                    setOpen(false);
-                  }
+                  setOpen(false);
+                  setShowFolderPicker(true);
                 }}
               >
                 <Folder className="size-4" data-icon="inline-start" />
@@ -120,5 +120,15 @@ export function WorkspaceSwitcher({
         </Command>
       </PopoverContent>
     </Popover>
+    <FolderPickerDialog
+      open={showFolderPicker}
+      onOpenChange={setShowFolderPicker}
+      onSelect={(path) => {
+        onCreatePhysicalWorkspace(path);
+        setShowFolderPicker(false);
+      }}
+      title="Select Workspace Folder"
+    />
+    </>
   );
 }
