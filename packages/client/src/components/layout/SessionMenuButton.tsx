@@ -1,14 +1,12 @@
 import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import React from 'react';
-import type { Session, SubagentStatus } from '@jean2/shared';
+import type { Session } from '@jean2/shared';
 import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuAction,
   SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
 import {
   Collapsible,
@@ -21,7 +19,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 interface SessionMenuButtonProps {
@@ -29,25 +26,12 @@ interface SessionMenuButtonProps {
   allSessions: Session[];
   isActive: boolean;
   currentSessionId: string | null;
+  streamingSessionId: string | null;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
 }
-
-// Helper: Status icon for subagents
-const SubagentStatusIcon = React.memo(function SubagentStatusIcon({ status }: { status?: SubagentStatus | null }) {
-  switch (status) {
-    case 'running':
-      return <Loader2 className="size-3 animate-spin text-yellow-500" />;
-    case 'completed':
-      return <CheckCircle className="size-3 text-green-500" />;
-    case 'error':
-      return <XCircle className="size-3 text-destructive" />;
-    default:
-      return null;
-  }
-});
 
 // Helper: Actions dropdown
 const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
@@ -95,11 +79,38 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   );
 });
 
+// Icon component for session status
+const SessionStatusIcon = React.memo(function SessionStatusIcon({
+  status,
+  isStreaming,
+}: {
+  status?: 'running' | 'completed' | 'error' | null;
+  isStreaming?: boolean;
+}) {
+  // Show running spinner when streaming OR subagent is running
+  if (isStreaming || status === 'running') {
+    return <Loader2 className="size-3.5 animate-spin shrink-0" />;
+  }
+
+  // Show error icon when subagent errored
+  if (status === 'error') {
+    return <XCircle className="size-3.5 shrink-0" />;
+  }
+
+  // Default: show checkmark for idle/completed sessions
+  // This covers:
+  // - Main sessions that are not streaming (idle)
+  // - Subagent sessions with completed status
+  // - Subagent sessions with no status (fallback)
+  return <CheckCircle className="size-3.5 shrink-0" />;
+});
+
 export const SessionMenuButton = React.memo(function SessionMenuButton({
   session,
   allSessions,
   isActive,
   currentSessionId,
+  streamingSessionId,
   onResumeSession,
   onCloseSession,
   onReopenSession,
@@ -117,33 +128,44 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     [childSessions, currentSessionId]
   );
 
-  // No children - simple item
+  const isStreaming = session.id === streamingSessionId;
+
+  // No children - simple item with spacer for alignment
   if (!hasChildren) {
     return (
       <TooltipProvider delayDuration={300}>
         <SidebarMenuItem>
-          <SidebarMenuButton
-            isActive={isActive}
-            onClick={() => onResumeSession(session.id)}
-            className="w-full"
-          >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate flex-1">
+          <div className="flex items-center w-full">
+            {/* Spacer - same size as chevron button for alignment */}
+            <div className="shrink-0 size-7 p-1" />
+
+            {/* Session name (click to open) */}
+            <SidebarMenuButton
+              isActive={isActive}
+              onClick={() => onResumeSession(session.id)}
+              className="flex-1 min-w-0"
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="truncate flex items-center gap-2">
+                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} />
+                    {session.title || 'Untitled'}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
                   {session.title || 'Untitled'}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs">
-                {session.title || 'Untitled'}
-              </TooltipContent>
-            </Tooltip>
-          </SidebarMenuButton>
-          <SessionActionsDropdown
-            isClosed={isClosed}
-            onReopen={() => onReopenSession(session.id)}
-            onClose={() => onCloseSession(session.id)}
-            onDelete={() => onDeleteSession(session.id)}
-          />
+                </TooltipContent>
+              </Tooltip>
+            </SidebarMenuButton>
+
+            {/* Actions menu */}
+            <SessionActionsDropdown
+              isClosed={isClosed}
+              onReopen={() => onReopenSession(session.id)}
+              onClose={() => onCloseSession(session.id)}
+              onDelete={() => onDeleteSession(session.id)}
+            />
+          </div>
         </SidebarMenuItem>
       </TooltipProvider>
     );
@@ -161,7 +183,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 className="flex items-center justify-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground shrink-0 size-7 p-1"
                 aria-label="Toggle child sessions"
               >
-                <ChevronRight className="size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                <ChevronRight className="size-4 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
               </button>
             </CollapsibleTrigger>
 
@@ -173,7 +195,10 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             >
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="truncate">{session.title || 'Untitled'}</span>
+                  <span className="truncate flex items-center gap-2">
+                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} />
+                    {session.title || 'Untitled'}
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent side="right" className="max-w-xs">
                   {session.title || 'Untitled'}
@@ -190,34 +215,22 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             />
           </div>
 
-          {/* Nested children */}
+          {/* Nested children - recursive rendering */}
           <CollapsibleContent>
             <SidebarMenuSub>
               {childSessions.map((child) => (
-                <SidebarMenuSubItem key={child.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={currentSessionId === child.id}
-                      >
-                        <button
-                          onClick={() => onResumeSession(child.id)}
-                          className="w-full text-left flex items-center gap-2"
-                        >
-                          <SubagentStatusIcon status={child.subagentStatus} />
-                          <span className="truncate flex-1">{child.title || 'Untitled'}</span>
-                          {child.subagentStatus === 'running' && (
-                            <Badge variant="secondary" className="ml-auto">Running</Badge>
-                          )}
-                        </button>
-                      </SidebarMenuSubButton>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs">
-                      {child.title || 'Untitled'}
-                    </TooltipContent>
-                  </Tooltip>
-                </SidebarMenuSubItem>
+                <SessionMenuButton
+                  key={child.id}
+                  session={child}
+                  allSessions={allSessions}
+                  isActive={currentSessionId === child.id}
+                  currentSessionId={currentSessionId}
+                  streamingSessionId={streamingSessionId}
+                  onResumeSession={onResumeSession}
+                  onCloseSession={onCloseSession}
+                  onReopenSession={onReopenSession}
+                  onDeleteSession={onDeleteSession}
+                />
               ))}
             </SidebarMenuSub>
           </CollapsibleContent>

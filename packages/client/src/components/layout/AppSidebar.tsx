@@ -29,6 +29,7 @@ interface AppSidebarProps {
   sessions: Session[];
   currentSession: Session | null;
   currentSessionId: string | null;
+  streamingSessionId: string | null;
   connected: boolean;
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
@@ -51,6 +52,7 @@ export function AppSidebar({
   sessions,
   currentSession,
   currentSessionId,
+  streamingSessionId,
   connected,
   workspaces,
   activeWorkspace,
@@ -125,6 +127,7 @@ export function AppSidebar({
                         allSessions={sessions}
                         isActive={currentSession?.id === session.id}
                         currentSessionId={currentSessionId}
+                        streamingSessionId={streamingSessionId}
                         onResumeSession={onResumeSession}
                         onCloseSession={onCloseSession}
                         onReopenSession={onReopenSession}
@@ -161,6 +164,7 @@ export function AppSidebar({
                         allSessions={sessions}
                         isActive={currentSession?.id === session.id}
                         currentSessionId={currentSessionId}
+                        streamingSessionId={streamingSessionId}
                         onResumeSession={onResumeSession}
                         onCloseSession={onCloseSession}
                         onReopenSession={onReopenSession}

@@ -52,6 +52,7 @@ function App() {
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState<{ 
     promptTokens: number; 
     completionTokens: number; 
@@ -236,6 +237,10 @@ function App() {
             [msg.message.id]: []
           }
         }));
+        // Track streaming state
+        if ('status' in msg.message && msg.message.status === 'streaming') {
+          setStreamingSessionId(msg.message.sessionId);
+        }
         break;
 
       case 'message.updated':
@@ -245,6 +250,10 @@ function App() {
             m.id === msg.message.id ? msg.message : m
           )
         }));
+        // Clear streaming state if message is no longer streaming
+        if ('status' in msg.message && msg.message.status !== 'streaming') {
+          setStreamingSessionId(prev => prev === msg.message.sessionId ? null : prev);
+        }
         break;
 
       case 'part.created':
@@ -276,6 +285,7 @@ function App() {
         break;
 
       case 'part.append':
+        setStreamingSessionId(msg.sessionId);
         setPartsBySession(prev => {
           const sessionParts = prev[msg.sessionId] || {};
           
@@ -438,6 +448,7 @@ function App() {
 
   const resumeSession = useCallback((sessionId: string) => {
     setPendingPermissions([]);
+    setStreamingSessionId(null);
     sendMessage('session.resume', { sessionId });
   }, [sendMessage]);
 
@@ -515,6 +526,7 @@ function App() {
         sessions={workspaceSessions}
         currentSession={currentSession}
         currentSessionId={currentSession?.id ?? null}
+        streamingSessionId={streamingSessionId}
         connected={connected}
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
