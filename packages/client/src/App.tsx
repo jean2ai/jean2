@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { FolderOpen } from 'lucide-react';
 import type { 
   Session, 
   Message, 
@@ -11,10 +12,12 @@ import type {
   ToolPermission 
 } from '@jean2/shared';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { FilesPanel } from '@/components/layout/FilesPanel';
 import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -72,6 +75,7 @@ function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showFilesPanel, setShowFilesPanel] = useState(false);
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
@@ -563,10 +567,40 @@ function App() {
       />
       
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile header with hamburger menu */}
-        <header className="md:hidden flex items-center gap-2 p-3 border-b border-border">
-          <SidebarTrigger />
-          <span className="font-semibold">Jean2</span>
+{/* Mobile header with hamburger menu */}
+<header className="md:hidden flex items-center justify-between p-3 border-b border-border">
+  <div className="flex items-center gap-2">
+    <SidebarTrigger />
+    <span className="font-semibold">Jean2</span>
+  </div>
+  {activeWorkspace && (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onClick={() => setShowFilesPanel(!showFilesPanel)}
+      title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+    >
+      <FolderOpen className="w-4 h-4" />
+    </Button>
+  )}
+</header>
+
+        {/* Desktop header with sidebar toggle */}
+        <header className="hidden md:flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger />
+            <span className="font-semibold">Jean2</span>
+          </div>
+          {activeWorkspace && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowFilesPanel(!showFilesPanel)}
+              title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+            >
+              <FolderOpen className="w-4 h-4" />
+            </Button>
+          )}
         </header>
         
         {currentSession ? (
@@ -596,6 +630,12 @@ function App() {
           </div>
         )}
       </main>
+
+      <FilesPanel
+        workspaceId={activeWorkspace?.id}
+        isOpen={showFilesPanel}
+        onClose={() => setShowFilesPanel(false)}
+      />
 
       <SettingsDialog
         open={showSettings}

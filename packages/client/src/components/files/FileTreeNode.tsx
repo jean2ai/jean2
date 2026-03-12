@@ -10,6 +10,7 @@ interface FileTreeNodeProps {
   parentPath: string;
   depth: number;
   onFileSelect?: (file: FileEntry) => void;
+  showHidden?: boolean;
 }
 
 const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
@@ -29,6 +30,7 @@ export function FileTreeNode({
   parentPath,
   depth,
   onFileSelect,
+  showHidden = true,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[]>([]);
@@ -45,7 +47,7 @@ export function FileTreeNode({
 
     try {
       const res = await fetch(
-        `/api/workspaces/${workspaceId}/files?path=${encodeURIComponent(fullPath)}`
+        `/api/workspaces/${workspaceId}/files?path=${encodeURIComponent(fullPath)}&showHidden=${showHidden}`
       );
       const data = await res.json();
       setChildren(data.files || []);
@@ -126,6 +128,7 @@ export function FileTreeNode({
             parentPath={fullPath}
             depth={depth + 1}
             onFileSelect={onFileSelect}
+            showHidden={showHidden}
           />
         ))}
       </CollapsibleContent>

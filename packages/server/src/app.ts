@@ -340,6 +340,7 @@ export function createApp() {
     const path = c.req.query('path') || '';
     const search = c.req.query('search');
     const limit = parseInt(c.req.query('limit') || '20', 10);
+    const showHidden = c.req.query('showHidden') !== 'false';
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
@@ -348,7 +349,7 @@ export function createApp() {
 
     try {
       if (search) {
-        const files = await searchFiles(workspace.path, search, limit);
+        const files = await searchFiles(workspace.path, search, limit, showHidden);
         return c.json({ files, currentPath: '', mode: 'search' });
       }
 
@@ -358,7 +359,7 @@ export function createApp() {
         return c.json({ error: 'Forbidden', message: 'Path outside workspace' }, 403);
       }
 
-      const files = await listDirectory(fullPath);
+      const files = await listDirectory(fullPath, showHidden);
       return c.json({ files, currentPath: path, mode: 'browse' });
     } catch (_err: unknown) {
       const _message = _err instanceof Error ? _err.message : 'Unknown error';

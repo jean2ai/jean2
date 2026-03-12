@@ -9,6 +9,7 @@ interface FileAutocompleteProps {
   selectedIndex: number;
   onSelect: (file: FileEntry) => void;
   onFilesChange: (files: FileEntry[]) => void;
+  showHidden?: boolean;
 }
 
 export function FileAutocomplete({
@@ -17,6 +18,7 @@ export function FileAutocomplete({
   selectedIndex,
   onSelect,
   onFilesChange,
+  showHidden = true,
 }: FileAutocompleteProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export function FileAutocomplete({
     const controller = new AbortController();
 
     fetch(
-      `/api/workspaces/${workspaceId}/files?search=${encodeURIComponent(debouncedQuery)}`,
+      `/api/workspaces/${workspaceId}/files?search=${encodeURIComponent(debouncedQuery)}&showHidden=${showHidden}`,
       { signal: controller.signal }
     )
       .then(res => res.json())
@@ -61,7 +63,7 @@ export function FileAutocomplete({
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [workspaceId, debouncedQuery, onFilesChange]);
+  }, [workspaceId, debouncedQuery, onFilesChange, showHidden]);
 
   if (!searchQuery || searchQuery.length < 2) {
     return (

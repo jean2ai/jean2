@@ -13,11 +13,11 @@ const IGNORE_PATTERNS = [
   'Thumbs.db',
 ];
 
-export async function listDirectory(dirPath: string): Promise<FileEntry[]> {
+export async function listDirectory(dirPath: string, showHidden = false): Promise<FileEntry[]> {
   const entries = await readdir(dirPath, { withFileTypes: true });
   
   return entries
-    .filter(e => !e.name.startsWith('.'))
+    .filter(e => showHidden ? e.name !== '.git' : !e.name.startsWith('.'))
     .filter(e => !IGNORE_PATTERNS.some(p => e.name === p.split('/')[0]))
     .map(e => ({
       name: e.name,
@@ -34,17 +34,24 @@ export async function listDirectory(dirPath: string): Promise<FileEntry[]> {
 export async function searchFiles(
   rootPath: string,
   query: string,
-  limit = 20
+  limit = 20,
+  showHidden = false
 ): Promise<FileEntry[]> {
   if (!query || query.length < 2) return [];
   
   const pattern = `**/*${query}*`;
   
-  const stream = fg.stream([pattern, ...IGNORE_PATTERNS.map(p => `!${p}`)], {
+  // Build ignore patterns based on showHidden
+  const ignorePatterns = showHidden 
+    ? IGNORE_PATTERNS.filter(p => p.startsWith('.git'))
+    : IGNORE_PATTERNS;
+  
+  const stream = fg.stream([pattern, ...ignorePatterns.map(p => `!${p}`)], {
     cwd: rootPath,
     onlyFiles: false,
     suppressErrors: true,
     caseSensitiveMatch: false,
+    dot: showHidden,
   });
   
   const results: FileEntry[] = [];

@@ -8,9 +8,10 @@ import { FileTreeNode } from './FileTreeNode';
 interface FileTreeProps {
   workspaceId: string;
   onFileSelect?: (file: FileEntry) => void;
+  showHidden?: boolean;
 }
 
-export function FileTree({ workspaceId, onFileSelect }: FileTreeProps) {
+export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileTreeProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,7 @@ export function FileTree({ workspaceId, onFileSelect }: FileTreeProps) {
     setError(null);
 
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/files`);
+      const res = await fetch(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -95,6 +96,7 @@ export function FileTree({ workspaceId, onFileSelect }: FileTreeProps) {
               parentPath={currentPath}
               depth={0}
               onFileSelect={onFileSelect}
+              showHidden={showHidden}
             />
           ))}
         </div>

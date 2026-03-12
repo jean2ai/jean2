@@ -77,7 +77,7 @@ export function AppSidebar({
   }, [sessions]);
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       {/* Header: Workspace + New Chat */}
       <SidebarHeader>
         <div className="p-2">
