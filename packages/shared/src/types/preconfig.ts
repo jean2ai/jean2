@@ -1,4 +1,4 @@
-export type PreconfigMode = 'primary' | 'subagent';
+export type PreconfigMode = 'primary' | 'subagent' | 'both';
 
 export interface Preconfig {
   id: string;
@@ -11,4 +11,5 @@ export interface Preconfig {
   settings: Record<string, unknown> | null;
   isDefault: boolean;
   mode?: PreconfigMode; // Default: 'primary'
+  canSpawnSubagents?: boolean; // Default: true (except for read-only agents)
 }

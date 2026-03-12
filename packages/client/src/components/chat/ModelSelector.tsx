@@ -66,7 +66,7 @@ export function ModelSelector({
         onValueChange={handleValueChange}
         disabled={disabled}
       >
-        <SelectTrigger className={iconOnly ? 'w-9 h-9 text-sm px-2 justify-center [&>svg:last-child]:hidden' : 'w-[180px] h-8 text-sm'}>
+        <SelectTrigger className={iconOnly ? 'w-9 h-9 px-0 justify-center gap-0 [&>svg:last-child]:hidden [&_[data-slot=select-value]]:hidden' : 'w-[180px] h-8 text-sm'}>
           {iconOnly ? (
             <>
               <Cpu className="size-4" />

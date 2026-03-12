@@ -34,13 +34,46 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
           isUser ? 'mr-3' : 'ml-3'
         )}
       >
-        {isUser ? <User className="size-3" /> : <Bot className="size-3" />}
-        {message.role}
+        {isUser ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCopy}
+              className="size-5 text-muted-foreground hover:text-foreground"
+            >
+              {copied ? (
+                <Check className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+            </Button>
+            <User className="size-3" />
+            {message.role}
+          </>
+        ) : (
+          <>
+            <Bot className="size-3" />
+            {message.role}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCopy}
+              className="size-5 text-muted-foreground hover:text-foreground"
+            >
+              {copied ? (
+                <Check className="size-3" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+            </Button>
+          </>
+        )}
       </div>
       
       <div
         className={cn(
-          'relative group rounded-2xl px-4 py-3 max-w-[95%] sm:max-w-[85%]',
+          'rounded-2xl px-4 py-3 max-w-[95%] sm:max-w-[85%]',
           isUser
             ? 'bg-primary text-primary-foreground rounded-br-md'
             : 'bg-card text-card-foreground border border-border rounded-bl-md'
@@ -49,22 +82,6 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
         <div className="min-w-0">
           {children}
         </div>
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleCopy}
-          className={cn(
-            'absolute -right-8 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity size-6',
-            'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {copied ? (
-            <Check className="size-3" />
-          ) : (
-            <Copy className="size-3" />
-          )}
-        </Button>
       </div>
     </div>
   );

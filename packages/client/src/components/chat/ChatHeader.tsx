@@ -160,7 +160,7 @@ export function ChatHeader({
           models={models}
           selectedModelId={selectedModel}
           onChangeModel={onChangeModel}
-          disabled={session.status === 'closed'}
+          disabled={session.status === 'closed' || !!session.parentId}
           iconOnly={isMobile}
         />
 
@@ -168,7 +168,7 @@ export function ChatHeader({
           preconfigs={preconfigs}
           selectedPreconfigId={session.preconfigId}
           onChangePreconfig={onChangePreconfig}
-          disabled={session.status === 'closed'}
+          disabled={session.status === 'closed' || !!session.parentId}
           iconOnly={isMobile}
         />
 

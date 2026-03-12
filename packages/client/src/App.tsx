@@ -528,6 +528,10 @@ function App() {
 
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
+  // Filter out subagent-only preconfigs for primary sessions
+  const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
+  const isPrimarySession = !currentSession?.parentId;
+
   if (!connected && sessions.length === 0) {
     return (
       <div className="flex w-full h-full items-center justify-center bg-background">
@@ -546,7 +550,7 @@ function App() {
         connected={connected}
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
-        onCreateSession={() => createSession(preconfigs[0]?.id)}
+        onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
         onResumeSession={resumeSession}
         onCloseSession={closeSession}
         onReopenSession={reopenSession}
@@ -569,7 +573,7 @@ function App() {
           <ChatView
             session={currentSession}
             messagesWithParts={messagesWithParts}
-            preconfigs={preconfigs}
+            preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
             models={models}
             defaultModel={defaultModel}
             onSendMessage={sendChatMessage}

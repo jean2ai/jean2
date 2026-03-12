@@ -261,12 +261,13 @@ async function buildAiSdkTools(
   workspacePath: string | undefined,
   workspaceId: string | undefined,
   sessionId: string,
-  onPermissionRequest?: PermissionRequestCallback
+  onPermissionRequest?: PermissionRequestCallback,
+  canSpawnSubagents?: boolean
 ): Promise<Record<string, Tool>> {
   const tools: Record<string, Tool> = {};
 
   // Auto-inject 'task' tool if depth allows and not already present
-  const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task');
+  const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && (canSpawnSubagents !== false);
   const effectiveToolNames = shouldIncludeTask ? [...toolNames, 'task'] : toolNames;
 
   for (const name of effectiveToolNames) {
@@ -414,7 +415,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const model = await getModel(resolvedModelId, providerId);
 
   const toolNames = preconfig.tools || [];
-  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest);
+  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents);
 
   // Build system message with workspace context
   let systemMessage = preconfig.systemPrompt || '';

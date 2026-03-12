@@ -36,7 +36,8 @@ const DEFAULT_PRECONFIGS: Preconfig[] = [
     provider: null,
     settings: { temperature: 0.5 },
     isDefault: false,
-    mode: 'primary',
+    mode: 'both',
+    canSpawnSubagents: true,
   },
   {
     id: 'coder',
@@ -49,6 +50,7 @@ const DEFAULT_PRECONFIGS: Preconfig[] = [
     settings: { temperature: 0.3 },
     isDefault: true,
     mode: 'primary',
+    canSpawnSubagents: true,
   },
   {
     id: 'writer',
@@ -60,7 +62,8 @@ const DEFAULT_PRECONFIGS: Preconfig[] = [
     provider: null,
     settings: { temperature: 0.7 },
     isDefault: false,
-    mode: 'primary',
+    mode: 'both',
+    canSpawnSubagents: true,
   },
   {
     id: 'explore',
@@ -89,6 +92,7 @@ Complete the user's search request efficiently and report your findings clearly.
     settings: { temperature: 0.3 },
     isDefault: false,
     mode: 'subagent',
+    canSpawnSubagents: false,
   },
   {
     id: 'general',
@@ -116,6 +120,7 @@ Complete the task assigned to you and return your findings in a clear, structure
     settings: { temperature: 0.5 },
     isDefault: false,
     mode: 'subagent',
+    canSpawnSubagents: true,
   },
 ];
 
@@ -240,17 +245,25 @@ export async function listPreconfigsByMode(mode?: PreconfigMode): Promise<Precon
 }
 
 /**
- * List only subagent preconfigs
+ * List only subagent preconfigs (includes 'both' mode agents)
  */
 export async function listSubagentPreconfigs(): Promise<Preconfig[]> {
-  return listPreconfigsByMode('subagent');
+  const preconfigs = await listPreconfigs();
+  return preconfigs.filter(p => {
+    const mode = p.mode ?? 'primary';
+    return mode === 'subagent' || mode === 'both';
+  });
 }
 
 /**
- * List only primary preconfigs (user-facing)
+ * List only primary preconfigs - user-facing (includes 'both' mode agents)
  */
 export async function listPrimaryPreconfigs(): Promise<Preconfig[]> {
-  return listPreconfigsByMode('primary');
+  const preconfigs = await listPreconfigs();
+  return preconfigs.filter(p => {
+    const mode = p.mode ?? 'primary';
+    return mode === 'primary' || mode === 'both';
+  });
 }
 
 /**
