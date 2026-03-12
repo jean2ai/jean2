@@ -1,5 +1,6 @@
 import { createApp } from './app';
 import { initializePreconfigs, getPreconfig, getDefaultPreconfig } from './core/preconfig';
+import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
@@ -60,6 +61,9 @@ function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
 
 async function main() {
   console.log('Starting AI Agent Server...');
+  
+  // Register broadcast callback for other modules
+  registerBroadcastCallback(broadcast as (message: ServerMessage, excludeWs?: unknown) => void);
   
   // Check available API keys
   const availableProviders: string[] = [];
@@ -263,6 +267,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       });
       clients.set(ws, { sessionId: session.id });
       send(ws, { type: 'session.created', session });
+      broadcastSessionCreatedExclude(session, ws);
       break;
     }
     

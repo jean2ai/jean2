@@ -3,6 +3,7 @@ import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './agent';
 import { getModelsConfig, findModel } from '@/config';
+import { broadcastSessionCreated, broadcastSessionUpdated } from './broadcast';
 import { randomUUID } from 'crypto';
 
 /**
@@ -201,6 +202,8 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         agentName: subagent_type,
         subagentStatus: 'running',
       });
+
+      broadcastSessionCreated(childSession);
     }
 
     // Notify caller of the child session ID immediately
@@ -228,8 +231,16 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     // Update subagent status based on execution result
     if (result.error) {
       updateSession(childSession.id, { subagentStatus: 'error' });
+      const updatedSession = getSession(childSession.id);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
     } else {
       updateSession(childSession.id, { subagentStatus: 'completed' });
+      const updatedSession = getSession(childSession.id);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
     }
 
     // Extract ONLY the last text part - matching OpenCode behavior
@@ -265,6 +276,10 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
   } catch (err) {
     if (childSession) {
       updateSession(childSession.id, { subagentStatus: 'error' });
+      const updatedSession = getSession(childSession.id);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
     }
     return {
       task_id: childSession?.id ?? '',

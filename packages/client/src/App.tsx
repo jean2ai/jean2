@@ -75,6 +75,7 @@ function App() {
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
 
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
+  const pendingSessionCreateRef = useRef(false);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     const messages = messagesBySession[sessionId] || [];
@@ -184,17 +185,21 @@ function App() {
     switch (msg.type) {
       case 'session.created':
         setSessions(prev => [msg.session, ...prev]);
-        setCurrentSession(msg.session);
-        setMessagesBySession(prev => ({
-          ...prev,
-          [msg.session.id]: []
-        }));
-        setPartsBySession(prev => ({
-          ...prev,
-          [msg.session.id]: {}
-        }));
-        setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-        setCurrentModel(defaultModel);
+        
+        if (pendingSessionCreateRef.current) {
+          setCurrentSession(msg.session);
+          setMessagesBySession(prev => ({
+            ...prev,
+            [msg.session.id]: []
+          }));
+          setPartsBySession(prev => ({
+            ...prev,
+            [msg.session.id]: {}
+          }));
+          setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+          setCurrentModel(defaultModel);
+          pendingSessionCreateRef.current = false;
+        }
         break;
       
       case 'session.resumed':
@@ -427,6 +432,7 @@ function App() {
   }, [ws]);
 
   const createSession = useCallback((preconfigId?: string, title?: string) => {
+    pendingSessionCreateRef.current = true;
     sendMessage('session.create', { preconfigId, title, workspaceId: activeWorkspace?.id });
   }, [sendMessage, activeWorkspace]);
 
