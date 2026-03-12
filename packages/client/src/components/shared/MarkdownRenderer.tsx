@@ -10,7 +10,7 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ children, className }: MarkdownRendererProps) {
   return (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none', className)}>
+    <div className={cn('markdown-render max-w-none', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -25,24 +25,26 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
 
             if (!isInline && language) {
               return (
-                <Highlight theme={themes.oneDark} code={codeString.trim()} language={language}>
-                  {({ className: hlClassName, style, tokens, getLineProps, getTokenProps }) => (
-                    <pre className={cn('rounded-md text-sm p-3 overflow-x-auto', hlClassName)} style={style}>
-                      {tokens.map((line, i) => (
-                        <div key={i} {...getLineProps({ line })}>
-                          {line.map((token, key) => (
-                            <span key={key} {...getTokenProps({ token })} />
-                          ))}
-                        </div>
-                      ))}
-                    </pre>
-                  )}
-                </Highlight>
+                <div className="w-full max-w-full overflow-x-auto my-2">
+                  <Highlight theme={themes.oneDark} code={codeString.trim()} language={language}>
+                    {({ className: hlClassName, style, tokens, getLineProps, getTokenProps }) => (
+                      <pre className={cn('rounded-lg text-sm p-3', hlClassName)} style={style}>
+                        {tokens.map((line, i) => (
+                          <div key={i} {...getLineProps({ line })}>
+                            {line.map((token, key) => (
+                              <span key={key} {...getTokenProps({ token })} />
+                            ))}
+                          </div>
+                        ))}
+                      </pre>
+                    )}
+                  </Highlight>
+                </div>
               );
             }
 
             return (
-              <code className={cn('px-1.5 py-0.5 rounded bg-muted text-sm', codeClassName)} {...props}>
+              <code className={cn('px-1.5 py-0.5 rounded bg-muted text-sm font-mono break-all', codeClassName)} {...props}>
                 {codeChildren}
               </code>
             );
@@ -53,7 +55,7 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2 hover:text-primary/80"
+                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
                 {...props}
               >
                 {children}
@@ -61,31 +63,64 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
             );
           },
           p({ children }) {
-            return <p className="mb-2 last:mb-0">{children}</p>;
+            return <p className="last:mb-0 leading-relaxed break-words">{children}</p>;
           },
           ul({ children }) {
-            return <ul className="mb-2 list-disc pl-4">{children}</ul>;
+            return <ul className="list-outside list-disc pl-4">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="mb-2 list-decimal pl-4">{children}</ol>;
+            return <ol className="list-outside list-decimal pl-4">{children}</ol>;
           },
-          li({ children }) {
-            return <li className="mb-1">{children}</li>;
+          li({ children, className }) {
+            const isNested = className?.includes('nested');
+            return <li className={cn('leading-snug', isNested && 'ml-4')}>{children}</li>;
           },
           h1({ children }) {
-            return <h1 className="text-lg font-bold mb-2 mt-4 first:mt-0">{children}</h1>;
+            return <h1 className="text-lg font-semibold mb-1.5 mt-3 first:mt-0">{children}</h1>;
           },
           h2({ children }) {
-            return <h2 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h2>;
+            return <h2 className="text-base font-semibold mb-1.5 mt-2.5 first:mt-0">{children}</h2>;
           },
           h3({ children }) {
-            return <h3 className="text-sm font-bold mb-1 mt-2 first:mt-0">{children}</h3>;
+            return <h3 className="text-sm font-semibold mb-1 mt-2 first:mt-0">{children}</h3>;
           },
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-2 border-muted-foreground/30 pl-3 my-2 text-muted-foreground italic">
+              <blockquote className="border-l-2 border-muted-foreground/40 pl-3 my-1.5 text-muted-foreground italic">
                 {children}
               </blockquote>
+            );
+          },
+          strong({ children }) {
+            return <strong className="font-semibold">{children}</strong>;
+          },
+          em({ children }) {
+            return <em className="italic">{children}</em>;
+          },
+          hr() {
+            return <hr className="my-3 border-border" />;
+          },
+          table({ children }) {
+            return (
+              <div className="my-2 overflow-x-auto max-w-full">
+                <table className="w-full border-collapse text-sm">
+                  {children}
+                </table>
+              </div>
+            );
+          },
+          th({ children }) {
+            return (
+              <th className="border border-border px-2 py-1.5 bg-muted text-left font-semibold">
+                {children}
+              </th>
+            );
+          },
+          td({ children }) {
+            return (
+              <td className="border border-border px-2 py-1.5">
+                {children}
+              </td>
             );
           },
         }}

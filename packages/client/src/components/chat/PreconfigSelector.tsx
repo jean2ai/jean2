@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Settings } from 'lucide-react';
 import type { Preconfig } from '@jean2/shared';
 
 interface PreconfigSelectorProps {
@@ -13,6 +14,7 @@ interface PreconfigSelectorProps {
   selectedPreconfigId: string | null | undefined;
   onChangePreconfig: (preconfigId: string) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
 }
 
 export function PreconfigSelector({
@@ -20,17 +22,25 @@ export function PreconfigSelector({
   selectedPreconfigId,
   onChangePreconfig,
   disabled,
+  iconOnly = false,
 }: PreconfigSelectorProps) {
   return (
     <div className="flex items-center gap-2">
-      <Label className="text-xs text-muted-foreground">Config:</Label>
+      {!iconOnly && <Label className="text-xs text-muted-foreground">Config:</Label>}
       <Select
         value={selectedPreconfigId || ''}
         onValueChange={onChangePreconfig}
         disabled={disabled}
       >
-        <SelectTrigger className="w-[140px] h-8 text-sm">
-          <SelectValue placeholder="Select config" />
+        <SelectTrigger className={iconOnly ? 'w-9 h-9 text-sm px-2 justify-center [&>svg:last-child]:hidden' : 'w-[140px] h-8 text-sm'}>
+          {iconOnly ? (
+            <>
+              <Settings className="size-4" />
+              <SelectValue className="sr-only" />
+            </>
+          ) : (
+            <SelectValue placeholder="Select config" />
+          )}
         </SelectTrigger>
         <SelectContent>
           {preconfigs.map((preconfig) => (

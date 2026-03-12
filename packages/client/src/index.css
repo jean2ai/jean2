@@ -7,12 +7,12 @@
 
 @theme inline {
   --font-sans: 'Geist Variable', sans-serif;
-  
+
   /* Status colors - using standard hues */
   --color-success: oklch(0.65 0.2 145);
   --color-warning: oklch(0.75 0.18 85);
   --color-error: oklch(0.6 0.22 25);
-  
+
   /* Animation durations */
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.25s ease-out;
@@ -28,22 +28,22 @@
 }
 
 @keyframes slide-up {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(8px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes slide-in-right {
-  from { 
+  from {
     opacity: 0;
     transform: translateX(-8px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateX(0);
   }
@@ -68,15 +68,15 @@
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply min-h-screen bg-background text-foreground font-sans antialiased;
   }
-  
+
   #root {
     @apply h-screen flex;
   }
-  
+
   html {
     @apply font-sans;
   }
@@ -195,4 +195,73 @@
   --radius-2xl: calc(var(--radius) * 1.5);
   --radius-3xl: calc(var(--radius) * 2);
   --radius-4xl: calc(var(--radius) * 2.5);
+}
+
+/* Code block responsive sizing and scrollbar styling */
+pre {
+  max-width: calc(100vw - 80px);
+  overflow-x: auto;
+}
+
+/* Viewport-specific max-widths */
+@media (min-width: 400px) {
+  pre {
+    max-width: calc(100vw - 100px);
+  }
+}
+
+@media (min-width: 640px) {
+  pre {
+    max-width: calc(100vw - 120px);
+  }
+}
+
+@media (min-width: 768px) {
+  pre {
+    max-width: calc(100vw - 320px);
+  }
+}
+
+@media (min-width: 1024px) {
+  pre {
+    max-width: calc(100vw - 400px);
+  }
+}
+
+@media (min-width: 1280px) {
+  pre {
+    max-width: 600px;
+  }
+}
+
+@media (min-width: 1536px) {
+  pre {
+    max-width: 800px;
+  }
+}
+
+/* Styled scrollbar for code blocks - uses theme variables */
+pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+/* Firefox scrollbar styling */
+pre {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
 }

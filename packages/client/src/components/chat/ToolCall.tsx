@@ -139,10 +139,10 @@ export function ToolCall({
             )}
             
             <Wrench className="size-4 text-primary" />
-            <span className="font-medium text-primary">{part.name}</span>
+            <span className="font-medium text-primary truncate max-w-[120px] sm:max-w-none">{part.name}</span>
             
             {!isOpen && (
-              <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">
+              <span className="text-xs text-muted-foreground font-mono truncate flex-1 min-w-0 sm:max-w-[200px] hidden sm:block">
                 {truncatedArgs}
               </span>
             )}
@@ -154,14 +154,15 @@ export function ToolCall({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 w-6 p-0 sm:w-auto sm:px-2"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNavigateToSubagent(taskSessionId!);
                   }}
+                  title="View session"
                 >
-                  <ExternalLink className="size-3" data-icon="inline-start" />
-                  View
+                  <ExternalLink className="size-3" />
+                  <span className="hidden sm:inline ml-1">View</span>
                 </Button>
               )}
             </div>
@@ -202,7 +203,7 @@ export function ToolCall({
                   </div>
                 )}
                 
-                <div className="flex justify-end gap-2">
+                <div className="flex justify-end gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -211,10 +212,17 @@ export function ToolCall({
                     Deny
                   </Button>
                   <Button
+                    variant="secondary"
                     size="sm"
                     onClick={() => onPermissionResponse(part.callId, true, false)}
                   >
                     Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onPermissionResponse(part.callId, true, true)}
+                  >
+                    Always Allow
                   </Button>
                 </div>
               </div>

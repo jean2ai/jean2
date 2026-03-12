@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Cpu } from 'lucide-react';
 
 interface Model {
   id: string;
@@ -23,6 +24,7 @@ interface ModelSelectorProps {
   selectedModelId: string | null | undefined;
   onChangeModel: (modelId: string, providerId: string) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
 }
 
 function getTierBadge(tier: string): string {
@@ -39,6 +41,7 @@ export function ModelSelector({
   selectedModelId,
   onChangeModel,
   disabled,
+  iconOnly = false,
 }: ModelSelectorProps) {
   const groupedModels = models.reduce((acc, model) => {
     if (!acc[model.providerName]) {
@@ -57,14 +60,21 @@ export function ModelSelector({
 
   return (
     <div className="flex items-center gap-2">
-      <Label className="text-xs text-muted-foreground">Model:</Label>
+      {!iconOnly && <Label className="text-xs text-muted-foreground">Model:</Label>}
       <Select
         value={selectedModelId || ''}
         onValueChange={handleValueChange}
         disabled={disabled}
       >
-        <SelectTrigger className="w-[180px] h-8 text-sm">
-          <SelectValue placeholder="Select model" />
+        <SelectTrigger className={iconOnly ? 'w-9 h-9 text-sm px-2 justify-center [&>svg:last-child]:hidden' : 'w-[180px] h-8 text-sm'}>
+          {iconOnly ? (
+            <>
+              <Cpu className="size-4" />
+              <SelectValue className="sr-only" />
+            </>
+          ) : (
+            <SelectValue placeholder="Select model" />
+          )}
         </SelectTrigger>
         <SelectContent>
           {Object.entries(groupedModels).map(([providerName, providerModels]) => (

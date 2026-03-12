@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { TokenMeter } from './TokenMeter';
 import { ModelSelector } from './ModelSelector';
 import { PreconfigSelector } from './PreconfigSelector';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Model {
   id: string;
@@ -48,6 +49,7 @@ export function ChatHeader({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(session.title || '');
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -138,22 +140,24 @@ export function ChatHeader({
       <Separator />
 
       {/* Bottom row: Controls */}
-      <div className="flex items-center gap-4 px-4 py-2 flex-wrap">
+      <div className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2 flex-wrap">
         <TokenMeter
           promptTokens={usage.promptTokens}
           completionTokens={usage.completionTokens}
           totalTokens={usage.totalTokens}
           contextWindow={contextWindow}
           modelName={modelName}
+          compact={isMobile}
         />
         
-        <Separator orientation="vertical" className="h-6" />
+        <Separator orientation="vertical" className="h-6 hidden sm:block" />
         
         <ModelSelector
           models={models}
           selectedModelId={selectedModel}
           onChangeModel={onChangeModel}
           disabled={session.status === 'closed'}
+          iconOnly={isMobile}
         />
         
         <PreconfigSelector
@@ -161,6 +165,7 @@ export function ChatHeader({
           selectedPreconfigId={session.preconfigId}
           onChangePreconfig={onChangePreconfig}
           disabled={session.status === 'closed'}
+          iconOnly={isMobile}
         />
       </div>
     </header>

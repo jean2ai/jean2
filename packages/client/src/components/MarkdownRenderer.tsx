@@ -31,26 +31,28 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
             }
 
             return (
-              <Highlight
-                theme={themes.vsDark}
-                code={codeString}
-                language={language || 'text'}
-              >
-                {({ style, tokens, getLineProps, getTokenProps }) => (
-                  <pre
-                    className="bg-[#1e1e1e] p-4 rounded-lg overflow-x-auto my-4"
-                    style={style}
-                  >
-                    {tokens.map((line, i) => (
-                      <div key={i} {...getLineProps({ line })}>
-                        {line.map((token, key) => (
-                          <span key={key} {...getTokenProps({ token })} />
-                        ))}
-                      </div>
-                    ))}
-                  </pre>
-                )}
-              </Highlight>
+              <div className="w-full max-w-full overflow-x-auto my-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <Highlight
+                  theme={themes.vsDark}
+                  code={codeString}
+                  language={language || 'text'}
+                >
+                  {({ style, tokens, getLineProps, getTokenProps }) => (
+                    <pre
+                      className="bg-[#1e1e1e] p-4 rounded-lg"
+                      style={style}
+                    >
+                      {tokens.map((line, i) => (
+                        <div key={i} {...getLineProps({ line })}>
+                          {line.map((token, key) => (
+                            <span key={key} {...getTokenProps({ token })} />
+                          ))}
+                        </div>
+                      ))}
+                    </pre>
+                  )}
+                </Highlight>
+              </div>
             );
           },
           a({ href, children, ...props }) {

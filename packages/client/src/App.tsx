@@ -14,6 +14,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -503,20 +504,19 @@ function App() {
   }
 
   return (
-    <div className="flex w-full h-full">
+    <SidebarProvider defaultOpen={true}>
       <AppSidebar
         sessions={workspaceSessions}
         currentSession={currentSession}
+        currentSessionId={currentSession?.id ?? null}
         connected={connected}
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
-        permissions={permissions}
         onCreateSession={() => createSession(preconfigs[0]?.id)}
         onResumeSession={resumeSession}
         onCloseSession={closeSession}
         onReopenSession={reopenSession}
         onDeleteSession={permanentlyDeleteSession}
-        onRenameSession={handleRenameSession}
         onSelectWorkspace={selectWorkspace}
         onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
         onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
@@ -525,6 +525,12 @@ function App() {
       />
       
       <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile header with hamburger menu */}
+        <header className="md:hidden flex items-center gap-2 p-3 border-b border-border">
+          <SidebarTrigger />
+          <span className="font-semibold">Jean2</span>
+        </header>
+        
         {currentSession ? (
           <ChatView
             session={currentSession}
@@ -563,7 +569,7 @@ function App() {
           sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
         }}
       />
-    </div>
+    </SidebarProvider>
   );
 }
 

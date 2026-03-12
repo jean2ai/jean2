@@ -9,11 +9,12 @@ import {
 import { cn } from '@/lib/utils';
 
 interface TokenMeterProps {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
   contextWindow?: number;
-  modelName: string;
+  modelName?: string;
+  compact?: boolean;
 }
 
 function formatCompact(num: number): string {
@@ -29,9 +30,10 @@ function getUsageStatus(percentage: number): 'normal' | 'warning' | 'critical' {
 }
 
 export function TokenMeter({
-  totalTokens,
+  totalTokens = 0,
   contextWindow = 0,
-  modelName,
+  modelName = '',
+  compact = false,
 }: TokenMeterProps) {
   const effectiveContext = totalTokens === 0 ? 0 : contextWindow;
   const percentage = effectiveContext === 0 
@@ -39,6 +41,27 @@ export function TokenMeter({
     : Math.min(100, Math.round((totalTokens / effectiveContext) * 100));
   
   const status = getUsageStatus(percentage);
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-mono">
+          {formatCompact(totalTokens)}/{formatCompact(effectiveContext)}
+        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="size-3 text-muted-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs">Model: {modelName}</p>
+              <p className="text-xs">{percentage}% of context window used</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-3">

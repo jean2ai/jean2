@@ -33,7 +33,7 @@ export default function Message({ message, parts, pendingPermissions, onPermissi
       <div className="text-[11px] text-[#888] mb-1 uppercase">{message.role}</div>
       <div className={`p-3 px-4 rounded-xl bg-[#2a2a2a] ${roleClass === 'user' ? 'bg-[#3a6ea5]' : ''}`}>
         {parts.length === 0 ? (
-          <div className="break-words">
+          <div className="break-words overflow-x-auto">
             <MarkdownRenderer>{'...'}</MarkdownRenderer>
           </div>
         ) : (
@@ -61,7 +61,7 @@ function PartComponent({ part, pendingPermissions, onPermissionResponse, onNavig
   switch (part.type) {
     case 'text':
       return (
-        <div className="break-words">
+        <div className="break-words overflow-x-auto">
           <MarkdownRenderer>{part.text || '...'}</MarkdownRenderer>
         </div>
       );

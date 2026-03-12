@@ -85,7 +85,7 @@ function MessageParts({
         switch (part.type) {
           case 'text':
             return (
-              <div key={part.id} className="whitespace-pre-wrap break-words">
+              <div key={part.id} className="min-w-0">
                 <MarkdownRenderer>{part.text || '...'}</MarkdownRenderer>
               </div>
             );
@@ -189,7 +189,7 @@ export function ChatView({
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <ChatHeader
         session={session}
         preconfigs={preconfigs}

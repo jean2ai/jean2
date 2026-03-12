@@ -40,13 +40,13 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
       
       <div
         className={cn(
-          'relative group rounded-2xl px-4 py-3 max-w-[85%]',
+          'relative group rounded-2xl px-4 py-3 max-w-[95%] sm:max-w-[85%]',
           isUser
             ? 'bg-primary text-primary-foreground rounded-br-md'
             : 'bg-card text-card-foreground border border-border rounded-bl-md'
         )}
       >
-        <div className="max-w-none">
+        <div className="min-w-0">
           {children}
         </div>
         
