@@ -156,6 +156,19 @@ function initializeSchema(db: Database): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history
     ON tool_permissions(workspace_id, granted_at)`);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS queued_messages (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_queued_messages_session ON queued_messages(session_id, position)');
+
   // Migration: Add parent_id and agent_name columns for subagent support
   const tableInfo = db.query("PRAGMA table_info(sessions)").all() as { name: string }[];
   const columnNames = tableInfo.map(row => row.name);
@@ -179,6 +192,12 @@ function initializeSchema(db: Database): void {
     console.log('Migrating: Adding running_at column to sessions table');
     db.run('ALTER TABLE sessions ADD COLUMN running_at TEXT');
   }
+
+  // Migration: Create queued_messages table if it doesn't exist
+  const queuedTableInfo = db.query("PRAGMA table_info(queued_messages)").all() as { name: string }[];
+  if (queuedTableInfo.length === 0) {
+    console.log('Creating queued_messages table');
+  }
 }
 
 export { Database };
@@ -189,3 +208,4 @@ export * from './messages';
 export * from './tool-approvals';
 export * from './workspaces';
 export * from './permissions';
+export * from './queued-messages';

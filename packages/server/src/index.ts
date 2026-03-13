@@ -13,8 +13,12 @@ import {
   createMessage,
   updateMessage,
   createPart,
-
-  listMessagesWithParts
+  listMessagesWithParts,
+  addMessageToQueue,
+  getQueuedMessage,
+  listQueuedMessages,
+  deleteQueuedMessage,
+  getNextQueuedMessage,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
@@ -317,6 +321,16 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
           details: approval.details,
         });
       }
+
+      // Send queued messages
+      const queuedMessages = listQueuedMessages(msg.sessionId);
+      if (queuedMessages.length > 0) {
+        send(ws, {
+          type: 'queue.list',
+          sessionId: msg.sessionId,
+          messages: queuedMessages,
+        });
+      }
       break;
     }
 
@@ -469,6 +483,46 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       }
       break;
     }
+
+    case 'queue.add': {
+      const session = getSession(msg.sessionId);
+      if (!session) {
+        send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+        return;
+      }
+
+      if (!msg.content || !msg.content.trim()) {
+        send(ws, { type: 'error', code: 'invalid_content', message: 'Content cannot be empty' });
+        return;
+      }
+
+      const queuedMessage = addMessageToQueue(msg.sessionId, msg.content);
+      clients.set(ws, { sessionId: msg.sessionId });
+      
+      send(ws, {
+        type: 'queue.added',
+        sessionId: msg.sessionId,
+        message: queuedMessage,
+      });
+      break;
+    }
+
+    case 'queue.remove': {
+      const queuedMsg = getQueuedMessage(msg.queueId);
+      if (!queuedMsg) {
+        send(ws, { type: 'error', code: 'not_found', message: 'Queued message not found' });
+        return;
+      }
+
+      deleteQueuedMessage(msg.queueId);
+      
+      send(ws, {
+        type: 'queue.removed',
+        sessionId: queuedMsg.sessionId,
+        queueId: msg.queueId,
+      });
+      break;
+    }
     
     default:
       send(ws, { type: 'error', code: 'unknown_message', message: 'Unknown message type' });
@@ -552,6 +606,27 @@ async function handleSessionRevert(
     const message = error instanceof Error ? error.message : 'Revert failed';
     send(ws, { type: 'error', code: 'revert_error', message });
   }
+}
+
+async function processQueueAfterStream(ws: ServerWebSocket, sessionId: string): Promise<void> {
+  const nextMsg = getNextQueuedMessage(sessionId);
+  
+  if (!nextMsg) {
+    return;
+  }
+
+  // Notify client that we're sending this queued message
+  broadcast({
+    type: 'queue.sending',
+    sessionId,
+    queueId: nextMsg.id,
+  });
+
+  // Remove from queue before sending (to prevent double-send on error)
+  deleteQueuedMessage(nextMsg.id);
+
+  // Send the message (this will trigger a new stream)
+  await handleChat(ws, sessionId, nextMsg.content);
 }
 
 async function handleChat(ws: ServerWebSocket, sessionId: string, content: string) {
@@ -706,6 +781,10 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
         }
       }
     }
+
+    // Process queue after successful stream
+    await processQueueAfterStream(ws, sessionId);
+
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Chat failed';
     console.error('Chat error:', err);

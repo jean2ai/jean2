@@ -1,4 +1,4 @@
-import { Copy, Check, User, Bot } from 'lucide-react';
+import { Copy, Check, User, Bot, X, Clock } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,17 @@ interface MessageBubbleProps {
   message: Message;
   textContent?: string;
   children?: React.ReactNode;
+  isQueued?: boolean;
+  onRemove?: () => void;
 }
 
-export function MessageBubble({ message, textContent, children }: MessageBubbleProps) {
+export function MessageBubble({ 
+  message, 
+  textContent, 
+  children, 
+  isQueued = false,
+  onRemove 
+}: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
@@ -36,18 +44,20 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
       >
         {isUser ? (
           <>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCopy}
-              className="size-5 text-muted-foreground hover:text-foreground"
-            >
-              {copied ? (
-                <Check className="size-3" />
-              ) : (
-                <Copy className="size-3" />
-              )}
-            </Button>
+            {!isQueued && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleCopy}
+                className="size-5 text-muted-foreground hover:text-foreground"
+              >
+                {copied ? (
+                  <Check className="size-3" />
+                ) : (
+                  <Copy className="size-3" />
+                )}
+              </Button>
+            )}
             <User className="size-3" />
             {message.role}
           </>
@@ -73,12 +83,33 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
 
       <div
         className={cn(
-          'rounded-2xl px-4 py-3 max-w-full sm:max-w-full',
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-br-md'
-            : 'bg-card text-card-foreground border border-border rounded-bl-md'
+          'rounded-2xl px-4 py-3 max-w-full sm:max-w-full relative group',
+          isQueued
+            ? 'bg-muted border-2 border-dashed border-muted-foreground/30 opacity-80'
+            : isUser
+              ? 'bg-primary text-primary-foreground rounded-br-md'
+              : 'bg-card text-card-foreground border border-border rounded-bl-md'
         )}
       >
+        {isQueued && (
+          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-muted-foreground/20">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="size-3 animate-pulse" />
+              <span>Pending</span>
+            </div>
+            {onRemove && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onRemove}
+                className="size-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="Remove from queue"
+              >
+                <X className="size-3" />
+              </Button>
+            )}
+          </div>
+        )}
         <div className="min-w-0">
           {children}
         </div>

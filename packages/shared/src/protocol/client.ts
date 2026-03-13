@@ -109,6 +109,21 @@ export interface SessionInterruptMessage {
   reason?: 'user_request' | 'timeout' | 'error';
 }
 
+// =============================================================================
+// Queue Messages
+// =============================================================================
+
+export interface QueueAddMessage {
+  type: 'queue.add';
+  sessionId: string;
+  content: string;
+}
+
+export interface QueueRemoveMessage {
+  type: 'queue.remove';
+  queueId: string;
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
@@ -126,4 +141,6 @@ export type ClientMessage =
   | PermissionRevokeAllMessage
   | SessionCompactMessage
   | SessionRevertMessage
-  | SessionInterruptMessage;
+  | SessionInterruptMessage
+  | QueueAddMessage
+  | QueueRemoveMessage;

@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { Lock } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -32,13 +32,22 @@ interface Model {
   providerName: string;
 }
 
+interface DisplayItem {
+  message: Message;
+  parts: Part[];
+  isQueued?: boolean;
+  queueId?: string;
+}
+
 interface ChatViewProps {
   session: Session;
   messagesWithParts: MessageWithParts[];
+  queuedMessages: QueuedMessage[];
   preconfigs: Preconfig[];
   models: Model[];
   defaultModel: string;
   onSendMessage: (content: string) => void;
+  onRemoveFromQueue: (queueId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   pendingPermissions: PendingPermissionRequest[];
@@ -61,6 +70,47 @@ function getTextContent(parts: Part[]): string {
     .filter((part): part is TextPart => part.type === 'text')
     .map(part => part.text)
     .join('');
+}
+
+function mergeMessagesWithQueue(
+  messagesWithParts: MessageWithParts[],
+  queuedMessages: QueuedMessage[]
+): DisplayItem[] {
+  const regularItems: DisplayItem[] = messagesWithParts.map(mwp => ({
+    message: mwp.message,
+    parts: mwp.parts,
+    isQueued: false,
+  }));
+
+  const queuedItems: DisplayItem[] = queuedMessages.map(qm => ({
+    message: {
+      id: qm.id,
+      role: 'user' as const,
+      sessionId: qm.sessionId,
+      createdAt: qm.createdAt,
+    } as Message,
+    parts: [{
+      id: `${qm.id}-part`,
+      messageId: qm.id,
+      createdAt: qm.createdAt,
+      type: 'text' as const,
+      text: qm.content,
+    }],
+    isQueued: true,
+    queueId: qm.id,
+  }));
+
+  // Sort regular messages by createdAt, then append queued messages at the end
+  const sortedRegularItems = [...regularItems].sort((a, b) =>
+    a.message.createdAt - b.message.createdAt
+  );
+
+  // Sort queued items by position (or createdAt as fallback) to maintain order
+  const sortedQueuedItems = [...queuedItems].sort((a, b) =>
+    a.message.createdAt - b.message.createdAt
+  );
+
+  return [...sortedRegularItems, ...sortedQueuedItems];
 }
 
 /**
@@ -151,10 +201,12 @@ function MessageParts({
 export function ChatView({
   session,
   messagesWithParts,
+  queuedMessages,
   preconfigs,
   models,
   defaultModel,
   onSendMessage,
+  onRemoveFromQueue,
   onChangePreconfig,
   onChangeModel,
   pendingPermissions,
@@ -168,6 +220,8 @@ export function ChatView({
   onInterrupt,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const displayItems = mergeMessagesWithQueue(messagesWithParts, queuedMessages);
 
   // Scroll to bottom on initial session load
   useEffect(() => {
@@ -219,23 +273,25 @@ export function ChatView({
 
       <ScrollArea className="flex-1" ref={scrollRef}>
         <div className="p-4">
-          {messagesWithParts.length === 0 ? (
+          {displayItems.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <p className="text-lg mb-2">Start a conversation</p>
               <p className="text-sm">Send a message below to begin.</p>
             </div>
           ) : (
-            messagesWithParts.map((mwp) => (
+            displayItems.map((item) => (
               <MessageBubble
-                key={mwp.message.id}
-                message={mwp.message}
-                textContent={getTextContent(mwp.parts)}
+                key={item.message.id}
+                message={item.message}
+                textContent={getTextContent(item.parts)}
+                isQueued={item.isQueued}
+                onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
               >
-                {mwp.parts.length === 0 ? (
+                {item.parts.length === 0 ? (
                   <span className="opacity-50">...</span>
                 ) : (
                   <MessageParts
-                    parts={mwp.parts}
+                    parts={item.parts}
                     pendingPermissions={pendingPermissions}
                     onPermissionResponse={onPermissionResponse}
                     onNavigateToSubagent={onNavigateToSubagent}

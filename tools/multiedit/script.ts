@@ -1,6 +1,128 @@
 import path from 'node:path';
 import os from 'node:os';
 
+interface DiffChange {
+  type: 'added' | 'removed' | 'context';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  changes: DiffChange[];
+}
+
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  const langMap: Record<string, string> = {
+    ts: 'typescript',
+    tsx: 'typescript',
+    js: 'javascript',
+    jsx: 'javascript',
+    json: 'json',
+    md: 'markdown',
+    css: 'css',
+    html: 'html',
+    py: 'python',
+    go: 'go',
+    rs: 'rust',
+    sh: 'bash',
+    yaml: 'yaml',
+    yml: 'yaml',
+  };
+  return langMap[ext || ''] || ext || 'text';
+}
+
+function buildDiffVisualization(
+  oldContent: string,
+  newContent: string,
+  filePath: string,
+  matchLineNumber: number,
+  strategy: string,
+  oldString: string,
+  newString: string
+) {
+  const oldLines = oldContent.split('\n');
+  const _newLines = newContent.split('\n');
+  const contextSize = 5;
+  
+  const matchIndex = matchLineNumber - 1;
+  const contextStart = Math.max(0, matchIndex - contextSize);
+  
+  const changes: DiffChange[] = [];
+  let oldLineNum = contextStart + 1;
+  let newLineNum = contextStart + 1;
+  
+  for (let i = contextStart; i < matchIndex; i++) {
+    changes.push({
+      type: 'context',
+      content: oldLines[i] || '',
+      oldLineNumber: oldLineNum,
+      newLineNumber: newLineNum,
+    });
+    oldLineNum++;
+    newLineNum++;
+  }
+  
+  const oldStringLines = oldString.split('\n');
+  for (const line of oldStringLines) {
+    changes.push({
+      type: 'removed',
+      content: line,
+      oldLineNumber: oldLineNum,
+    });
+    oldLineNum++;
+  }
+  
+  const newStringLines = newString.split('\n');
+  for (const line of newStringLines) {
+    changes.push({
+      type: 'added',
+      content: line,
+      newLineNumber: newLineNum,
+    });
+    newLineNum++;
+  }
+  
+  const afterStart = matchIndex + oldStringLines.length;
+  const afterEnd = Math.min(oldLines.length, afterStart + contextSize);
+  for (let i = afterStart; i < afterEnd; i++) {
+    changes.push({
+      type: 'context',
+      content: oldLines[i] || '',
+      oldLineNumber: oldLineNum,
+      newLineNumber: newLineNum,
+    });
+    oldLineNum++;
+    newLineNum++;
+  }
+  
+  const hunks: DiffHunk[] = [{
+    oldStart: contextStart + 1,
+    oldLines: oldLineNum - contextStart - 1,
+    newStart: contextStart + 1,
+    newLines: newLineNum - contextStart - 1,
+    changes,
+  }];
+  
+  return {
+    type: 'diff' as const,
+    path: filePath,
+    language: detectLanguage(filePath),
+    hunks,
+    additions: newStringLines.length,
+    deletions: oldStringLines.length,
+    matchInfo: {
+      strategy,
+      lineNumber: matchLineNumber,
+    },
+  };
+}
+
 interface MatchResult {
   lineNumber: number;
   startIndex: number;
@@ -284,9 +406,20 @@ async function multiEditFile() {
     }
     
     let content = await file.text();
+    
+    // Track each edit's details for building diffs later
+    interface EditRecord {
+      oldContent: string;
+      newContent: string;
+      oldString: string;
+      newString: string;
+      matchInfo: MatchInfo;
+    }
+    const editRecords: EditRecord[] = [];
     const results: { matchInfo: MatchInfo }[] = [];
     
     for (const edit of edits) {
+      const contentBeforeEdit = content; // Track content before this edit
       const { matches, usedStrategy } = findMatches(content, edit.oldString, edit.strategy);
       
       if (matches.length === 0) {
@@ -308,7 +441,7 @@ async function multiEditFile() {
       const match = matches[0];
       const before = content.substring(0, match.startIndex);
       const after = content.substring(match.endIndex);
-      content = before + edit.newString + after;
+      const newContent = before + edit.newString + after;
       
       const matchInfo: MatchInfo = {
         strategy: usedStrategy,
@@ -316,7 +449,17 @@ async function multiEditFile() {
         matchCount: matches.length,
       };
       
+      // Store the edit record for building diff visualization
+      editRecords.push({
+        oldContent: contentBeforeEdit,
+        newContent,
+        oldString: edit.oldString,
+        newString: edit.newString,
+        matchInfo,
+      });
+      
       results.push({ matchInfo });
+      content = newContent;
     }
     
     await Bun.write(resolvedPath, content);
@@ -329,11 +472,24 @@ async function multiEditFile() {
       diagnostics = await fetchDiagnostics(resolvedPath, serverUrl) || undefined;
     }
 
+    // Build diff visualizations for each edit
+    const diffItems = editRecords.map((record) =>
+      buildDiffVisualization(
+        record.oldContent,
+        record.newContent,
+        resolvedPath,
+        record.matchInfo.lineNumber,
+        record.matchInfo.strategy,
+        record.oldString,
+        record.newString
+      )
+    );
+
     const response: {
       success: boolean;
       results: { matchInfo: MatchInfo }[];
       diagnostics?: Diagnostic[];
-      _visualization?: { type: 'none'; message: string };
+      _visualization?: { type: 'diffs'; items: ReturnType<typeof buildDiffVisualization>[] };
     } = {
       success: true,
       results,
@@ -344,8 +500,8 @@ async function multiEditFile() {
     }
 
     response._visualization = {
-      type: 'none',
-      message: `Edited: ${path.basename(inputPath)} (${edits.length} changes)`,
+      type: 'diffs',
+      items: diffItems,
     };
 
     console.log(JSON.stringify(response));

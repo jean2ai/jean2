@@ -1,7 +1,7 @@
 /**
  * Supported visualization types for tool outputs.
  */
-export type VisualizationType = 'diff' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none';
+export type VisualizationType = 'diff' | 'diffs' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none';
 
 /**
  * Base interface for all visualization types embedded in tool output.
@@ -62,6 +62,15 @@ export interface DiffChange {
   oldLineNumber?: number;
   /** Line number in the new file (undefined for removed lines) */
   newLineNumber?: number;
+}
+
+/**
+ * Visualization for multiple diff outputs (e.g., multiedit tool).
+ */
+export interface DiffsVisualization extends ToolVisualization {
+  type: 'diffs';
+  /** Array of diff visualizations */
+  items: DiffVisualization[];
 }
 
 /**
@@ -181,6 +190,7 @@ export interface NoneVisualization extends ToolVisualization {
  */
 export type AnyVisualization =
   | DiffVisualization
+  | DiffsVisualization
   | CodeVisualization
   | FileListVisualization
   | TableVisualization

@@ -66,6 +66,9 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
     return (
       <div className="p-4 text-sm text-muted-foreground">
         Empty workspace
+        <Button variant="ghost" size="sm" onClick={loadRoot} className="ml-2">
+          <RefreshCw className="w-3 h-3" />
+        </Button>
       </div>
     );
   }

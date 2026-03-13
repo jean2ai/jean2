@@ -27,6 +27,23 @@ export function VisualizationRenderer({ visualization }: VisualizationRendererPr
         />
       );
 
+    case 'diffs':
+      return (
+        <div className="space-y-3">
+          {visualization.items.map((diff, index) => (
+            <DiffViewer
+              key={`${diff.path}-${index}`}
+              path={diff.path}
+              hunks={diff.hunks}
+              language={diff.language}
+              additions={diff.additions}
+              deletions={diff.deletions}
+              matchInfo={diff.matchInfo}
+            />
+          ))}
+        </div>
+      );
+
     case 'code':
       return (
         <CodeBlock

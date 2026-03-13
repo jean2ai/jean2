@@ -1,5 +1,5 @@
 import type { Session } from '../types/session';
-import type { Message, Part, MessageWithParts } from '../types/message';
+import type { Message, Part, MessageWithParts, QueuedMessage } from '../types/message';
 import type { PermissionType, ToolPermission } from '../types/permission';
 import type { SessionInterruptResult } from '../types/interrupt';
 
@@ -211,6 +211,34 @@ export interface SessionInterruptedMessage {
   result: SessionInterruptResult;
 }
 
+// =============================================================================
+// Queue Messages
+// =============================================================================
+
+export interface QueueListMessage {
+  type: 'queue.list';
+  sessionId: string;
+  messages: QueuedMessage[];
+}
+
+export interface QueueAddedMessage {
+  type: 'queue.added';
+  sessionId: string;
+  message: QueuedMessage;
+}
+
+export interface QueueRemovedMessage {
+  type: 'queue.removed';
+  sessionId: string;
+  queueId: string;
+}
+
+export interface QueueSendingMessage {
+  type: 'queue.sending';
+  sessionId: string;
+  queueId: string;
+}
+
 export type ServerMessage =
   | MessageCreatedMessage
   | MessageUpdatedMessage
@@ -238,4 +266,8 @@ export type ServerMessage =
   | CompactionCompleteMessage
   | SessionRevertedMessage
   | SessionStateMessage
-  | SessionInterruptedMessage;
+  | SessionInterruptedMessage
+  | QueueListMessage
+  | QueueAddedMessage
+  | QueueRemovedMessage
+  | QueueSendingMessage;

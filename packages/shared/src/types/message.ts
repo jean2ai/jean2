@@ -169,6 +169,14 @@ export interface MessageWithParts {
   parts: Part[];
 }
 
+export interface QueuedMessage {
+  id: string;
+  sessionId: string;
+  content: string;
+  position: number;
+  createdAt: number;
+}
+
 // ===========================================
 // WebSocket Event Types
 // ===========================================

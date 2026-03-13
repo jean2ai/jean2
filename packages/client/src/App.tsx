@@ -9,7 +9,8 @@ import type {
   ClientMessage, 
   Preconfig, 
   Workspace, 
-  ToolPermission 
+  ToolPermission,
+  QueuedMessage,
 } from '@jean2/shared';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { FilesPanel } from '@/components/layout/FilesPanel';
@@ -46,7 +47,8 @@ type ClientMessagePayload =
   | { workspaceId: string; includeRevoked?: boolean }
   | { permissionId: string }
   | { workspaceId: string }
-  | { sessionId: string; reason?: string };
+  | { sessionId: string; reason?: string }
+  | { queueId: string };
 
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -79,6 +81,7 @@ function App() {
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
 
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
@@ -447,6 +450,34 @@ function App() {
           console.log(`Session ${msg.sessionId} interrupted. Cascaded to:`, msg.result.cascadedTo);
         }
         break;
+
+      case 'queue.list':
+        setQueuedMessages(prev => ({
+          ...prev,
+          [msg.sessionId]: msg.messages,
+        }));
+        break;
+
+      case 'queue.added':
+        setQueuedMessages(prev => ({
+          ...prev,
+          [msg.sessionId]: [...(prev[msg.sessionId] || []), msg.message],
+        }));
+        break;
+
+      case 'queue.removed':
+        setQueuedMessages(prev => ({
+          ...prev,
+          [msg.sessionId]: (prev[msg.sessionId] || []).filter(q => q.id !== msg.queueId),
+        }));
+        break;
+
+      case 'queue.sending':
+        setQueuedMessages(prev => ({
+          ...prev,
+          [msg.sessionId]: (prev[msg.sessionId] || []).filter(q => q.id !== msg.queueId),
+        }));
+        break;
     }
   }, [currentSession, defaultModel, streamingSessionId]);
 
@@ -505,11 +536,23 @@ function App() {
     }
   }, [currentSession, resumeSession]);
 
+  const addToQueue = useCallback((sessionId: string, content: string) => {
+    sendMessage('queue.add', { sessionId, content });
+  }, [sendMessage]);
+
+  const removeFromQueue = useCallback((queueId: string) => {
+    sendMessage('queue.remove', { queueId });
+  }, [sendMessage]);
+
   const sendChatMessage = useCallback((content: string) => {
     if (currentSession) {
-      sendMessage('chat.message', { sessionId: currentSession.id, content });
+      if (streamingSessionId === currentSession.id) {
+        addToQueue(currentSession.id, content);
+      } else {
+        sendMessage('chat.message', { sessionId: currentSession.id, content });
+      }
     }
-  }, [currentSession, sendMessage]);
+  }, [currentSession, streamingSessionId, sendMessage, addToQueue]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
@@ -612,10 +655,12 @@ function App() {
           <ChatView
             session={currentSession}
             messagesWithParts={messagesWithParts}
+            queuedMessages={queuedMessages[currentSession.id] || []}
             preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
             models={models}
             defaultModel={defaultModel}
             onSendMessage={sendChatMessage}
+            onRemoveFromQueue={removeFromQueue}
             onChangePreconfig={updateSessionPreconfig}
             onChangeModel={updateSessionModel}
             pendingPermissions={pendingPermissions}
