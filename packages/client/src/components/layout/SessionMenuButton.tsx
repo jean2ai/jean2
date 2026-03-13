@@ -83,12 +83,18 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
 const SessionStatusIcon = React.memo(function SessionStatusIcon({
   status,
   isStreaming,
+  runningAt,
 }: {
   status?: 'running' | 'completed' | 'error' | null;
   isStreaming?: boolean;
+  runningAt?: string | null;
 }) {
-  // Show running spinner when streaming OR subagent is running
-  if (isStreaming || status === 'running') {
+  // Show running spinner when:
+  // - Client is streaming this session, OR
+  // - Subagent is running (status === 'running'), OR
+  // - Main session has runningAt set
+  const isRunning = isStreaming || status === 'running' || !!runningAt;
+  if (isRunning) {
     return <Loader2 className="size-3.5 animate-spin shrink-0" />;
   }
 
@@ -148,7 +154,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="truncate flex items-center gap-2">
-                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} />
+                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
                     {session.title || 'Untitled'}
                   </span>
                 </TooltipTrigger>
@@ -196,7 +202,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="truncate flex items-center gap-2">
-                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} />
+                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
                     {session.title || 'Untitled'}
                   </span>
                 </TooltipTrigger>

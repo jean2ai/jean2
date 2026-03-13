@@ -36,10 +36,10 @@ export function TokenMeter({
   compact = false,
 }: TokenMeterProps) {
   const effectiveContext = totalTokens === 0 ? 0 : contextWindow;
-  const percentage = effectiveContext === 0 
-    ? 0 
+  const percentage = effectiveContext === 0
+    ? 0
     : Math.min(100, Math.round((totalTokens / effectiveContext) * 100));
-  
+
   const status = getUsageStatus(percentage);
 
   if (compact) {
@@ -87,7 +87,6 @@ export function TokenMeter({
           </span>
         </div>
       </div>
-      
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

@@ -54,6 +54,7 @@ function initializeSchema(db: Database): void {
       prompt_tokens INTEGER DEFAULT 0,
       completion_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,
+      running_at TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     )
   `);
@@ -172,6 +173,11 @@ function initializeSchema(db: Database): void {
   if (!columnNames.includes('subagent_status')) {
     console.log('Migrating: Adding subagent_status column to sessions table');
     db.run('ALTER TABLE sessions ADD COLUMN subagent_status TEXT');
+  }
+
+  if (!columnNames.includes('running_at')) {
+    console.log('Migrating: Adding running_at column to sessions table');
+    db.run('ALTER TABLE sessions ADD COLUMN running_at TEXT');
   }
 }
 

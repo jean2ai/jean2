@@ -17,6 +17,7 @@ export interface SessionResumedMessage {
     completionTokens: number;
     totalTokens: number;
   };
+  isRunning?: boolean;
 }
 
 export interface MessageCreatedMessage {

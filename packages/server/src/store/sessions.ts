@@ -20,6 +20,7 @@ interface SessionRow {
   parent_id: string | null;
   agent_name: string | null;
   subagent_status: string | null;
+  running_at: string | null;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -32,8 +33,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -48,6 +49,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.parentId ?? null,
     s.agentName ?? null,
     s.subagentStatus ?? null,
+    s.runningAt ?? null,
   ]);
   
   return s;
@@ -83,7 +85,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -138,6 +140,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
     setClauses.push('subagent_status = ?');
     values.push(updates.subagentStatus);
   }
+  if (updates.runningAt !== undefined) {
+    setClauses.push('running_at = ?');
+    values.push(updates.runningAt);
+  }
   
   values.push(id);
   
@@ -175,6 +181,7 @@ function mapRowToSession(row: SessionRow): Session {
     parentId: row.parent_id ?? null,
     agentName: row.agent_name ?? null,
     subagentStatus: row.subagent_status as SubagentStatus | null ?? null,
+    runningAt: row.running_at ?? null,
   };
 }
 

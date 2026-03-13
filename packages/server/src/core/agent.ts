@@ -11,6 +11,7 @@ import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type Suba
 import { randomUUID } from 'crypto';
 import { createPermissionRequestHandler } from '@/index';
 import { interruptManager } from './interrupt';
+import { broadcastSessionUpdated } from './broadcast';
 
 // Structured API keys from environment
 const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
@@ -95,8 +96,8 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
     }
 
     case 'minimax': {
-      const { createMinimaxOpenAI } = await import('vercel-minimax-ai-provider');
-      const minimax = createMinimaxOpenAI({ apiKey });
+      const { createMinimax } = await import('vercel-minimax-ai-provider');
+      const minimax = createMinimax({ apiKey });
       return minimax.chat(model) as unknown as LanguageModel;
     }
 
@@ -455,6 +456,13 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Register session with interrupt manager
   const abortController = interruptManager.registerSession(_sessionId);
 
+  // Check if this is a main session (not a subagent) and set runningAt
+  const session = getSession(_sessionId);
+  const isMainSession = session && !session.parentId;
+  if (isMainSession) {
+    updateSession(_sessionId, { runningAt: new Date().toISOString() });
+  }
+
   // Resolve model: session override > preconfig > env default
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
   const model = await getModel(resolvedModelId, providerId);
@@ -804,6 +812,15 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   } finally {
     // Cleanup interrupt registration
     interruptManager.unregisterSession(_sessionId);
+
+    // Clear runningAt and broadcast session update for main sessions
+    if (isMainSession) {
+      updateSession(_sessionId, { runningAt: null });
+      const updatedSession = getSession(_sessionId);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
+    }
   }
 }
 

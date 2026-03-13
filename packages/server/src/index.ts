@@ -284,6 +284,9 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       // Get full conversation state
       const messages = listMessagesWithParts(session.id);
       
+      // Check if the session is currently active/running
+      const isRunning = interruptManager.isSessionActive(session.id);
+      
       send(ws, { 
         type: 'session.resumed', 
         session,
@@ -293,6 +296,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
           completionTokens: session.completionTokens ?? 0,
           totalTokens: session.totalTokens ?? 0,
         } : undefined,
+        isRunning,
       });
 
       // Send any pending permission requests for this session from database

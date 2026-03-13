@@ -210,7 +210,12 @@ function App() {
       
       case 'session.resumed':
         setCurrentSession(msg.session);
-        
+
+        // Restore streaming state if session is running
+        if (msg.isRunning) {
+          setStreamingSessionId(msg.session.id);
+        }
+
         if (msg.messages) {
           setMessagesBySession(prev => ({
             ...prev,
