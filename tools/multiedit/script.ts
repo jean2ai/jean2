@@ -24,7 +24,7 @@ interface Diagnostic {
   source?: string;
 }
 
-interface Edit {
+interface _Edit {
   oldString: string;
   newString: string;
   strategy?: string;

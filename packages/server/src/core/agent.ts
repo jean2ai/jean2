@@ -1,7 +1,7 @@
 import { streamText, tool, stepCountIs, jsonSchema, type LanguageModel, type Tool, type ModelMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
+import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, ReasoningPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
 import { createMessage, listMessages as storeListMessages, createPart, updatePart, updateMessage, getSession, updateSession, transitionToolToRunningByCallId, getPart } from '@/store';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
@@ -95,8 +95,8 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
     }
 
     case 'minimax': {
-      const { createMinimax } = await import('vercel-minimax-ai-provider');
-      const minimax = createMinimax({ apiKey });
+      const { createMinimaxOpenAI } = await import('vercel-minimax-ai-provider');
+      const minimax = createMinimaxOpenAI({ apiKey });
       return minimax.chat(model) as unknown as LanguageModel;
     }
 
@@ -145,6 +145,28 @@ function isTextPart(part: Part): part is TextPart {
 
 function isToolPart(part: Part): part is ToolPart {
   return part.type === 'tool';
+}
+
+/**
+ * Safely parses tool input to ensure it's always an object.
+ * Handles cases where input might be:
+ * - undefined/null -> returns {}
+ * - a JSON string -> parses and returns the object, or {} on parse failure
+ * - an object -> returns as-is
+ */
+function parseToolInput(input: unknown): Record<string, unknown> {
+  if (input === null || input === undefined) {
+    return {};
+  }
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof input === 'object' ? input as Record<string, unknown> : {};
 }
 
 // Helper to create StepPart objects
@@ -204,7 +226,7 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
           type: 'tool-call' as const,
           toolCallId: toolPart.callId,
           toolName: toolPart.name,
-          input: toolPart.state.input,
+          input: parseToolInput(toolPart.state.input),
         });
 
         // Add tool-result only for completed or error tools
@@ -470,7 +492,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     experimental_onStepStart: (stepStartEvent) => {
       // Create step started part
       const stepNumber = stepStartEvent.stepNumber + 1; // Convert to 1-indexed
-      
+
       const startedStepPart = createStepPart({
         messageId,
         sessionId: _sessionId,
@@ -488,12 +510,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     onStepFinish: (stepFinishEvent) => {
       // stepFinishEvent contains: stepNumber, finishReason, usage, totalUsage
       const stepNumber = stepFinishEvent.stepNumber + 1; // Convert to 1-indexed
-      
+
       // Get step-level usage
       const stepUsage = stepFinishEvent.usage;
       const stepPromptTokens = stepUsage?.inputTokens ?? 0;
       const stepCompletionTokens = stepUsage?.outputTokens ?? 0;
-      
+
       // Map AI SDK finish reason to our type
       let finishReason: 'stop' | 'tool-calls' | 'error' | 'length' | undefined;
       if (stepFinishEvent.finishReason) {
@@ -519,7 +541,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           completion: stepCompletionTokens,
         },
       });
-      
+
       // Update the step part in our array
       const existingStepPart = stepParts.find(sp => sp.number === stepNumber);
       if (existingStepPart) {
@@ -543,6 +565,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const toolParts: ToolPart[] = [];
   let _currentText = ''
   let _currentTextPartId: string | null = null;
+  let _currentReasoning = ''
+  let _currentReasoningPartId: string | null = null;
 
   // Create assistant message
   const assistantMessage: AssistantMessage = {
@@ -566,7 +590,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Set up the yield function for callbacks
   // Use a queue to handle events from callbacks since we can't yield from inside a callback
   const callbackEventQueue: MessageEvent[] = [];
-  
+
   yieldFn = (event: MessageEvent) => {
     callbackEventQueue.push(event);
   };
@@ -597,7 +621,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         const textContent = delta.text || '';
         if (textContent) {
           _currentText += textContent;
-          
+
           // Emit part.append event for streaming text
           if (_currentTextPartId) {
             yield { type: 'part.append', sessionId: _sessionId, partId: _currentTextPartId, field: 'text', delta: textContent };
@@ -619,6 +643,32 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         break;
       }
 
+      case 'reasoning-delta': {
+        const reasoningContent = delta.text || '';
+        if (reasoningContent) {
+          _currentReasoning += reasoningContent;
+
+          // Emit part.append event for streaming reasoning
+          if (_currentReasoningPartId) {
+            yield { type: 'part.append', sessionId: _sessionId, partId: _currentReasoningPartId, field: 'reasoning', delta: reasoningContent };
+            updatePart(_currentReasoningPartId, { text: _currentReasoning });
+          } else {
+            // Create new reasoning part
+            _currentReasoningPartId = randomUUID();
+            const reasoningPart: ReasoningPart = {
+              id: _currentReasoningPartId,
+              messageId,
+              createdAt: Date.now(),
+              type: 'reasoning',
+              text: reasoningContent,
+            };
+            yield { type: 'part.created', sessionId: _sessionId, part: reasoningPart };
+            createPart(reasoningPart, _sessionId);
+          }
+        }
+        break;
+      }
+
       case 'tool-call': {
         // Create tool part
         const toolPartId = randomUUID();
@@ -631,7 +681,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           name: delta.toolName,
           state: {
             status: 'pending',
-            input: delta.input as Record<string, unknown>,
+            input: parseToolInput(delta.input),
           },
         };
         toolParts.push(toolPart);
@@ -643,6 +693,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         // Reset text tracking so subsequent text creates a new part
         _currentTextPartId = null;
         _currentText = '';
+        _currentReasoningPartId = null;
+        _currentReasoning = '';
         break;
       }
 
@@ -650,7 +702,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         // AI SDK v6 emits tool-result events after tool execution completes
         // Find the corresponding tool part and update it
         const existingToolPart = toolParts.find((tp) => tp.callId === delta.toolCallId);
-        
+
         if (existingToolPart) {
           // Get the latest state from database (might have childSessionId from subagent start)
           // The local toolParts array doesn't get updated when transitionToolToRunningByCallId is called
@@ -675,8 +727,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           const isErrorResult = !!(resultData && typeof resultData === 'object' && 'error' in resultData);
 
           // Preserve childSessionId from the latest database state
-          const existingChildSessionId = latestState && 'childSessionId' in latestState 
-            ? latestState.childSessionId 
+          const existingChildSessionId = latestState && 'childSessionId' in latestState
+            ? latestState.childSessionId
             : undefined;
 
           // Update the tool part
@@ -796,7 +848,7 @@ export async function executeChildSession(options: {
 
   // Build initial message with parts
   let messages: MessageWithParts[];
-  
+
   if (resumeFromHistory) {
     // Load existing messages and append new prompt
     const existingMessages = storeListMessages(childSessionId);
@@ -804,7 +856,7 @@ export async function executeChildSession(options: {
       message: msg,
       parts: [],
     }));
-    
+
     // Add new user message with text part
     const newMsgId = randomUUID();
     const newMessage: UserMessage = {

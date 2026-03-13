@@ -173,7 +173,7 @@ export interface MessageWithParts {
 // WebSocket Event Types
 // ===========================================
 
-export type PartField = 'text';
+export type PartField = 'text' | 'reasoning';
 
 export type MessageEvent =
   // Message lifecycle

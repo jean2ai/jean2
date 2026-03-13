@@ -36,7 +36,7 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, showHidden]);
 
   useEffect(() => {
     loadRoot();
