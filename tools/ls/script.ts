@@ -13,6 +13,10 @@ interface Input {
 interface Output {
   content: string;
   error?: string;
+  _visualization?: {
+    type: 'none';
+    message: string;
+  };
 }
 
 const IGNORED_DIRS = [
@@ -164,7 +168,11 @@ async function main(): Promise<void> {
     const stats = await stat(cwd);
 
     if (!stats.isDirectory()) {
-      const output: Output = { content: path.basename(cwd), error: undefined };
+      const output: Output = {
+        content: path.basename(cwd),
+        error: undefined,
+        _visualization: { type: 'none', message: `Ls: ${inputPath || 'workspace'}` },
+      };
       console.log(JSON.stringify(output));
       return;
     }
@@ -178,7 +186,10 @@ async function main(): Promise<void> {
     }
 
     const treeLines = formatTree(tree);
-    const output: Output = { content: treeLines.join('\n') };
+    const output: Output = {
+      content: treeLines.join('\n'),
+      _visualization: { type: 'none', message: `Ls: ${inputPath || 'workspace'}` },
+    };
     console.log(JSON.stringify(output));
   } catch (e) {
     const output: Output = { content: '', error: (e as Error).message };

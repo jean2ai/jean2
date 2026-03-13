@@ -329,7 +329,12 @@ async function multiEditFile() {
       diagnostics = await fetchDiagnostics(resolvedPath, serverUrl) || undefined;
     }
 
-    const response: { success: boolean; results: { matchInfo: MatchInfo }[]; diagnostics?: Diagnostic[] } = {
+    const response: {
+      success: boolean;
+      results: { matchInfo: MatchInfo }[];
+      diagnostics?: Diagnostic[];
+      _visualization?: { type: 'none'; message: string };
+    } = {
       success: true,
       results,
     };
@@ -337,6 +342,11 @@ async function multiEditFile() {
     if (diagnostics && diagnostics.length > 0) {
       response.diagnostics = diagnostics;
     }
+
+    response._visualization = {
+      type: 'none',
+      message: `Edited: ${path.basename(inputPath)} (${edits.length} changes)`,
+    };
 
     console.log(JSON.stringify(response));
   } catch (e) {

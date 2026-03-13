@@ -6,7 +6,7 @@ interface SuccessIndicatorProps {
 
 export function SuccessIndicator({ message = 'Success' }: SuccessIndicatorProps) {
   return (
-    <div className="flex items-center gap-2 text-sm text-success">
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <CheckCircle className="size-4" />
       <span>{message}</span>
     </div>

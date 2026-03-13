@@ -31,4 +31,11 @@ console.log(JSON.stringify({
   stdout: result.stdout.toString(),
   stderr: result.stderr.toString(),
   exitCode: result.exitCode,
+  _visualization: {
+    type: 'shell-output',
+    command: command.substring(0, 100),
+    stdout: result.stdout.toString() || undefined,
+    stderr: result.stderr.toString() || undefined,
+    exitCode: result.exitCode,
+  }
 }));

@@ -1,7 +1,7 @@
 /**
  * Supported visualization types for tool outputs.
  */
-export type VisualizationType = 'diff' | 'code' | 'table' | 'file-list' | 'markdown' | 'none';
+export type VisualizationType = 'diff' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none';
 
 /**
  * Base interface for all visualization types embedded in tool output.
@@ -153,6 +153,21 @@ export interface MarkdownVisualization extends ToolVisualization {
 }
 
 /**
+ * Visualization for displaying shell/terminal command output.
+ */
+export interface ShellOutputVisualization extends ToolVisualization {
+  type: 'shell-output';
+  /** The command that was executed */
+  command: string;
+  /** Standard output from the command */
+  stdout?: string;
+  /** Standard error from the command */
+  stderr?: string;
+  /** Exit code from the command */
+  exitCode: number;
+}
+
+/**
  * Visualization indicating no content to display.
  */
 export interface NoneVisualization extends ToolVisualization {
@@ -170,6 +185,7 @@ export type AnyVisualization =
   | FileListVisualization
   | TableVisualization
   | MarkdownVisualization
+  | ShellOutputVisualization
   | NoneVisualization;
 
 /**

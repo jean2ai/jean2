@@ -12,6 +12,10 @@ interface Input {
 interface Output {
   files: string[];
   error?: string;
+  _visualization?: {
+    type: 'none';
+    message: string;
+  };
 }
 
 function resolvePath(p: string, ws: string): string {
@@ -194,7 +198,13 @@ async function main() {
   try {
     const cwd = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;
     const files = await glob(pattern, cwd);
-    const output: Output = { files };
+    const output: Output = {
+      files,
+      _visualization: {
+        type: 'none',
+        message: `Glob: "${pattern}" (${files.length} files)`,
+      },
+    };
     console.log(JSON.stringify(output));
   } catch (e) {
     const output: Output = { files: [], error: (e as Error).message };

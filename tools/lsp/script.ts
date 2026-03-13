@@ -11,6 +11,10 @@ interface Output {
   success: boolean;
   result?: unknown;
   error?: string;
+  _visualization?: {
+    type: 'none';
+    message: string;
+  };
 }
 
 const SERVER_URL = process.env.JEAN2_SERVER_URL || 'http://localhost:3000';
@@ -163,6 +167,10 @@ async function main(): Promise<void> {
     default: {
       result = { success: false, error: `Unknown operation: ${operation}` };
     }
+  }
+
+  if (result.success) {
+    result._visualization = { type: 'none', message: `LSP: ${operation}` };
   }
 
   console.log(JSON.stringify(result));

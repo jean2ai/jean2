@@ -106,7 +106,13 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
         content += `\n\n(${markedEntries.length} entries)`;
       }
       
-      console.log(JSON.stringify({ content }));
+      console.log(JSON.stringify({ 
+        content,
+        _visualization: {
+          type: 'none',
+          message: `Read: ${resolvedPath}/`
+        }
+      }));
       return;
     }
 
@@ -161,7 +167,13 @@ async function isBinaryFile(filepath: string, fileSize: number): Promise<boolean
       finalContent += `\n\n(End of file - total ${totalLines} lines)`;
     }
 
-    console.log(JSON.stringify({ content: finalContent }));
+    console.log(JSON.stringify({ 
+      content: finalContent,
+      _visualization: {
+        type: 'none',
+        message: `Read: ${resolvedPath}`
+      }
+    }));
   } catch (e) {
     console.log(JSON.stringify({ error: (e as Error).message }));
   }

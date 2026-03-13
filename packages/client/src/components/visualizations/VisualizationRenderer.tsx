@@ -3,6 +3,7 @@ import { DiffViewer } from './DiffViewer';
 import { CodeBlock } from './CodeBlock';
 import { FileListViewer } from './FileListViewer';
 import { SuccessIndicator } from './SuccessIndicator';
+import { TerminalOutput } from './TerminalOutput';
 
 interface VisualizationRendererProps {
   visualization?: AnyVisualization;
@@ -63,6 +64,16 @@ export function VisualizationRenderer({ visualization }: VisualizationRendererPr
 
     case 'none':
       return <SuccessIndicator message={visualization.message} />;
+
+    case 'shell-output':
+      return (
+        <TerminalOutput
+          command={visualization.command}
+          stdout={visualization.stdout}
+          stderr={visualization.stderr}
+          exitCode={visualization.exitCode}
+        />
+      );
 
     default:
       return null;

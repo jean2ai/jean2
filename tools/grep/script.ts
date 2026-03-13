@@ -49,4 +49,10 @@ if (result.exitCode === 0) {
   }
 }
 
-console.log(JSON.stringify({ matches }));
+console.log(JSON.stringify({
+  matches,
+  _visualization: {
+    type: 'none',
+    content: `Grep: "${pattern}" (${matches.length} matches)`,
+  },
+}));

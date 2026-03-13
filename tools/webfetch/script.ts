@@ -11,6 +11,10 @@ interface Output {
   title?: string;
   contentType?: string;
   error?: string;
+  _visualization?: {
+    type: "none";
+    message: string;
+  };
 }
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -110,10 +114,16 @@ try {
     outputContent = content;
   }
 
+  const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
+
   const output: Output = {
     content: outputContent,
     title,
     contentType,
+    _visualization: {
+      type: "none",
+      message: `Fetched: ${displayUrl}`,
+    },
   };
   console.log(JSON.stringify(output));
 } catch (e) {
