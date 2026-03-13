@@ -301,11 +301,50 @@ async function applyPatch(): Promise<void> {
       appliedFiles.push(file.newPath);
     }
 
+    // Build visualization groups
+    const groups: Array<{
+      label: string;
+      files: Array<{ path: string; action: 'created' | 'modified' | 'deleted' }>;
+      icon: 'edit' | 'plus' | 'trash';
+    }> = [];
+
+    if (appliedFiles.length > 0) {
+      groups.push({
+        label: 'Modified',
+        icon: 'edit',
+        files: appliedFiles.map(path => ({ path, action: 'modified' as const })),
+      });
+    }
+
+    if (createdFiles.length > 0) {
+      groups.push({
+        label: 'Created',
+        icon: 'plus',
+        files: createdFiles.map(path => ({ path, action: 'created' as const })),
+      });
+    }
+
+    if (deletedFiles.length > 0) {
+      groups.push({
+        label: 'Deleted',
+        icon: 'trash',
+        files: deletedFiles.map(path => ({ path, action: 'deleted' as const })),
+      });
+    }
+
+    const total = appliedFiles.length + createdFiles.length + deletedFiles.length;
+
     console.log(JSON.stringify({
       success: true,
       appliedFiles,
       createdFiles,
       deletedFiles,
+      _visualization: {
+        type: 'file-list',
+        title: `Applied patch to ${total} file${total !== 1 ? 's' : ''}`,
+        groups,
+        total,
+      },
     }));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);

@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 import { createPermissionRequestHandler } from '@/index';
 import { interruptManager } from './interrupt';
 import { broadcastSessionUpdated } from './broadcast';
+import { stripVisualization } from '../utils/strip-visualization';
 
 // Structured API keys from environment
 const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
@@ -236,14 +237,14 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
             type: 'tool-result' as const,
             toolCallId: toolPart.callId,
             toolName: toolPart.name,
-            output: { type: 'json' as const, value: toolPart.state.output },
+            output: { type: 'json' as const, value: stripVisualization(toolPart.state.output) },
           });
         } else if (toolPart.state.status === 'error') {
           toolResultBlocks.push({
             type: 'tool-result' as const,
             toolCallId: toolPart.callId,
             toolName: toolPart.name,
-            output: { type: 'text' as const, value: JSON.stringify({ error: toolPart.state.error }) },
+            output: { type: 'text' as const, value: JSON.stringify(stripVisualization({ error: toolPart.state.error })) },
           });
         }
         // pending and running tools: only tool-call, no tool-result

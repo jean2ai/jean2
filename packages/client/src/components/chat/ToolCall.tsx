@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import type { ToolPart } from '@jean2/shared';
+import type { ToolPart, AnyVisualization } from '@jean2/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
+import { VisualizationRenderer } from '@/components/visualizations';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -26,39 +26,26 @@ interface ToolCallProps {
   onNavigateToSubagent?: (sessionId: string) => void;
 }
 
-function getStatusBadge(status: string) {
+function getStatusIcon(status: string) {
   switch (status) {
     case 'pending':
-      return (
-        <Badge variant="outline" className="text-warning border-warning gap-1">
-          <Clock className="size-3" />
-          Pending
-        </Badge>
-      );
+      return <Clock className="size-3 text-warning" />;
     case 'running':
-      return (
-        <Badge variant="outline" className="text-warning border-warning gap-1">
-          <Loader2 className="size-3 animate-spin" />
-          Running
-        </Badge>
-      );
+      return <Loader2 className="size-3 text-warning animate-spin" />;
     case 'completed':
-      return (
-        <Badge variant="outline" className="text-success border-success gap-1">
-          <CheckCircle className="size-3" />
-          Done
-        </Badge>
-      );
+      return <CheckCircle className="size-3 text-success" />;
     case 'error':
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <XCircle className="size-3" />
-          Error
-        </Badge>
-      );
+      return <XCircle className="size-3 text-destructive" />;
     default:
       return null;
   }
+}
+
+function extractVisualization(output: unknown): AnyVisualization | undefined {
+  if (output && typeof output === 'object' && '_visualization' in output) {
+    return (output as Record<string, unknown>)._visualization as AnyVisualization;
+  }
+  return undefined;
 }
 
 export function ToolCall({
@@ -69,10 +56,15 @@ export function ToolCall({
 }: ToolCallProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  
+
   const state = part.state;
   const status = state.status;
-  
+
+  // Extract visualization at component level to render outside collapsible
+  const visualization = status === 'completed' && 'output' in state
+    ? extractVisualization(state.output)
+    : undefined;
+
   const pendingPermission = status === 'pending'
     ? pendingPermissions.find((p) => p.toolCallId === part.callId)
     : undefined;
@@ -90,17 +82,10 @@ export function ToolCall({
     }
   }
 
-  // Auto-expand when pending or running
-  useEffect(() => {
-    if (status === 'pending' || status === 'running') {
-      setIsOpen(true);
-    }
-  }, [status]);
-
   const handleCopyOutput = async () => {
     if ('output' in state) {
-      const output = typeof state.output === 'string' 
-        ? state.output 
+      const output = typeof state.output === 'string'
+        ? state.output
         : JSON.stringify(state.output, null, 2);
       await navigator.clipboard.writeText(output);
       setCopied(true);
@@ -118,38 +103,30 @@ export function ToolCall({
   })();
 
   return (
-    <div
-      className={cn(
-        'my-2 rounded-lg border bg-muted/50',
-        status === 'pending' && 'border-dashed border-warning animate-pulse-soft'
-      )}
-    >
+    <div className="my-1">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
           <div
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent/50 rounded-t-lg transition-colors',
-              !isOpen && 'rounded-b-lg'
-            )}
+            className="flex items-center gap-2 py-1 cursor-pointer hover:text-foreground transition-colors text-muted-foreground"
           >
             {isOpen ? (
               <ChevronDown className="size-4 text-muted-foreground" />
             ) : (
               <ChevronRight className="size-4 text-muted-foreground" />
             )}
-            
-            <Wrench className="size-4 text-primary" />
-            <span className="font-medium text-primary truncate max-w-[120px] sm:max-w-none">{part.name}</span>
-            
+
+            <Wrench className="size-3" />
+            <span className="text-xs truncate max-w-[120px] sm:max-w-none">{part.name}</span>
+
             {!isOpen && (
               <span className="text-xs text-muted-foreground font-mono truncate flex-1 min-w-0 sm:max-w-[200px] hidden sm:block">
                 {truncatedArgs}
               </span>
             )}
-            
+
             <div className="ml-auto flex items-center gap-2">
-              {getStatusBadge(status)}
-              
+              {getStatusIcon(status)}
+
               {taskSessionId && onNavigateToSubagent && (
                 <Button
                   variant="ghost"
@@ -168,9 +145,9 @@ export function ToolCall({
             </div>
           </div>
         </CollapsibleTrigger>
-        
+
         <CollapsibleContent>
-          <div className="px-3 pb-3 flex flex-col gap-3">
+          <div className="pl-5 pb-2 flex flex-col gap-2">
             {/* Input */}
             <div>
               <div className="text-xs uppercase text-muted-foreground mb-1">Input</div>
@@ -191,18 +168,18 @@ export function ToolCall({
                     {pendingPermission.permissionKey}
                   </span>
                 </div>
-                
+
                 {pendingPermission.message && (
                   <p className="text-sm">{pendingPermission.message}</p>
                 )}
-                
+
                 {pendingPermission.dangerous && (
                   <div className="flex items-center gap-2 text-sm text-destructive font-medium">
                     <AlertTriangle className="size-4" />
                     This operation is marked as dangerous
                   </div>
                 )}
-                
+
                 <div className="flex justify-end gap-2 flex-wrap">
                   <Button
                     variant="outline"
@@ -241,7 +218,7 @@ export function ToolCall({
               </Button>
             )}
 
-            {/* Output */}
+            {/* Output - always show raw (visualization shown separately below) */}
             {status === 'completed' && 'output' in state && (
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -279,6 +256,13 @@ export function ToolCall({
           </div>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* Visualization - outside Collapsible, always visible at bottom */}
+      {status === 'completed' && visualization && (
+        <div className="mt-2">
+          <VisualizationRenderer visualization={visualization} />
+        </div>
+      )}
     </div>
   );
 }

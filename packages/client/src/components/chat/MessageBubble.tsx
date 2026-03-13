@@ -70,10 +70,10 @@ export function MessageBubble({ message, textContent, children }: MessageBubbleP
           </>
         )}
       </div>
-      
+
       <div
         className={cn(
-          'rounded-2xl px-4 py-3 max-w-[95%] sm:max-w-[85%]',
+          'rounded-2xl px-4 py-3 max-w-full sm:max-w-full',
           isUser
             ? 'bg-primary text-primary-foreground rounded-br-md'
             : 'bg-card text-card-foreground border border-border rounded-bl-md'

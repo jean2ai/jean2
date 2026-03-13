@@ -90,7 +90,7 @@ async function main() {
   console.log('Scanning for tools...');
   const tools = await scanTools();
   console.log(`Found ${tools.length} tools: ${tools.map(t => t.definition.name).join(', ')}`);
-  
+
   // Create the app
   const app = createApp();
   

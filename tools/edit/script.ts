@@ -24,6 +24,128 @@ interface Diagnostic {
   source?: string;
 }
 
+interface DiffChange {
+  type: 'added' | 'removed' | 'context';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  changes: DiffChange[];
+}
+
+function detectLanguage(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  const langMap: Record<string, string> = {
+    ts: 'typescript',
+    tsx: 'typescript',
+    js: 'javascript',
+    jsx: 'javascript',
+    json: 'json',
+    md: 'markdown',
+    css: 'css',
+    html: 'html',
+    py: 'python',
+    go: 'go',
+    rs: 'rust',
+    sh: 'bash',
+    yaml: 'yaml',
+    yml: 'yaml',
+  };
+  return langMap[ext || ''] || ext || 'text';
+}
+
+function buildDiffVisualization(
+  oldContent: string,
+  newContent: string,
+  filePath: string,
+  matchLineNumber: number,
+  strategy: string,
+  oldString: string,
+  newString: string
+) {
+  const oldLines = oldContent.split('\n');
+  const _newLines = newContent.split('\n');
+  const contextSize = 5;
+  
+  const matchIndex = matchLineNumber - 1;
+  const contextStart = Math.max(0, matchIndex - contextSize);
+  
+  const changes: DiffChange[] = [];
+  let oldLineNum = contextStart + 1;
+  let newLineNum = contextStart + 1;
+  
+  for (let i = contextStart; i < matchIndex; i++) {
+    changes.push({
+      type: 'context',
+      content: oldLines[i] || '',
+      oldLineNumber: oldLineNum,
+      newLineNumber: newLineNum,
+    });
+    oldLineNum++;
+    newLineNum++;
+  }
+  
+  const oldStringLines = oldString.split('\n');
+  for (const line of oldStringLines) {
+    changes.push({
+      type: 'removed',
+      content: line,
+      oldLineNumber: oldLineNum,
+    });
+    oldLineNum++;
+  }
+  
+  const newStringLines = newString.split('\n');
+  for (const line of newStringLines) {
+    changes.push({
+      type: 'added',
+      content: line,
+      newLineNumber: newLineNum,
+    });
+    newLineNum++;
+  }
+  
+  const afterStart = matchIndex + oldStringLines.length;
+  const afterEnd = Math.min(oldLines.length, afterStart + contextSize);
+  for (let i = afterStart; i < afterEnd; i++) {
+    changes.push({
+      type: 'context',
+      content: oldLines[i] || '',
+      oldLineNumber: oldLineNum,
+      newLineNumber: newLineNum,
+    });
+    oldLineNum++;
+    newLineNum++;
+  }
+  
+  const hunks: DiffHunk[] = [{
+    oldStart: contextStart + 1,
+    oldLines: oldLineNum - contextStart - 1,
+    newStart: contextStart + 1,
+    newLines: newLineNum - contextStart - 1,
+    changes,
+  }];
+  
+  return {
+    type: 'diff' as const,
+    path: filePath,
+    language: detectLanguage(filePath),
+    hunks,
+    additions: newStringLines.length,
+    deletions: oldStringLines.length,
+    matchInfo: {
+      strategy,
+      lineNumber: matchLineNumber,
+    },
+  };
+}
+
 const input = JSON.parse(await Bun.stdin.text());
 const { path: inputPath, oldString, newString, strategy, workspacePath } = input;
 
@@ -316,10 +438,25 @@ async function editFile() {
       matchCount: matches.length,
     };
 
-    // Only include diagnostics if there are any (especially errors/warnings)
-    const response: { success: boolean; matchInfo: MatchInfo; diagnostics?: Diagnostic[] } = {
+    const visualization = buildDiffVisualization(
+      content,
+      newContent,
+      resolvedPath,
+      match.lineNumber,
+      usedStrategy,
+      oldString,
+      newString
+    );
+
+    const response: {
+      success: boolean;
+      matchInfo: MatchInfo;
+      diagnostics?: Diagnostic[];
+      _visualization?: typeof visualization;
+    } = {
       success: true,
       matchInfo,
+      _visualization: visualization,
     };
 
     if (diagnostics && diagnostics.length > 0) {

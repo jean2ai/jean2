@@ -17,10 +17,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/diff": "^8.0.0",
     "eslint": "^10.0.2",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.56.1"
+  },
+  "dependencies": {
+    "diff": "^8.0.3"
   }
 }

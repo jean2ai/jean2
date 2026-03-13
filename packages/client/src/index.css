@@ -206,7 +206,7 @@ pre {
 /* Viewport-specific max-widths */
 @media (min-width: 400px) {
   pre {
-    max-width: calc(100vw - 100px);
+    max-width: calc(100vw - 80px);
   }
 }
 
@@ -230,7 +230,7 @@ pre {
 
 @media (min-width: 1280px) {
   pre {
-    max-width: 600px;
+    max-width: 900px;
   }
 }
 
@@ -264,4 +264,67 @@ pre::-webkit-scrollbar-thumb:hover {
 pre {
   scrollbar-width: thin;
   scrollbar-color: var(--muted-foreground) var(--muted);
+}
+
+/* Visualization components responsive sizing */
+.visualization-container {
+  max-width: calc(100vw - 60px);
+  overflow-x: auto;
+}
+
+/* Viewport-specific max-widths for visualizations */
+@media (min-width: 400px) {
+  .visualization-container {
+    max-width: calc(100vw - 60px);
+  }
+}
+
+@media (min-width: 640px) {
+  .visualization-container {
+    max-width: calc(100vw - 80px);
+  }
+}
+
+@media (min-width: 768px) {
+  .visualization-container {
+    max-width: calc(100vw - 320px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .visualization-container {
+    max-width: calc(100vw - 400px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .visualization-container {
+    max-width: 1100px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .visualization-container {
+    max-width: 1200px;
+  }
+}
+
+/* Scrollbar styling for visualization containers */
+.visualization-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.visualization-container::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+.visualization-container::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.visualization-container::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
 }
