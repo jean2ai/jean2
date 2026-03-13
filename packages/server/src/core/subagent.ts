@@ -16,6 +16,7 @@ function findProviderFromModel(m: string): string {
   if (m.includes('/')) return 'openrouter';
   if (m.startsWith('claude-')) return 'anthropic';
   if (m.startsWith('gemini-')) return 'google';
+  if (m.startsWith('MiniMax-') || m.toLowerCase().includes('minimax')) return 'minimax';
   return 'openai';
 }
 

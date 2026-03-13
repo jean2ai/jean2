@@ -11,8 +11,20 @@
           "tier": "budget"
         }
       ]
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "models": [
+        {
+          "id": "MiniMax-M2.5",
+          "name": "MiniMax-M2.5",
+          "contextWindow": 204800,
+          "tier": "budget"
+        }
+      ]
     }
   ],
-  "defaultModel": "stepfun/step-3.5-flash:free",
-  "defaultProvider": "openrouter"
+  "defaultModel": "MiniMax-M2.5",
+  "defaultProvider": "minimax"
 }

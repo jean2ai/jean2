@@ -1,6 +1,6 @@
 {
   "name": "write-file",
-  "description": "Write content to a file on the filesystem",
+  "description": "Write content to a file, creating it if it doesn't exist or overwriting if it does.\n\nIMPORTANT: ALWAYS prefer using the edit tool to modify existing files. Only use write-file when:\n- Creating a completely new file\n- The file content is entirely replaced\n\nUsage:\n- path: Supports relative paths from workspace, absolute paths, or home paths (~/)\n- content: The full content to write to the file\n\nWarning: This tool overwrites existing files without confirmation. For existing files, use the edit tool instead to make targeted changes.",
   "script": "script.ts",
   "runtime": "bun",
   "inputSchema": {

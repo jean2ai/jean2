@@ -72,13 +72,14 @@ async function main() {
   if (process.env.LLM_ANTHROPIC_API_KEY) availableProviders.push('anthropic');
   if (process.env.LLM_OPENROUTER_API_KEY) availableProviders.push('openrouter');
   if (process.env.LLM_GOOGLE_API_KEY) availableProviders.push('google');
+  if (process.env.LLM_MINIMAX_API_KEY) availableProviders.push('minimax');
 
   if (availableProviders.length > 0) {
     console.log(`Available providers: ${availableProviders.join(', ')}`);
     console.log(`Default model: stepfun/step-3.5-flash:free (set via models.json)`);
   } else {
     console.warn('WARNING: No LLM API keys configured. Chat will not work.');
-    console.warn('Set at least one of: LLM_OPENAI_API_KEY, LLM_ANTHROPIC_API_KEY, LLM_OPENROUTER_API_KEY, LLM_GOOGLE_API_KEY');
+    console.warn('Set at least one of: LLM_OPENAI_API_KEY, LLM_ANTHROPIC_API_KEY, LLM_OPENROUTER_API_KEY, LLM_GOOGLE_API_KEY, LLM_MINIMAX_API_KEY');
   }
   
   // Initialize preconfigs
@@ -597,12 +598,13 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   }
   
   // Check API key
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google';
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax';
   const apiKeyEnvMap: Record<Provider, string> = {
     'openai': 'LLM_OPENAI_API_KEY',
     'anthropic': 'LLM_ANTHROPIC_API_KEY',
     'openrouter': 'LLM_OPENROUTER_API_KEY',
     'google': 'LLM_GOOGLE_API_KEY',
+    'minimax': 'LLM_MINIMAX_API_KEY',
   };
   const apiKeyEnv = apiKeyEnvMap[provider as Provider];
   

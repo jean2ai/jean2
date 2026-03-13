@@ -12,14 +12,15 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@jean2/shared": "workspace:*",
     "@ai-sdk/anthropic": "^1.0.0",
     "@ai-sdk/google": "^1.0.0",
     "@ai-sdk/openai": "^1.0.0",
+    "@jean2/shared": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.2.3",
     "ai": "^6.0.0",
     "fast-glob": "^3.3.2",
-    "hono": "^4.0.0"
+    "hono": "^4.0.0",
+    "vercel-minimax-ai-provider": "^0.0.2"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",

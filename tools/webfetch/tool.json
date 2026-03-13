@@ -1,6 +1,6 @@
 {
   "name": "webfetch",
-  "description": "Fetch content from a URL and convert to readable format. Supports markdown, text, and HTML output formats. Use this tool to retrieve and analyze web content from the web.",
+  "description": "Fetch content from a URL and convert to readable format.\n\nWhen to use:\n- Retrieving documentation from web pages\n- Fetching API documentation\n- Reading web content for analysis\n\nWhen NOT to use:\n- If another tool offers better capabilities for the specific task\n\nUsage:\n- url (required): URL to fetch (must start with http:// or https://)\n- format (optional): Output format - markdown (default), text, or html\n- timeout (optional): Timeout in seconds (max 120)\n\nFormat options:\n- markdown: HTML converted to markdown (best for reading)\n- text: Plain text with HTML tags stripped\n- html: Raw HTML content\n\nNote: Results may be summarized for very large content.",
   "script": "script.ts",
   "runtime": "bun",
   "inputSchema": {

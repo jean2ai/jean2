@@ -53,6 +53,10 @@ import { listTools, getTool } from './tools';
 // Import config functions
 import { getModelsConfig, getAllModels } from './config';
 
+// Import LSP manager
+import { lspManager } from './lsp/manager';
+import { pathToFileURL } from 'url';
+
 // Import file service
 import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
 
@@ -542,6 +546,181 @@ export function createApp() {
       });
     } catch (_error) {
       return c.json({ models: [], error: 'Failed to load models' });
+    }
+  });
+
+  // ============================================================================
+  // LSP API
+  // ============================================================================
+
+  // POST /api/lsp/initialize - Initialize the LSP manager with a workspace root
+  app.post('/api/lsp/initialize', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { workspaceRoot } = body;
+
+      if (!workspaceRoot) {
+        return c.json({ success: false, error: 'workspaceRoot is required' }, 400);
+      }
+
+      await lspManager.initialize(workspaceRoot);
+      return c.json({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP initialize error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/definition - Get definition at position
+  app.post('/api/lsp/definition', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri, position } = body;
+
+      if (!uri || !position) {
+        return c.json({ success: false, error: 'uri and position are required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      const result = await lspManager.getDefinition(fileUri, position);
+      
+      return c.json({ success: true, result: result ?? [] });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP definition error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/references - Get references at position
+  app.post('/api/lsp/references', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri, position } = body;
+
+      if (!uri || !position) {
+        return c.json({ success: false, error: 'uri and position are required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      const result = await lspManager.getReferences(fileUri, position);
+      
+      return c.json({ success: true, result });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP references error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/hover - Get hover information at position
+  app.post('/api/lsp/hover', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri, position } = body;
+
+      if (!uri || !position) {
+        return c.json({ success: false, error: 'uri and position are required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      const result = await lspManager.getHover(fileUri, position);
+      
+      return c.json({ success: true, result });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP hover error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/symbols - Get document symbols for a file
+  app.post('/api/lsp/symbols', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri } = body;
+
+      if (!uri) {
+        return c.json({ success: false, error: 'uri is required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      const result = await lspManager.getDocumentSymbols(fileUri);
+      
+      return c.json({ success: true, result });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP symbols error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/diagnostics - Get diagnostics for a file or all files
+  app.post('/api/lsp/diagnostics', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri } = body;
+
+      if (uri) {
+        const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+        const result = lspManager.getDiagnostics(fileUri);
+        return c.json({ success: true, result });
+      }
+
+      const allDiagnostics = lspManager.getAllDiagnostics();
+      const result: Record<string, unknown[]> = {};
+      allDiagnostics.forEach((diagnostics, fileUri) => {
+        result[fileUri] = diagnostics;
+      });
+      
+      return c.json({ success: true, result });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP diagnostics error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/open - Open a file in the LSP
+  app.post('/api/lsp/open', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri, content } = body;
+
+      if (!uri || content === undefined) {
+        return c.json({ success: false, error: 'uri and content are required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      await lspManager.openFile(fileUri, content);
+      
+      return c.json({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP open error:', message);
+      return c.json({ success: false, error: message });
+    }
+  });
+
+  // POST /api/lsp/close - Close a file in the LSP
+  app.post('/api/lsp/close', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({}));
+      const { uri } = body;
+
+      if (!uri) {
+        return c.json({ success: false, error: 'uri is required' }, 400);
+      }
+
+      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
+      await lspManager.closeFile(fileUri);
+      
+      return c.json({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('LSP close error:', message);
+      return c.json({ success: false, error: message });
     }
   });
 

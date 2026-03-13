@@ -91,17 +91,17 @@ function MessageParts({
                 <MarkdownRenderer>{part.text || '...'}</MarkdownRenderer>
               </div>
             );
-          
+
           case 'reasoning':
             return (
-              <div 
-                key={part.id} 
+              <div
+                key={part.id}
                 className="text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2"
               >
                 {part.text}
               </div>
             );
-          
+
           case 'tool':
             return (
               <ToolCall
@@ -112,34 +112,34 @@ function MessageParts({
                 onNavigateToSubagent={onNavigateToSubagent}
               />
             );
-          
+
           case 'image':
             return (
-              <img 
-                key={part.id} 
-                src={part.url} 
-                alt="" 
-                className="max-w-full rounded-lg mt-2" 
+              <img
+                key={part.id}
+                src={part.url}
+                alt=""
+                className="max-w-full rounded-lg mt-2"
               />
             );
-          
+
           case 'file':
             return (
               <div key={part.id} className="mt-2 p-2 bg-muted rounded text-sm">
                 {part.filename || 'unnamed'}
               </div>
             );
-          
+
           case 'compaction':
             return (
-              <div 
-                key={part.id} 
+              <div
+                key={part.id}
                 className="mt-2 p-2 bg-muted rounded text-sm text-muted-foreground"
               >
                 {part.compactedMessageIds.length} messages compacted
               </div>
             );
-          
+
           default:
             return null;
         }
@@ -226,8 +226,8 @@ export function ChatView({
             </div>
           ) : (
             messagesWithParts.map((mwp) => (
-              <MessageBubble 
-                key={mwp.message.id} 
+              <MessageBubble
+                key={mwp.message.id}
                 message={mwp.message}
                 textContent={getTextContent(mwp.parts)}
               >

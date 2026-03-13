@@ -17,6 +17,7 @@ const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
 const LLM_ANTHROPIC_API_KEY = process.env.LLM_ANTHROPIC_API_KEY;
 const LLM_OPENROUTER_API_KEY = process.env.LLM_OPENROUTER_API_KEY;
 const LLM_GOOGLE_API_KEY = process.env.LLM_GOOGLE_API_KEY;
+const LLM_MINIMAX_API_KEY = process.env.LLM_MINIMAX_API_KEY;
 const LLM_BASE_URL = process.env.LLM_BASE_URL;
 const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.7');
@@ -62,6 +63,8 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         return LLM_OPENROUTER_API_KEY;
       case 'google':
         return LLM_GOOGLE_API_KEY;
+      case 'minimax':
+        return LLM_MINIMAX_API_KEY;
       default:
         return LLM_OPENAI_API_KEY;
     }
@@ -89,6 +92,12 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
       const google = createGoogleGenerativeAI({ apiKey });
       return google.chat(model) as unknown as LanguageModel;
+    }
+
+    case 'minimax': {
+      const { createMinimax } = await import('vercel-minimax-ai-provider');
+      const minimax = createMinimax({ apiKey });
+      return minimax.chat(model) as unknown as LanguageModel;
     }
 
     case 'openai':
@@ -121,11 +130,13 @@ export interface ChatResult {
 
 // Type for AI SDK message content
 type AiSdkContent = string | Array<{
-  type: 'text' | 'tool-result';
+  type: 'text' | 'tool-call' | 'tool-result';
   text?: string;
   toolCallId?: string;
   toolName?: string;
+  input?: unknown;
   value?: unknown;
+  output?: unknown;
 }>;
 
 function isTextPart(part: Part): part is TextPart {
@@ -162,23 +173,19 @@ function createStepPart(options: {
 async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<ModelMessage[]> {
   const result: { role: 'user' | 'assistant' | 'system' | 'tool'; content: AiSdkContent }[] = [];
 
-  // Build a map of toolCallId -> toolName from tool parts
-  const toolCallIdToName: Record<string, string> = {};
-  for (const msgWithParts of messages) {
-    for (const part of msgWithParts.parts) {
-      if (isToolPart(part)) {
-        toolCallIdToName[part.callId] = part.name;
-      }
-    }
-  }
-
   // Process each message
   for (const msgWithParts of messages) {
     const msg = msgWithParts.message;
     const parts = msgWithParts.parts;
 
-    // Separate text and tool_result blocks
+    // Separate text and tool parts
     const textBlocks: string[] = [];
+    const toolCallBlocks: Array<{
+      type: 'tool-call';
+      toolCallId: string;
+      toolName: string;
+      input: unknown;
+    }> = [];
     const toolResultBlocks: Array<{
       type: 'tool-result';
       toolCallId: string;
@@ -191,29 +198,59 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
         textBlocks.push(part.text);
       } else if (isToolPart(part)) {
         const toolPart = part;
-        // Check tool state to determine if it's a call or result
-        if (toolPart.state.status === 'pending' || toolPart.state.status === 'running') {
-          // This is a tool call - track the name
-          toolCallIdToName[toolPart.callId] = toolPart.name;
-        } else if (toolPart.state.status === 'completed' || toolPart.state.status === 'error') {
-          // This is a tool result
-          const output = toolPart.state.status === 'error'
-            ? { type: 'text' as const, value: JSON.stringify({ error: toolPart.state.error }) }
-            : { type: 'json' as const, value: toolPart.state.output };
 
+        // ALWAYS add tool-call block for ALL tool parts
+        toolCallBlocks.push({
+          type: 'tool-call' as const,
+          toolCallId: toolPart.callId,
+          toolName: toolPart.name,
+          input: toolPart.state.input,
+        });
+
+        // Add tool-result only for completed or error tools
+        if (toolPart.state.status === 'completed') {
           toolResultBlocks.push({
             type: 'tool-result' as const,
             toolCallId: toolPart.callId,
             toolName: toolPart.name,
-            output,
+            output: { type: 'json' as const, value: toolPart.state.output },
+          });
+        } else if (toolPart.state.status === 'error') {
+          toolResultBlocks.push({
+            type: 'tool-result' as const,
+            toolCallId: toolPart.callId,
+            toolName: toolPart.name,
+            output: { type: 'text' as const, value: JSON.stringify({ error: toolPart.state.error }) },
           });
         }
+        // pending and running tools: only tool-call, no tool-result
       }
       // Ignore other part types (image, file, reasoning, etc.) for AI SDK
     }
 
-    // If there are no tool result blocks, keep the original role
-    if (toolResultBlocks.length === 0) {
+    // Determine message type and construct content
+    const hasText = textBlocks.length > 0;
+    const hasToolCalls = toolCallBlocks.length > 0;
+
+    // Build content parts array for assistant messages with tool calls
+    const contentParts: Array<{ type: 'text' | 'tool-call'; text?: string; toolCallId?: string; toolName?: string; input?: unknown }> = [];
+
+    if (hasText) {
+      contentParts.push({ type: 'text', text: textBlocks.join('\n\n') });
+    }
+
+    // Add all tool calls to the assistant message content
+    for (const toolCall of toolCallBlocks) {
+      contentParts.push({
+        type: 'tool-call',
+        toolCallId: toolCall.toolCallId,
+        toolName: toolCall.toolName,
+        input: toolCall.input,
+      });
+    }
+
+    // Case 1: No tool calls - just text content
+    if (!hasToolCalls) {
       const content = textBlocks.join('\n\n');
       result.push({
         role: msg.role as 'user' | 'assistant' | 'system',
@@ -222,29 +259,15 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
       continue;
     }
 
-    // If there are only tool result blocks (no text), use role: "tool"
-    if (textBlocks.length === 0) {
-      // AI SDK expects each tool result as a separate message
-      for (const toolResult of toolResultBlocks) {
-        result.push({
-          role: 'tool' as const,
-          content: [toolResult],
-        });
-      }
-      continue;
-    }
+    // Case 2: Has tool calls - create assistant message with tool-call blocks
+    // Assistant message must include the tool-call declarations
+    result.push({
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: contentParts,
+    });
 
-    // Mixed content: text + tool_result
-    // First add the text as the original role message
-    if (textBlocks.length > 0) {
-      const textContent = textBlocks.join('\n\n');
-      result.push({
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: textContent,
-      });
-    }
-
-    // Then add each tool result as separate tool messages
+    // Case 3: Add tool result messages AFTER the assistant message
+    // This is needed for completed/error tools
     for (const toolResult of toolResultBlocks) {
       result.push({
         role: 'tool' as const,
