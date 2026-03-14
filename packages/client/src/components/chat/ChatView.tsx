@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -220,22 +220,40 @@ export function ChatView({
   onInterrupt,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const SCROLL_THRESHOLD = 150;
 
   const displayItems = mergeMessagesWithQueue(messagesWithParts, queuedMessages);
 
-  // Scroll to bottom on initial session load
+  // Scroll to bottom on initial session load and reset near-bottom state
   useEffect(() => {
+    setIsNearBottom(true);
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [session.id]);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when new messages arrive (only if user is near bottom)
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && isNearBottom) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messagesWithParts]);
+  }, [messagesWithParts, isNearBottom]);
+
+  // Track scroll position to determine if user is near bottom
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const { scrollHeight, scrollTop, clientHeight } = viewport;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setIsNearBottom(distanceFromBottom < SCROLL_THRESHOLD);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Find orphaned permissions (not tied to a visible tool part)
   const orphanedPermissions = pendingPermissions.filter((p) => {
