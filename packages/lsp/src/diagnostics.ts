@@ -1,4 +1,4 @@
-import { DiagnosticSeverity, type Diagnostic } from './types';
+import { DiagnosticSeverity, type Diagnostic } from '@/types';
 
 export class DiagnosticsManager {
   private diagnostics: Map<string, Diagnostic[]> = new Map();

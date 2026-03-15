@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run dev:server & bun run dev:client",
+    "dev": "bun run dev:server & bun run dev:client & bun run dev:lsp",
     "dev:server": "cd packages/server && bun --watch --env-file=../../.env src/index.ts",
     "dev:client": "cd packages/client && bun run dev",
+    "dev:lsp": "cd packages/lsp && bun --watch --env-file=../../.env src/index.ts",
     "build": "bun run --filter '*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",

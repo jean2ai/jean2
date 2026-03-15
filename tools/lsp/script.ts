@@ -17,7 +17,7 @@ interface Output {
   };
 }
 
-const SERVER_URL = process.env.JEAN2_SERVER_URL || 'http://localhost:3000';
+const LSP_SERVER_URL = process.env.LSP_SERVER_URL || 'http://localhost:3001';
 
 async function fetchWithError(url: string, options: RequestInit): Promise<Output> {
   try {
@@ -38,52 +38,72 @@ async function fetchWithError(url: string, options: RequestInit): Promise<Output
 }
 
 async function initializeLsp(workspacePath: string): Promise<Output> {
-  const url = `${SERVER_URL}/api/lsp/initialize`;
-  return fetchWithError(url, {
+  const url = `${LSP_SERVER_URL}/initialize`;
+  const body = JSON.stringify({ workspaceRoot: workspacePath });
+  const result = await fetchWithError(url, {
     method: 'POST',
-    body: JSON.stringify({ workspaceRoot: workspacePath }),
+    body,
   });
+  return result;
 }
 
 async function getDefinition(uri: string, line: number, character: number): Promise<Output> {
-  const url = `${SERVER_URL}/api/lsp/definition`;
-  return fetchWithError(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      uri,
-      position: { line, character },
-    }),
+  const url = `${LSP_SERVER_URL}/definition`;
+  const body = JSON.stringify({
+    uri,
+    position: { line, character },
   });
+  const result = await fetchWithError(url, {
+    method: 'POST',
+    body,
+  });
+  return result;
 }
 
 async function getReferences(uri: string, line: number, character: number): Promise<Output> {
-  const url = `${SERVER_URL}/api/lsp/references`;
-  return fetchWithError(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      uri,
-      position: { line, character },
-    }),
+  const url = `${LSP_SERVER_URL}/references`;
+  const body = JSON.stringify({
+    uri,
+    position: { line, character },
   });
+  const result = await fetchWithError(url, {
+    method: 'POST',
+    body,
+  });
+  return result;
 }
 
 async function getHover(uri: string, line: number, character: number): Promise<Output> {
-  const url = `${SERVER_URL}/api/lsp/hover`;
-  return fetchWithError(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      uri,
-      position: { line, character },
-    }),
+  const url = `${LSP_SERVER_URL}/hover`;
+  const body = JSON.stringify({
+    uri,
+    position: { line, character },
   });
+  const result = await fetchWithError(url, {
+    method: 'POST',
+    body,
+  });
+  return result;
 }
 
 async function getSymbols(uri: string): Promise<Output> {
-  const url = `${SERVER_URL}/api/lsp/symbols`;
-  return fetchWithError(url, {
+  const url = `${LSP_SERVER_URL}/symbols`;
+  const body = JSON.stringify({ uri });
+  const result = await fetchWithError(url, {
     method: 'POST',
-    body: JSON.stringify({ uri }),
+    body,
   });
+  return result;
+}
+
+async function openFile(uri: string, content: string): Promise<Output> {
+  const url = `${LSP_SERVER_URL}/open`;
+  const body = JSON.stringify({ uri, content });
+  const result = await fetchWithError(url, {
+    method: 'POST',
+    body,
+  });
+  return result;
 }
 
 function pathToFileURL(filePath: string): URL {
@@ -144,6 +164,23 @@ async function main(): Promise<void> {
   }
 
   const uri = filePath.startsWith('file://') ? filePath : pathToFileURL(filePath).href;
+
+  // Open the file in LSP before querying
+  const file = Bun.file(filePath);
+  const fileExists = await file.exists();
+  if (!fileExists) {
+    const output: Output = { success: false, error: `File not found: ${filePath}` };
+    console.log(JSON.stringify(output));
+    return;
+  }
+
+  const content = await file.text();
+  const openResult = await openFile(uri, content);
+  if (!openResult.success) {
+    const output: Output = { success: false, error: openResult.error || 'Failed to open file in LSP' };
+    console.log(JSON.stringify(output));
+    return;
+  }
 
   let result: Output;
 

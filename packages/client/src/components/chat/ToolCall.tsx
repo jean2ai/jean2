@@ -156,55 +156,6 @@ export function ToolCall({
               </pre>
             </div>
 
-            {/* Permission Request */}
-            {status === 'pending' && pendingPermission && (
-              <div className="border border-warning/50 bg-warning/10 rounded-md p-3 flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="size-4 text-warning" />
-                  <Badge variant="outline" className="text-warning border-warning">
-                    {pendingPermission.permissionType}
-                  </Badge>
-                  <span className="text-sm font-mono text-muted-foreground">
-                    {pendingPermission.permissionKey}
-                  </span>
-                </div>
-
-                {pendingPermission.message && (
-                  <p className="text-sm">{pendingPermission.message}</p>
-                )}
-
-                {pendingPermission.dangerous && (
-                  <div className="flex items-center gap-2 text-sm text-destructive font-medium">
-                    <AlertTriangle className="size-4" />
-                    This operation is marked as dangerous
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPermissionResponse(part.callId, false, false)}
-                  >
-                    Deny
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onPermissionResponse(part.callId, true, false)}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => onPermissionResponse(part.callId, true, true)}
-                  >
-                    Always Allow
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {/* Subagent Navigation */}
             {(status === 'running' || status === 'completed') && taskSessionId && onNavigateToSubagent && (
               <Button
@@ -256,6 +207,55 @@ export function ToolCall({
           </div>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* Pending Permission Request - outside Collapsible, always visible when pending */}
+      {status === 'pending' && pendingPermission && (
+        <div className="border border-warning/50 bg-warning/10 rounded-md p-3 flex flex-col gap-3 mt-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="size-4 text-warning" />
+            <Badge variant="outline" className="text-warning border-warning">
+              {pendingPermission.permissionType}
+            </Badge>
+            <span className="text-sm font-mono text-muted-foreground">
+              {pendingPermission.permissionKey}
+            </span>
+          </div>
+
+          {pendingPermission.message && (
+            <p className="text-sm">{pendingPermission.message}</p>
+          )}
+
+          {pendingPermission.dangerous && (
+            <div className="flex items-center gap-2 text-sm text-destructive font-medium">
+              <AlertTriangle className="size-4" />
+              This operation is marked as dangerous
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPermissionResponse(part.callId, false, false)}
+            >
+              Deny
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onPermissionResponse(part.callId, true, false)}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onPermissionResponse(part.callId, true, true)}
+            >
+              Always Allow
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Visualization - outside Collapsible, always visible at bottom */}
       {status === 'completed' && visualization && (

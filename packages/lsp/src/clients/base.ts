@@ -10,8 +10,8 @@ import type {
   HoverResult,
   DocumentSymbolResult,
   LSPClientInfo,
-} from '../types';
-import { LSPClientStatus } from '../types';
+} from '@/types';
+import { LSPClientStatus } from '@/types';
 
 export abstract class BaseLSPClient {
   abstract readonly languageId: string;
@@ -170,6 +170,9 @@ export abstract class BaseLSPClient {
         uri,
       },
       position,
+      context: {
+        includeDeclaration: true,
+      },
     };
 
     const result = await this.sendRequest('textDocument/references', params);
@@ -210,13 +213,27 @@ export abstract class BaseLSPClient {
     } else if (Array.isArray(contents)) {
       content = contents.map((c) => (typeof c === 'string' ? c : c.value || '')).join('\n');
     } else if (typeof contents === 'object') {
-      const markedString = contents as Record<string, unknown>;
-      const value = markedString.value;
-      content = typeof value === 'string' ? value : '';
+      const contentObj = contents as Record<string, unknown>;
+      // Handle MarkupContent format: { kind: 'markdown' | 'plaintext', value: string }
+      if ('value' in contentObj && typeof contentObj.value === 'string') {
+        content = contentObj.value;
+      } else if ('kind' in contentObj && 'value' in contentObj) {
+        content = String(contentObj.value);
+      } else {
+        // Fallback for MarkedString format
+        const value = contentObj.value;
+        content = typeof value === 'string' ? value : '';
+      }
     }
 
     if (hoverResult.range) {
-      range = hoverResult.range as Range;
+      const r = hoverResult.range as Record<string, unknown>;
+      const start = r.start as Position;
+      const end = r.end as Position;
+      range = {
+        start: { line: start.line + 1, character: start.character + 1 },
+        end: { line: end.line + 1, character: end.character + 1 },
+      };
     }
 
     return { content, range };
@@ -369,7 +386,17 @@ export abstract class BaseLSPClient {
     const params = {
       processId: process.pid,
       rootUri: pathToFileURL(workspaceRoot).href,
-      capabilities: {},
+      capabilities: {
+        textDocument: {
+          hover: {
+            contentFormat: ['markdown', 'plaintext'],
+          },
+          definition: {
+            linkSupport: true,
+          },
+          references: {},
+        },
+      },
       initializationOptions: this.getInitializeOptions(),
     };
 
@@ -387,11 +414,16 @@ export abstract class BaseLSPClient {
 
     let uri = '';
 
+    // Handle Location format (uri property)
     if (typeof loc.uri === 'string') {
       uri = loc.uri;
     } else if (loc.uri && typeof loc.uri === 'object') {
       const uriObj = loc.uri as Record<string, unknown>;
       uri = uriObj.uri as string;
+    }
+    // Handle LocationLink format (targetUri property)
+    else if (typeof loc.targetUri === 'string') {
+      uri = loc.targetUri;
     }
 
     let range: Range = {
@@ -399,11 +431,32 @@ export abstract class BaseLSPClient {
       end: { line: 0, character: 0 },
     };
 
+    // Handle Location format (range property)
     if (loc.range) {
       const r = loc.range as Record<string, unknown>;
+      const start = r.start as Position;
+      const end = r.end as Position;
       range = {
-        start: r.start as Position,
-        end: r.end as Position,
+        start: { line: start.line + 1, character: start.character + 1 },
+        end: { line: end.line + 1, character: end.character + 1 },
+      };
+    }
+    // Handle LocationLink format (targetSelectionRange preferred, fallback to targetRange)
+    else if (loc.targetSelectionRange) {
+      const r = loc.targetSelectionRange as Record<string, unknown>;
+      const start = r.start as Position;
+      const end = r.end as Position;
+      range = {
+        start: { line: start.line + 1, character: start.character + 1 },
+        end: { line: end.line + 1, character: end.character + 1 },
+      };
+    } else if (loc.targetRange) {
+      const r = loc.targetRange as Record<string, unknown>;
+      const start = r.start as Position;
+      const end = r.end as Position;
+      range = {
+        start: { line: start.line + 1, character: start.character + 1 },
+        end: { line: end.line + 1, character: end.character + 1 },
       };
     }
 

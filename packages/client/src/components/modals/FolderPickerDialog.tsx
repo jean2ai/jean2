@@ -246,15 +246,9 @@ export function FolderPickerDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          {filteredFiles[selectedIndex] ? (
-            <Button onClick={() => handleNavigateInto(filteredFiles[selectedIndex])}>
-              Open "{filteredFiles[selectedIndex].name}"
-            </Button>
-          ) : (
-            <Button onClick={handleSelectCurrent} disabled={!currentPath}>
-              Use This Folder
-            </Button>
-          )}
+          <Button onClick={handleSelectCurrent} disabled={!currentPath || loading}>
+            Use This Folder
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -9,9 +9,9 @@ import type {
   OpenFileInfo,
   Position,
   ReferencesResult,
-} from './types';
-import { BaseLSPClient, createClientForLanguage } from './clients';
-import { DiagnosticsManager } from './diagnostics';
+} from '@/types';
+import { BaseLSPClient, createClientForLanguage } from '@/clients';
+import { DiagnosticsManager } from '@/diagnostics';
 
 export class LSPManager {
   private clients: Map<string, BaseLSPClient> = new Map();

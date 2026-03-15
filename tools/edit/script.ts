@@ -164,9 +164,10 @@ function isLspSupportedFile(filePath: string): boolean {
   return ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts'].includes(ext || '');
 }
 
-async function fetchDiagnostics(filePath: string, serverUrl: string): Promise<Diagnostic[] | null> {
+async function fetchDiagnostics(filePath: string, lspServerUrl: string): Promise<Diagnostic[] | null> {
+  // Fetches diagnostics from the standalone LSP server
   try {
-    const response = await fetch(`${serverUrl}/api/lsp/diagnostics`, {
+    const response = await fetch(`${lspServerUrl}/diagnostics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uri: filePath }),
@@ -426,10 +427,10 @@ async function editFile() {
     // Fetch diagnostics for supported files after successful edit
     let diagnostics: Diagnostic[] | undefined;
     if (isLspSupportedFile(resolvedPath)) {
-      const serverUrl = process.env.JEAN2_SERVER_URL || 'http://localhost:3000';
+      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:3001';
       // Small delay to let LSP process the change
       await new Promise(resolve => setTimeout(resolve, 150));
-      diagnostics = await fetchDiagnostics(resolvedPath, serverUrl) || undefined;
+      diagnostics = await fetchDiagnostics(resolvedPath, lspServerUrl) || undefined;
     }
 
     const matchInfo: MatchInfo = {
@@ -465,7 +466,8 @@ async function editFile() {
 
     console.log(JSON.stringify(response));
   } catch (e) {
-    console.log(JSON.stringify({ success: false, error: (e as Error).message }));
+    const errorMessage = (e as Error).message;
+    console.log(JSON.stringify({ success: false, error: errorMessage }));
   }
 }
 
