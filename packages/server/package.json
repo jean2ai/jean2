@@ -16,6 +16,7 @@
     "@ai-sdk/google": "^1.0.0",
     "@ai-sdk/openai": "^1.0.0",
     "@jean2/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
     "@openrouter/ai-sdk-provider": "^2.2.3",
     "ai": "^6.0.0",
     "fast-glob": "^3.3.2",

@@ -4,6 +4,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, ReasoningPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
 import { createMessage, listMessages as storeListMessages, createPart, updatePart, updateMessage, getSession, updateSession, transitionToolToRunningByCallId, getPart } from '@/store';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
+import * as mcp from '@/mcp';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
@@ -448,6 +449,17 @@ async function buildAiSdkTools(
     });
   }
 
+  // Add MCP tools if workspace is available
+  if (workspacePath) {
+    try {
+      const mcpTools = await mcp.getTools(workspacePath);
+      Object.assign(tools, mcpTools);
+    } catch (err) {
+      console.error('Failed to load MCP tools:', err);
+      // Continue without MCP tools - don't block the agent
+    }
+  }
+
   return tools;
 }
 
@@ -456,6 +468,13 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Register session with interrupt manager
   const abortController = interruptManager.registerSession(_sessionId);
+
+  // Initialize MCP for workspace
+  if (workspacePath) {
+    mcp.initializeWorkspace(workspacePath).catch((err) => {
+      console.error('Failed to initialize MCP:', err);
+    });
+  }
 
   // Check if this is a main session (not a subagent) and set runningAt
   const session = getSession(_sessionId);
