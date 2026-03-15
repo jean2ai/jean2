@@ -33,6 +33,7 @@ import { compactMessages } from './core/compaction';
 import { revertToStep } from './core/revert';
 import { interruptManager } from './core/interrupt';
 import type { ServerWebSocket } from 'bun';
+import { validateToken, updateLastUsed, isAuthEnabled } from './auth/token';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -109,6 +110,26 @@ async function main() {
       
       // Handle WebSocket upgrade
       if (url.pathname === '/ws') {
+        // Validate token before upgrading
+        if (isAuthEnabled()) {
+          const token = url.searchParams.get('token');
+          
+          if (!token || !validateToken(token)) {
+            return new Response(
+              JSON.stringify({
+                error: 'Unauthorized',
+                message: 'Invalid or missing API token for WebSocket connection'
+              }),
+              { 
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+              }
+            );
+          }
+          
+          updateLastUsed();
+        }
+        
         const upgraded = server.upgrade(req);
         if (!upgraded) {
           return new Response('WebSocket upgrade failed', { status: 400 });

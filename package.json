@@ -1,5 +1,6 @@
 {
   "name": "jean2",
+  "type": "module",
   "version": "0.1.0",
   "private": true,
   "description": "Jean2 - AI Agent Monorepo",

@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { PermissionListItem } from './PermissionListItem';
 import { ConfirmDialog } from './ConfirmDialog';
+import LogoutButton from '@/components/LogoutButton';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -24,6 +25,8 @@ interface SettingsDialogProps {
   onRefreshPermissions: () => void;
   onRevokePermission: (permissionId: string) => void;
   onRevokeAllPermissions: () => void;
+  apiToken: string | null;
+  onLogout: () => void;
 }
 
 export function SettingsDialog({
@@ -33,6 +36,8 @@ export function SettingsDialog({
   onRefreshPermissions,
   onRevokePermission,
   onRevokeAllPermissions,
+  apiToken,
+  onLogout,
 }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
@@ -50,8 +55,9 @@ export function SettingsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="appearance" className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="account" className="mt-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="account">Account</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="permissions">
               <Shield className="size-3" data-icon="inline-start" />
@@ -63,6 +69,24 @@ export function SettingsDialog({
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="account" className="mt-4">
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label className="text-sm font-medium">Session</Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Manage your current session
+                </p>
+                {apiToken ? (
+                  <LogoutButton token={apiToken} onLogout={onLogout} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No active session
+                  </p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
 
           <TabsContent value="appearance" className="mt-4">
             <div className="flex flex-col gap-4">

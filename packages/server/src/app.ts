@@ -59,6 +59,10 @@ import { getModelsConfig, getAllModels } from './config';
 // Import file service
 import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
 
+// Import auth modules
+import { requireAuth, isPublicRoute } from './auth/middleware';
+import { initializeToken } from './auth/token';
+
 // Helper function to expand ~ to user's home directory
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
@@ -68,12 +72,26 @@ function expandPath(path: string): string {
 }
 
 export function createApp() {
+  // Initialize authentication token
+  initializeToken();
+  
   const app = new Hono();
 
   // Middleware
   app.use('*', cors());
   app.use('*', logger());
   app.use('*', prettyJSON());
+
+  // Authentication middleware for all API routes
+  app.use('/api/*', async (c, next) => {
+    // Skip auth for public routes
+    if (isPublicRoute(c.req.path)) {
+      return await next();
+    }
+    
+    // Require auth for all other API routes
+    return await requireAuth(c, next);
+  });
 
   // ============================================================================
   // Root and Health Endpoints
@@ -103,6 +121,7 @@ export function createApp() {
         sessions: true,
         preconfigs: true,
         tools: true,
+        authentication: true,
       },
       timestamp: new Date().toISOString()
     });

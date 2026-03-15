@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { McpStatus, McpServerConfig } from '@jean2/shared';
+import { useApi } from '@/hooks/useApi';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ export function MCPManagementDialog({
 }: MCPManagementDialogProps) {
   // workspacePath can be used for future features like displaying path in UI
   void workspacePath;
+  const { fetchWithAuth } = useApi();
   const [servers, setServers] = useState<Record<string, ServerStatus>>({});
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export function MCPManagementDialog({
     setError(null);
     
     try {
-      const res = await fetch(`${API_URL}/workspaces/${workspaceId}/mcp/status`);
+      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/status`);
       if (!res.ok) throw new Error('Failed to load MCP status');
       const data = await res.json();
       setServers(data.status || {});
@@ -74,7 +76,7 @@ export function MCPManagementDialog({
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, fetchWithAuth]);
 
   useEffect(() => {
     if (open && workspaceId) {
@@ -87,7 +89,7 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetch(`${API_URL}/workspaces/${workspaceId}/mcp/connect`, {
+      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -107,7 +109,7 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetch(`${API_URL}/workspaces/${workspaceId}/mcp/disconnect`, {
+      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -127,7 +129,7 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetch(`${API_URL}/workspaces/${workspaceId}/mcp/auth`, {
+      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),

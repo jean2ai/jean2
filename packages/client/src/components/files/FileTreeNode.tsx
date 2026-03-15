@@ -3,6 +3,7 @@ import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks/useApi';
 
 interface FileTreeNodeProps {
   entry: FileEntry;
@@ -32,6 +33,7 @@ export function FileTreeNode({
   onFileSelect,
   showHidden = true,
 }: FileTreeNodeProps) {
+  const { fetchWithAuth } = useApi();
   const [isOpen, setIsOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +48,7 @@ export function FileTreeNode({
     setIsLoading(true);
 
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `/api/workspaces/${workspaceId}/files?path=${encodeURIComponent(fullPath)}&showHidden=${showHidden}`
       );
       const data = await res.json();

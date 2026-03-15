@@ -207,18 +207,18 @@ export function AppSidebar({
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <SidebarMenuButton onClick={onOpenMCP}>
+              <Server className="size-4" data-icon="inline-start" />
+              <span>MCP Servers</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <div className="flex items-center gap-1">
               <SidebarMenuButton onClick={onOpenSettings}>
                 <Settings className="size-4" data-icon="inline-start" />
                 <span>Settings</span>
               </SidebarMenuButton>
             </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={onOpenMCP}>
-              <Server className="size-4" data-icon="inline-start" />
-              <span>MCP Servers</span>
-            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

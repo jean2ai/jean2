@@ -58,7 +58,7 @@ export function TodoList({ title, items }: TodoListProps) {
   const _pendingCount = items.filter((item) => item.status === 'pending').length;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 w-full overflow-hidden">
       {(title || items.length > 0) && (
         <div className="text-sm font-medium text-foreground">
           {title || 'Todo List'}
@@ -71,7 +71,7 @@ export function TodoList({ title, items }: TodoListProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 w-full">
         {items.map((item, index) => {
           const status = statusConfig[item.status];
           const StatusIcon = status.icon;
@@ -80,7 +80,7 @@ export function TodoList({ title, items }: TodoListProps) {
           return (
             <div
               key={index}
-              className="flex items-center gap-2 text-sm"
+              className="flex items-center gap-2 text-sm min-w-0"
             >
               <StatusIcon
                 className={cn(
@@ -90,7 +90,7 @@ export function TodoList({ title, items }: TodoListProps) {
                 )}
               />
               <span className={cn(
-                'flex-1 truncate',
+                'flex-1',
                 item.status === 'completed' && 'line-through text-muted-foreground',
                 item.status === 'cancelled' && 'text-muted-foreground',
               )}>

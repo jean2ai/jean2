@@ -4,6 +4,7 @@ import type { FileEntry } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeNode } from './FileTreeNode';
+import { useApi } from '@/hooks/useApi';
 
 interface FileTreeProps {
   workspaceId: string;
@@ -16,13 +17,14 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { fetchWithAuth } = useApi();
 
   const loadRoot = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`);
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -36,7 +38,7 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, showHidden]);
+  }, [workspaceId, showHidden, fetchWithAuth]);
 
   useEffect(() => {
     loadRoot();

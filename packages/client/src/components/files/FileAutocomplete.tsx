@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { File, Folder, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { cn } from '@/lib/utils';
+import { useApi } from '@/hooks/useApi';
 
 interface FileAutocompleteProps {
   workspaceId: string;
@@ -23,6 +24,7 @@ export function FileAutocomplete({
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  const { fetchWithAuth } = useApi();
 
   // Debounce the search query
   useEffect(() => {
@@ -45,7 +47,7 @@ export function FileAutocomplete({
 
     const controller = new AbortController();
 
-    fetch(
+    fetchWithAuth(
       `/api/workspaces/${workspaceId}/files?search=${encodeURIComponent(debouncedQuery)}&showHidden=${showHidden}`,
       { signal: controller.signal }
     )
@@ -63,7 +65,7 @@ export function FileAutocomplete({
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [workspaceId, debouncedQuery, onFilesChange, showHidden]);
+  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, fetchWithAuth]);
 
   if (!searchQuery || searchQuery.length < 2) {
     return (

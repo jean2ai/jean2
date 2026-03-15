@@ -9,7 +9,10 @@
     "dev": "bun --watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "auth:token": "bun run src/auth/cli.ts show",
+    "auth:regenerate": "bun run src/auth/cli.ts regenerate",
+    "auth:path": "bun run src/auth/cli.ts path"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.0",

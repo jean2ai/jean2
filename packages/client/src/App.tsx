@@ -20,6 +20,12 @@ import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import TokenPrompt from '@/components/TokenPrompt';
+import { 
+  getStoredToken, 
+  getStoredServerUrl,
+  clearStoredToken,
+} from '@/config/auth';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -34,8 +40,10 @@ interface PendingPermissionRequest {
   subagentName?: string;
 }
 
-const WS_URL = `ws://${window.location.hostname}:3000/ws`;
-const API_URL = `http://${window.location.hostname}:3000/api`;
+const getWsUrl = (token: string | null, url: string | null) => 
+  (token && url) ? `ws://${url}/ws?token=${token}` : null;
+
+const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
 
 type ClientMessagePayload = 
   | { preconfigId?: string; title?: string; workspaceId?: string }
@@ -58,6 +66,7 @@ function App() {
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState<{ 
@@ -85,8 +94,73 @@ function App() {
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
 
+  const [apiToken, setApiToken] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Keep wsRef in sync with ws state
+  useEffect(() => {
+    wsRef.current = ws;
+  }, [ws]);
+
+  // Load token from localStorage on mount
+  useEffect(() => {
+    const storedToken = getStoredToken();
+    const storedUrl = getStoredServerUrl();
+    if (storedToken) {
+      setApiToken(storedToken);
+    }
+    if (storedUrl) {
+      setServerUrl(storedUrl);
+    }
+  }, []);
+
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
+
+  const handleTokenSubmit = useCallback((token: string, url: string) => {
+    setApiToken(token);
+    setServerUrl(url);
+    setAuthError(null);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearStoredToken();
+    setApiToken(null);
+    setServerUrl(null);
+    setAuthError(null);
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setWs(null);
+    setConnected(false);
+  }, []);
+
+  const fetchWithAuth = useCallback(async (
+    url: string, 
+    options: RequestInit = {}
+  ): Promise<Response> => {
+    if (!apiToken) {
+      throw new Error('No API token available');
+    }
+    
+    const headers = new Headers(options.headers || {});
+    headers.set('Authorization', `Bearer ${apiToken}`);
+    
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+    
+    // Handle authentication errors
+    if (response.status === 401) {
+      setAuthError('Authentication failed. Your token may have been regenerated.');
+      handleLogout();
+      throw new Error('Unauthorized');
+    }
+    
+    return response;
+  }, [apiToken, handleLogout]);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     const messages = messagesBySession[sessionId] || [];
@@ -99,14 +173,33 @@ function App() {
   }, [messagesBySession, partsBySession]);
 
   useEffect(() => {
-    const socket = new WebSocket(WS_URL);
+    // Don't connect if no token or server URL
+    if (!apiToken || !serverUrl) {
+      return;
+    }
+    
+    const wsUrl = getWsUrl(apiToken, serverUrl);
+    if (!wsUrl) return;
+    
+    const socket = new WebSocket(wsUrl);
     
     socket.onopen = () => {
       setConnected(true);
+      setAuthError(null); // Clear auth errors on successful connection
     };
     
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       setConnected(false);
+      
+      // Check if closed due to auth error
+      if (event.code === 1008 || event.code === 401) {
+        setAuthError('Authentication failed. Please check your token.');
+        handleLogout();
+      }
+    };
+    
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
     };
     
     socket.onmessage = (event) => {
@@ -117,30 +210,45 @@ function App() {
     setWs(socket);
     
     return () => socket.close();
-  }, []);
+  }, [apiToken, serverUrl, handleLogout]);
 
   useEffect(() => {
-    fetch(`${API_URL}/sessions`)
+    if (!apiToken || !serverUrl) return;
+    
+    const apiUrl = getApiUrl(serverUrl);
+    if (!apiUrl) return;
+    
+    fetchWithAuth(`${apiUrl}/sessions`)
       .then(res => res.json())
       .then(data => setSessions(data.sessions || []))
-      .catch(console.error);
+      .catch(err => {
+        console.error('Failed to load sessions:', err);
+        if (!err.message?.includes('Unauthorized')) {
+          setAuthError('Failed to connect to server');
+        }
+      });
     
-    fetch(`${API_URL}/preconfigs`)
+    fetchWithAuth(`${apiUrl}/preconfigs`)
       .then(res => res.json())
       .then(data => setPreconfigs(data.preconfigs || []))
       .catch(console.error);
 
-    fetch(`${API_URL}/models`)
+    fetchWithAuth(`${apiUrl}/models`)
       .then(res => res.json())
       .then(data => {
         setModels(data.models || []);
         setDefaultModel(data.defaultModel || 'gpt-4o');
       })
       .catch(console.error);
-  }, []);
+  }, [apiToken, serverUrl, fetchWithAuth]);
 
   useEffect(() => {
-    fetch(`${API_URL}/workspaces`)
+    if (!apiToken || !serverUrl) return;
+    
+    const apiUrl = getApiUrl(serverUrl);
+    if (!apiUrl) return;
+    
+    fetchWithAuth(`${apiUrl}/workspaces`)
       .then(res => res.json())
       .then(data => {
         setWorkspaces(data.workspaces);
@@ -149,7 +257,7 @@ function App() {
         setActiveWorkspace(saved || data.workspaces[0]);
       })
       .catch(console.error);
-  }, []);
+  }, [apiToken, serverUrl, fetchWithAuth]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -158,7 +266,10 @@ function App() {
   }, [activeWorkspace]);
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
-    const res = await fetch(`${API_URL}/workspaces`, {
+    const apiUrl = getApiUrl(serverUrl);
+    if (!apiUrl) return;
+    
+    const res = await fetchWithAuth(`${apiUrl}/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, path, isVirtual }),
@@ -174,7 +285,10 @@ function App() {
   };
 
   const deleteWorkspace = async (id: string) => {
-    await fetch(`${API_URL}/workspaces/${id}`, { method: 'DELETE' });
+    const apiUrl = getApiUrl(serverUrl);
+    if (!apiUrl) return;
+    
+    await fetchWithAuth(`${apiUrl}/workspaces/${id}`, { method: 'DELETE' });
     setWorkspaces(prev => prev.filter(w => w.id !== id));
     if (activeWorkspace?.id === id) {
       setActiveWorkspace(workspaces[0] || null);
@@ -586,6 +700,17 @@ function App() {
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
   const isPrimarySession = !currentSession?.parentId;
 
+  // Show token prompt if not authenticated
+  if (!apiToken || !serverUrl) {
+    return (
+      <TokenPrompt 
+        onSubmit={handleTokenSubmit} 
+        error={authError || undefined}
+        defaultServerUrl="localhost:3000"
+      />
+    );
+  }
+
   if (!connected && sessions.length === 0) {
     return (
       <div className="flex w-full h-full items-center justify-center bg-background">
@@ -642,16 +767,18 @@ function App() {
             <SidebarTrigger />
             <span className="font-semibold">Jean2</span>
           </div>
-          {activeWorkspace && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setShowFilesPanel(!showFilesPanel)}
-              title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-            >
-              <FolderOpen className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {activeWorkspace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowFilesPanel(!showFilesPanel)}
+                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+              >
+                <FolderOpen className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </header>
         
         {currentSession ? (
@@ -701,6 +828,8 @@ function App() {
         onRevokeAllPermissions={() => {
           sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
         }}
+        apiToken={apiToken}
+        onLogout={handleLogout}
       />
 
       <MCPManagementDialog
