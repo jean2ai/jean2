@@ -8,6 +8,7 @@
           "id": "stepfun/step-3.5-flash:free",
           "name": "StepFun: Step-3.5 Flash (Free)",
           "contextWindow": 256000,
+          "maxOutputTokens": 16384,
           "tier": "budget"
         }
       ]
@@ -20,6 +21,7 @@
           "id": "MiniMax-M2.5",
           "name": "MiniMax-M2.5",
           "contextWindow": 204800,
+          "maxOutputTokens": 16384,
           "tier": "budget"
         }
       ]

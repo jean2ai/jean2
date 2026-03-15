@@ -6,7 +6,7 @@ import { createMessage, listMessages as storeListMessages, createPart, updatePar
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import * as mcp from '@/mcp';
 import type { PermissionRequestCallback } from '@/tools';
-import { findModel } from '@/config';
+import { findModel, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { randomUUID } from 'crypto';
@@ -22,7 +22,6 @@ const LLM_OPENROUTER_API_KEY = process.env.LLM_OPENROUTER_API_KEY;
 const LLM_GOOGLE_API_KEY = process.env.LLM_GOOGLE_API_KEY;
 const LLM_MINIMAX_API_KEY = process.env.LLM_MINIMAX_API_KEY;
 const LLM_BASE_URL = process.env.LLM_BASE_URL;
-const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
 const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.7');
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
@@ -512,7 +511,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     system: systemMessage,
     messages: aiMessages,
     tools: aiTools,
-    maxOutputTokens: LLM_MAX_TOKENS,
+    maxOutputTokens: getMaxOutputTokens(resolvedModelId),
     temperature: (preconfig.settings?.temperature ?? LLM_TEMPERATURE) as number,
     stopWhen: stepCountIs(maxSteps ?? 10),
     abortSignal: abortController.signal,

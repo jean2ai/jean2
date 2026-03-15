@@ -1,4 +1,4 @@
-import { Plus, Settings, Wifi, WifiOff, ChevronRight } from 'lucide-react';
+import { Plus, Settings, Wifi, WifiOff, ChevronRight, Server } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -46,6 +46,7 @@ interface AppSidebarProps {
   onDeleteWorkspace: (id: string) => void;
 
   onOpenSettings: () => void;
+  onOpenMCP: () => void;
 }
 
 export function AppSidebar({
@@ -65,6 +66,7 @@ export function AppSidebar({
   onCreateVirtualWorkspace,
   onCreatePhysicalWorkspace,
   onOpenSettings,
+  onOpenMCP,
 }: AppSidebarProps) {
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
@@ -211,6 +213,12 @@ export function AppSidebar({
                 <span>Settings</span>
               </SidebarMenuButton>
             </div>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={onOpenMCP}>
+              <Server className="size-4" data-icon="inline-start" />
+              <span>MCP Servers</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

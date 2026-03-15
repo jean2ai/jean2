@@ -282,15 +282,31 @@ export async function getServerStatus(
   return state?.status;
 }
 
-export async function getAllServerStatus(workspacePath: string): Promise<Record<string, McpStatus>> {
+export async function getAllServerStatus(workspacePath: string): Promise<Record<string, { config: McpServerConfig | undefined; status: McpStatus }>> {
   const clients = workspaceClients.get(workspacePath);
-  if (!clients) {
-    return {};
+  const servers = await getMcpServers(workspacePath);
+  
+  const statusMap: Record<string, { config: McpServerConfig | undefined; status: McpStatus }> = {};
+  
+  // Include all configured servers, not just connected ones
+  for (const [name, config] of Object.entries(servers)) {
+    const state = clients?.get(name);
+    statusMap[name] = {
+      config,
+      status: state?.status ?? { status: 'disabled' as const },
+    };
   }
-
-  const statusMap: Record<string, McpStatus> = {};
-  for (const [name, state] of clients) {
-    statusMap[name] = state.status;
+  
+  // Also include any connected servers that might not be in the current config
+  if (clients) {
+    for (const [name, state] of clients) {
+      if (!statusMap[name]) {
+        statusMap[name] = {
+          config: undefined,
+          status: state.status,
+        };
+      }
+    }
   }
 
   return statusMap;

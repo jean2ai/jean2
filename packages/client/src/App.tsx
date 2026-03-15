@@ -16,6 +16,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { FilesPanel } from '@/components/layout/FilesPanel';
 import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
+import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -78,6 +79,7 @@ function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const [showMCPDialog, setShowMCPDialog] = useState(false);
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
@@ -612,6 +614,7 @@ function App() {
         onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
         onDeleteWorkspace={deleteWorkspace}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenMCP={() => setShowMCPDialog(true)}
       />
       
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -698,6 +701,13 @@ function App() {
         onRevokeAllPermissions={() => {
           sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
         }}
+      />
+
+      <MCPManagementDialog
+        open={showMCPDialog}
+        onOpenChange={setShowMCPDialog}
+        workspaceId={activeWorkspace?.id}
+        workspacePath={activeWorkspace?.path}
       />
     </SidebarProvider>
   );
