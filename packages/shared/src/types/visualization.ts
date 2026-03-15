@@ -1,7 +1,7 @@
 /**
  * Supported visualization types for tool outputs.
  */
-export type VisualizationType = 'diff' | 'diffs' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none';
+export type VisualizationType = 'diff' | 'diffs' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none' | 'todo-list';
 
 /**
  * Base interface for all visualization types embedded in tool output.
@@ -186,6 +186,27 @@ export interface NoneVisualization extends ToolVisualization {
 }
 
 /**
+ * Visualization for displaying a todo/checklist with status indicators.
+ */
+export interface TodoListVisualization extends ToolVisualization {
+  type: 'todo-list';
+  /** List of todo items */
+  items: TodoListItem[];
+}
+
+/**
+ * Individual todo item in a todo list visualization.
+ */
+export interface TodoListItem {
+  /** The task content/description */
+  content: string;
+  /** Status: pending, in_progress, completed, cancelled */
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  /** Priority: high, medium, low */
+  priority: 'high' | 'medium' | 'low';
+}
+
+/**
  * Union of all possible visualization types.
  */
 export type AnyVisualization =
@@ -196,7 +217,8 @@ export type AnyVisualization =
   | TableVisualization
   | MarkdownVisualization
   | ShellOutputVisualization
-  | NoneVisualization;
+  | NoneVisualization
+  | TodoListVisualization;
 
 /**
  * Tool output pattern that includes optional visualization data.

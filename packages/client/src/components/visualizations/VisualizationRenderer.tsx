@@ -4,6 +4,7 @@ import { CodeBlock } from './CodeBlock';
 import { FileListViewer } from './FileListViewer';
 import { SuccessIndicator } from './SuccessIndicator';
 import { TerminalOutput } from './TerminalOutput';
+import { TodoList } from './TodoList';
 
 interface VisualizationRendererProps {
   visualization?: AnyVisualization;
@@ -89,6 +90,14 @@ export function VisualizationRenderer({ visualization }: VisualizationRendererPr
           stdout={visualization.stdout}
           stderr={visualization.stderr}
           exitCode={visualization.exitCode}
+        />
+      );
+
+    case 'todo-list':
+      return (
+        <TodoList
+          title={visualization.title}
+          items={visualization.items}
         />
       );
 
