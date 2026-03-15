@@ -9,5 +9,6 @@
   "settings": { "temperature": 0.1 },
   "isDefault": false,
   "mode": "subagent",
-  "canSpawnSubagents": false
+  "canSpawnSubagents": false,
+  "skills": []
 }

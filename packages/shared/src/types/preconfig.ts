@@ -12,4 +12,11 @@ export interface Preconfig {
   isDefault: boolean;
   mode?: PreconfigMode; // Default: 'primary'
   canSpawnSubagents?: boolean; // Default: true (except for read-only agents)
+  /**
+   * Controls which skills this preconfig can access.
+   * - undefined or null: All available skills (default for backward compatibility)
+   * - []: No skills available
+   * - ["skill-name", ...]: Only these named skills available
+   */
+  skills?: string[] | null;
 }

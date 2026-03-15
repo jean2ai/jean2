@@ -14,6 +14,7 @@ import { createPermissionRequestHandler } from '@/index';
 import { interruptManager } from './interrupt';
 import { broadcastSessionUpdated } from './broadcast';
 import { stripVisualization } from '../utils/strip-visualization';
+import { createSkillTool } from '@/skills';
 
 // Structured API keys from environment
 const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
@@ -309,7 +310,8 @@ async function buildAiSdkTools(
   workspaceId: string | undefined,
   sessionId: string,
   onPermissionRequest?: PermissionRequestCallback,
-  canSpawnSubagents?: boolean
+  canSpawnSubagents?: boolean,
+  allowedSkills?: string[] | null
 ): Promise<Record<string, Tool>> {
   const tools: Record<string, Tool> = {};
 
@@ -448,6 +450,14 @@ async function buildAiSdkTools(
     });
   }
 
+  // Add skill tool if workspace is available and skills are allowed
+  if (workspacePath) {
+    const skillTool = await createSkillTool(workspacePath, allowedSkills);
+    if (skillTool) {
+      tools[skillTool.name] = skillTool.tool;
+    }
+  }
+
   // Add MCP tools if workspace is available
   if (workspacePath) {
     try {
@@ -487,7 +497,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const model = await getModel(resolvedModelId, providerId);
 
   const toolNames = preconfig.tools || [];
-  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents);
+  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents, preconfig.skills);
 
   // Build system message with workspace context
   let systemMessage = preconfig.systemPrompt || '';
