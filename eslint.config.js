@@ -10,12 +10,13 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/data/**',
+      '**/src-tauri/target/**',
     ],
   },
   
   // Base JS recommended rules
   eslint.configs.recommended,
-  
+
   // TypeScript files - all packages
   ...tseslint.configs.recommended,
   {

@@ -289,7 +289,7 @@ export function ChatView({
         </Alert>
       )}
 
-      <ScrollArea className="flex-1" ref={scrollRef}>
+      <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
         <div className="p-4">
           {displayItems.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">

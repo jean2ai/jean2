@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen } from 'lucide-react';
-import type { 
-  Session, 
-  Message, 
+import type {
+  Session,
+  Message,
   Part,
   MessageWithParts,
-  ServerMessage, 
-  ClientMessage, 
-  Preconfig, 
-  Workspace, 
+  ServerMessage,
+  ClientMessage,
+  Preconfig,
+  Workspace,
   ToolPermission,
   QueuedMessage,
 } from '@jean2/shared';
@@ -21,8 +21,8 @@ import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import TokenPrompt from '@/components/TokenPrompt';
-import { 
-  getStoredToken, 
+import {
+  getStoredToken,
   getStoredServerUrl,
   clearStoredToken,
 } from '@/config/auth';
@@ -40,12 +40,12 @@ interface PendingPermissionRequest {
   subagentName?: string;
 }
 
-const getWsUrl = (token: string | null, url: string | null) => 
+const getWsUrl = (token: string | null, url: string | null) =>
   (token && url) ? `ws://${url}/ws?token=${token}` : null;
 
 const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
 
-type ClientMessagePayload = 
+type ClientMessagePayload =
   | { preconfigId?: string; title?: string; workspaceId?: string }
   | { sessionId: string }
   | { sessionId: string; content: string }
@@ -69,10 +69,10 @@ function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
-  const [sessionUsage, setSessionUsage] = useState<{ 
-    promptTokens: number; 
-    completionTokens: number; 
-    totalTokens: number 
+  const [sessionUsage, setSessionUsage] = useState<{
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number
   }>({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   const [currentModel, setCurrentModel] = useState<string>('gpt-4o');
   const [models, setModels] = useState<Array<{
@@ -137,35 +137,35 @@ function App() {
   }, []);
 
   const fetchWithAuth = useCallback(async (
-    url: string, 
+    url: string,
     options: RequestInit = {}
   ): Promise<Response> => {
     if (!apiToken) {
       throw new Error('No API token available');
     }
-    
+
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${apiToken}`);
-    
+
     const response = await fetch(url, {
       ...options,
       headers,
     });
-    
+
     // Handle authentication errors
     if (response.status === 401) {
       setAuthError('Authentication failed. Your token may have been regenerated.');
       handleLogout();
       throw new Error('Unauthorized');
     }
-    
+
     return response;
   }, [apiToken, handleLogout]);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     const messages = messagesBySession[sessionId] || [];
     const partsMap = partsBySession[sessionId] || {};
-    
+
     return messages.map(message => ({
       message,
       parts: (partsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
@@ -177,47 +177,47 @@ function App() {
     if (!apiToken || !serverUrl) {
       return;
     }
-    
+
     const wsUrl = getWsUrl(apiToken, serverUrl);
     if (!wsUrl) return;
-    
+
     const socket = new WebSocket(wsUrl);
-    
+
     socket.onopen = () => {
       setConnected(true);
       setAuthError(null); // Clear auth errors on successful connection
     };
-    
+
     socket.onclose = (event) => {
       setConnected(false);
-      
+
       // Check if closed due to auth error
       if (event.code === 1008 || event.code === 401) {
         setAuthError('Authentication failed. Please check your token.');
         handleLogout();
       }
     };
-    
+
     socket.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-    
+
     socket.onmessage = (event) => {
       const msg: ServerMessage = JSON.parse(event.data);
       handleServerMessageRef.current?.(msg);
     };
-    
+
     setWs(socket);
-    
+
     return () => socket.close();
   }, [apiToken, serverUrl, handleLogout]);
 
   useEffect(() => {
     if (!apiToken || !serverUrl) return;
-    
+
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
-    
+
     fetchWithAuth(`${apiUrl}/sessions`)
       .then(res => res.json())
       .then(data => setSessions(data.sessions || []))
@@ -227,7 +227,7 @@ function App() {
           setAuthError('Failed to connect to server');
         }
       });
-    
+
     fetchWithAuth(`${apiUrl}/preconfigs`)
       .then(res => res.json())
       .then(data => setPreconfigs(data.preconfigs || []))
@@ -244,10 +244,10 @@ function App() {
 
   useEffect(() => {
     if (!apiToken || !serverUrl) return;
-    
+
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
-    
+
     fetchWithAuth(`${apiUrl}/workspaces`)
       .then(res => res.json())
       .then(data => {
@@ -268,7 +268,7 @@ function App() {
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
-    
+
     const res = await fetchWithAuth(`${apiUrl}/workspaces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -287,7 +287,7 @@ function App() {
   const deleteWorkspace = async (id: string) => {
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
-    
+
     await fetchWithAuth(`${apiUrl}/workspaces/${id}`, { method: 'DELETE' });
     setWorkspaces(prev => prev.filter(w => w.id !== id));
     if (activeWorkspace?.id === id) {
@@ -310,7 +310,7 @@ function App() {
     switch (msg.type) {
       case 'session.created':
         setSessions(prev => [msg.session, ...prev]);
-        
+
         if (pendingSessionCreateRef.current) {
           setCurrentSession(msg.session);
           setMessagesBySession(prev => ({
@@ -326,7 +326,7 @@ function App() {
           pendingSessionCreateRef.current = false;
         }
         break;
-      
+
       case 'session.resumed':
         setCurrentSession(msg.session);
 
@@ -349,11 +349,11 @@ function App() {
             return newParts;
           });
         }
-        
+
         setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         setCurrentModel(msg.session.selectedModel || defaultModel);
         break;
-      
+
       case 'message.created':
         setMessagesBySession(prev => ({
           ...prev,
@@ -375,7 +375,7 @@ function App() {
       case 'message.updated':
         setMessagesBySession(prev => ({
           ...prev,
-          [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m => 
+          [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m =>
             m.id === msg.message.id ? msg.message : m
           )
         }));
@@ -417,7 +417,7 @@ function App() {
         setStreamingSessionId(msg.sessionId);
         setPartsBySession(prev => {
           const sessionParts = prev[msg.sessionId] || {};
-          
+
           for (const messageId of Object.keys(sessionParts)) {
             const parts = sessionParts[messageId];
             const partIndex = parts.findIndex(p => p.id === msg.partId);
@@ -442,7 +442,7 @@ function App() {
           return prev;
         });
         break;
-      
+
       case 'chat.usage':
         if (msg.sessionId !== currentSession?.id) return;
         setSessionUsage({
@@ -452,13 +452,13 @@ function App() {
         });
         setCurrentModel(msg.model);
         break;
-      
+
       case 'error':
         console.error('Server error:', msg.code, msg.message);
         break;
-      
+
       case 'session.closed':
-        setSessions(prev => prev.map(s => 
+        setSessions(prev => prev.map(s =>
           s.id === msg.sessionId ? { ...s, status: 'closed' } : s
         ));
         setMessagesBySession(prev => {
@@ -477,7 +477,7 @@ function App() {
         break;
 
       case 'session.reopened':
-        setSessions(prev => prev.map(s => 
+        setSessions(prev => prev.map(s =>
           s.id === msg.session.id ? msg.session : s
         ));
         if (currentSession?.id === msg.session.id) {
@@ -503,7 +503,7 @@ function App() {
         break;
 
       case 'session.updated':
-        setSessions(prev => prev.map(s => 
+        setSessions(prev => prev.map(s =>
           s.id === msg.session.id ? msg.session : s
         ));
         if (currentSession?.id === msg.session.id) {
@@ -512,7 +512,7 @@ function App() {
         break;
 
       case 'session.renamed':
-        setSessions(prev => prev.map(s => 
+        setSessions(prev => prev.map(s =>
           s.id === msg.session.id ? msg.session : s
         ));
         if (currentSession?.id === msg.session.id) {
@@ -525,7 +525,7 @@ function App() {
         break;
 
       case 'permission.revoked':
-        setPermissions(prev => prev.map(p => 
+        setPermissions(prev => prev.map(p =>
           p.id === msg.permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
         ));
         break;
@@ -672,7 +672,7 @@ function App() {
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
-    
+
     sendMessage('permission.response', {
       toolCallId,
       allowed,
@@ -703,8 +703,8 @@ function App() {
   // Show token prompt if not authenticated
   if (!apiToken || !serverUrl) {
     return (
-      <TokenPrompt 
-        onSubmit={handleTokenSubmit} 
+      <TokenPrompt
+        onSubmit={handleTokenSubmit}
         error={authError || undefined}
         defaultServerUrl="localhost:3000"
       />
@@ -741,10 +741,13 @@ function App() {
         onOpenSettings={() => setShowSettings(true)}
         onOpenMCP={() => setShowMCPDialog(true)}
       />
-      
-      <main className="flex-1 flex flex-col overflow-hidden">
-{/* Mobile header with hamburger menu */}
-<header className="md:hidden flex items-center justify-between p-3 border-b border-border">
+
+      <main className="flex-1 flex flex-col overflow-hidden" style={{
+        paddingTop: 'env(safe-area-inset-top, 0)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0)',
+      }}>
+        {/* Mobile header with hamburger menu */}
+        <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10">
   <div className="flex items-center gap-2">
     <SidebarTrigger />
     <span className="font-semibold">Jean2</span>
@@ -780,7 +783,7 @@ function App() {
             )}
           </div>
         </header>
-        
+
         {currentSession ? (
           <ChatView
             session={currentSession}

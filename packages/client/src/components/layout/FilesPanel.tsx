@@ -49,12 +49,14 @@ export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
           </div>
 
           {/* Panel Content */}
-          <ScrollArea className="h-[calc(100vh-52px)]">
-            <FileTree 
-              workspaceId={workspaceId} 
-              showHidden={true}
-            />
-          </ScrollArea>
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0))' }}>
+            <ScrollArea className="flex-1 min-h-0 pb-8">
+              <FileTree
+                workspaceId={workspaceId}
+                showHidden={true}
+              />
+            </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
     );
@@ -74,10 +76,15 @@ export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
       {/* Fixed positioned panel */}
       <div
         className={cn(
-          'fixed inset-y-0 right-0 z-10 w-64 bg-sidebar border-l border-border',
+          'fixed right-0 z-10 w-64 bg-sidebar border-l border-border flex flex-col overflow-hidden',
           'transform transition-transform duration-200 ease-linear',
           !isOpen && 'translate-x-full'
         )}
+        style={{
+          top: 'env(safe-area-inset-top, 0)',
+          bottom: 'env(safe-area-inset-bottom, 0)',
+          height: 'calc(100vh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0))',
+        }}
       >
         {/* Panel Header */}
         <div className="flex items-center justify-between p-3 border-b border-border">
@@ -92,12 +99,14 @@ export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
         </div>
 
         {/* Panel Content */}
-        <ScrollArea className="h-[calc(100vh-52px)]">
-          <FileTree 
-            workspaceId={workspaceId} 
-            showHidden={true}
-          />
-        </ScrollArea>
+        <div className="flex flex-1 flex-col min-h-0 overflow-hidden" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0))' }}>
+          <ScrollArea className="flex-1 min-h-0">
+            <FileTree
+              workspaceId={workspaceId}
+              showHidden={true}
+            />
+          </ScrollArea>
+        </div>
       </div>
     </>
   );

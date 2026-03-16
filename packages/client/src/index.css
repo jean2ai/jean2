@@ -69,16 +69,32 @@
     @apply border-border;
   }
 
-  body {
-    @apply min-h-screen bg-background text-foreground font-sans antialiased;
-  }
-
-  #root {
-    @apply h-screen flex;
+  /* Use CSS custom properties for iOS safe areas */
+  :root {
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
   }
 
   html {
     @apply font-sans;
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    @apply bg-background text-foreground font-sans antialiased;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    height: 100%;
+    @apply flex overflow-hidden;
   }
 }
 
@@ -327,4 +343,33 @@ pre {
 
 .visualization-container::-webkit-scrollbar-thumb:hover {
   background: var(--foreground);
+}
+
+/* iOS-specific scrolling fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Only applies on iOS devices */
+  html, body, #root {
+    height: 100vh;
+  }
+
+  .flex-col.overflow-hidden {
+    /* Fix flex container height on iOS */
+    flex-shrink: 0;
+  }
+
+  /* Ensure scroll containers use native scrolling */
+  [data-slot="scroll-area-viewport"] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fix position: fixed elements on iOS */
+  [data-slot="sheet-content"] {
+    position: fixed !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent overscroll on main content area */
+main {
+  overscroll-behavior: contain;
 }

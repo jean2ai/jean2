@@ -17,6 +17,9 @@ const ScrollArea = React.forwardRef<
         ref={ref}
         data-slot="scroll-area-viewport"
         className="size-full rounded-[inherit] outline-none"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

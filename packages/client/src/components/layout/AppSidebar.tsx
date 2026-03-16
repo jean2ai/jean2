@@ -192,7 +192,8 @@ export function AppSidebar({
       </SidebarContent>
 
       {/* Footer: Status + Settings */}
-      <SidebarFooter>
+      {/*<SidebarFooter style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>*/}
+      <SidebarFooter className='pb-4'>
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5">
