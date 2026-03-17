@@ -768,112 +768,55 @@ function App() {
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
   const isPrimarySession = !currentSession?.parentId;
 
-  // Show token prompt if not authenticated
-  if (!apiToken || !serverUrl) {
-    return (
-      <TokenPrompt
-        onSubmit={handleTokenSubmit}
-        error={authError || undefined}
-        defaultServerUrl="localhost:3000"
-      />
-    );
-  }
+  const isLoggedIn = !!(apiToken && serverUrl);
 
-  if (!connected && sessions.length === 0) {
-    if (connectionTimedOut) {
+  // Determine main content based on auth and connection state
+  const renderMainContent = () => {
+    // Not logged in - show token prompt
+    if (!isLoggedIn) {
       return (
-        <div className="flex w-full h-full items-center justify-center bg-background">
-          <OfflineState
-            serverUrl={serverUrl}
-            authError={authError}
-            retryCount={retryCount}
-            nextRetryIn={nextRetryIn}
-            onRetry={handleRetry}
-            onLogout={handleLogout}
-          />
+        <TokenPrompt
+          onSubmit={handleTokenSubmit}
+          error={authError || undefined}
+          defaultServerUrl="localhost:3000"
+        />
+      );
+    }
+
+    // Logged in but not connected yet
+    if (!connected && sessions.length === 0) {
+      if (connectionTimedOut) {
+        return (
+          <div className="flex w-full h-full items-center justify-center bg-background">
+            <OfflineState
+              serverUrl={serverUrl!}
+              authError={authError}
+              retryCount={retryCount}
+              nextRetryIn={nextRetryIn}
+              onRetry={handleRetry}
+              onLogout={handleLogout}
+            />
+          </div>
+        );
+      }
+      return (
+        <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
+          <ConnectingState />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-muted-foreground"
+          >
+            Change Server
+          </Button>
         </div>
       );
     }
+
+    // Logged in and connected - show main content
     return (
-      <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
-        <ConnectingState />
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleLogout}
-          className="text-muted-foreground"
-        >
-          Change Server
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <SidebarProvider defaultOpen={true}>
-      <AppSidebar
-        sessions={workspaceSessions}
-        currentSession={currentSession}
-        currentSessionId={currentSession?.id ?? null}
-        streamingSessionId={streamingSessionId}
-        connected={connected}
-        workspaces={workspaces}
-        activeWorkspace={activeWorkspace}
-        onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
-        onResumeSession={resumeSession}
-        onCloseSession={closeSession}
-        onReopenSession={reopenSession}
-        onDeleteSession={permanentlyDeleteSession}
-        onSelectWorkspace={selectWorkspace}
-        onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
-        onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
-        onDeleteWorkspace={deleteWorkspace}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenMCP={() => setShowMCPDialog(true)}
-      />
-
-      <main className="flex-1 flex flex-col overflow-hidden" style={{
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
-        {/* Mobile header with hamburger menu */}
-        <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10">
-  <div className="flex items-center gap-2">
-    <SidebarTrigger />
-    <span className="font-semibold">Jean2</span>
-  </div>
-  {activeWorkspace && (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => setShowFilesPanel(!showFilesPanel)}
-      title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-    >
-      <FolderOpen className="w-4 h-4" />
-    </Button>
-  )}
-</header>
-
-        {/* Desktop header with sidebar toggle */}
-        <header className="hidden md:flex items-center justify-between p-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger />
-            <span className="font-semibold">Jean2</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {activeWorkspace && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowFilesPanel(!showFilesPanel)}
-                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-              >
-                <FolderOpen className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </header>
-
+      <>
         {currentSession ? (
           <ChatView
             session={currentSession}
@@ -902,35 +845,111 @@ function App() {
             <p>Choose a session from the sidebar or create a new one to start chatting.</p>
           </div>
         )}
+      </>
+    );
+  };
+
+  return (
+    <SidebarProvider defaultOpen={true}>
+      {isLoggedIn && (
+        <AppSidebar
+          sessions={workspaceSessions}
+          currentSession={currentSession}
+          currentSessionId={currentSession?.id ?? null}
+          streamingSessionId={streamingSessionId}
+          connected={connected}
+          workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+          onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
+          onResumeSession={resumeSession}
+          onCloseSession={closeSession}
+          onReopenSession={reopenSession}
+          onDeleteSession={permanentlyDeleteSession}
+          onSelectWorkspace={selectWorkspace}
+          onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
+          onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
+          onDeleteWorkspace={deleteWorkspace}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenMCP={() => setShowMCPDialog(true)}
+        />
+      )}
+
+      <main className="flex-1 flex flex-col overflow-hidden" style={{
+        paddingTop: 'env(safe-area-inset-top, 0)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0)',
+      }}>
+        {/* Mobile header with hamburger menu */}
+        <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            {isLoggedIn && <SidebarTrigger />}
+            <span className="font-semibold">Jean2</span>
+          </div>
+          {isLoggedIn && activeWorkspace && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowFilesPanel(!showFilesPanel)}
+              title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+            >
+              <FolderOpen className="w-4 h-4" />
+            </Button>
+          )}
+        </header>
+
+        {/* Desktop header with sidebar toggle */}
+        <header className="hidden md:flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            {isLoggedIn && <SidebarTrigger />}
+            <span className="font-semibold">Jean2</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isLoggedIn && activeWorkspace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowFilesPanel(!showFilesPanel)}
+                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+              >
+                <FolderOpen className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </header>
+
+        {renderMainContent()}
       </main>
 
-      <FilesPanel
-        workspaceId={activeWorkspace?.id}
-        isOpen={showFilesPanel}
-        onClose={() => setShowFilesPanel(false)}
-      />
+      {isLoggedIn && (
+        <>
+          <FilesPanel
+            workspaceId={activeWorkspace?.id}
+            isOpen={showFilesPanel}
+            onClose={() => setShowFilesPanel(false)}
+          />
 
-      <SettingsDialog
-        open={showSettings}
-        onOpenChange={setShowSettings}
-        permissions={permissions}
-        onRefreshPermissions={refreshPermissions}
-        onRevokePermission={(permissionId) => {
-          sendMessage('permission.revoke', { permissionId });
-        }}
-        onRevokeAllPermissions={() => {
-          sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
-        }}
-        apiToken={apiToken}
-        onLogout={handleLogout}
-      />
+          <SettingsDialog
+            open={showSettings}
+            onOpenChange={setShowSettings}
+            permissions={permissions}
+            onRefreshPermissions={refreshPermissions}
+            onRevokePermission={(permissionId) => {
+              sendMessage('permission.revoke', { permissionId });
+            }}
+            onRevokeAllPermissions={() => {
+              sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
+            }}
+            apiToken={apiToken}
+            onLogout={handleLogout}
+          />
 
-      <MCPManagementDialog
-        open={showMCPDialog}
-        onOpenChange={setShowMCPDialog}
-        workspaceId={activeWorkspace?.id}
-        workspacePath={activeWorkspace?.path}
-      />
+          <MCPManagementDialog
+            open={showMCPDialog}
+            onOpenChange={setShowMCPDialog}
+            workspaceId={activeWorkspace?.id}
+            workspacePath={activeWorkspace?.path}
+          />
+        </>
+      )}
     </SidebarProvider>
   );
 }
