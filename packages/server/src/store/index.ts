@@ -1,12 +1,15 @@
 import { Database } from 'bun:sqlite';
-import { join, dirname } from 'path';
+import { dirname } from 'path';
 import { mkdirSync } from 'fs';
+
+import { resolveDatabasePath } from '../config';
 
 let db: Database | null = null;
 
 export function getDatabase(): Database {
   if (!db) {
-    const dbPath = process.env.DATABASE_PATH || join(process.cwd(), 'data', 'agent.db');
+    // Use centralized config for database path
+    const dbPath = resolveDatabasePath();
 
     // Ensure the directory exists
     const dbDir = dirname(dbPath);
@@ -25,6 +28,13 @@ export function closeDatabase(): void {
     db.close();
     db = null;
   }
+}
+
+// Force run migrations on the current database
+export function runMigrations(): void {
+  const database = getDatabase();
+  initializeSchema(database);
+  console.log('Migrations completed successfully');
 }
 
 function initializeSchema(db: Database): void {

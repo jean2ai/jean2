@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { existsSync } from 'fs';
 import type { ToolRuntime } from '@jean2/shared';
 import type { DiscoveredTool, ToolResult } from './types';
+import { getToolEnv } from '../env';
 
 const RUNTIME_COMMANDS: Record<ToolRuntime, string[]> = {
   bun: ['bun', 'run'],
@@ -81,7 +82,7 @@ export async function executeTool(
     
     const proc = spawn(command[0], command.slice(1), {
       cwd,
-      env: { ...process.env },
+      env: { ...getToolEnv() },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     

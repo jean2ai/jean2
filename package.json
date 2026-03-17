@@ -16,7 +16,11 @@
     "build": "bun run --filter '*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "build:bin": "cd packages/server && bun run build:bin",
+    "build:bin:macos": "cd packages/server && bun run build:bin:macos",
+    "build:bin:linux": "cd packages/server && bun run build:bin:linux",
+    "build:all": "cd packages/server && bun run build:all"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

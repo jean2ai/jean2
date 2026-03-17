@@ -3,8 +3,22 @@ import { randomBytes, createHash } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import {
+  getDisableAuth,
+  getLLMOpenAIApiKey,
+  getLLMAnthropicApiKey,
+  getLLMOpenRouterApiKey,
+  getLLMGoogleApiKey,
+  getLLMMinimaxApiKey,
+} from '../env';
 
 const TOKEN_FILE = join(homedir(), '.jean2', 'auth-token.json');
+
+const _LLM_OPENAI_API_KEY = getLLMOpenAIApiKey();
+const _LLM_ANTHROPIC_API_KEY = getLLMAnthropicApiKey();
+const _LLM_OPENROUTER_API_KEY = getLLMOpenRouterApiKey();
+const _LLM_GOOGLE_API_KEY = getLLMGoogleApiKey();
+const _LLM_MINIMAX_API_KEY = getLLMMinimaxApiKey();
 
 interface TokenData {
   token: string;
@@ -130,11 +144,62 @@ export function getTokenFilePath(): string {
 }
 
 /**
+ * Get API key for a specific LLM provider
+ */
+export function hasApiKey(provider: string): string | undefined {
+  switch (provider) {
+    case 'openai':
+      return getLLMOpenAIApiKey();
+    case 'anthropic':
+      return getLLMAnthropicApiKey();
+    case 'openrouter':
+      return getLLMOpenRouterApiKey();
+    case 'google':
+      return getLLMGoogleApiKey();
+    case 'minimax':
+      return getLLMMinimaxApiKey();
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Show current API token information
+ */
+export function showToken(): void {
+  const path = getTokenFilePath();
+  
+  if (!existsSync(path)) {
+    console.log('No token found. Token will be generated on next server start.');
+    console.log('Or run: jean2 auth regenerate');
+    return;
+  }
+  
+  const data = JSON.parse(readFileSync(path, 'utf-8'));
+  
+  console.log('\n' + '='.repeat(60));
+  console.log('🔑 Current API Token');
+  console.log('='.repeat(60));
+  console.log(`Token:     ${data.token}`);
+  console.log(`Created:   ${data.createdAt}`);
+  console.log(`Last Used: ${data.lastUsed || 'Never'}`);
+  console.log(`File:      ${path}`);
+  console.log('='.repeat(60) + '\n');
+}
+
+/**
+ * Show token file path
+ */
+export function showTokenPath(): void {
+  console.log(getTokenFilePath());
+}
+
+/**
  * Check if authentication is enabled
- * Can be disabled with DISABLE_AUTH=true env var
+ * Can be disabled with JEAN2_DISABLE_AUTH=true env var
  */
 export function isAuthEnabled(): boolean {
-  return process.env.DISABLE_AUTH !== 'true';
+  return !getDisableAuth();
 }
 
 /**

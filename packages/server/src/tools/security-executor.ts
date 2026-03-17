@@ -3,6 +3,7 @@ import { join } from 'path';
 import type { SecurityCheckInput, SecurityCheckResult } from '@jean2/shared';
 import type { DiscoveredTool } from './types';
 import { RUNTIME_COMMANDS } from './executor';
+import { getToolEnv } from '../env';
 
 const DEFAULT_SECURITY_TIMEOUT = 10000; // 10 seconds for security checks
 
@@ -40,7 +41,7 @@ export async function runSecurityCheck(
 
     const proc = spawn(command[0], command.slice(1), {
       cwd: toolPath, // Run from tool directory
-      env: { ...process.env },
+      env: { ...getToolEnv() },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

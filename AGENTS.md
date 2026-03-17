@@ -157,7 +157,7 @@ try {
 - Provide defaults with `||` or `??`
 
 ```typescript
-const LLM_MAX_TOKENS = parseInt(process.env.LLM_MAX_TOKENS || '4096', 10);
+const JEAN2_LLM_MAX_TOKENS = parseInt(process.env.JEAN2_LLM_MAX_TOKENS || '4096', 10);
 ```
 
 ## Project Structure

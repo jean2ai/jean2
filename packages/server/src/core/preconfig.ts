@@ -1,10 +1,11 @@
 import { readdir, readFile, writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { homedir } from 'os';
-import type { Preconfig, PreconfigMode } from '@jean2/shared';
+import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
+import type { Preconfig, PreconfigMode } from '@jean2/shared';
+import { getPreconfigsPath } from '../env';
 
-const PRECONFIGS_DIR = process.env.PRECONFIGS_PATH || join(homedir(), '.jean2', 'preconfigs');
+const PRECONFIGS_DIR = getPreconfigsPath();
 
 // Common section to append to all system prompts about handling tool rejection errors
 const TOOL_REJECTION_HANDLING = `
@@ -125,11 +126,10 @@ Complete the task assigned to you and return your findings in a clear, structure
 ];
 
 async function ensureDir(): Promise<void> {
-  try {
-    await mkdir(PRECONFIGS_DIR, { recursive: true });
-  } catch (_e) {
-    // Directory exists
+  if (existsSync(PRECONFIGS_DIR)) {
+    return;
   }
+  await mkdir(PRECONFIGS_DIR, { recursive: true });
 }
 
 export async function initializePreconfigs(): Promise<void> {

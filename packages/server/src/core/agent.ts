@@ -15,15 +15,15 @@ import { interruptManager } from './interrupt';
 import { broadcastSessionUpdated } from './broadcast';
 import { stripVisualization } from '../utils/strip-visualization';
 import { createSkillTool } from '@/skills';
-
-// Structured API keys from environment
-const LLM_OPENAI_API_KEY = process.env.LLM_OPENAI_API_KEY;
-const LLM_ANTHROPIC_API_KEY = process.env.LLM_ANTHROPIC_API_KEY;
-const LLM_OPENROUTER_API_KEY = process.env.LLM_OPENROUTER_API_KEY;
-const LLM_GOOGLE_API_KEY = process.env.LLM_GOOGLE_API_KEY;
-const LLM_MINIMAX_API_KEY = process.env.LLM_MINIMAX_API_KEY;
-const LLM_BASE_URL = process.env.LLM_BASE_URL;
-const LLM_TEMPERATURE = parseFloat(process.env.LLM_TEMPERATURE || '0.7');
+import {
+  getLLMOpenAIApiKey,
+  getLLMAnthropicApiKey,
+  getLLMOpenRouterApiKey,
+  getLLMGoogleApiKey,
+  getLLMMinimaxApiKey,
+  getLLMBaseUrl,
+  getLLMTemperature,
+} from '../env';
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
   // Default model
@@ -59,17 +59,17 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
   const getApiKey = () => {
     switch (provider) {
       case 'openai':
-        return LLM_OPENAI_API_KEY;
+        return getLLMOpenAIApiKey();
       case 'anthropic':
-        return LLM_ANTHROPIC_API_KEY;
+        return getLLMAnthropicApiKey();
       case 'openrouter':
-        return LLM_OPENROUTER_API_KEY;
+        return getLLMOpenRouterApiKey();
       case 'google':
-        return LLM_GOOGLE_API_KEY;
+        return getLLMGoogleApiKey();
       case 'minimax':
-        return LLM_MINIMAX_API_KEY;
+        return getLLMMinimaxApiKey();
       default:
-        return LLM_OPENAI_API_KEY;
+        return getLLMOpenAIApiKey();
     }
   };
 
@@ -107,7 +107,7 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
     default: {
       const openai = createOpenAI({
         apiKey,
-        baseURL: LLM_BASE_URL || undefined,
+        baseURL: getLLMBaseUrl() || undefined,
       });
       return openai.chat(model) as unknown as LanguageModel;
     }
@@ -522,7 +522,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     messages: aiMessages,
     tools: aiTools,
     maxOutputTokens: getMaxOutputTokens(resolvedModelId),
-    temperature: (preconfig.settings?.temperature ?? LLM_TEMPERATURE) as number,
+    temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
     stopWhen: stepCountIs(maxSteps ?? 10),
     abortSignal: abortController.signal,
     // Use callbacks for step tracking

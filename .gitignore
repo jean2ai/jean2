@@ -61,3 +61,5 @@ vite.config.ts.sig
 
 # Kontexted sync
 .kontexted/
+
+*.bun-build

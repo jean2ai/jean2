@@ -1,0 +1,163 @@
+import { dirname } from 'path';
+import { mkdirSync, existsSync, writeFileSync } from 'fs';
+import { createInterface } from 'node:readline';
+import { homedir } from 'os';
+import { join } from 'path';
+
+import {
+  getConfigPath,
+  getDefaultDatabasePath,
+  saveConfig,
+  isInitialized,
+  clearConfigCache,
+} from './config';
+import { runMigrations } from './store';
+import { initializePreconfigs } from './core/preconfig';
+import { initializeToken } from './auth/token';
+
+export interface InitOptions {
+  databasePath?: string;
+  runMigrations?: boolean;
+  installPreconfigs?: boolean;
+  force?: boolean;
+}
+
+export interface InitResult {
+  success: boolean;
+  error?: string;
+  configPath: string;
+  databasePath: string;
+  preconfigsInstalled: boolean;
+}
+
+interface RlInterface {
+  question: (query: string) => Promise<string>;
+  close: () => void;
+}
+
+function createRl(): RlInterface {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return {
+    question: (query: string): Promise<string> => {
+      return new Promise((resolve) => {
+        rl.question(query, (answer) => {
+          resolve(answer);
+        });
+      });
+    },
+    close: () => {
+      rl.close();
+    },
+  };
+}
+
+async function promptDatabasePath(rl: RlInterface, defaultPath: string): Promise<string> {
+  const answer = await rl.question(`Database path [${defaultPath}]: `);
+  return answer.trim() || defaultPath;
+}
+
+async function promptRunMigrations(rl: RlInterface): Promise<boolean> {
+  const answer = await rl.question('Run database migrations? [Y/n]: ');
+  const trimmed = (answer || '').trim().toLowerCase();
+  return trimmed === '' || trimmed === 'y' || trimmed === 'yes';
+}
+
+async function promptInstallPreconfigs(rl: RlInterface): Promise<boolean> {
+  const answer = await rl.question('Install default preconfigs? [Y/n]: ');
+  const trimmed = (answer || '').trim().toLowerCase();
+  return trimmed === '' || trimmed === 'y' || trimmed === 'yes';
+}
+
+async function initJean2Internal(options: InitOptions = {}): Promise<InitResult> {
+  const { databasePath, runMigrations: runMigrationsOption, installPreconfigs: installPreconfigsOption, force } = options;
+
+  if (isInitialized() && !force) {
+    return {
+      success: false,
+      error: 'Jean2 is already initialized. Use --force to re-initialize.',
+      configPath: getConfigPath(),
+      databasePath: databasePath || getDefaultDatabasePath(),
+      preconfigsInstalled: false,
+    };
+  }
+
+  if (force) {
+    clearConfigCache();
+  }
+
+  const defaultDbPath = getDefaultDatabasePath();
+  let shouldRunMigrations = runMigrationsOption ?? true;
+  let shouldInstallPreconfigs = installPreconfigsOption ?? true;
+  let finalDbPath = databasePath || defaultDbPath;
+
+  if (!databasePath || runMigrationsOption === undefined || installPreconfigsOption === undefined) {
+    const rl = createRl();
+
+    try {
+      finalDbPath = await promptDatabasePath(rl, defaultDbPath);
+      shouldRunMigrations = await promptRunMigrations(rl);
+      shouldInstallPreconfigs = await promptInstallPreconfigs(rl);
+      console.log();
+
+      rl.close();
+    } catch (_e) {
+      rl.close();
+      throw _e;
+    }
+  }
+
+  // Create directories
+  mkdirSync(dirname(finalDbPath), { recursive: true });
+
+  // Create empty .env file
+  const envPath = join(homedir(), '.jean2', '.env');
+  if (!existsSync(envPath)) {
+    writeFileSync(envPath, '# Jean2 Environment Variables\n# Add your API keys here\n# Example: JEAN2_LLM_OPENAI_API_KEY=your-key-here\n');
+  }
+
+  // Save config
+  saveConfig({
+    databasePath: finalDbPath,
+    port: 8742,
+    host: '0.0.0.0',
+    initializedAt: new Date().toISOString(),
+    version: '1.0.0',
+  });
+
+  // Initialize auth token
+  const token = initializeToken();
+  console.log(`Auth token generated: ${token}`);
+
+  // Run migrations if requested
+  if (shouldRunMigrations) {
+    console.log('Running migrations...');
+    runMigrations();
+  }
+
+  // Install preconfigs if requested
+  if (shouldInstallPreconfigs) {
+    console.log('Installing default preconfigs...');
+    await initializePreconfigs();
+  }
+
+  console.log('\nDone! Jean2 is ready.');
+
+  return {
+    success: true,
+    configPath: getConfigPath(),
+    databasePath: finalDbPath,
+    preconfigsInstalled: shouldInstallPreconfigs,
+  };
+}
+
+export async function initJean2(options: InitOptions = {}): Promise<InitResult> {
+  if (!process.stdin.isTTY) {
+    return initJean2Internal(options);
+  }
+
+  return initJean2Internal(options);
+}
