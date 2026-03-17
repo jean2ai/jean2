@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { FolderOpen } from 'lucide-react';
 import type {
   Session,
@@ -705,6 +706,34 @@ function AppContent() {
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
   }, [handleServerMessage]);
+
+  // Keyboard shortcut for new window (Cmd+N on macOS, Ctrl+N on Windows/Linux)
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Don't trigger if focus is in an input field
+      const target = e.target as HTMLElement;
+      const isInputElement =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
+
+      if (isInputElement) {
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        try {
+          await invoke('create_new_window');
+        } catch (err) {
+          console.error('Failed to create new window:', err);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const sendMessage = useCallback((type: ClientMessage['type'], payload: ClientMessagePayload) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
