@@ -61,7 +61,7 @@ type ClientMessagePayload =
   | { queueId: string };
 
 function AppContent() {
-  const { servers, activeServer, addServer, removeServer } = useServerContext();
+  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState } = useServerContext();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
@@ -113,6 +113,13 @@ function AppContent() {
   const CONNECTION_TIMEOUT = 10000; // 10 seconds
   const MAX_RETRY_DELAY = 30000; // 30 seconds max backoff
   const INITIAL_RETRY_DELAY = 1000; // 1 second initial
+
+  // Refs for abort controller and deferred workspace selection
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingWorkspaceIdRef = useRef<string | null>(null);
+
+  // Loading state for server data fetching
+  const [_isLoadingServerData, setIsLoadingServerData] = useState(false);
 
   // Derive connection info from activeServer
   const apiToken = activeServer?.token ?? null;
@@ -201,6 +208,7 @@ function AppContent() {
 
     const response = await fetch(url, {
       ...options,
+      signal: options.signal,
       headers,
     });
 
@@ -311,52 +319,68 @@ function AppContent() {
     }
   }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount]);
 
+  // Consolidated effect for fetching sessions, preconfigs, models, and workspaces
   useEffect(() => {
     if (!apiToken || !serverUrl) return;
+
+    // Abort previous requests
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
 
-    fetchWithAuth(`${apiUrl}/sessions`)
-      .then(res => res.json())
-      .then(data => setSessions(data.sessions || []))
+    // Show loading state
+    setIsLoadingServerData(true);
+
+    Promise.all([
+      fetchWithAuth(`${apiUrl}/sessions`, { signal }).then(r => r.json()),
+      fetchWithAuth(`${apiUrl}/preconfigs`, { signal }).then(r => r.json()),
+      fetchWithAuth(`${apiUrl}/models`, { signal }).then(r => r.json()),
+      fetchWithAuth(`${apiUrl}/workspaces`, { signal }).then(r => r.json()),
+    ])
+      .then(([sessionsData, preconfigsData, modelsData, workspacesData]) => {
+        setSessions(sessionsData.sessions || []);
+        setPreconfigs(preconfigsData.preconfigs || []);
+        setModels(modelsData.models || []);
+        setDefaultModel(modelsData.defaultModel || 'gpt-4o');
+
+        // Handle workspace selection
+        const workspaces = workspacesData.workspaces || [];
+        setWorkspaces(workspaces);
+
+        // Apply pending workspace selection if any
+        if (pendingWorkspaceIdRef.current) {
+          const saved = workspaces.find((w: Workspace) => w.id === pendingWorkspaceIdRef.current);
+          if (saved) setActiveWorkspace(saved);
+          pendingWorkspaceIdRef.current = null;
+        } else {
+          const savedId = localStorage.getItem('activeWorkspaceId');
+          const saved = workspaces.find((w: Workspace) => w.id === savedId);
+          setActiveWorkspace(saved || workspaces[0]);
+        }
+
+        // Clear switching state
+        clearSwitchingState();
+        setIsLoadingServerData(false);
+      })
       .catch(err => {
-        console.error('Failed to load sessions:', err);
+        if (err.name === 'AbortError') {
+          console.log('Fetch aborted due to server switch');
+          return;
+        }
+        console.error('Failed to load server data:', err);
+        setIsLoadingServerData(false);
         if (!err.message?.includes('Unauthorized')) {
           setAuthError('Failed to connect to server');
         }
       });
 
-    fetchWithAuth(`${apiUrl}/preconfigs`)
-      .then(res => res.json())
-      .then(data => setPreconfigs(data.preconfigs || []))
-      .catch(console.error);
-
-    fetchWithAuth(`${apiUrl}/models`)
-      .then(res => res.json())
-      .then(data => {
-        setModels(data.models || []);
-        setDefaultModel(data.defaultModel || 'gpt-4o');
-      })
-      .catch(console.error);
-  }, [apiToken, serverUrl, fetchWithAuth]);
-
-  useEffect(() => {
-    if (!apiToken || !serverUrl) return;
-
-    const apiUrl = getApiUrl(serverUrl);
-    if (!apiUrl) return;
-
-    fetchWithAuth(`${apiUrl}/workspaces`)
-      .then(res => res.json())
-      .then(data => {
-        setWorkspaces(data.workspaces);
-        const savedId = localStorage.getItem('activeWorkspaceId');
-        const saved = data.workspaces.find((w: Workspace) => w.id === savedId);
-        setActiveWorkspace(saved || data.workspaces[0]);
-      })
-      .catch(console.error);
-  }, [apiToken, serverUrl, fetchWithAuth]);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -384,10 +408,8 @@ function AppContent() {
   };
 
   const handleQuickSwitchWorkspaceSelect = (workspaceId: string) => {
-    const workspace = workspaces.find(w => w.id === workspaceId);
-    if (workspace) {
-      selectWorkspace(workspace);
-    }
+    // Store the pending selection - it will be applied when data loads
+    pendingWorkspaceIdRef.current = workspaceId;
   };
 
   const deleteWorkspace = async (id: string) => {
@@ -855,6 +877,15 @@ function AppContent() {
           onServerAdded={handleFirstServerAdded}
           error={authError || undefined}
         />
+      );
+    }
+
+    // Logged in but currently switching servers
+    if (isSwitching) {
+      return (
+        <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
+          <ConnectingState message={`Connecting to ${activeServer?.name || 'server'}...`} />
+        </div>
       );
     }
 

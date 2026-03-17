@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Zap, Server, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,21 +31,36 @@ interface QuickSwitcherProps {
 
 export function QuickSwitcher({ onServerSwitch, onSelectWorkspace }: QuickSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const switchingInitiatedRef = useRef(false);
   const isMobile = useIsMobile();
   const { 
     quickConnections, 
     switchServer, 
     removeFromQuickConnections,
+    isSwitching,
   } = useServerContext();
 
   const handleSelectConnection = (conn: QuickConnection) => {
-    switchServer(conn.serverId);
-    setOpen(false);
+    const switched = switchServer(conn.serverId);
+    
+    if (!switched) {
+      return;
+    }
+    
+    switchingInitiatedRef.current = true;
+    
     onServerSwitch?.();
     if (conn.workspaceId && onSelectWorkspace) {
       onSelectWorkspace(conn.workspaceId);
     }
   };
+
+  useEffect(() => {
+    if (!isSwitching && open && switchingInitiatedRef.current) {
+      setOpen(false);
+      switchingInitiatedRef.current = false;
+    }
+  }, [isSwitching, open]);
 
   const handleRemoveQuickConnection = (
     e: React.MouseEvent,

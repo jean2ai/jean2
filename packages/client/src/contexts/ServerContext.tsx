@@ -3,6 +3,8 @@ import {
   useState,
   useEffect,
   useContext,
+  useRef,
+  useCallback,
   type ReactNode,
 } from 'react';
 
@@ -25,6 +27,7 @@ interface ServerContextValue {
   servers: SavedServer[];
   activeServer: SavedServer | null;
   quickConnections: QuickConnection[];
+  isSwitching: boolean;
 
   // Server actions
   addServer: (name: string, url: string, token: string) => SavedServer;
@@ -33,7 +36,8 @@ interface ServerContextValue {
     updates: { name?: string; url?: string; token?: string },
   ) => void;
   removeServer: (id: string) => void;
-  switchServer: (id: string) => void;
+  switchServer: (id: string) => boolean;
+  clearSwitchingState: () => void;
 
   // Quick connection actions
   addToQuickConnections: (
@@ -58,6 +62,8 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
   const [quickConnections, setQuickConnections] = useState<QuickConnection[]>(
     [],
   );
+  const [isSwitching, setIsSwitching] = useState(false);
+  const switchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const loadedServers = getSavedServers();
@@ -134,15 +140,39 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setQuickConnections(getQuickConnections());
   };
 
-  const switchServer = (id: string): void => {
-    setActiveServerId(id);
-    const newActiveServer = getServerByIdFromList(id);
-    setActiveServer(newActiveServer);
-  };
+  const switchServer = useCallback((id: string): boolean => {
+    // Clear any pending switch
+    if (switchTimeoutRef.current) {
+      clearTimeout(switchTimeoutRef.current);
+      switchTimeoutRef.current = null;
+    }
 
-  const getServerByIdFromList = (id: string): SavedServer | null => {
-    return servers.find((s) => s.id === id) || null;
-  };
+    // If already switching to this server, ignore
+    if (isSwitching && activeServer?.id === id) {
+      return false;
+    }
+
+    // If currently switching to a different server, abort and switch to new one
+    if (isSwitching) {
+      setIsSwitching(false);
+    }
+
+    setIsSwitching(true);
+
+    // Debounce the actual switch by 100ms
+    switchTimeoutRef.current = setTimeout(() => {
+      setActiveServerId(id);
+      const newActiveServer = servers.find((s) => s.id === id) || null;
+      setActiveServer(newActiveServer);
+      setIsSwitching(false);
+    }, 100);
+
+    return true;
+  }, [isSwitching, activeServer, servers]);
+
+  const clearSwitchingState = useCallback(() => {
+    setIsSwitching(false);
+  }, []);
 
   const addToQuickConnections = (
     serverId: string,
@@ -173,10 +203,12 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     servers,
     activeServer,
     quickConnections,
+    isSwitching,
     addServer,
     editServer,
     removeServer,
     switchServer,
+    clearSwitchingState,
     addToQuickConnections,
     removeFromQuickConnections,
     reorderQuick,

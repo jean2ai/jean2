@@ -43,11 +43,15 @@ export function WorkspaceSkeleton() {
   );
 }
 
-export function ConnectingState() {
+interface ConnectingStateProps {
+  message?: string;
+}
+
+export function ConnectingState({ message = 'Connecting to server...' }: ConnectingStateProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
       <Loader2 className="size-8 animate-spin" />
-      <p className="text-sm">Connecting to server...</p>
+      <p className="text-sm">{message}</p>
     </div>
   );
 }
