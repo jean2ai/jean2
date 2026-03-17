@@ -118,3 +118,27 @@ export function maskToken(token: string): string {
   if (token.length < 12) return token;
   return `${token.slice(0, 4)}...${token.slice(-4)}`;
 }
+
+/**
+ * Normalize server URL by stripping protocol prefixes and trailing slashes
+ * @param url - Raw URL input from user
+ * @returns Clean host:port or host format
+ * 
+ * Examples:
+ *   - "http://localhost:3000/" → "localhost:3000"
+ *   - "https://domain/" → "domain"
+ *   - "https://domain:8080" → "domain:8080"
+ *   - "localhost:3000" → "localhost:3000" (unchanged)
+ *   - "domain/" → "domain"
+ */
+export function normalizeServerUrl(url: string): string {
+  let normalized = url.trim();
+  
+  // Strip protocol prefixes
+  normalized = normalized.replace(/^(https?:\/\/|wss?:\/\/)/i, '');
+  
+  // Strip trailing slashes
+  normalized = normalized.replace(/\/+$/, '');
+  
+  return normalized;
+}
