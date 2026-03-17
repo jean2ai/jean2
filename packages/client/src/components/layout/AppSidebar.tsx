@@ -2,6 +2,7 @@ import { Plus, Settings, Wifi, WifiOff, ChevronRight, Server } from 'lucide-reac
 import { useMemo } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { ServerSwitcher } from './ServerSwitcher';
 
 import {
   Sidebar,
@@ -24,6 +25,7 @@ import {
 
 import { SessionMenuButton } from './SessionMenuButton';
 import { Badge } from '@/components/ui/badge';
+import { useServerContext } from '@/contexts/ServerContext';
 
 interface AppSidebarProps {
   sessions: Session[];
@@ -47,6 +49,8 @@ interface AppSidebarProps {
 
   onOpenSettings: () => void;
   onOpenMCP: () => void;
+  onOpenAddServer: () => void;
+  onServerSwitch?: () => void;
 }
 
 export function AppSidebar({
@@ -67,7 +71,11 @@ export function AppSidebar({
   onCreatePhysicalWorkspace,
   onOpenSettings,
   onOpenMCP,
+  onOpenAddServer,
+  onServerSwitch,
 }: AppSidebarProps) {
+  const { quickConnections, addToQuickConnections, activeServer } = useServerContext();
+
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
     const rootSessions = sessions.filter((s) => !s.parentId);
@@ -77,17 +85,32 @@ export function AppSidebar({
     };
   }, [sessions]);
 
+  const isWorkspaceFavorited = (workspaceId: string) => {
+    return quickConnections.some(
+      conn => conn.workspaceId === workspaceId && conn.serverId === activeServer?.id
+    );
+  };
+
+  const handleToggleWorkspaceFavorite = (workspaceId: string, workspaceName: string) => {
+    if (activeServer) {
+      addToQuickConnections(activeServer.id, activeServer.name, workspaceId, workspaceName);
+    }
+  };
+
   return (
     <Sidebar collapsible="offcanvas">
       {/* Header: Workspace + New Chat */}
       <SidebarHeader>
-        <div className="p-2">
+        <div className="p-2 space-y-2">
+          <ServerSwitcher onOpenAddServer={onOpenAddServer} onServerSwitch={onServerSwitch} />
           <WorkspaceSwitcher
             workspaces={workspaces}
             activeWorkspace={activeWorkspace}
             onSelectWorkspace={onSelectWorkspace}
             onCreateVirtualWorkspace={onCreateVirtualWorkspace}
             onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
+            isWorkspaceFavorited={isWorkspaceFavorited}
+            onToggleFavorite={handleToggleWorkspaceFavorite}
           />
         </div>
         <SidebarMenu>

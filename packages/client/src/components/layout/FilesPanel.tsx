@@ -13,11 +13,13 @@ import { cn } from '@/lib/utils';
 
 interface FilesPanelProps {
   workspaceId: string | undefined;
+  serverUrl: string | undefined;
+  apiToken: string | undefined;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
+export function FilesPanel({ workspaceId, serverUrl, apiToken, isOpen, onClose }: FilesPanelProps) {
   const isMobile = useIsMobile();
 
   if (!workspaceId) {
@@ -53,6 +55,8 @@ export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
             <ScrollArea className="flex-1 min-h-0 pb-8">
               <FileTree
                 workspaceId={workspaceId}
+                serverUrl={serverUrl}
+                apiToken={apiToken}
                 showHidden={true}
               />
             </ScrollArea>
@@ -103,6 +107,8 @@ export function FilesPanel({ workspaceId, isOpen, onClose }: FilesPanelProps) {
           <ScrollArea className="flex-1 min-h-0">
             <FileTree
               workspaceId={workspaceId}
+              serverUrl={serverUrl}
+              apiToken={apiToken}
               showHidden={true}
             />
           </ScrollArea>

@@ -11,6 +11,8 @@ interface FileAutocompleteProps {
   onSelect: (file: FileEntry) => void;
   onFilesChange: (files: FileEntry[]) => void;
   showHidden?: boolean;
+  serverUrl?: string;
+  apiToken?: string;
 }
 
 export function FileAutocomplete({
@@ -20,6 +22,8 @@ export function FileAutocomplete({
   onSelect,
   onFilesChange,
   showHidden = true,
+  serverUrl,
+  apiToken,
 }: FileAutocompleteProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,7 +53,8 @@ export function FileAutocomplete({
 
     fetchWithAuth(
       `/api/workspaces/${workspaceId}/files?search=${encodeURIComponent(debouncedQuery)}&showHidden=${showHidden}`,
-      { signal: controller.signal }
+      { signal: controller.signal },
+      { serverUrl, token: apiToken }
     )
       .then(res => res.json())
       .then(data => {
@@ -65,7 +70,7 @@ export function FileAutocomplete({
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, fetchWithAuth]);
+  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, fetchWithAuth, serverUrl, apiToken]);
 
   if (!searchQuery || searchQuery.length < 2) {
     return (

@@ -1,21 +1,22 @@
 import { useCallback } from 'react';
-import { getStoredToken, getStoredServerUrl } from '@/config/auth';
+
+interface FetchConfig {
+  serverUrl?: string;
+  token?: string;
+}
 
 export function useApi() {
   const fetchWithAuth = useCallback(async (
     url: string,
     options: RequestInit = {},
-    serverUrl?: string
+    config?: FetchConfig
   ): Promise<Response> => {
-    const token = getStoredToken();
-    
-    // Get server URL from parameter or localStorage
-    const baseUrl = serverUrl || getStoredServerUrl();
+    const { serverUrl, token } = config || {};
     
     // Construct full URL for relative paths
     let fullUrl = url;
-    if (url.startsWith('/') && baseUrl) {
-      fullUrl = `http://${baseUrl}${url}`;
+    if (url.startsWith('/') && serverUrl) {
+      fullUrl = `http://${serverUrl}${url}`;
     }
     
     const headers = new Headers(options.headers || {});

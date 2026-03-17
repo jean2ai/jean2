@@ -15,6 +15,8 @@ interface MessageInputProps {
   onStopStreaming?: () => void;
   placeholder?: string;
   workspaceId?: string;
+  serverUrl?: string;
+  apiToken?: string;
 }
 
 export function MessageInput({
@@ -24,6 +26,8 @@ export function MessageInput({
   onStopStreaming,
   placeholder = 'Type a message...',
   workspaceId,
+  serverUrl,
+  apiToken,
 }: MessageInputProps) {
   const [input, setInput] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -200,6 +204,8 @@ export function MessageInput({
                 selectedIndex={selectedIndex}
                 onSelect={handleFileSelectWrapper}
                 onFilesChange={handleFilesChange}
+                serverUrl={serverUrl}
+                apiToken={apiToken}
               />
             </PopoverContent>
           </Popover>

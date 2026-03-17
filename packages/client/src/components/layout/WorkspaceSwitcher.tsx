@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus } from 'lucide-react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, Star } from 'lucide-react';
 import type { Workspace } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
@@ -25,6 +25,8 @@ interface WorkspaceSwitcherProps {
   onSelectWorkspace: (workspace: Workspace) => void;
   onCreateVirtualWorkspace: () => void;
   onCreatePhysicalWorkspace: (path: string) => void;
+  isWorkspaceFavorited: (workspaceId: string) => boolean;
+  onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
 }
 
 export function WorkspaceSwitcher({
@@ -33,6 +35,8 @@ export function WorkspaceSwitcher({
   onSelectWorkspace,
   onCreateVirtualWorkspace,
   onCreatePhysicalWorkspace,
+  isWorkspaceFavorited,
+  onToggleFavorite,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -84,14 +88,30 @@ export function WorkspaceSwitcher({
                     )}
                     <span>{workspace.name}</span>
                   </div>
-                  <Check
-                    className={cn(
-                      'size-4',
-                      activeWorkspace?.id === workspace.id
-                        ? 'opacity-100'
-                        : 'opacity-0'
-                    )}
-                  />
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="p-1 rounded hover:bg-secondary transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFavorite(workspace.id, workspace.name);
+                      }}
+                      title={isWorkspaceFavorited(workspace.id) ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      {isWorkspaceFavorited(workspace.id) ? (
+                        <Star className="size-4 fill-primary text-primary" />
+                      ) : (
+                        <Star className="size-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    <Check
+                      className={cn(
+                        'size-4',
+                        activeWorkspace?.id === workspace.id
+                          ? 'opacity-100'
+                          : 'opacity-0'
+                      )}
+                    />
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>

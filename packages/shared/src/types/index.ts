@@ -11,3 +11,4 @@ export * from './file';
 export * from './visualization';
 export * from './mcp';
 export * from './skill';
+export * from './server';

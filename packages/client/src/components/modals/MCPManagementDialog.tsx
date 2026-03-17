@@ -14,8 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-const API_URL = `http://${window.location.hostname}:3000/api`;
-
 interface ServerStatus {
   config?: McpServerConfig;
   status: McpStatus;
@@ -26,6 +24,8 @@ interface MCPManagementDialogProps {
   onOpenChange: (open: boolean) => void;
   workspaceId: string | undefined;
   workspacePath: string | undefined;
+  serverUrl: string | undefined;
+  apiToken: string | undefined;
 }
 
 function StatusBadge({ status }: { status: McpStatus }) {
@@ -50,6 +50,8 @@ export function MCPManagementDialog({
   onOpenChange,
   workspaceId,
   workspacePath,
+  serverUrl,
+  apiToken,
 }: MCPManagementDialogProps) {
   // workspacePath can be used for future features like displaying path in UI
   void workspacePath;
@@ -66,7 +68,7 @@ export function MCPManagementDialog({
     setError(null);
     
     try {
-      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/status`);
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/status`, {}, { serverUrl, token: apiToken });
       if (!res.ok) throw new Error('Failed to load MCP status');
       const data = await res.json();
       setServers(data.status || {});
@@ -76,7 +78,7 @@ export function MCPManagementDialog({
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, fetchWithAuth]);
+  }, [workspaceId, fetchWithAuth, serverUrl, apiToken]);
 
   useEffect(() => {
     if (open && workspaceId) {
@@ -89,11 +91,11 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/connect`, {
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
-      });
+      }, { serverUrl, token: apiToken });
       if (!res.ok) throw new Error('Failed to connect');
       await loadStatus();
     } catch (err) {
@@ -109,11 +111,11 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/disconnect`, {
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
-      });
+      }, { serverUrl, token: apiToken });
       if (!res.ok) throw new Error('Failed to disconnect');
       await loadStatus();
     } catch (err) {
@@ -129,11 +131,11 @@ export function MCPManagementDialog({
     
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`${API_URL}/workspaces/${workspaceId}/mcp/auth`, {
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
-      });
+      }, { serverUrl, token: apiToken });
       if (!res.ok) throw new Error('Failed to start auth');
       const data = await res.json();
       

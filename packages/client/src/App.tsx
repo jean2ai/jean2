@@ -11,7 +11,9 @@ import type {
   Workspace,
   ToolPermission,
   QueuedMessage,
+  SavedServer,
 } from '@jean2/shared';
+import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { FilesPanel } from '@/components/layout/FilesPanel';
 import { ChatView } from '@/components/chat/ChatView';
@@ -21,12 +23,9 @@ import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import TokenPrompt from '@/components/TokenPrompt';
-import {
-  getStoredToken,
-  getStoredServerUrl,
-  clearStoredToken,
-} from '@/config/auth';
+import FirstServerScreen from '@/components/FirstServerScreen';
+import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
+import { AddServerDialog } from '@/components/modals/AddServerDialog';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -60,7 +59,9 @@ type ClientMessagePayload =
   | { sessionId: string; reason?: string }
   | { queueId: string };
 
-function App() {
+function AppContent() {
+  const { servers, activeServer, addServer, removeServer } = useServerContext();
+
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
@@ -95,9 +96,11 @@ function App() {
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
 
-  const [apiToken, setApiToken] = useState<string | null>(null);
-  const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Dialog states
+  const [showAddServer, setShowAddServer] = useState(false);
+  const [editServerData, setEditServerData] = useState<SavedServer | null>(null);
 
   // Connection offline handling
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
@@ -110,37 +113,27 @@ function App() {
   const MAX_RETRY_DELAY = 30000; // 30 seconds max backoff
   const INITIAL_RETRY_DELAY = 1000; // 1 second initial
 
+  // Derive connection info from activeServer
+  const apiToken = activeServer?.token ?? null;
+  const serverUrl = activeServer?.url ?? null;
+
   // Keep wsRef in sync with ws state
   useEffect(() => {
     wsRef.current = ws;
   }, [ws]);
 
-  // Load token from localStorage on mount
-  useEffect(() => {
-    const storedToken = getStoredToken();
-    const storedUrl = getStoredServerUrl();
-    if (storedToken) {
-      setApiToken(storedToken);
-    }
-    if (storedUrl) {
-      setServerUrl(storedUrl);
-    }
-  }, []);
-
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
 
-  const handleTokenSubmit = useCallback((token: string, url: string) => {
-    setApiToken(token);
-    setServerUrl(url);
-    setAuthError(null);
-  }, []);
+  const handleFirstServerAdded = useCallback((server: SavedServer) => {
+    // The addServer function from context handles setting active server
+    addServer(server.name, server.url, server.token);
+  }, [addServer]);
 
   const handleLogout = useCallback(() => {
-    clearStoredToken();
-    setApiToken(null);
-    setServerUrl(null);
-    setAuthError(null);
+    if (activeServer) {
+      removeServer(activeServer.id);
+    }
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -149,12 +142,49 @@ function App() {
     setConnectionTimedOut(false);
     setRetryCount(0);
     setNextRetryIn(0);
-  }, []);
+  }, [activeServer, removeServer]);
 
   const handleRetry = useCallback(() => {
     setRetryCount(c => c + 1);
     setConnectionTimedOut(false);
     setNextRetryIn(0);
+  }, []);
+
+  const handleServerSwitch = useCallback(() => {
+    // Close existing WebSocket connection
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
+    // Clear WebSocket state
+    setWs(null);
+    setConnected(false);
+    setConnectionTimedOut(false);
+    setRetryCount(0);
+    setNextRetryIn(0);
+
+    // Clear all session and message state
+    setSessions([]);
+    setPreconfigs([]);
+    setCurrentSession(null);
+    setMessagesBySession({});
+    setPartsBySession({});
+    setStreamingSessionId(null);
+    setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+    setCurrentModel('gpt-4o');
+    setModels([]);
+    setWorkspaces([]);
+    setActiveWorkspace(null);
+    setPermissions([]);
+    setPendingPermissions([]);
+    setQueuedMessages({});
+
+    // Clear any open popovers/sheets by forcing a re-render
+    // (the callback will be called after state is cleared)
+
+    // Force reconnection with the new server credentials
+    // The reconnectTrigger will cause the useEffect to reconnect
+    setReconnectTrigger(t => t + 1);
   }, []);
 
   const fetchWithAuth = useCallback(async (
@@ -350,6 +380,13 @@ function App() {
   const selectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
     setCurrentSession(null);
+  };
+
+  const handleQuickSwitchWorkspaceSelect = (workspaceId: string) => {
+    const workspace = workspaces.find(w => w.id === workspaceId);
+    if (workspace) {
+      selectWorkspace(workspace);
+    }
   };
 
   const deleteWorkspace = async (id: string) => {
@@ -768,17 +805,26 @@ function App() {
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
   const isPrimarySession = !currentSession?.parentId;
 
-  const isLoggedIn = !!(apiToken && serverUrl);
+  const isLoggedIn = !!(activeServer);
 
   // Determine main content based on auth and connection state
   const renderMainContent = () => {
-    // Not logged in - show token prompt
+    // No servers exist - show FirstServerScreen
+    if (servers.length === 0) {
+      return (
+        <FirstServerScreen
+          onServerAdded={handleFirstServerAdded}
+          error={authError || undefined}
+        />
+      );
+    }
+
+    // Not logged in (no active server) - show FirstServerScreen
     if (!isLoggedIn) {
       return (
-        <TokenPrompt
-          onSubmit={handleTokenSubmit}
+        <FirstServerScreen
+          onServerAdded={handleFirstServerAdded}
           error={authError || undefined}
-          defaultServerUrl="localhost:3000"
         />
       );
     }
@@ -838,6 +884,8 @@ function App() {
             onNavigateBack={handleNavigateBack}
             isStreaming={streamingSessionId === currentSession.id}
             onInterrupt={handleInterruptSession}
+            serverUrl={serverUrl ?? undefined}
+            apiToken={apiToken ?? undefined}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground px-6">
@@ -871,6 +919,8 @@ function App() {
           onDeleteWorkspace={deleteWorkspace}
           onOpenSettings={() => setShowSettings(true)}
           onOpenMCP={() => setShowMCPDialog(true)}
+          onOpenAddServer={() => setShowAddServer(true)}
+          onServerSwitch={handleServerSwitch}
         />
       )}
 
@@ -884,16 +934,22 @@ function App() {
             {isLoggedIn && <SidebarTrigger />}
             <span className="font-semibold">Jean2</span>
           </div>
-          {isLoggedIn && activeWorkspace && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setShowFilesPanel(!showFilesPanel)}
-              title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-            >
-              <FolderOpen className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            <QuickSwitcher 
+              onServerSwitch={handleServerSwitch}
+              onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
+            />
+            {isLoggedIn && activeWorkspace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowFilesPanel(!showFilesPanel)}
+                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
+              >
+                <FolderOpen className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </header>
 
         {/* Desktop header with sidebar toggle */}
@@ -903,6 +959,12 @@ function App() {
             <span className="font-semibold">Jean2</span>
           </div>
           <div className="flex items-center gap-2">
+            {isLoggedIn && (
+              <QuickSwitcher 
+                onServerSwitch={handleServerSwitch}
+                onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
+              />
+            )}
             {isLoggedIn && activeWorkspace && (
               <Button
                 variant="ghost"
@@ -923,6 +985,8 @@ function App() {
         <>
           <FilesPanel
             workspaceId={activeWorkspace?.id}
+            serverUrl={serverUrl ?? undefined}
+            apiToken={apiToken ?? undefined}
             isOpen={showFilesPanel}
             onClose={() => setShowFilesPanel(false)}
           />
@@ -947,10 +1011,29 @@ function App() {
             onOpenChange={setShowMCPDialog}
             workspaceId={activeWorkspace?.id}
             workspacePath={activeWorkspace?.path}
+            serverUrl={serverUrl ?? undefined}
+            apiToken={apiToken ?? undefined}
           />
         </>
       )}
+
+      <AddServerDialog
+        open={showAddServer}
+        onOpenChange={(open) => {
+          setShowAddServer(open);
+          if (!open) setEditServerData(null);
+        }}
+        editServer={editServerData}
+      />
     </SidebarProvider>
+  );
+}
+
+function App() {
+  return (
+    <ServerProvider>
+      <AppContent />
+    </ServerProvider>
   );
 }
 

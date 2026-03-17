@@ -8,11 +8,13 @@ import { useApi } from '@/hooks/useApi';
 
 interface FileTreeProps {
   workspaceId: string;
+  serverUrl: string | undefined;
+  apiToken: string | undefined;
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
 }
 
-export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileTreeProps) {
+export function FileTree({ workspaceId, serverUrl, apiToken, onFileSelect, showHidden = true }: FileTreeProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -24,7 +26,7 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
     setError(null);
 
     try {
-      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`);
+      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`, {}, { serverUrl, token: apiToken });
       const data = await res.json();
 
       if (!res.ok) {
@@ -38,7 +40,7 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, showHidden, fetchWithAuth]);
+  }, [workspaceId, showHidden, fetchWithAuth, serverUrl, apiToken]);
 
   useEffect(() => {
     loadRoot();
@@ -102,6 +104,8 @@ export function FileTree({ workspaceId, onFileSelect, showHidden = true }: FileT
               depth={0}
               onFileSelect={onFileSelect}
               showHidden={showHidden}
+              serverUrl={serverUrl}
+              apiToken={apiToken}
             />
           ))}
         </div>

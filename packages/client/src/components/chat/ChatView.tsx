@@ -63,6 +63,8 @@ interface ChatViewProps {
   onNavigateBack?: () => void;
   isStreaming?: boolean;
   onInterrupt?: () => void;
+  serverUrl?: string;
+  apiToken?: string;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -218,6 +220,8 @@ export function ChatView({
   onNavigateBack,
   isStreaming,
   onInterrupt,
+  serverUrl,
+  apiToken,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -360,6 +364,8 @@ export function ChatView({
           onSendMessage={onSendMessage}
           disabled={false}
           workspaceId={session.workspaceId}
+          serverUrl={serverUrl}
+          apiToken={apiToken}
         />
       )}
 
