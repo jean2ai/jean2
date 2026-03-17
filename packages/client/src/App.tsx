@@ -18,6 +18,7 @@ import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
+import { OfflineState } from '@/components/shared/OfflineState';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import TokenPrompt from '@/components/TokenPrompt';
@@ -98,6 +99,17 @@ function App() {
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Connection offline handling
+  const [connectionTimedOut, setConnectionTimedOut] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [nextRetryIn, setNextRetryIn] = useState(0);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
+
+  // Connection timeout constants
+  const CONNECTION_TIMEOUT = 10000; // 10 seconds
+  const MAX_RETRY_DELAY = 30000; // 30 seconds max backoff
+  const INITIAL_RETRY_DELAY = 1000; // 1 second initial
+
   // Keep wsRef in sync with ws state
   useEffect(() => {
     wsRef.current = ws;
@@ -134,6 +146,15 @@ function App() {
     }
     setWs(null);
     setConnected(false);
+    setConnectionTimedOut(false);
+    setRetryCount(0);
+    setNextRetryIn(0);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setRetryCount(c => c + 1);
+    setConnectionTimedOut(false);
+    setNextRetryIn(0);
   }, []);
 
   const fetchWithAuth = useCallback(async (
@@ -186,6 +207,8 @@ function App() {
     socket.onopen = () => {
       setConnected(true);
       setAuthError(null); // Clear auth errors on successful connection
+      setRetryCount(0);
+      setConnectionTimedOut(false);
     };
 
     socket.onclose = (event) => {
@@ -210,7 +233,52 @@ function App() {
     setWs(socket);
 
     return () => socket.close();
-  }, [apiToken, serverUrl, handleLogout]);
+  }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
+
+  // Connection timeout detection
+  useEffect(() => {
+    if (apiToken && serverUrl && !connected && !connectionTimedOut) {
+      const timeoutId = setTimeout(() => {
+        if (!connected) {
+          setConnectionTimedOut(true);
+        }
+      }, CONNECTION_TIMEOUT);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [apiToken, serverUrl, connected, connectionTimedOut]);
+
+  // Auto-reconnect with exponential backoff
+  useEffect(() => {
+    if (connectionTimedOut && !connected && apiToken && serverUrl) {
+      // Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+      const delay = Math.min(
+        INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
+        MAX_RETRY_DELAY
+      );
+      
+      let countdown = Math.floor(delay / 1000);
+      setNextRetryIn(countdown);
+      
+      // Countdown interval
+      const countdownInterval = setInterval(() => {
+        countdown -= 1;
+        setNextRetryIn(Math.max(0, countdown));
+      }, 1000);
+      
+      // Retry timeout
+      const retryTimeout = setTimeout(() => {
+        setRetryCount(c => c + 1);
+        // Trigger reconnection by incrementing the trigger counter
+        setReconnectTrigger(t => t + 1);
+      }, delay);
+      
+      return () => {
+        clearInterval(countdownInterval);
+        clearTimeout(retryTimeout);
+      };
+    }
+  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount]);
 
   useEffect(() => {
     if (!apiToken || !serverUrl) return;
@@ -712,9 +780,31 @@ function App() {
   }
 
   if (!connected && sessions.length === 0) {
+    if (connectionTimedOut) {
+      return (
+        <div className="flex w-full h-full items-center justify-center bg-background">
+          <OfflineState
+            serverUrl={serverUrl}
+            authError={authError}
+            retryCount={retryCount}
+            nextRetryIn={nextRetryIn}
+            onRetry={handleRetry}
+            onLogout={handleLogout}
+          />
+        </div>
+      );
+    }
     return (
-      <div className="flex w-full h-full items-center justify-center bg-background">
+      <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
         <ConnectingState />
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleLogout}
+          className="text-muted-foreground"
+        >
+          Change Server
+        </Button>
       </div>
     );
   }
