@@ -7,6 +7,7 @@ import { join } from 'path';
 import {
   getConfigPath,
   getDefaultDatabasePath,
+  getDefaultToolsPath,
   saveConfig,
   isInitialized,
   clearConfigCache,
@@ -17,6 +18,7 @@ import { initializeToken } from './auth/token';
 
 export interface InitOptions {
   databasePath?: string;
+  toolsPath?: string;
   runMigrations?: boolean;
   installPreconfigs?: boolean;
   force?: boolean;
@@ -27,6 +29,7 @@ export interface InitResult {
   error?: string;
   configPath: string;
   databasePath: string;
+  toolsPath: string;
   preconfigsInstalled: boolean;
 }
 
@@ -60,6 +63,11 @@ async function promptDatabasePath(rl: RlInterface, defaultPath: string): Promise
   return answer.trim() || defaultPath;
 }
 
+async function promptToolsPath(rl: RlInterface, defaultPath: string): Promise<string> {
+  const answer = await rl.question(`Tools path [${defaultPath}]: `);
+  return answer.trim() || defaultPath;
+}
+
 async function promptRunMigrations(rl: RlInterface): Promise<boolean> {
   const answer = await rl.question('Run database migrations? [Y/n]: ');
   const trimmed = (answer || '').trim().toLowerCase();
@@ -73,7 +81,7 @@ async function promptInstallPreconfigs(rl: RlInterface): Promise<boolean> {
 }
 
 async function initJean2Internal(options: InitOptions = {}): Promise<InitResult> {
-  const { databasePath, runMigrations: runMigrationsOption, installPreconfigs: installPreconfigsOption, force } = options;
+  const { databasePath, toolsPath, runMigrations: runMigrationsOption, installPreconfigs: installPreconfigsOption, force } = options;
 
   if (isInitialized() && !force) {
     return {
@@ -81,6 +89,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
       error: 'Jean2 is already initialized. Use --force to re-initialize.',
       configPath: getConfigPath(),
       databasePath: databasePath || getDefaultDatabasePath(),
+      toolsPath: toolsPath || getDefaultToolsPath(),
       preconfigsInstalled: false,
     };
   }
@@ -90,15 +99,18 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   }
 
   const defaultDbPath = getDefaultDatabasePath();
+  const defaultToolsPath = getDefaultToolsPath();
   let shouldRunMigrations = runMigrationsOption ?? true;
   let shouldInstallPreconfigs = installPreconfigsOption ?? true;
   let finalDbPath = databasePath || defaultDbPath;
+  let finalToolsPath = toolsPath || defaultToolsPath;
 
-  if (!databasePath || runMigrationsOption === undefined || installPreconfigsOption === undefined) {
+  if (!databasePath || !toolsPath || runMigrationsOption === undefined || installPreconfigsOption === undefined) {
     const rl = createRl();
 
     try {
       finalDbPath = await promptDatabasePath(rl, defaultDbPath);
+      finalToolsPath = await promptToolsPath(rl, defaultToolsPath);
       shouldRunMigrations = await promptRunMigrations(rl);
       shouldInstallPreconfigs = await promptInstallPreconfigs(rl);
       console.log();
@@ -112,6 +124,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
 
   // Create directories
   mkdirSync(dirname(finalDbPath), { recursive: true });
+  mkdirSync(finalToolsPath, { recursive: true });
 
   // Create empty .env file
   const envPath = join(homedir(), '.jean2', '.env');
@@ -122,6 +135,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   // Save config
   saveConfig({
     databasePath: finalDbPath,
+    toolsPath: finalToolsPath,
     port: 8742,
     host: '0.0.0.0',
     initializedAt: new Date().toISOString(),
@@ -150,6 +164,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
     success: true,
     configPath: getConfigPath(),
     databasePath: finalDbPath,
+    toolsPath: finalToolsPath,
     preconfigsInstalled: shouldInstallPreconfigs,
   };
 }

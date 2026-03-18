@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import modelsConfig from './models.json';
 import {
   getDatabasePath as getEnvDatabasePath,
+  getToolsPath as getEnvToolsPath,
   getPort as getEnvPort,
   getHost as getEnvHost,
   getLLMMaxTokens,
@@ -18,9 +19,9 @@ export class NotInitializedError extends Error {
   }
 }
 
-let configCache: { databasePath: string; port: number; host: string } | null = null;
+let configCache: { databasePath: string; toolsPath: string; port: number; host: string } | null = null;
 
-function loadConfig(): { databasePath: string; port: number; host: string } {
+function loadConfig(): { databasePath: string; toolsPath: string; port: number; host: string } {
   if (configCache) {
     return configCache;
   }
@@ -36,6 +37,7 @@ function loadConfig(): { databasePath: string; port: number; host: string } {
     const config = JSON.parse(content);
     configCache = {
       databasePath: config.databasePath || join(homedir(), '.jean2', 'data', 'agent.db'),
+      toolsPath: config.toolsPath || join(homedir(), '.jean2', 'tools'),
       port: config.port || 8742,
       host: config.host || '0.0.0.0',
     };
@@ -62,6 +64,16 @@ export function isInitialized(): boolean {
  */
 export function resolveDatabasePath(): string {
   return getEnvDatabasePath() || loadConfig().databasePath;
+}
+
+/**
+ * Resolve the tools path using the following priority:
+ * 1. JEAN2_TOOLS_PATH environment variable (highest priority)
+ * 2. Path from ~/.jean2/config.json
+ * 3. Default: ~/.jean2/tools
+ */
+export function resolveToolsPath(): string {
+  return getEnvToolsPath() || loadConfig().toolsPath;
 }
 
 // Get port from config (or env override)
@@ -157,9 +169,15 @@ export function getDefaultDatabasePath(): string {
   return join(homedir(), '.jean2', 'data', 'agent.db');
 }
 
+// Get the default tools path (~/.jean2/tools)
+export function getDefaultToolsPath(): string {
+  return join(homedir(), '.jean2', 'tools');
+}
+
 // Config interface for init
 export interface Jean2Config {
   databasePath: string;
+  toolsPath: string;
   port: number;
   host: string;
   initializedAt: string;

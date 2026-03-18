@@ -2,9 +2,9 @@ import { readdir, readFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import type { ToolDefinition } from '@jean2/shared';
 import type { DiscoveredTool } from './types';
-import { getToolsPath } from '../env';
+import { resolveToolsPath } from '../config';
 
-const DEFAULT_TOOLS_PATH = getToolsPath();
+const DEFAULT_TOOLS_PATH = resolveToolsPath();
 
 const toolsCache: Map<string, DiscoveredTool> = new Map();
 let lastScanTime = 0;

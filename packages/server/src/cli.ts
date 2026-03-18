@@ -102,6 +102,7 @@ Commands:
 
   init                 Initialize Jean2 (required before first use)
     --db-path <path>   Custom database path
+    --tools-path <path>  Custom tools path
     --run-migrations   Run schema migrations (default)
     --no-migrations    Skip schema migrations
     --install-preconfigs   Install default preconfigs (default)
@@ -261,6 +262,8 @@ Auth commands:
       for (let i = 0; i < initArgs.length; i++) {
         if (initArgs[i] === '--db-path' && initArgs[i + 1]) {
           initOptions.databasePath = initArgs[++i];
+        } else if (initArgs[i] === '--tools-path' && initArgs[i + 1]) {
+          initOptions.toolsPath = initArgs[++i];
         } else if (initArgs[i] === '--run-migrations' || initArgs[i] === '--no-migrations') {
           initOptions.runMigrations = initArgs[i] === '--run-migrations';
         } else if (initArgs[i] === '--install-preconfigs' || initArgs[i] === '--no-preconfigs') {
@@ -276,6 +279,7 @@ Auth commands:
           console.log('\nJean2 initialized successfully!');
           console.log(`  Config:   ${result.configPath}`);
           console.log(`  Database: ${result.databasePath}`);
+          console.log(`  Tools:    ${result.toolsPath}`);
         } else {
           console.error('Initialization failed:', result.error);
           process.exit(1);

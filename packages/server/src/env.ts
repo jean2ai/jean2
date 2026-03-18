@@ -57,7 +57,7 @@ export function getDisableAuth(): boolean {
 }
 
 export function getToolsPath(): string {
-  return process.env.JEAN2_TOOLS_PATH || join(process.cwd(), 'data', 'tools');
+  return process.env.JEAN2_TOOLS_PATH || join(homedir(), '.jean2', 'tools');
 }
 
 export function getPreconfigsPath(): string {
