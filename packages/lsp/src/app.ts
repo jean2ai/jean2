@@ -7,13 +7,17 @@ const app = new Hono();
 app.post('/initialize', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { workspaceRoot } = body;
+    const { workspaceId, workspaceRoot } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!workspaceRoot) {
       return c.json({ success: false, error: 'workspaceRoot is required' }, 400);
     }
 
-    await lspManager.initialize(workspaceRoot);
+    await lspManager.initialize(workspaceId, workspaceRoot);
     return c.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -25,15 +29,19 @@ app.post('/initialize', async (c) => {
 app.post('/definition', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri, position } = body;
+    const { workspaceId, uri, position } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri || !position) {
       return c.json({ success: false, error: 'uri and position are required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getDefinition(fileUri, position);
-    
+    const result = await lspManager.getDefinition(workspaceId, fileUri, position);
+
     return c.json({ success: true, result: result ?? [] });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -45,15 +53,19 @@ app.post('/definition', async (c) => {
 app.post('/references', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri, position } = body;
+    const { workspaceId, uri, position } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri || !position) {
       return c.json({ success: false, error: 'uri and position are required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getReferences(fileUri, position);
-    
+    const result = await lspManager.getReferences(workspaceId, fileUri, position);
+
     return c.json({ success: true, result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -65,15 +77,19 @@ app.post('/references', async (c) => {
 app.post('/hover', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri, position } = body;
+    const { workspaceId, uri, position } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri || !position) {
       return c.json({ success: false, error: 'uri and position are required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getHover(fileUri, position);
-    
+    const result = await lspManager.getHover(workspaceId, fileUri, position);
+
     return c.json({ success: true, result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -85,15 +101,19 @@ app.post('/hover', async (c) => {
 app.post('/symbols', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri } = body;
+    const { workspaceId, uri } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri) {
       return c.json({ success: false, error: 'uri is required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getDocumentSymbols(fileUri);
-    
+    const result = await lspManager.getDocumentSymbols(workspaceId, fileUri);
+
     return c.json({ success: true, result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -105,20 +125,24 @@ app.post('/symbols', async (c) => {
 app.post('/diagnostics', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri } = body;
+    const { workspaceId, uri } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (uri) {
       const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-      const result = lspManager.getDiagnostics(fileUri);
+      const result = lspManager.getDiagnostics(workspaceId, fileUri);
       return c.json({ success: true, result });
     }
 
-    const allDiagnostics = lspManager.getAllDiagnostics();
+    const allDiagnostics = lspManager.getAllDiagnostics(workspaceId);
     const result: Record<string, unknown[]> = {};
     allDiagnostics.forEach((diagnostics, fileUri) => {
       result[fileUri] = diagnostics;
     });
-    
+
     return c.json({ success: true, result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -130,15 +154,19 @@ app.post('/diagnostics', async (c) => {
 app.post('/open', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri, content } = body;
+    const { workspaceId, uri, content } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri || content === undefined) {
       return c.json({ success: false, error: 'uri and content are required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    await lspManager.openFile(fileUri, content);
-    
+    await lspManager.openFile(workspaceId, fileUri, content);
+
     return c.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -150,21 +178,48 @@ app.post('/open', async (c) => {
 app.post('/close', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { uri } = body;
+    const { workspaceId, uri } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
 
     if (!uri) {
       return c.json({ success: false, error: 'uri is required' }, 400);
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    await lspManager.closeFile(fileUri);
-    
+    await lspManager.closeFile(workspaceId, fileUri);
+
     return c.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('LSP close error:', message);
     return c.json({ success: false, error: message });
   }
+});
+
+app.post('/shutdown', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { workspaceId } = body;
+
+    if (!workspaceId) {
+      return c.json({ success: false, error: 'workspaceId is required' }, 400);
+    }
+
+    await lspManager.shutdownWorkspace(workspaceId);
+    return c.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('LSP shutdown error:', message);
+    return c.json({ success: false, error: message });
+  }
+});
+
+app.get('/workspaces', (c) => {
+  const workspaces = lspManager.getActiveWorkspaces();
+  return c.json({ success: true, workspaces });
 });
 
 export default app;

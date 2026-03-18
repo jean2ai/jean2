@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, Folder, Loader2, Check, Search } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { useApi } from '@/hooks/useApi';
+import { useServerContext } from '@/contexts/ServerContext';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ export function FolderPickerDialog({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { fetchWithAuth } = useApi();
+  const { activeServer } = useServerContext();
 
   const loadDirectory = useCallback(async (path: string) => {
     setLoading(true);
@@ -47,7 +49,11 @@ export function FolderPickerDialog({
     setSearchQuery('');
     
     try {
-      const res = await fetchWithAuth(`/api/fs/browse?path=${encodeURIComponent(path)}`);
+      const res = await fetchWithAuth(
+        `/api/fs/browse?path=${encodeURIComponent(path)}`,
+        {},
+        { serverUrl: activeServer?.url, token: activeServer?.token }
+      );
       const data = await res.json();
       
       if (!res.ok) {
@@ -64,7 +70,7 @@ export function FolderPickerDialog({
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth]);
+  }, [fetchWithAuth, activeServer]);
 
   useEffect(() => {
     if (open) {

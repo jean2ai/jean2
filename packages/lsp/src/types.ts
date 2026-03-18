@@ -115,3 +115,21 @@ export interface OpenFileInfo {
   version: number;
   content: string;
 }
+
+export type WorkspaceId = string;
+
+export interface WorkspaceSessionInfo {
+  workspaceId: WorkspaceId;
+  workspaceRoot: string;
+  lastAccessedAt: number;
+  createdAt: number;
+}
+
+export interface InitializeRequest {
+  workspaceId: WorkspaceId;
+  workspaceRoot: string;
+}
+
+export interface WorkspaceOperationRequest {
+  workspaceId: WorkspaceId;
+}

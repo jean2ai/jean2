@@ -37,9 +37,9 @@ async function fetchWithError(url: string, options: RequestInit): Promise<Output
   }
 }
 
-async function initializeLsp(workspacePath: string): Promise<Output> {
+async function initializeLsp(workspaceId: string, workspacePath: string): Promise<Output> {
   const url = `${LSP_SERVER_URL}/initialize`;
-  const body = JSON.stringify({ workspaceRoot: workspacePath });
+  const body = JSON.stringify({ workspaceId, workspaceRoot: workspacePath });
   const result = await fetchWithError(url, {
     method: 'POST',
     body,
@@ -47,9 +47,10 @@ async function initializeLsp(workspacePath: string): Promise<Output> {
   return result;
 }
 
-async function getDefinition(uri: string, line: number, character: number): Promise<Output> {
+async function getDefinition(workspaceId: string, uri: string, line: number, character: number): Promise<Output> {
   const url = `${LSP_SERVER_URL}/definition`;
   const body = JSON.stringify({
+    workspaceId,
     uri,
     position: { line, character },
   });
@@ -60,9 +61,10 @@ async function getDefinition(uri: string, line: number, character: number): Prom
   return result;
 }
 
-async function getReferences(uri: string, line: number, character: number): Promise<Output> {
+async function getReferences(workspaceId: string, uri: string, line: number, character: number): Promise<Output> {
   const url = `${LSP_SERVER_URL}/references`;
   const body = JSON.stringify({
+    workspaceId,
     uri,
     position: { line, character },
   });
@@ -73,9 +75,10 @@ async function getReferences(uri: string, line: number, character: number): Prom
   return result;
 }
 
-async function getHover(uri: string, line: number, character: number): Promise<Output> {
+async function getHover(workspaceId: string, uri: string, line: number, character: number): Promise<Output> {
   const url = `${LSP_SERVER_URL}/hover`;
   const body = JSON.stringify({
+    workspaceId,
     uri,
     position: { line, character },
   });
@@ -86,9 +89,9 @@ async function getHover(uri: string, line: number, character: number): Promise<O
   return result;
 }
 
-async function getSymbols(uri: string): Promise<Output> {
+async function getSymbols(workspaceId: string, uri: string): Promise<Output> {
   const url = `${LSP_SERVER_URL}/symbols`;
-  const body = JSON.stringify({ uri });
+  const body = JSON.stringify({ workspaceId, uri });
   const result = await fetchWithError(url, {
     method: 'POST',
     body,
@@ -96,9 +99,9 @@ async function getSymbols(uri: string): Promise<Output> {
   return result;
 }
 
-async function openFile(uri: string, content: string): Promise<Output> {
+async function openFile(workspaceId: string, uri: string, content: string): Promise<Output> {
   const url = `${LSP_SERVER_URL}/open`;
-  const body = JSON.stringify({ uri, content });
+  const body = JSON.stringify({ workspaceId, uri, content });
   const result = await fetchWithError(url, {
     method: 'POST',
     body,
@@ -135,7 +138,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { operation, path: filePath, line, character, workspacePath } = input;
+  const { operation, path: filePath, line, character, workspacePath, _sessionId } = input;
 
   if (!filePath) {
     const output: Output = { success: false, error: 'path is required' };
@@ -156,7 +159,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const initResult = await initializeLsp(workspacePath);
+  const initResult = await initializeLsp(workspacePath, workspacePath);
   if (!initResult.success) {
     const output: Output = { success: false, error: initResult.error || 'Failed to initialize LSP' };
     console.log(JSON.stringify(output));
@@ -175,7 +178,7 @@ async function main(): Promise<void> {
   }
 
   const content = await file.text();
-  const openResult = await openFile(uri, content);
+  const openResult = await openFile(workspacePath, uri, content);
   if (!openResult.success) {
     const output: Output = { success: false, error: openResult.error || 'Failed to open file in LSP' };
     console.log(JSON.stringify(output));
@@ -186,19 +189,19 @@ async function main(): Promise<void> {
 
   switch (operation) {
     case 'definition': {
-      result = await getDefinition(uri, line! - 1, character! - 1);
+      result = await getDefinition(workspacePath, uri, line! - 1, character! - 1);
       break;
     }
     case 'references': {
-      result = await getReferences(uri, line! - 1, character! - 1);
+      result = await getReferences(workspacePath, uri, line! - 1, character! - 1);
       break;
     }
     case 'hover': {
-      result = await getHover(uri, line! - 1, character! - 1);
+      result = await getHover(workspacePath, uri, line! - 1, character! - 1);
       break;
     }
     case 'symbols': {
-      result = await getSymbols(uri);
+      result = await getSymbols(workspacePath, uri);
       break;
     }
     default: {

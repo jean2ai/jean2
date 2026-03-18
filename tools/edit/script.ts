@@ -164,13 +164,13 @@ function isLspSupportedFile(filePath: string): boolean {
   return ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts'].includes(ext || '');
 }
 
-async function fetchDiagnostics(filePath: string, lspServerUrl: string): Promise<Diagnostic[] | null> {
+async function fetchDiagnostics(workspaceId: string, filePath: string, lspServerUrl: string): Promise<Diagnostic[] | null> {
   // Fetches diagnostics from the standalone LSP server
   try {
     const response = await fetch(`${lspServerUrl}/diagnostics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: filePath }),
+      body: JSON.stringify({ workspaceId, uri: filePath }),
     });
 
     if (!response.ok) return null;
@@ -430,7 +430,7 @@ async function editFile() {
       const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:3001';
       // Small delay to let LSP process the change
       await new Promise(resolve => setTimeout(resolve, 150));
-      diagnostics = await fetchDiagnostics(resolvedPath, lspServerUrl) || undefined;
+      diagnostics = await fetchDiagnostics(workspacePath, resolvedPath, lspServerUrl) || undefined;
     }
 
     const matchInfo: MatchInfo = {

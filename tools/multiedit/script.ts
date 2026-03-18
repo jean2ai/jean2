@@ -161,12 +161,16 @@ function isLspSupportedFile(filePath: string): boolean {
 }
 
 // Fetches diagnostics from the standalone LSP server
-async function fetchDiagnostics(filePath: string, lspServerUrl: string): Promise<Diagnostic[] | null> {
+async function fetchDiagnostics(
+  workspaceId: string,
+  filePath: string,
+  lspServerUrl: string
+): Promise<Diagnostic[] | null> {
   try {
     const response = await fetch(`${lspServerUrl}/diagnostics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uri: filePath }),
+      body: JSON.stringify({ workspaceId, uri: filePath }),
     });
     
     if (!response.ok) return null;
@@ -470,7 +474,7 @@ async function multiEditFile() {
     if (isLspSupportedFile(resolvedPath)) {
       const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:3001';
       await new Promise(resolve => setTimeout(resolve, 150));
-      const diagnosticsResult = await fetchDiagnostics(resolvedPath, lspServerUrl);
+      const diagnosticsResult = await fetchDiagnostics(workspacePath, resolvedPath, lspServerUrl);
       diagnostics = diagnosticsResult || undefined;
     }
 
