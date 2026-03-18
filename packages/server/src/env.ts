@@ -64,6 +64,10 @@ export function getPreconfigsPath(): string {
   return process.env.JEAN2_PRECONFIGS_PATH || join(homedir(), '.jean2', 'preconfigs');
 }
 
+export function getModelsPath(): string | undefined {
+  return process.env.JEAN2_MODELS_PATH;
+}
+
 export function getLLMOpenAIApiKey(): string | undefined {
   return process.env.JEAN2_LLM_OPENAI_API_KEY;
 }

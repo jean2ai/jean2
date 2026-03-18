@@ -1,5 +1,5 @@
 import { dirname } from 'path';
-import { mkdirSync, existsSync, writeFileSync } from 'fs';
+import { mkdirSync, existsSync, writeFileSync, copyFileSync } from 'fs';
 import { createInterface } from 'node:readline';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -11,10 +11,19 @@ import {
   saveConfig,
   isInitialized,
   clearConfigCache,
+  getModelsConfigPath,
+  clearModelsCache,
 } from './config';
 import { runMigrations } from './store';
 import { initializePreconfigs } from './core/preconfig';
 import { initializeToken } from './auth/token';
+
+// Get the path to the bundled models.json template
+function getBuiltinModelsPath(): string {
+  // The models.json is in the same directory as the compiled config/index.js
+  // At runtime, after TypeScript compilation, it will be at ../config/models.json relative to this file
+  return join(__dirname, 'config', 'models.json');
+}
 
 export interface InitOptions {
   databasePath?: string;
@@ -30,6 +39,7 @@ export interface InitResult {
   configPath: string;
   databasePath: string;
   toolsPath: string;
+  modelsPath: string;
   preconfigsInstalled: boolean;
 }
 
@@ -90,12 +100,14 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
       configPath: getConfigPath(),
       databasePath: databasePath || getDefaultDatabasePath(),
       toolsPath: toolsPath || getDefaultToolsPath(),
+      modelsPath: getModelsConfigPath(),
       preconfigsInstalled: false,
     };
   }
 
   if (force) {
     clearConfigCache();
+    clearModelsCache();
   }
 
   const defaultDbPath = getDefaultDatabasePath();
@@ -147,6 +159,14 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
 `);
   }
 
+  // Create models.json from default if it doesn't exist
+  const modelsPath = getModelsConfigPath();
+  if (!existsSync(modelsPath)) {
+    const builtinModelsPath = getBuiltinModelsPath();
+    copyFileSync(builtinModelsPath, modelsPath);
+    console.log('Created default models.json at ~/.jean2/models.json');
+  }
+
   // Save config
   saveConfig({
     databasePath: finalDbPath,
@@ -180,6 +200,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
     configPath: getConfigPath(),
     databasePath: finalDbPath,
     toolsPath: finalToolsPath,
+    modelsPath: getModelsConfigPath(),
     preconfigsInstalled: shouldInstallPreconfigs,
   };
 }

@@ -2,13 +2,13 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 
-import modelsConfig from './models.json';
 import {
   getDatabasePath as getEnvDatabasePath,
   getToolsPath as getEnvToolsPath,
   getPort as getEnvPort,
   getHost as getEnvHost,
   getLLMMaxTokens,
+  getModelsPath,
 } from '../env';
 
 // NotInitializedError for when config doesn't exist
@@ -19,7 +19,128 @@ export class NotInitializedError extends Error {
   }
 }
 
+// ModelsConfigNotFoundError for when models.json doesn't exist
+export class ModelsConfigNotFoundError extends Error {
+  constructor(path?: string) {
+    const message = path
+      ? `Models configuration not found at ${path}. Run "jean2 init" to create default configuration.`
+      : 'Models configuration not found. Run "jean2 init" to create ~/.jean2/models.json';
+    super(message);
+    this.name = 'ModelsConfigNotFoundError';
+  }
+}
+
+// ModelsConfigInvalidError for when models.json has invalid schema
+export class ModelsConfigInvalidError extends Error {
+  constructor(path?: string, details?: string) {
+    let message = path
+      ? `Invalid models configuration at ${path}`
+      : 'Invalid models configuration in ~/.jean2/models.json';
+    if (details) {
+      message += `: ${details}`;
+    }
+    super(message);
+    this.name = 'ModelsConfigInvalidError';
+  }
+}
+
 let configCache: { databasePath: string; toolsPath: string; port: number; host: string } | null = null;
+
+let modelsCache: ModelsConfig | null = null;
+
+// Get the models config file path (~/.jean2/models.json)
+export function getModelsConfigPath(): string {
+  return join(homedir(), '.jean2', 'models.json');
+}
+
+/**
+ * Resolve the models config path using the following priority:
+ * 1. JEAN2_MODELS_PATH environment variable (highest priority)
+ * 2. Default: ~/.jean2/models.json
+ */
+export function resolveModelsPath(): string {
+  return getModelsPath() || getModelsConfigPath();
+}
+
+// Validate models config structure
+function validateModelsConfig(config: unknown): config is ModelsConfig {
+  if (!config || typeof config !== 'object') {
+    return false;
+  }
+  
+  const c = config as Record<string, unknown>;
+  
+  if (!Array.isArray(c.providers)) {
+    return false;
+  }
+  
+  if (typeof c.defaultModel !== 'string') {
+    return false;
+  }
+  
+  if (typeof c.defaultProvider !== 'string') {
+    return false;
+  }
+  
+  // Validate each provider has required fields
+  for (const provider of c.providers) {
+    if (!provider || typeof provider !== 'object') {
+      return false;
+    }
+    const p = provider as Record<string, unknown>;
+    if (typeof p.id !== 'string' || typeof p.name !== 'string' || !Array.isArray(p.models)) {
+      return false;
+    }
+    
+    // Validate each model has required fields
+    for (const model of p.models) {
+      if (!model || typeof model !== 'object') {
+        return false;
+      }
+      const m = model as Record<string, unknown>;
+      if (typeof m.id !== 'string' || typeof m.name !== 'string' || typeof m.contextWindow !== 'number') {
+        return false;
+      }
+      if (m.tier !== 'budget' && m.tier !== 'standard' && m.tier !== 'premium') {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Load models config from file (with caching)
+function loadModelsConfig(): ModelsConfig {
+  if (modelsCache) {
+    return modelsCache;
+  }
+  
+  const modelsPath = resolveModelsPath();
+  
+  if (!existsSync(modelsPath)) {
+    throw new ModelsConfigNotFoundError(modelsPath);
+  }
+  
+  try {
+    const content = readFileSync(modelsPath, 'utf-8');
+    const config = JSON.parse(content);
+    
+    if (!validateModelsConfig(config)) {
+      throw new ModelsConfigInvalidError(modelsPath, 'schema validation failed');
+    }
+    
+    modelsCache = config;
+    return modelsCache;
+  } catch (err: unknown) {
+    if (err instanceof ModelsConfigNotFoundError || err instanceof ModelsConfigInvalidError) {
+      throw err;
+    }
+    // JSON parse error or other file read error
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ModelsConfigInvalidError(modelsPath, `Failed to parse models.json: ${message}`);
+  }
+}
 
 function loadConfig(): { databasePath: string; toolsPath: string; port: number; host: string } {
   if (configCache) {
@@ -110,11 +231,12 @@ export interface ModelsConfig {
 }
 
 export function getModelsConfig(): ModelsConfig {
-  return modelsConfig as ModelsConfig;
+  return loadModelsConfig();
 }
 
 export function getAllModels(): Array<ModelDefinition & { providerId: string; providerName: string }> {
   const allModels: Array<ModelDefinition & { providerId: string; providerName: string }> = [];
+  const modelsConfig = loadModelsConfig();
   
   for (const provider of modelsConfig.providers) {
     for (const model of provider.models) {
@@ -151,8 +273,6 @@ export function getMaxOutputTokens(modelId?: string): number {
   
   return Math.min(model.maxOutputTokens, OUTPUT_TOKEN_MAX);
 }
-
-export { modelsConfig };
 
 // Get the config directory path (~/.jean2)
 export function getConfigDir(): string {
@@ -194,4 +314,9 @@ export function saveConfig(config: Jean2Config): void {
 // Clear the config cache (needed when re-initializing)
 export function clearConfigCache(): void {
   configCache = null;
+}
+
+// Clear the models cache (needed when re-initializing)
+export function clearModelsCache(): void {
+  modelsCache = null;
 }
