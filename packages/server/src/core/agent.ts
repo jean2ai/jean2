@@ -8,6 +8,7 @@ import * as mcp from '@/mcp';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
+import { loadInstructions, formatInstructions } from './instructions';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { randomUUID } from 'crypto';
 import { createPermissionRequestHandler } from '@/index';
@@ -502,6 +503,14 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Build system message with workspace context
   let systemMessage = preconfig.systemPrompt || '';
 
+  // Add instructions (global first, then project)
+  const instructions = await loadInstructions(workspacePath);
+  const instructionsSection = formatInstructions(instructions);
+  if (instructionsSection) {
+    systemMessage = systemMessage + '\n\n' + instructionsSection;
+  }
+
+  // Add workspace context
   if (workspacePath) {
     const workspaceContext = buildWorkspaceSystemPrompt(workspacePath);
     systemMessage = systemMessage + '\n\n' + workspaceContext;

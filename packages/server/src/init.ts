@@ -132,6 +132,21 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
     writeFileSync(envPath, '# Jean2 Environment Variables\n# Add your API keys here\n# Example: JEAN2_LLM_OPENAI_API_KEY=your-key-here\n');
   }
 
+  // Create empty AGENTS.md file
+  const agentsPath = join(homedir(), '.jean2', 'AGENTS.md');
+  if (!existsSync(agentsPath)) {
+    writeFileSync(agentsPath, `# Jean2 Global Instructions
+#
+# This file contains instructions that apply to all projects on this machine.
+# They will be loaded before project-specific instructions.
+#
+# Example:
+# - Always use TypeScript strict mode
+# - Never commit .env files
+# - Prefer functional components in React
+`);
+  }
+
   // Save config
   saveConfig({
     databasePath: finalDbPath,
