@@ -155,24 +155,6 @@ export default function FirstServerScreen({ onServerAdded, error }: FirstServerS
               Add Server
             </button>
           </form>
-
-          {/* Help Section */}
-          <div className="px-6 pb-6">
-            <details className="group">
-              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors list-none flex items-center gap-1">
-                <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                How to get your token
-              </summary>
-              <div className="mt-3 text-sm text-muted-foreground space-y-2 pl-5">
-                <p>1. Check your server console output when it starts</p>
-                <p>2. Or run: <code className="px-1.5 py-0.5 bg-muted rounded text-xs">bun run auth:token</code></p>
-                <p>3. Or view the token file:</p>
-                <code className="block px-3 py-2 bg-muted rounded text-xs mt-2">~/.jean2/auth-token.json</code>
-              </div>
-            </details>
-          </div>
         </div>
       </div>
     </div>
