@@ -107,53 +107,53 @@ jobs:
           
           # Server
           if [ "${{ inputs.release_server }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "server"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "server"}]')
           fi
           
           # LSP
           if [ "${{ inputs.release_lsp }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "lsp"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "lsp"}]')
           fi
           
           # Tools - explicit checks for each
           if [ "${{ inputs.tool_apply_patch }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "apply-patch"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "apply-patch"}]')
           fi
           if [ "${{ inputs.tool_edit }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "edit"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "edit"}]')
           fi
           if [ "${{ inputs.tool_glob }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "glob"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "glob"}]')
           fi
           if [ "${{ inputs.tool_grep }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "grep"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "grep"}]')
           fi
           if [ "${{ inputs.tool_ls }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "ls"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "ls"}]')
           fi
           if [ "${{ inputs.tool_lsp }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "lsp"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "lsp"}]')
           fi
           if [ "${{ inputs.tool_multiedit }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "multiedit"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "multiedit"}]')
           fi
           if [ "${{ inputs.tool_read_file }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "read-file"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "read-file"}]')
           fi
           if [ "${{ inputs.tool_shell }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "shell"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "shell"}]')
           fi
           if [ "${{ inputs.tool_todoread }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "todoread"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "todoread"}]')
           fi
           if [ "${{ inputs.tool_todowrite }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "todowrite"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "todowrite"}]')
           fi
           if [ "${{ inputs.tool_webfetch }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "webfetch"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "webfetch"}]')
           fi
           if [ "${{ inputs.tool_write_file }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "write-file"}]')
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "write-file"}]')
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT
