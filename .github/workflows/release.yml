@@ -96,7 +96,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  release:
+  release-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,11 +106,6 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - uses: dtolnay/rust-toolchain@stable
-        if: inputs.release_client
-        with:
-          targets: aarch64-apple-darwin
 
       - name: Install
         run: bun install
@@ -132,23 +127,6 @@ jobs:
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Server $V" $PRE \
               packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
-          fi
-
-      - name: Client
-        if: inputs.release_client
-        run: |
-          V=$(cat packages/client/VERSION) && TAG="client/v${V}"
-          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG - release already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -f "$TAG"
-            git push origin "$TAG" --force
-            cd packages/client && bun run tauri build --target aarch64-apple-darwin
-            DMG=$(find packages/client/src-tauri/target/aarch64-apple-darwin/bundle/dmg -name "*.dmg" | head -1)
-            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
-            gh release create "$TAG" --title "Client $V" $PRE "$DMG"
           fi
 
       - name: LSP
@@ -389,4 +367,39 @@ jobs:
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
+          fi
+
+  release-macos:
+    runs-on: macos-latest
+    if: inputs.release_client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install
+        run: bun install
+
+      - name: Client
+        run: |
+          V=$(cat packages/client/VERSION) && TAG="client/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG - release already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+            cd packages/client && bun run tauri build --target aarch64-apple-darwin
+            DMG=$(find packages/client/src-tauri/target/aarch64-apple-darwin/bundle/dmg -name "*.dmg" | head -1)
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Client $V" $PRE "$DMG"
           fi
