@@ -515,6 +515,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const isMainSession = session && !session.parentId;
   if (isMainSession) {
     updateSession(_sessionId, { runningAt: new Date().toISOString() });
+    // Broadcast the session update so clients know the session is running
+    const updatedSession = getSession(_sessionId);
+    if (updatedSession) {
+      broadcastSessionUpdated(updatedSession);
+    }
   }
 
   // Resolve model: session override > preconfig > env default
