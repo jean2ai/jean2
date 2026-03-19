@@ -1,0 +1,87 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_server:
+        description: 'Release server'
+        required: true
+        default: 'false'
+        type: boolean
+      release_client:
+        description: 'Release client'
+        required: true
+        default: 'false'
+        type: boolean
+      release_lsp:
+        description: 'Release LSP'
+        required: true
+        default: 'false'
+        type: boolean
+      tools:
+        description: 'Comma-separated tool names (e.g., edit, shell, glob)'
+        required: false
+        type: string
+        default: ''
+      force_release:
+        description: 'Force release even if version is not higher'
+        required: false
+        type: boolean
+        default: 'false'
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Tauri
+        uses: tauri-apps/setup-tauri@v0
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Release Server
+        if: inputs.release_server == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_RELEASE: ${{ inputs.force_release }}
+        run: |
+          bash .github/scripts/release.sh server
+
+      - name: Release Client
+        if: inputs.release_client == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_RELEASE: ${{ inputs.force_release }}
+        run: |
+          bash .github/scripts/release.sh client
+
+      - name: Release LSP
+        if: inputs.release_lsp == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_RELEASE: ${{ inputs.force_release }}
+        run: |
+          bash .github/scripts/release.sh lsp
+
+      - name: Release Tools
+        if: inputs.tools != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_RELEASE: ${{ inputs.force_release }}
+        run: |
+          bash .github/scripts/release.sh tools "${{ inputs.tools }}"

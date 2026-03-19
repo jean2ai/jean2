@@ -1,0 +1,143 @@
+name: Release Detect
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/server/VERSION'
+      - 'packages/client/VERSION'
+      - 'services/lsp/VERSION'
+      - 'tools/*/VERSION'
+
+jobs:
+  detect-changes:
+    name: Detect Version Changes
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      issues: write
+
+    outputs:
+      server: ${{ steps.detect.outputs.server }}
+      client: ${{ steps.detect.outputs.client }}
+      lsp: ${{ steps.detect.outputs.lsp }}
+      tools: ${{ steps.detect.outputs.tools }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup gh CLI
+        uses: google-github-actions/setup-github-cli@v3
+        with:
+          cache: true
+
+      - name: Detect version changes
+        id: detect
+        run: |
+          chmod +x .github/scripts/detect-version-changes.sh
+          if [ -f "$GITHUB_TOKEN" ]; then
+            .github/scripts/detect-version-changes.sh "$GITHUB_TOKEN"
+          else
+            .github/scripts/detect-version-changes.sh ""
+          fi
+
+      - name: Check if release needed
+        id: check
+        run: |
+          if [[ "${{ steps.detect.outputs.server }}" == "server/"* ]] || \
+             [[ "${{ steps.detect.outputs.client }}" == "client/"* ]] || \
+             [[ "${{ steps.detect.outputs.lsp }}" == "lsp/"* ]] || \
+             [[ "${{ steps.detect.outputs.tools }}" != "" ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-release:
+    name: Build and Release
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Tauri
+        uses: tauri-apps/setup-tauri@v0
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Determine components to release
+        id: components
+        run: |
+          echo "RELEASABLE_COMPONENTS={\"server\":false,\"client\":false,\"lsp\":false,\"tools\":[]}" >> $GITHUB_OUTPUT
+
+          if [[ "${{ needs.detect-changes.outputs.server }}" == "server/"* ]]; then
+            echo "RELEASABLE_COMPONENTS={\"server\":true,\"client\":false,\"lsp\":false,\"tools\":[]}" >> $GITHUB_OUTPUT
+          fi
+
+          if [[ "${{ needs.detect-changes.outputs.client }}" == "client/"* ]]; then
+            echo "RELEASABLE_COMPONENTS={\"server\":false,\"client\":true,\"lsp\":false,\"tools\":[]}" >> $GITHUB_OUTPUT
+          fi
+
+          if [[ "${{ needs.detect-changes.outputs.lsp }}" == "lsp/"* ]]; then
+            echo "RELEASABLE_COMPONENTS={\"server\":false,\"client\":false,\"lsp\":true,\"tools\":[]}" >> $GITHUB_OUTPUT
+          fi
+
+          if [[ "${{ needs.detect-changes.outputs.tools }}" != "" ]]; then
+            echo "RELEASABLE_COMPONENTS={\"server\":false,\"client\":false,\"lsp\":false,\"tools\":[${{ needs.detect-changes.outputs.tools }}]}" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Components to release: $RELEASABLE_COMPONENTS"
+
+      - name: Release Server
+        if: steps.components.outputs.RELEASABLE_COMPONENTS == '{"server":true,"client":false,"lsp":false,"tools":[]}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/release.sh server
+
+      - name: Release Client
+        if: steps.components.outputs.RELEASABLE_COMPONENTS == '{"server":false,"client":true,"lsp":false,"tools":[]}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/release.sh client
+
+      - name: Release LSP
+        if: steps.components.outputs.RELEASABLE_COMPONENTS == '{"server":false,"client":false,"lsp":true,"tools":[]}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/release.sh lsp
+
+      - name: Release Tools
+        if: steps.components.outputs.RELEASABLE_COMPONENTS == '{"server":false,"client":false,"lsp":false,"tools":[]}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash .github/scripts/release.sh tools "${{ steps.components.outputs.RELEASABLE_COMPONENTS }}"
