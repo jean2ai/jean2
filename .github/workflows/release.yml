@@ -1,0 +1,312 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_server:
+        description: 'Release server'
+        required: false
+        default: false
+        type: boolean
+      release_client:
+        description: 'Release client'
+        required: false
+        default: false
+        type: boolean
+      release_lsp:
+        description: 'Release LSP'
+        required: false
+        default: false
+        type: boolean
+      tool_apply_patch:
+        description: 'Release apply-patch tool'
+        required: false
+        default: false
+        type: boolean
+      tool_edit:
+        description: 'Release edit tool'
+        required: false
+        default: false
+        type: boolean
+      tool_glob:
+        description: 'Release glob tool'
+        required: false
+        default: false
+        type: boolean
+      tool_grep:
+        description: 'Release grep tool'
+        required: false
+        default: false
+        type: boolean
+      tool_ls:
+        description: 'Release ls tool'
+        required: false
+        default: false
+        type: boolean
+      tool_lsp:
+        description: 'Release lsp tool'
+        required: false
+        default: false
+        type: boolean
+      tool_multiedit:
+        description: 'Release multiedit tool'
+        required: false
+        default: false
+        type: boolean
+      tool_read_file:
+        description: 'Release read-file tool'
+        required: false
+        default: false
+        type: boolean
+      tool_shell:
+        description: 'Release shell tool'
+        required: false
+        default: false
+        type: boolean
+      tool_todoread:
+        description: 'Release todoread tool'
+        required: false
+        default: false
+        type: boolean
+      tool_todowrite:
+        description: 'Release todowrite tool'
+        required: false
+        default: false
+        type: boolean
+      tool_webfetch:
+        description: 'Release webfetch tool'
+        required: false
+        default: false
+        type: boolean
+      tool_write_file:
+        description: 'Release write-file tool'
+        required: false
+        default: false
+        type: boolean
+      force:
+        description: 'Force release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: inputs.release_client
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install
+        run: bun install
+
+      - name: Server
+        if: inputs.release_server
+        run: |
+          V=$(cat packages/server/VERSION) && T="server/v${V}"
+          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $T"
+          else
+            mkdir -p packages/server/dist
+            bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/s-darwin packages/server/src/index.ts
+            bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/s-linux packages/server/src/index.ts
+            gh release create "$T" --title "Server $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) \
+              packages/server/dist/s-darwin packages/server/dist/s-linux
+          fi
+
+      - name: Client
+        if: inputs.release_client
+        run: |
+          V=$(cat packages/client/VERSION) && T="client/v${V}"
+          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $T"
+          else
+            cd packages/client && bun run tauri build --target aarch64-apple-darwin
+            DMG=$(find packages/client/src-tauri/target/aarch64-apple-darwin/bundle/dmg -name "*.dmg" | head -1)
+            gh release create "$T" --title "Client $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$DMG"
+          fi
+
+      - name: LSP
+        if: inputs.release_lsp
+        run: |
+          V=$(cat services/lsp/VERSION) && T="lsp/v${V}"
+          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $T"
+          else
+            mkdir -p services/lsp/dist
+            bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/l-darwin services/lsp/src/index.ts
+            bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/l-linux services/lsp/src/index.ts
+            gh release create "$T" --title "LSP $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) \
+              services/lsp/dist/l-darwin services/lsp/dist/l-linux
+          fi
+
+      - name: Tool apply-patch
+        if: inputs.tool_apply_patch
+        run: |
+          T="apply-patch" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool edit
+        if: inputs.tool_edit
+        run: |
+          T="edit" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool glob
+        if: inputs.tool_glob
+        run: |
+          T="glob" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool grep
+        if: inputs.tool_grep
+        run: |
+          T="grep" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool ls
+        if: inputs.tool_ls
+        run: |
+          T="ls" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool lsp
+        if: inputs.tool_lsp
+        run: |
+          T="lsp" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool multiedit
+        if: inputs.tool_multiedit
+        run: |
+          T="multiedit" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool read-file
+        if: inputs.tool_read_file
+        run: |
+          T="read-file" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool shell
+        if: inputs.tool_shell
+        run: |
+          T="shell" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool todoread
+        if: inputs.tool_todoread
+        run: |
+          T="todoread" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool todowrite
+        if: inputs.tool_todowrite
+        run: |
+          T="todowrite" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool webfetch
+        if: inputs.tool_webfetch
+        run: |
+          T="webfetch" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
+
+      - name: Tool write-file
+        if: inputs.tool_write_file
+        run: |
+          T="write-file" && P="tools/$T"
+          V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG"
+          else
+            tar -czf "$T.tar.gz" -C "$P" .
+            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+          fi
