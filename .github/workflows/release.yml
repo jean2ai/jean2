@@ -115,30 +115,46 @@ jobs:
             ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "lsp"}]')
           fi
           
-          # Tools
-          TOOLS=(
-            "apply-patch:tool_apply_patch"
-            "edit:tool_edit"
-            "glob:tool_glob"
-            "grep:tool_grep"
-            "ls:tool_ls"
-            "lsp:tool_lsp"
-            "multiedit:tool_multiedit"
-            "read-file:tool_read_file"
-            "shell:tool_shell"
-            "todoread:tool_todoread"
-            "todowrite:tool_todowrite"
-            "webfetch:tool_webfetch"
-            "write-file:tool_write_file"
-          )
-          
-          for ITEM in "${TOOLS[@]}"; do
-            TOOL_NAME="${ITEM%%:*}"
-            INPUT_NAME="${ITEM##*:}"
-            if [ "${{ inputs[INPUT_NAME] }}" = "true" ]; then
-              ITEMS=$(echo "$ITEMS" | jq ". += [{\"type\": \"tool\", \"name\": \"$TOOL_NAME\"}]")
-            fi
-          done
+          # Tools - explicit checks for each
+          if [ "${{ inputs.tool_apply_patch }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "apply-patch"}]')
+          fi
+          if [ "${{ inputs.tool_edit }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "edit"}]')
+          fi
+          if [ "${{ inputs.tool_glob }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "glob"}]')
+          fi
+          if [ "${{ inputs.tool_grep }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "grep"}]')
+          fi
+          if [ "${{ inputs.tool_ls }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "ls"}]')
+          fi
+          if [ "${{ inputs.tool_lsp }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "lsp"}]')
+          fi
+          if [ "${{ inputs.tool_multiedit }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "multiedit"}]')
+          fi
+          if [ "${{ inputs.tool_read_file }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "read-file"}]')
+          fi
+          if [ "${{ inputs.tool_shell }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "shell"}]')
+          fi
+          if [ "${{ inputs.tool_todoread }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "todoread"}]')
+          fi
+          if [ "${{ inputs.tool_todowrite }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "todowrite"}]')
+          fi
+          if [ "${{ inputs.tool_webfetch }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "webfetch"}]')
+          fi
+          if [ "${{ inputs.tool_write_file }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq '. += [{"type": "tool", "name": "write-file"}]')
+          fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT
 
