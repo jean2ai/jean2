@@ -161,6 +161,7 @@ jobs:
 
   release:
     needs: prepare-releases
+    if: needs.prepare-releases.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
