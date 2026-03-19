@@ -126,7 +126,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             mkdir -p packages/server/dist
             bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/s-darwin packages/server/src/index.ts
             bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/s-linux packages/server/src/index.ts
@@ -145,7 +146,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             cd packages/client && bun run tauri build --target aarch64-apple-darwin
             DMG=$(find packages/client/src-tauri/target/aarch64-apple-darwin/bundle/dmg -name "*.dmg" | head -1)
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
@@ -162,7 +164,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             mkdir -p services/lsp/dist
             bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/l-darwin services/lsp/src/index.ts
             bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/l-linux services/lsp/src/index.ts
@@ -182,7 +185,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -199,7 +203,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -216,7 +221,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -233,7 +239,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -250,7 +257,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -267,7 +275,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -284,7 +293,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -301,7 +311,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -318,7 +329,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -335,7 +347,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -352,7 +365,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -369,7 +383,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
@@ -386,7 +401,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -f "$TAG"
-            git push https://${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git "$TAG" --force
+            git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/rabbyte-tech/jean2.git
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
