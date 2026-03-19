@@ -5,11 +5,18 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "jean2-lsp": "./dist/bin/jean2-lsp"
+  },
   "scripts": {
-    "dev": "bun --watch --env-file=../../.env src/index.ts",
+    "dev": "bun --watch src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "build:bin": "bun build --compile --outfile=dist/bin/jean2-lsp src/cli.ts",
+    "build:bin:macos": "bun build --compile --outfile=dist/bin/jean2-lsp-macos-arm64 src/cli.ts",
+    "build:bin:linux": "bun build --compile --outfile=dist/bin/jean2-lsp-linux-x64 src/cli.ts",
+    "build:all": "bun run build && bun run build:bin"
   },
   "dependencies": {
     "hono": "^4.0.0"

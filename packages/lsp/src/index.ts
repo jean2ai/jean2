@@ -1,16 +1,52 @@
 import { serve } from 'bun';
+import { getPort, getHost } from './env';
 import app from './app';
 
-const PORT = (() => {
-  const parsed = parseInt(process.env.LSP_SERVER_PORT || '3001', 10);
-  return Number.isFinite(parsed) && parsed > 0 && parsed <= 65535 ? parsed : 3001;
-})();
+export interface ServerOptions {
+  port?: number;
+  host?: string;
+}
 
-console.log(`LSP Server starting on port ${PORT}...`);
+export interface ServerInstance {
+  server: ReturnType<typeof Bun.serve>;
+  cleanup: () => void;
+}
 
-serve({
-  port: PORT,
-  fetch: app.fetch,
-});
+export async function startServer(options?: ServerOptions): Promise<ServerInstance> {
+  const port = options?.port ?? getPort();
+  const host = options?.host ?? getHost();
 
-console.log(`LSP Server running on http://localhost:${PORT}`);
+  console.log(`LSP Server starting on ${host}:${port}...`);
+
+  const server = serve({
+    port,
+    hostname: host,
+    fetch: app.fetch,
+  });
+
+  console.log(`LSP Server running on http://${host}:${port}`);
+
+  const onShutdown = (signal: string) => {
+    console.log(`Received ${signal}, shutting down...`);
+    cleanup();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => onShutdown('SIGTERM'));
+  process.on('SIGINT', () => onShutdown('SIGINT'));
+
+  const cleanup = () => {
+    server.stop();
+    process.removeListener('SIGTERM', onShutdown);
+    process.removeListener('SIGINT', onShutdown);
+  };
+
+  return { server, cleanup };
+}
+
+if (import.meta.main) {
+  startServer().catch((err: unknown) => {
+    console.error('Failed to start LSP server:', err);
+    process.exit(1);
+  });
+}

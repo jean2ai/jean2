@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { pathToFileURL } from 'url';
-import { lspManager } from '@/manager';
+import { getLspManager } from '@/manager';
 
 const app = new Hono();
 
@@ -17,7 +17,7 @@ app.post('/initialize', async (c) => {
       return c.json({ success: false, error: 'workspaceRoot is required' }, 400);
     }
 
-    await lspManager.initialize(workspaceId, workspaceRoot);
+    await getLspManager().initialize(workspaceId, workspaceRoot);
     return c.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -40,7 +40,7 @@ app.post('/definition', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getDefinition(workspaceId, fileUri, position);
+    const result = await getLspManager().getDefinition(workspaceId, fileUri, position);
 
     return c.json({ success: true, result: result ?? [] });
   } catch (err: unknown) {
@@ -64,7 +64,7 @@ app.post('/references', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getReferences(workspaceId, fileUri, position);
+    const result = await getLspManager().getReferences(workspaceId, fileUri, position);
 
     return c.json({ success: true, result });
   } catch (err: unknown) {
@@ -88,7 +88,7 @@ app.post('/hover', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getHover(workspaceId, fileUri, position);
+    const result = await getLspManager().getHover(workspaceId, fileUri, position);
 
     return c.json({ success: true, result });
   } catch (err: unknown) {
@@ -112,7 +112,7 @@ app.post('/symbols', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    const result = await lspManager.getDocumentSymbols(workspaceId, fileUri);
+    const result = await getLspManager().getDocumentSymbols(workspaceId, fileUri);
 
     return c.json({ success: true, result });
   } catch (err: unknown) {
@@ -133,11 +133,11 @@ app.post('/diagnostics', async (c) => {
 
     if (uri) {
       const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-      const result = lspManager.getDiagnostics(workspaceId, fileUri);
+      const result = getLspManager().getDiagnostics(workspaceId, fileUri);
       return c.json({ success: true, result });
     }
 
-    const allDiagnostics = lspManager.getAllDiagnostics(workspaceId);
+    const allDiagnostics = getLspManager().getAllDiagnostics(workspaceId);
     const result: Record<string, unknown[]> = {};
     allDiagnostics.forEach((diagnostics, fileUri) => {
       result[fileUri] = diagnostics;
@@ -165,7 +165,7 @@ app.post('/open', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    await lspManager.openFile(workspaceId, fileUri, content);
+    await getLspManager().openFile(workspaceId, fileUri, content);
 
     return c.json({ success: true });
   } catch (err: unknown) {
@@ -189,7 +189,7 @@ app.post('/close', async (c) => {
     }
 
     const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-    await lspManager.closeFile(workspaceId, fileUri);
+    await getLspManager().closeFile(workspaceId, fileUri);
 
     return c.json({ success: true });
   } catch (err: unknown) {
@@ -208,7 +208,7 @@ app.post('/shutdown', async (c) => {
       return c.json({ success: false, error: 'workspaceId is required' }, 400);
     }
 
-    await lspManager.shutdownWorkspace(workspaceId);
+    await getLspManager().shutdownWorkspace(workspaceId);
     return c.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -218,7 +218,7 @@ app.post('/shutdown', async (c) => {
 });
 
 app.get('/workspaces', (c) => {
-  const workspaces = lspManager.getActiveWorkspaces();
+  const workspaces = getLspManager().getActiveWorkspaces();
   return c.json({ success: true, workspaces });
 });
 

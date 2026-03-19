@@ -9,6 +9,7 @@ import type {
   WorkspaceSessionInfo,
 } from '@/types';
 import { WorkspaceSession } from '@/workspace-session';
+import { getIdleTimeoutMs } from './env';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -157,4 +158,11 @@ export class LSPManager {
   }
 }
 
-export const lspManager = new LSPManager();
+let _lspManager: LSPManager | null = null;
+
+export function getLspManager(): LSPManager {
+  if (!_lspManager) {
+    _lspManager = new LSPManager(getIdleTimeoutMs());
+  }
+  return _lspManager;
+}
