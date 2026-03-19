@@ -1,3 +1,5 @@
+globalThis.AI_SDK_LOG_WARNINGS = false;
+
 import { createApp } from './app';
 import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
