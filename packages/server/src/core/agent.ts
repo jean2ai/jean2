@@ -22,6 +22,8 @@ import {
   getLLMOpenRouterApiKey,
   getLLMGoogleApiKey,
   getLLMMinimaxApiKey,
+  getLLMZhipuApiKey,
+  getLLMZhipuCodingApiKey,
   getLLMBaseUrl,
   getLLMTemperature,
 } from '../env';
@@ -69,6 +71,10 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         return getLLMGoogleApiKey();
       case 'minimax':
         return getLLMMinimaxApiKey();
+      case 'zhipu':
+        return getLLMZhipuApiKey();
+      case 'zhipu-coding':
+        return getLLMZhipuCodingApiKey();
       default:
         return getLLMOpenAIApiKey();
     }
@@ -102,6 +108,24 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
       const { createMinimax } = await import('vercel-minimax-ai-provider');
       const minimax = createMinimax({ apiKey });
       return minimax.chat(model) as unknown as LanguageModel;
+    }
+
+    case 'zhipu': {
+      const { createZhipu } = await import('zhipu-ai-provider');
+      const zhipu = createZhipu({
+        apiKey,
+        baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+      });
+      return zhipu.chat(model) as unknown as LanguageModel;
+    }
+
+    case 'zhipu-coding': {
+      const { createZhipu } = await import('zhipu-ai-provider');
+      const zhipu = createZhipu({
+        apiKey,
+        baseURL: 'https://api.z.ai/api/coding/paas/v4',
+      });
+      return zhipu.chat(model) as unknown as LanguageModel;
     }
 
     case 'openai':

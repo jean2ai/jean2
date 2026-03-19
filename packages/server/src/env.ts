@@ -88,6 +88,14 @@ export function getLLMMinimaxApiKey(): string | undefined {
   return process.env.JEAN2_LLM_MINIMAX_API_KEY;
 }
 
+export function getLLMZhipuApiKey(): string | undefined {
+  return process.env.JEAN2_LLM_ZHIPU_API_KEY;
+}
+
+export function getLLMZhipuCodingApiKey(): string | undefined {
+  return process.env.JEAN2_LLM_ZHIPU_CODING_API_KEY;
+}
+
 export function getLLMBaseUrl(): string | undefined {
   return process.env.JEAN2_LLM_BASE_URL;
 }
@@ -109,6 +117,8 @@ export function getLLMApiKeys(): Record<string, string | undefined> {
     openrouter: getLLMOpenRouterApiKey(),
     google: getLLMGoogleApiKey(),
     minimax: getLLMMinimaxApiKey(),
+    zhipu: getLLMZhipuApiKey(),
+    'zhipu-coding': getLLMZhipuCodingApiKey(),
   };
 }
 

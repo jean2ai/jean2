@@ -40,6 +40,8 @@ import {
   getLLMOpenRouterApiKey,
   getLLMGoogleApiKey,
   getLLMMinimaxApiKey,
+  getLLMZhipuApiKey,
+  getLLMZhipuCodingApiKey,
 } from './env';
 
 export interface ServerOptions {
@@ -95,10 +97,11 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   if (getLLMOpenRouterApiKey()) availableProviders.push('openrouter');
   if (getLLMGoogleApiKey()) availableProviders.push('google');
   if (getLLMMinimaxApiKey()) availableProviders.push('minimax');
+  if (getLLMZhipuApiKey()) availableProviders.push('zhipu');
+  if (getLLMZhipuCodingApiKey()) availableProviders.push('zhipu-coding');
 
   if (availableProviders.length > 0) {
     console.log(`Available providers: ${availableProviders.join(', ')}`);
-    console.log(`Default model: stepfun/step-3.5-flash:free (set via models.json)`);
   } else {
     console.warn('WARNING: No LLM API keys configured. Chat will not work.');
     console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_ANTHROPIC_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_GOOGLE_API_KEY, JEAN2_LLM_MINIMAX_API_KEY');
@@ -716,13 +719,15 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   }
 
   // Check API key
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax';
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
   const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
     'openai': getLLMOpenAIApiKey,
     'anthropic': getLLMAnthropicApiKey,
     'openrouter': getLLMOpenRouterApiKey,
     'google': getLLMGoogleApiKey,
     'minimax': getLLMMinimaxApiKey,
+    'zhipu': getLLMZhipuApiKey,
+    'zhipu-coding': getLLMZhipuCodingApiKey,
   };
   const apiKeyGetter = apiKeyGetterMap[provider as Provider];
   const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;

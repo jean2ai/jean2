@@ -10,6 +10,8 @@ import {
   getLLMOpenRouterApiKey,
   getLLMGoogleApiKey,
   getLLMMinimaxApiKey,
+  getLLMZhipuApiKey,
+  getLLMZhipuCodingApiKey,
 } from '../env';
 
 const TOKEN_FILE = join(homedir(), '.jean2', 'auth-token.json');
@@ -19,6 +21,8 @@ const _LLM_ANTHROPIC_API_KEY = getLLMAnthropicApiKey();
 const _LLM_OPENROUTER_API_KEY = getLLMOpenRouterApiKey();
 const _LLM_GOOGLE_API_KEY = getLLMGoogleApiKey();
 const _LLM_MINIMAX_API_KEY = getLLMMinimaxApiKey();
+const _LLM_ZHIPU_API_KEY = getLLMZhipuApiKey();
+const _LLM_ZHIPU_CODING_API_KEY = getLLMZhipuCodingApiKey();
 
 interface TokenData {
   token: string;
@@ -158,6 +162,10 @@ export function hasApiKey(provider: string): string | undefined {
       return getLLMGoogleApiKey();
     case 'minimax':
       return getLLMMinimaxApiKey();
+    case 'zhipu':
+      return getLLMZhipuApiKey();
+    case 'zhipu-coding':
+      return getLLMZhipuCodingApiKey();
     default:
       return undefined;
   }
