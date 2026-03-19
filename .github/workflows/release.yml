@@ -118,40 +118,55 @@ jobs:
       - name: Server
         if: inputs.release_server
         run: |
-          V=$(cat packages/server/VERSION) && T="server/v${V}"
-          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $T"
+          V=$(cat packages/server/VERSION) && TAG="server/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             mkdir -p packages/server/dist
             bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/s-darwin packages/server/src/index.ts
             bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/s-linux packages/server/src/index.ts
-            gh release create "$T" --title "Server $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) \
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Server $V" $PRE \
               packages/server/dist/s-darwin packages/server/dist/s-linux
           fi
 
       - name: Client
         if: inputs.release_client
         run: |
-          V=$(cat packages/client/VERSION) && T="client/v${V}"
-          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $T"
+          V=$(cat packages/client/VERSION) && TAG="client/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             cd packages/client && bun run tauri build --target aarch64-apple-darwin
             DMG=$(find packages/client/src-tauri/target/aarch64-apple-darwin/bundle/dmg -name "*.dmg" | head -1)
-            gh release create "$T" --title "Client $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$DMG"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Client $V" $PRE "$DMG"
           fi
 
       - name: LSP
         if: inputs.release_lsp
         run: |
-          V=$(cat services/lsp/VERSION) && T="lsp/v${V}"
-          if gh release view "$T" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $T"
+          V=$(cat services/lsp/VERSION) && TAG="lsp/v${V}"
+          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             mkdir -p services/lsp/dist
             bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/l-darwin services/lsp/src/index.ts
             bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/l-linux services/lsp/src/index.ts
-            gh release create "$T" --title "LSP $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) \
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "LSP $V" $PRE \
               services/lsp/dist/l-darwin services/lsp/dist/l-linux
           fi
 
@@ -161,10 +176,15 @@ jobs:
           T="apply-patch" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool edit
@@ -173,10 +193,15 @@ jobs:
           T="edit" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool glob
@@ -185,10 +210,15 @@ jobs:
           T="glob" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool grep
@@ -197,10 +227,15 @@ jobs:
           T="grep" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool ls
@@ -209,10 +244,15 @@ jobs:
           T="ls" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool lsp
@@ -221,10 +261,15 @@ jobs:
           T="lsp" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool multiedit
@@ -233,10 +278,15 @@ jobs:
           T="multiedit" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool read-file
@@ -245,10 +295,15 @@ jobs:
           T="read-file" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool shell
@@ -257,10 +312,15 @@ jobs:
           T="shell" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool todoread
@@ -269,10 +329,15 @@ jobs:
           T="todoread" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool todowrite
@@ -281,10 +346,15 @@ jobs:
           T="todowrite" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool webfetch
@@ -293,10 +363,15 @@ jobs:
           T="webfetch" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
 
       - name: Tool write-file
@@ -305,8 +380,13 @@ jobs:
           T="write-file" && P="tools/$T"
           V=$(cat "$P/VERSION") && TAG="tool-$T/v${V}"
           if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG"
+            echo "Skipping $TAG - release already exists"
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
             tar -czf "$T.tar.gz" -C "$P" .
-            gh release create "$TAG" --title "Tool $T $V" $([ "$V" == *"-"* ] && echo "--prerelease" || true) "$T.tar.gz"
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $T $V" $PRE "$T.tar.gz"
           fi
