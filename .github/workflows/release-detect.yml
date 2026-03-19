@@ -38,20 +38,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup gh CLI
-        uses: google-github-actions/setup-github-cli@v3
-        with:
-          cache: true
-
       - name: Detect version changes
         id: detect
         run: |
           chmod +x .github/scripts/detect-version-changes.sh
-          if [ -f "$GITHUB_TOKEN" ]; then
-            .github/scripts/detect-version-changes.sh "$GITHUB_TOKEN"
-          else
-            .github/scripts/detect-version-changes.sh ""
-          fi
+          ./.github/scripts/detect-version-changes.sh
 
       - name: Check if release needed
         id: check
