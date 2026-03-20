@@ -72,6 +72,14 @@ bun run tauri:build:macos
 bun run tauri:build
 ```
 
+### macOS Gatekeeper (Unsigned Builds)
+
+Apps downloaded from GitHub releases are not code-signed. macOS will block opening them by default. Remove the quarantine attribute:
+
+```bash
+xattr -cr /Applications/Jean2.app
+```
+
 ### Tauri iOS
 
 See [README-ios.md](README-ios.md) for full build and deployment instructions.
