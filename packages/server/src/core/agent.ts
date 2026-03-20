@@ -1,7 +1,7 @@
 import { streamText, tool, stepCountIs, jsonSchema, type LanguageModel, type Tool, type ModelMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, ReasoningPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
+import type { MessageWithParts, Part, TextPart, ToolPart, StepPart, ReasoningPart, CompactionPart, Preconfig, ToolExecutionContext, MessageEvent, AssistantMessage, UserMessage } from '@jean2/shared';
 import { createMessage, listMessages as storeListMessages, createPart, updatePart, updateMessage, getSession, updateSession, transitionToolToRunningByCallId, getPart } from '@/store';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import * as mcp from '@/mcp';
@@ -248,6 +248,8 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
     for (const part of parts) {
       if (isTextPart(part)) {
         textBlocks.push(part.text);
+      } else if (part.type === 'compaction') {
+        textBlocks.push((part as CompactionPart).summary);
       } else if (isToolPart(part)) {
         const toolPart = part;
 
@@ -301,11 +303,13 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
       });
     }
 
+    const hasCompaction = parts.some(p => p.type === 'compaction');
+
     // Case 1: No tool calls - just text content
     if (!hasToolCalls) {
       const content = textBlocks.join('\n\n');
       result.push({
-        role: msg.role as 'user' | 'assistant' | 'system',
+        role: hasCompaction ? 'user' : (msg.role as 'user' | 'assistant' | 'system'),
         content,
       });
       continue;

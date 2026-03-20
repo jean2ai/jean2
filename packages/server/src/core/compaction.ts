@@ -3,23 +3,42 @@ import { getModel } from './agent';
 import {
   listMessagesWithParts,
   createPart,
+  createMessage,
+  markMessagesCompacted,
+  getLatestCompactionSummary,
 } from '@/store';
-import type { MessageWithParts, CompactionPart } from '@jean2/shared';
+import type { MessageWithParts, CompactionPart, SystemMessage } from '@jean2/shared';
 import { randomUUID } from 'crypto';
 
-const COMPACTION_PROMPT = `Summarize the following conversation history. Focus on:
-1. Key decisions made
-2. Files created/modified
-3. Important context for continuing the conversation
-4. Any unresolved issues or next steps
+const COMPACTION_PROMPT_FIRST = `Summarize the following conversation for context continuity.
 
-Be concise but comprehensive. The summary should allow someone to continue working without reading the full history.
+Structure your response with these sections:
+- **Decisions**: Key choices made and rationale
+- **Changes**: Files/functions created or modified (with paths)
+- **Context**: Important state, configurations, or patterns established
+- **Open items**: Unresolved issues or planned next steps
+
+Be specific with file paths, function names, and technical details.
 
 Conversation to summarize:
 
-{CONVERSATION}
+{CONVERSATION}`;
 
-Provide a clear, structured summary:`;
+const COMPACTION_PROMPT_INCREMENTAL = `The following is a previous conversation summary, followed by new messages since that summary.
+
+Produce an UPDATED summary that incorporates the new information. Keep it concise and structured.
+
+Structure your response with these sections:
+- **Decisions**: Key choices made and rationale
+- **Changes**: Files/functions created or modified (with paths)
+- **Context**: Important state, configurations, or patterns established
+- **Open items**: Unresolved issues or planned next steps
+
+Previous summary:
+{PREVIOUS_SUMMARY}
+
+New messages since that summary:
+{CONVERSATION}`;
 
 interface CompactionOptions {
   sessionId: string;
@@ -29,7 +48,8 @@ interface CompactionOptions {
 }
 
 interface CompactionResult {
-  compactionPart: CompactionPart;
+  message: SystemMessage;
+  part: CompactionPart;
   tokensUsed: {
     prompt: number;
     completion: number;
@@ -50,46 +70,57 @@ export async function compactMessages(
     throw new Error('No messages to compact');
   }
 
-  const conversationText = buildConversationText(messagesToCompact);
+  const hasNestedCompaction = messagesToCompact.some(({ parts }) =>
+    parts.some((p) => p.type === 'compaction'),
+  );
+  if (hasNestedCompaction) {
+    throw new Error('Cannot compact messages that already contain a compaction');
+  }
 
-  const model = await getModel(modelId || 'gpt-4o-mini', providerId);
+  const conversationText = buildConversationText(messagesToCompact);
+  const previousSummary = getLatestCompactionSummary(sessionId);
+
+  const prompt = previousSummary
+    ? COMPACTION_PROMPT_INCREMENTAL
+        .replace('{PREVIOUS_SUMMARY}', previousSummary)
+        .replace('{CONVERSATION}', conversationText)
+    : COMPACTION_PROMPT_FIRST.replace('{CONVERSATION}', conversationText);
+
+  const model = await getModel(modelId, providerId);
 
   const result = await generateText({
     model,
-    prompt: COMPACTION_PROMPT.replace('{CONVERSATION}', conversationText),
+    prompt,
     maxOutputTokens: 2000,
   });
 
   const summary = result.text;
+  const now = Date.now();
+  const msgId = randomUUID();
 
-  const lastCompactedIndex = allMessages.findIndex((m) =>
-    m.message.id === messageIds[messageIds.length - 1],
-  );
-
-  if (
-    lastCompactedIndex === -1 ||
-    lastCompactedIndex >= allMessages.length - 1
-  ) {
-    throw new Error(
-      'Cannot compact all messages - need at least one to attach summary to',
-    );
-  }
-
-  const targetMessage = allMessages[lastCompactedIndex + 1];
+  const systemMessage: SystemMessage = {
+    id: msgId,
+    sessionId,
+    role: 'system',
+    createdAt: now,
+  };
 
   const compactionPart: CompactionPart = {
     id: randomUUID(),
-    messageId: targetMessage.message.id,
-    createdAt: Date.now(),
+    messageId: msgId,
+    createdAt: now,
     type: 'compaction',
     summary,
     compactedMessageIds: messageIds,
   };
 
+  markMessagesCompacted(messageIds);
+  createMessage(systemMessage);
   createPart(compactionPart, sessionId);
 
   return {
-    compactionPart,
+    message: systemMessage,
+    part: compactionPart,
     tokensUsed: {
       prompt: result.usage.inputTokens ?? 0,
       completion: result.usage.outputTokens ?? 0,

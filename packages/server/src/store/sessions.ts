@@ -21,6 +21,7 @@ interface SessionRow {
   agent_name: string | null;
   subagent_status: string | null;
   running_at: string | null;
+  compacting: number;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -50,6 +51,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.agentName ?? null,
     s.subagentStatus ?? null,
     s.runningAt ?? null,
+    s.compacting ?? false,
   ]);
   
   return s;
@@ -85,7 +87,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -144,6 +146,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
     setClauses.push('running_at = ?');
     values.push(updates.runningAt);
   }
+  if (updates.compacting !== undefined) {
+    setClauses.push('compacting = ?');
+    values.push(updates.compacting ? 1 : 0);
+  }
   
   values.push(id);
   
@@ -182,6 +188,7 @@ function mapRowToSession(row: SessionRow): Session {
     agentName: row.agent_name ?? null,
     subagentStatus: row.subagent_status as SubagentStatus | null ?? null,
     runningAt: row.running_at ?? null,
+    compacting: !!row.compacting,
   };
 }
 

@@ -20,4 +20,5 @@ export interface Session {
   agentName: string | null;   // Name of the agent/preconfig running this session
   subagentStatus?: SubagentStatus | null;  // Status for subagent sessions only
   runningAt?: string | null;  // ISO timestamp when session started running, null when not running
+  compacting?: boolean;  // Whether compaction is in progress
 }

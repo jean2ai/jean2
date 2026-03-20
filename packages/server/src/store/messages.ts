@@ -27,6 +27,7 @@ interface MessageRow {
   cost: number;
   completed_at: number | null;
   error: string | null;
+  compacted: number;
 }
 
 interface PartRow {
@@ -86,6 +87,7 @@ function messageToRow(message: Message): MessageRow {
     cost: 0,
     completed_at: null,
     error: null,
+    compacted: 0,
   };
 
   if (message.role === 'assistant') {
@@ -453,19 +455,42 @@ export function transitionToolToRunningByCallId(
 // Compaction-Aware Loading
 // =============================================================================
 
-export function listMessagesForContext(sessionId: string): MessageWithParts[] {
-  const messagesWithParts = listMessagesWithParts(sessionId);
-
-  const compactedIds = new Set<string>();
-  for (const { parts } of messagesWithParts) {
-    for (const part of parts) {
-      if (part.type === 'compaction') {
-        part.compactedMessageIds.forEach((id) => compactedIds.add(id));
-      }
-    }
-  }
-
-  return messagesWithParts.filter(
-    ({ message }) => !compactedIds.has(message.id),
+export function markMessagesCompacted(messageIds: string[]): void {
+  if (messageIds.length === 0) return;
+  const db = getDatabase();
+  const placeholders = messageIds.map(() => '?').join(', ');
+  db.run(
+    `UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`,
+    messageIds,
   );
+}
+
+export function getLatestCompactionSummary(sessionId: string): string | null {
+  const db = getDatabase();
+  const row = db
+    .query(
+      `SELECT p.data FROM parts p
+       JOIN messages m ON p.message_id = m.id
+       WHERE p.session_id = ? AND p.type = 'compaction'
+       ORDER BY m.created_at DESC
+       LIMIT 1`,
+    )
+    .get(sessionId) as { data: string } | undefined;
+  if (!row) return null;
+  const data = JSON.parse(row.data);
+  return data.summary ?? null;
+}
+
+export function listMessagesForContext(sessionId: string): MessageWithParts[] {
+  const db = getDatabase();
+  const rows = db
+    .query(
+      `SELECT * FROM messages WHERE session_id = ? AND compacted = 0 ORDER BY created_at ASC`,
+    )
+    .all(sessionId) as MessageRow[];
+
+  return rows.map((row) => ({
+    message: rowToMessage(row),
+    parts: getPartsByMessage(row.id),
+  }));
 }

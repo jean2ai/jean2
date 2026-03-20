@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Archive, Square } from 'lucide-react';
+import { ArrowLeft, Archive, Square, Minimize2 } from 'lucide-react';
 import type { Session, Preconfig } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,9 @@ interface ChatHeaderProps {
   onNavigateBack?: () => void;
   isStreaming?: boolean;
   onInterrupt?: () => void;
+  onCompact?: () => void;
+  isCompacting?: boolean;
+  canCompact?: boolean;
 }
 
 export function ChatHeader({
@@ -49,6 +52,9 @@ export function ChatHeader({
   onNavigateBack,
   isStreaming,
   onInterrupt,
+  onCompact,
+  isCompacting,
+  canCompact,
 }: ChatHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(session.title || '');
@@ -174,7 +180,21 @@ export function ChatHeader({
 
         <Separator orientation="vertical" className="hidden sm:block" />
 
-        {/* Interrupt button - always visible, highlighted when active */}
+        {onCompact && (
+          <Button
+            variant="outline"
+            size={isMobile ? 'icon' : 'sm'}
+            onClick={onCompact}
+            disabled={isStreaming || isCompacting || !canCompact}
+            title={isCompacting ? 'Compacting...' : 'Compact older messages'}
+          >
+            <Minimize2 className="size-4" />
+            {!isMobile && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
+          </Button>
+        )}
+
+        <Separator orientation="vertical" className="hidden sm:block" />
+
         <Button
           variant={isStreaming ? 'destructive' : 'outline'}
           size={isMobile ? 'icon' : 'sm'}

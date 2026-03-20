@@ -59,7 +59,8 @@ type ClientMessagePayload =
   | { workspaceId: string }
   | { sessionId: string; reason?: string }
   | { queueId: string }
-  | { sessionId: string; messageId: string };
+  | { sessionId: string; messageId: string }
+  | { sessionId: string; messageIds: string[] };
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState } = useServerContext();
@@ -109,6 +110,7 @@ function AppContent() {
   const [retryCount, setRetryCount] = useState(0);
   const [nextRetryIn, setNextRetryIn] = useState(0);
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
+  const isCompacting = currentSession?.compacting ?? false;
 
   // Connection timeout constants
   const CONNECTION_TIMEOUT = 10000; // 10 seconds
@@ -728,6 +730,9 @@ function AppContent() {
         console.log(`Session reverted to message ${msg.revertedTo.messageId}, removed ${msg.removed.messageIds.length} messages`);
         break;
 
+      case 'compaction.complete':
+        break;
+
       case 'session.forked': {
         const { forkedSession, messages: forkedMessages } = msg;
         setSessions(prev => [forkedSession, ...prev]);
@@ -829,6 +834,10 @@ function AppContent() {
     sendMessage('session.fork', { sessionId, messageId });
   }, [sendMessage]);
 
+  const compactSession = useCallback((sessionId: string, messageIds: string[]) => {
+    sendMessage('session.compact', { sessionId, messageIds });
+  }, [sendMessage]);
+
   const reopenSession = useCallback((sessionId: string) => {
     sendMessage('session.reopen', { sessionId });
   }, [sendMessage]);
@@ -868,14 +877,13 @@ function AppContent() {
   }, [sendMessage]);
 
   const sendChatMessage = useCallback((content: string) => {
-    if (currentSession) {
-      if (streamingSessionId === currentSession.id) {
-        addToQueue(currentSession.id, content);
-      } else {
-        sendMessage('chat.message', { sessionId: currentSession.id, content });
-      }
+    if (!currentSession || isCompacting) return;
+    if (streamingSessionId === currentSession.id) {
+      addToQueue(currentSession.id, content);
+    } else {
+      sendMessage('chat.message', { sessionId: currentSession.id, content });
     }
-  }, [currentSession, streamingSessionId, sendMessage, addToQueue]);
+  }, [currentSession, streamingSessionId, isCompacting, sendMessage, addToQueue]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
@@ -997,6 +1005,20 @@ function AppContent() {
             onInterrupt={handleInterruptSession}
             onRevert={revertSession}
             onFork={forkSession}
+            onCompact={
+              (() => {
+                const compactable = messagesWithParts.filter(
+                  m => m.message.role !== 'system' && !m.parts.some(p => p.type === 'compaction')
+                );
+                return compactable.length >= 4
+                  ? () => {
+                      const toCompact = compactable.slice(0, compactable.length - 2).map(m => m.message.id);
+                      if (toCompact.length > 0) compactSession(currentSession.id, toCompact);
+                    }
+                  : undefined;
+              })()
+            }
+            isCompacting={isCompacting}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}
           />

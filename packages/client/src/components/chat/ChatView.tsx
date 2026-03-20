@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
-import { Lock } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message } from '@jean2/shared';
+import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
+import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,8 @@ interface ChatViewProps {
   onInterrupt?: () => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
   onFork?: (sessionId: string, messageId: string) => void;
+  onCompact?: () => void;
+  isCompacting?: boolean;
   serverUrl?: string;
   apiToken?: string;
 }
@@ -137,6 +139,29 @@ function mergeMessagesWithQueue(
   return [...sortedRegularItems, ...sortedQueuedItems];
 }
 
+function CompactionDivider({ part }: { part: CompactionPart }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="flex flex-col items-center my-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+      >
+        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+        <span className="border-b border-dashed border-muted-foreground/40 pb-px">
+          {part.compactedMessageIds.length} messages compacted
+        </span>
+      </button>
+      {expanded && (
+        <div className="mt-2 max-w-lg w-full rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+          <MarkdownRenderer>{part.summary}</MarkdownRenderer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Renders message parts in CHRONOLOGICAL ORDER (by createdAt).
  * Text blocks and tool calls are interleaved as they were created.
@@ -204,16 +229,6 @@ function MessageParts({
               </div>
             );
 
-          case 'compaction':
-            return (
-              <div
-                key={part.id}
-                className="mt-2 p-2 bg-muted rounded text-sm text-muted-foreground"
-              >
-                {part.compactedMessageIds.length} messages compacted
-              </div>
-            );
-
           default:
             return null;
         }
@@ -244,6 +259,8 @@ export function ChatView({
   onInterrupt,
   onRevert: _onRevert,
   onFork: _onFork,
+  onCompact,
+  isCompacting,
   serverUrl,
   apiToken,
 }: ChatViewProps) {
@@ -307,6 +324,9 @@ export function ChatView({
         onNavigateBack={onNavigateBack}
         isStreaming={isStreaming}
         onInterrupt={onInterrupt}
+        onCompact={onCompact}
+        isCompacting={isCompacting}
+        canCompact={messagesWithParts.length >= 4}
       />
 
       {session.status === 'closed' && (
@@ -326,6 +346,16 @@ export function ChatView({
             </div>
           ) : (
             displayItems.map((item) => {
+              const compactionPart = item.parts.find(
+                (p): p is CompactionPart => p.type === 'compaction'
+              );
+
+              if (compactionPart) {
+                return (
+                  <CompactionDivider key={item.message.id} part={compactionPart} />
+                );
+              }
+
               const canRevert = !item.isQueued && item.message.role === 'user';
               const revertMessageId = canRevert
                 ? findRevertMessageId(item.message.id, messagesWithParts)
@@ -397,7 +427,7 @@ export function ChatView({
       {session.status === 'active' && !session.parentId && (
         <MessageInput
           onSendMessage={onSendMessage}
-          disabled={false}
+          disabled={isCompacting}
           workspaceId={session.workspaceId}
           serverUrl={serverUrl}
           apiToken={apiToken}

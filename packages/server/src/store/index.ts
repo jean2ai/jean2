@@ -208,6 +208,25 @@ function initializeSchema(db: Database): void {
   if (queuedTableInfo.length === 0) {
     console.log('Creating queued_messages table');
   }
+
+  // Migration: Add compacted column to messages table
+  const messageColumnInfo = db.query("PRAGMA table_info(messages)").all() as { name: string }[];
+  const messageColumnNames = messageColumnInfo.map(row => row.name);
+
+  if (!messageColumnNames.includes('compacted')) {
+    console.log('Migrating: Adding compacted column to messages table');
+    db.run('ALTER TABLE messages ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0');
+    db.run('CREATE INDEX IF NOT EXISTS idx_messages_compacted ON messages(session_id, compacted)');
+  }
+
+  // Migration: Add compacting column to sessions table
+  const sessionColumnInfo = db.query("PRAGMA table_info(sessions)").all() as { name: string }[];
+  const sessionColumnNames = sessionColumnInfo.map(row => row.name);
+
+  if (!sessionColumnNames.includes('compacting')) {
+    console.log('Migrating: Adding compacting column to sessions table');
+    db.run('ALTER TABLE sessions ADD COLUMN compacting INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 export { Database };

@@ -2,7 +2,7 @@ globalThis.AI_SDK_LOG_WARNINGS = false;
 
 import { createApp } from './app';
 import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
-import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
+import { registerBroadcastCallback, broadcastSessionCreatedExclude, broadcastSessionUpdated } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
@@ -16,6 +16,7 @@ import {
   updateMessage,
   createPart,
   listMessagesWithParts,
+  listMessagesForContext,
   addMessageToQueue,
   getQueuedMessage,
   listQueuedMessages,
@@ -590,16 +591,18 @@ async function handleSessionCompact(
       return;
     }
 
+    updateSession(msg.sessionId, { compacting: true });
+    broadcastSessionUpdated(getSession(msg.sessionId)!);
+
     const result = await compactMessages({
       sessionId: msg.sessionId,
       messageIds: msg.messageIds,
+      modelId: session.selectedModel || undefined,
+      providerId: session.selectedProvider || undefined,
     });
 
-    broadcast({
-      type: 'part.created',
-      sessionId: msg.sessionId,
-      part: result.compactionPart,
-    });
+    broadcast({ type: 'message.created', message: result.message });
+    broadcast({ type: 'part.created', sessionId: msg.sessionId, part: result.part });
 
     send(ws, {
       type: 'compaction.complete',
@@ -608,16 +611,20 @@ async function handleSessionCompact(
       tokensUsed: result.tokensUsed,
     });
 
-    // Persist compaction tokens to database
     const currentSession = getSession(msg.sessionId);
     if (currentSession) {
       updateSession(msg.sessionId, {
-        promptTokens: result.tokensUsed.prompt,
-        completionTokens: result.tokensUsed.completion,
-        totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
+        promptTokens: (currentSession.promptTokens ?? 0) + result.tokensUsed.prompt,
+        completionTokens: (currentSession.completionTokens ?? 0) + result.tokensUsed.completion,
+        totalTokens: (currentSession.totalTokens ?? 0) + result.tokensUsed.prompt + result.tokensUsed.completion,
+        compacting: false,
       });
+      broadcastSessionUpdated(getSession(msg.sessionId)!);
     }
   } catch (error) {
+    updateSession(msg.sessionId, { compacting: false });
+    const updatedSession = getSession(msg.sessionId);
+    if (updatedSession) broadcastSessionUpdated(updatedSession);
     const message = error instanceof Error ? error.message : 'Compaction failed';
     send(ws, { type: 'error', code: 'compaction_error', message });
   }
@@ -803,7 +810,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   broadcast({ type: 'part.created', sessionId, part: textPart });
 
   // Get message history (NOW as MessageWithParts)
-  const history = listMessagesWithParts(sessionId);
+  const history = listMessagesForContext(sessionId);
 
   // Permission request callback - routes to parent session for subagents
   const onPermissionRequest = createPermissionRequestHandler(sessionId);
