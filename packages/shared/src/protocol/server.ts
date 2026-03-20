@@ -202,6 +202,17 @@ export interface SessionStateMessage {
 }
 
 // =============================================================================
+// Fork Messages
+// =============================================================================
+
+export interface SessionForkedMessage {
+  type: 'session.forked';
+  originalSessionId: string;
+  forkedSession: Session;
+  messages: MessageWithParts[];
+}
+
+// =============================================================================
 // Interrupt Messages
 // =============================================================================
 
@@ -266,6 +277,7 @@ export type ServerMessage =
   | CompactionCompleteMessage
   | SessionRevertedMessage
   | SessionStateMessage
+  | SessionForkedMessage
   | SessionInterruptedMessage
   | QueueListMessage
   | QueueAddedMessage

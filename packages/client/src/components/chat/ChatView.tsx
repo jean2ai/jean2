@@ -64,6 +64,7 @@ interface ChatViewProps {
   isStreaming?: boolean;
   onInterrupt?: () => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
+  onFork?: (sessionId: string, messageId: string) => void;
   serverUrl?: string;
   apiToken?: string;
 }
@@ -242,6 +243,7 @@ export function ChatView({
   isStreaming,
   onInterrupt,
   onRevert: _onRevert,
+  onFork: _onFork,
   serverUrl,
   apiToken,
 }: ChatViewProps) {
@@ -338,6 +340,8 @@ export function ChatView({
                   onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
                   canRevert={canRevert && revertMessageId !== null}
                   onRevert={revertMessageId ? () => _onRevert?.(session.id, revertMessageId) : undefined}
+                  canFork={canRevert && revertMessageId !== null}
+                  onFork={revertMessageId ? () => _onFork?.(session.id, item.message.id) : undefined}
                 >
                 {item.parts.length === 0 ? (
                   <span className="opacity-50">...</span>

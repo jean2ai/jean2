@@ -33,6 +33,7 @@ import { streamChat } from './core/agent';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
 import { compactMessages } from './core/compaction';
 import { revertToStep } from './core/revert';
+import { forkSession } from './core/fork';
 import { interruptManager } from './core/interrupt';
 import type { ServerWebSocket } from 'bun';
 import { validateToken, updateLastUsed, isAuthEnabled } from './auth/token';
@@ -503,6 +504,11 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
 
+    case 'session.fork': {
+      await handleSessionFork(ws, msg);
+      break;
+    }
+
     case 'session.interrupt': {
       const session = getSession(msg.sessionId);
       if (!session) {
@@ -649,6 +655,35 @@ async function handleSessionRevert(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Revert failed';
     send(ws, { type: 'error', code: 'revert_error', message });
+  }
+}
+
+async function handleSessionFork(
+  ws: ServerWebSocket,
+  msg: { sessionId: string; messageId: string; title?: string }
+) {
+  try {
+    const session = getSession(msg.sessionId);
+    if (!session) {
+      send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      return;
+    }
+
+    const result = await forkSession({
+      sessionId: msg.sessionId,
+      targetMessageId: msg.messageId,
+      title: msg.title,
+    });
+
+    broadcast({
+      type: 'session.forked',
+      originalSessionId: msg.sessionId,
+      forkedSession: result.forkedSession,
+      messages: result.messages,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Fork failed';
+    send(ws, { type: 'error', code: 'fork_error', message });
   }
 }
 

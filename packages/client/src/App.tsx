@@ -728,6 +728,26 @@ function AppContent() {
         console.log(`Session reverted to message ${msg.revertedTo.messageId}, removed ${msg.removed.messageIds.length} messages`);
         break;
 
+      case 'session.forked': {
+        const { forkedSession, messages: forkedMessages } = msg;
+        setSessions(prev => [forkedSession, ...prev]);
+        setMessagesBySession(prev => ({
+          ...prev,
+          [forkedSession.id]: forkedMessages.map(mwp => mwp.message),
+        }));
+        setPartsBySession(prev => {
+          const newParts = { ...prev };
+          newParts[forkedSession.id] = {};
+          for (const mwp of forkedMessages) {
+            newParts[forkedSession.id][mwp.message.id] = mwp.parts;
+          }
+          return newParts;
+        });
+        setCurrentSession(forkedSession);
+        setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        break;
+      }
+
       case 'session.state':
         setMessagesBySession(prev => ({
           ...prev,
@@ -803,6 +823,10 @@ function AppContent() {
 
   const revertSession = useCallback((sessionId: string, messageId: string) => {
     sendMessage('session.revert', { sessionId, messageId });
+  }, [sendMessage]);
+
+  const forkSession = useCallback((sessionId: string, messageId: string) => {
+    sendMessage('session.fork', { sessionId, messageId });
   }, [sendMessage]);
 
   const reopenSession = useCallback((sessionId: string) => {
@@ -972,6 +996,7 @@ function AppContent() {
             isStreaming={streamingSessionId === currentSession.id}
             onInterrupt={handleInterruptSession}
             onRevert={revertSession}
+            onFork={forkSession}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}
           />

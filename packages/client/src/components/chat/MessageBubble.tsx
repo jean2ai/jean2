@@ -1,4 +1,4 @@
-import { Copy, Check, User, Bot, X, Clock, Undo2 } from 'lucide-react';
+import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ interface MessageBubbleProps {
   onRemove?: () => void;
   onRevert?: () => void;
   canRevert?: boolean;
+  onFork?: () => void;
+  canFork?: boolean;
 }
 
 export function MessageBubble({ 
@@ -23,9 +25,12 @@ export function MessageBubble({
   onRemove,
   onRevert,
   canRevert = false,
+  onFork,
+  canFork = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
+  const [showForkConfirm, setShowForkConfirm] = useState(false);
   const isUser = message.role === 'user';
 
   const handleCopy = async () => {
@@ -61,6 +66,17 @@ export function MessageBubble({
                     title="Revert to this point"
                   >
                     <Undo2 className="size-3" />
+                  </Button>
+                )}
+                {canFork && onFork && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowForkConfirm(true)}
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    title="Fork from this point"
+                  >
+                    <GitBranch className="size-3" />
                   </Button>
                 )}
                 <Button
@@ -145,6 +161,18 @@ export function MessageBubble({
           onRevert?.();
         }}
         variant="destructive"
+      />
+
+      <ConfirmationDialog
+        open={showForkConfirm}
+        onOpenChange={setShowForkConfirm}
+        title="Fork Conversation"
+        description="This will create a new session with messages up to and including this point. The original session will be unchanged."
+        confirmLabel="Fork"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          onFork?.();
+        }}
       />
     </div>
   );

@@ -100,6 +100,17 @@ export interface SessionRevertMessage {
 }
 
 // =============================================================================
+// Fork Messages
+// =============================================================================
+
+export interface SessionForkMessage {
+  type: 'session.fork';
+  sessionId: string;
+  messageId: string;
+  title?: string;
+}
+
+// =============================================================================
 // Interrupt Messages
 // =============================================================================
 
@@ -141,6 +152,7 @@ export type ClientMessage =
   | PermissionRevokeAllMessage
   | SessionCompactMessage
   | SessionRevertMessage
+  | SessionForkMessage
   | SessionInterruptMessage
   | QueueAddMessage
   | QueueRemoveMessage;
