@@ -1,30 +1,12 @@
-import type { StepPart } from '@jean2/shared';
-import { 
-  listMessagesWithParts, 
+import {
+  listMessagesWithParts,
   deleteMessage,
   updateMessage,
-
 } from '@/store';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface ConversationSnapshot {
-  version: 1;
-  timestamp: number;
-  sessionId: string;
-  messages: {
-    id: string;
-    createdAt: number;
-    role: string;
-  }[];
-}
-
 
 interface RevertResult {
   revertedTo: {
-    stepNumber: number;
+    messageId: string;
     messageCount: number;
   };
   removed: {
@@ -35,99 +17,30 @@ interface RevertResult {
 
 interface RevertOptions {
   sessionId: string;
-  targetStepPartId: string;
+  targetMessageId: string;
 }
-
-// =============================================================================
-// Snapshot Functions
-// =============================================================================
-
-export function createSnapshot(sessionId: string): string {
-  const messagesWithParts = listMessagesWithParts(sessionId);
-
-  const snapshot: ConversationSnapshot = {
-    version: 1,
-    timestamp: Date.now(),
-    sessionId,
-    messages: messagesWithParts.map(({ message }) => ({
-      id: message.id,
-      createdAt: message.createdAt,
-      role: message.role,
-    })),
-  };
-
-  return JSON.stringify(snapshot);
-}
-
-export function parseSnapshot(snapshotJson: string): ConversationSnapshot {
-  return JSON.parse(snapshotJson) as ConversationSnapshot;
-}
-
-// =============================================================================
-// Revert Function
-// =============================================================================
 
 export async function revertToStep(options: RevertOptions): Promise<RevertResult> {
-  const { sessionId, targetStepPartId } = options;
+  const { sessionId, targetMessageId } = options;
 
-  // ==========================================================================
-  // 1. Find the target step part and get its snapshot
-  // ==========================================================================
   const allMessages = listMessagesWithParts(sessionId);
-  
-  let targetStepPart: StepPart | null = null;
-  let targetStepNumber: number = -1;
+  const targetIndex = allMessages.findIndex(m => m.message.id === targetMessageId);
 
-  for (const { parts } of allMessages) {
-    for (const part of parts) {
-      if (part.id === targetStepPartId && part.type === 'step') {
-        targetStepPart = part as StepPart;
-        targetStepNumber = (part as StepPart).number;
-        break;
-      }
-    }
-    if (targetStepPart) break;
+  if (targetIndex === -1) {
+    throw new Error('Target message not found');
   }
 
-  if (!targetStepPart || !targetStepPart.snapshot) {
-    throw new Error('Target step not found or has no snapshot');
-  }
+  const messagesToDelete = allMessages.slice(targetIndex + 1);
 
-  const snapshot = parseSnapshot(targetStepPart.snapshot);
-
-  // ==========================================================================
-  // 2. Identify messages to keep vs remove
-  // ==========================================================================
-  const snapshotMessageIds = new Set(snapshot.messages.map(m => m.id));
-  const currentMessageIds = new Set(allMessages.map(m => m.message.id));
-
-  // Messages in current but not in snapshot = to be removed
-  const messagesToRemove = allMessages
-    .filter(m => !snapshotMessageIds.has(m.message.id))
-    .map(m => m.message.id);
-
-  // Messages in snapshot but not in current = missing (shouldn't happen)
-  const missingMessages = [...snapshotMessageIds].filter(id => !currentMessageIds.has(id));
-  if (missingMessages.length > 0) {
-    console.warn('Snapshot contains messages not in current state:', missingMessages);
-  }
-
-  // ==========================================================================
-  // 3. Delete messages that came after the snapshot
-  // ==========================================================================
+  const removedMessageIds: string[] = [];
   let partCountRemoved = 0;
-  
-  for (const messageId of messagesToRemove) {
-    const messageWithParts = allMessages.find(m => m.message.id === messageId);
-    if (messageWithParts) {
-      partCountRemoved += messageWithParts.parts.length;
-    }
-    deleteMessage(messageId);  // Cascades to parts
+
+  for (const { message, parts } of messagesToDelete) {
+    partCountRemoved += parts.length;
+    removedMessageIds.push(message.id);
+    deleteMessage(message.id);
   }
 
-  // ==========================================================================
-  // 4. Update any assistant messages that were "streaming" to "error"
-  // ==========================================================================
   const remainingMessages = listMessagesWithParts(sessionId);
   for (const { message } of remainingMessages) {
     if (message.role === 'assistant' && message.status === 'streaming') {
@@ -140,11 +53,11 @@ export async function revertToStep(options: RevertOptions): Promise<RevertResult
 
   return {
     revertedTo: {
-      stepNumber: targetStepNumber,
-      messageCount: snapshot.messages.length,
+      messageId: targetMessageId,
+      messageCount: targetIndex,
     },
     removed: {
-      messageIds: messagesToRemove,
+      messageIds: removedMessageIds,
       partCount: partCountRemoved,
     },
   };

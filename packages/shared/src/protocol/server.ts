@@ -186,7 +186,7 @@ export interface SessionRevertedMessage {
   type: 'session.reverted';
   sessionId: string;
   revertedTo: {
-    stepNumber: number;
+    messageId: string;
     messageCount: number;
   };
   removed: {

@@ -98,7 +98,6 @@ export interface StepPart extends PartBase {
   status: 'started' | 'finished';
   // Only populated when status === 'finished':
   finishReason?: 'stop' | 'tool-calls' | 'error' | 'length';
-  snapshot?: string; // JSON stringified conversation state for revert
   tokens?: {
     prompt: number;
     completion: number;

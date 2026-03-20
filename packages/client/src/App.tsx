@@ -58,7 +58,8 @@ type ClientMessagePayload =
   | { permissionId: string }
   | { workspaceId: string }
   | { sessionId: string; reason?: string }
-  | { queueId: string };
+  | { queueId: string }
+  | { sessionId: string; messageId: string };
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState } = useServerContext();
@@ -722,6 +723,28 @@ function AppContent() {
           [msg.sessionId]: (prev[msg.sessionId] || []).filter(q => q.id !== msg.queueId),
         }));
         break;
+
+      case 'session.reverted':
+        console.log(`Session reverted to message ${msg.revertedTo.messageId}, removed ${msg.removed.messageIds.length} messages`);
+        break;
+
+      case 'session.state':
+        setMessagesBySession(prev => ({
+          ...prev,
+          [msg.sessionId]: msg.messages.map(mwp => mwp.message)
+        }));
+        setPartsBySession(prev => {
+          const newParts = { ...prev };
+          newParts[msg.sessionId] = {};
+          for (const mwp of msg.messages) {
+            newParts[msg.sessionId][mwp.message.id] = mwp.parts;
+          }
+          return newParts;
+        });
+        if (streamingSessionId === msg.sessionId) {
+          setStreamingSessionId(null);
+        }
+        break;
     }
   }, [currentSession, defaultModel, streamingSessionId]);
 
@@ -776,6 +799,10 @@ function AppContent() {
 
   const closeSession = useCallback((sessionId: string) => {
     sendMessage('session.close', { sessionId });
+  }, [sendMessage]);
+
+  const revertSession = useCallback((sessionId: string, messageId: string) => {
+    sendMessage('session.revert', { sessionId, messageId });
   }, [sendMessage]);
 
   const reopenSession = useCallback((sessionId: string) => {
@@ -944,6 +971,7 @@ function AppContent() {
             onNavigateBack={handleNavigateBack}
             isStreaming={streamingSessionId === currentSession.id}
             onInterrupt={handleInterruptSession}
+            onRevert={revertSession}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}
           />

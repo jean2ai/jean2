@@ -206,6 +206,7 @@ function createStepPart(options: {
   finishReason?: 'stop' | 'tool-calls' | 'error' | 'length';
   tokens?: { prompt: number; completion: number };
   cost?: number;
+  snapshot?: string;
 }): StepPart {
   return {
     id: randomUUID(),
@@ -217,6 +218,7 @@ function createStepPart(options: {
     ...(options.finishReason && { finishReason: options.finishReason }),
     ...(options.tokens && { tokens: options.tokens }),
     ...(options.cost !== undefined && { cost: options.cost }),
+    ...(options.snapshot && { snapshot: options.snapshot }),
   };
 }
 
@@ -605,9 +607,15 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         }
       }
 
-      const finishedStepPart = createStepPart({
+      // Find existing step part to reuse its ID
+      const existingStepPart = stepParts.find(sp => sp.number === stepNumber);
+
+      // Create finished step part, reusing existing ID and createdAt
+      const finishedStepPart: StepPart = {
+        id: existingStepPart?.id || randomUUID(),
         messageId,
-        sessionId: _sessionId,
+        createdAt: existingStepPart?.createdAt || Date.now(),
+        type: 'step',
         number: stepNumber,
         status: 'finished',
         finishReason,
@@ -615,10 +623,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           prompt: stepPromptTokens,
           completion: stepCompletionTokens,
         },
-      });
+      };
 
       // Update the step part in our array
-      const existingStepPart = stepParts.find(sp => sp.number === stepNumber);
       if (existingStepPart) {
         const index = stepParts.indexOf(existingStepPart);
         stepParts[index] = finishedStepPart;
@@ -631,6 +638,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         yieldFn({ type: 'part.updated', sessionId: _sessionId, part: finishedStepPart });
       }
       updatePart(finishedStepPart.id, {
+        status: finishedStepPart.status,
         finishReason: finishedStepPart.finishReason,
         tokens: finishedStepPart.tokens,
       });

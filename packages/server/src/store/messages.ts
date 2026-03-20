@@ -229,6 +229,7 @@ export function deleteMessages(sessionId: string): number {
 
 export function deleteMessage(messageId: string): boolean {
   const db = getDatabase();
+  db.run('DELETE FROM parts WHERE message_id = ?', [messageId]);
   const result = db.run('DELETE FROM messages WHERE id = ?', [messageId]);
   return result.changes > 0;
 }

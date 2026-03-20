@@ -619,7 +619,7 @@ async function handleSessionCompact(
 
 async function handleSessionRevert(
   ws: ServerWebSocket,
-  msg: { sessionId: string; stepPartId: string }
+  msg: { sessionId: string; messageId: string }
 ) {
   try {
     const session = getSession(msg.sessionId);
@@ -630,7 +630,7 @@ async function handleSessionRevert(
 
     const result = await revertToStep({
       sessionId: msg.sessionId,
-      targetStepPartId: msg.stepPartId,
+      targetMessageId: msg.messageId,
     });
 
     broadcast({

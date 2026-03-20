@@ -63,6 +63,7 @@ interface ChatViewProps {
   onNavigateBack?: () => void;
   isStreaming?: boolean;
   onInterrupt?: () => void;
+  onRevert?: (sessionId: string, stepPartId: string) => void;
   serverUrl?: string;
   apiToken?: string;
 }
@@ -72,6 +73,26 @@ function getTextContent(parts: Part[]): string {
     .filter((part): part is TextPart => part.type === 'text')
     .map(part => part.text)
     .join('');
+}
+
+function findRevertMessageId(
+  targetMessageId: string,
+  messagesWithParts: MessageWithParts[]
+): string | null {
+  const targetIndex = messagesWithParts.findIndex(mwp => mwp.message.id === targetMessageId);
+
+  if (targetIndex <= 0) {
+    return null;
+  }
+
+  for (let i = targetIndex - 1; i >= 0; i--) {
+    const mwp = messagesWithParts[i];
+    if (mwp.message.role === 'assistant' && mwp.message.status !== 'streaming') {
+      return mwp.message.id;
+    }
+  }
+
+  return null;
 }
 
 function mergeMessagesWithQueue(
@@ -220,6 +241,7 @@ export function ChatView({
   onNavigateBack,
   isStreaming,
   onInterrupt,
+  onRevert: _onRevert,
   serverUrl,
   apiToken,
 }: ChatViewProps) {
@@ -301,14 +323,22 @@ export function ChatView({
               <p className="text-sm">Send a message below to begin.</p>
             </div>
           ) : (
-            displayItems.map((item) => (
-              <MessageBubble
-                key={item.message.id}
-                message={item.message}
-                textContent={getTextContent(item.parts)}
-                isQueued={item.isQueued}
-                onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
-              >
+            displayItems.map((item) => {
+              const canRevert = !item.isQueued && item.message.role === 'user';
+              const revertMessageId = canRevert
+                ? findRevertMessageId(item.message.id, messagesWithParts)
+                : null;
+
+              return (
+                <MessageBubble
+                  key={item.message.id}
+                  message={item.message}
+                  textContent={getTextContent(item.parts)}
+                  isQueued={item.isQueued}
+                  onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
+                  canRevert={canRevert && revertMessageId !== null}
+                  onRevert={revertMessageId ? () => _onRevert?.(session.id, revertMessageId) : undefined}
+                >
                 {item.parts.length === 0 ? (
                   <span className="opacity-50">...</span>
                 ) : (
@@ -320,7 +350,8 @@ export function ChatView({
                   />
                 )}
               </MessageBubble>
-            ))
+            );
+            })
           )}
 
           {orphanedPermissions.length > 0 && (

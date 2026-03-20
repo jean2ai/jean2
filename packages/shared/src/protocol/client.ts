@@ -96,7 +96,7 @@ export interface SessionCompactMessage {
 export interface SessionRevertMessage {
   type: 'session.revert';
   sessionId: string;
-  stepPartId: string;
+  messageId: string;
 }
 
 // =============================================================================

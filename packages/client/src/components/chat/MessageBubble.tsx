@@ -1,7 +1,8 @@
-import { Copy, Check, User, Bot, X, Clock } from 'lucide-react';
+import { Copy, Check, User, Bot, X, Clock, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { cn } from '@/lib/utils';
 
 interface MessageBubbleProps {
@@ -10,6 +11,8 @@ interface MessageBubbleProps {
   children?: React.ReactNode;
   isQueued?: boolean;
   onRemove?: () => void;
+  onRevert?: () => void;
+  canRevert?: boolean;
 }
 
 export function MessageBubble({ 
@@ -17,9 +20,12 @@ export function MessageBubble({
   textContent, 
   children, 
   isQueued = false,
-  onRemove 
+  onRemove,
+  onRevert,
+  canRevert = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
+  const [showRevertConfirm, setShowRevertConfirm] = useState(false);
   const isUser = message.role === 'user';
 
   const handleCopy = async () => {
@@ -45,18 +51,31 @@ export function MessageBubble({
         {isUser ? (
           <>
             {!isQueued && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCopy}
-                className="size-5 text-muted-foreground hover:text-foreground"
-              >
-                {copied ? (
-                  <Check className="size-3" />
-                ) : (
-                  <Copy className="size-3" />
+              <>
+                {canRevert && onRevert && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowRevertConfirm(true)}
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    title="Revert to this point"
+                  >
+                    <Undo2 className="size-3" />
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleCopy}
+                  className="size-5 text-muted-foreground hover:text-foreground"
+                >
+                  {copied ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                </Button>
+              </>
             )}
             <User className="size-3" />
             {message.role}
@@ -114,6 +133,19 @@ export function MessageBubble({
           {children}
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={showRevertConfirm}
+        onOpenChange={setShowRevertConfirm}
+        title="Revert Conversation"
+        description="This will delete this message and all messages after it. Are you sure you want to continue?"
+        confirmLabel="Revert"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          onRevert?.();
+        }}
+        variant="destructive"
+      />
     </div>
   );
 }
