@@ -1,0 +1,13 @@
+{
+  "name": "@jean2/client",
+  "version": "0.0.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "j2": "./dist/cli.mjs"
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "open": "^10.1.0"
+  }
+}
