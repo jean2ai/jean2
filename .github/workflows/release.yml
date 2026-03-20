@@ -196,8 +196,8 @@ jobs:
               git tag -f "$TAG"
               git push origin "$TAG" --force
               mkdir -p packages/server/dist
-              bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/jean2-darwin packages/server/src/index.ts
-              bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/jean2-linux packages/server/src/index.ts
+              bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
+              bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
               [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
               gh release create "$TAG" --title "Server $V" $PRE \
                 packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
@@ -211,8 +211,8 @@ jobs:
               git tag -f "$TAG"
               git push origin "$TAG" --force
               mkdir -p services/lsp/dist
-              bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/index.ts
-              bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/index.ts
+              bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/cli.ts
+              bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/cli.ts
               [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
               gh release create "$TAG" --title "LSP $V" $PRE \
                 services/lsp/dist/jean2-lsp-darwin services/lsp/dist/jean2-lsp-linux
