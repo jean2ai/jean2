@@ -13,6 +13,10 @@ import type {
 } from '@/types';
 import { LSPClientStatus } from '@/types';
 
+const REQUEST_TIMEOUT_MS = 15_000;
+const INIT_TIMEOUT_MS = 30_000;
+const STOP_SIGTERM_TIMEOUT_MS = 500;
+
 export abstract class BaseLSPClient {
   abstract readonly languageId: string;
   abstract readonly serverCommand: string[];
@@ -23,10 +27,11 @@ export abstract class BaseLSPClient {
   protected requestId = 0;
   protected pendingRequests = new Map<
     number,
-    { resolve: (value: unknown) => void; reject: (reason: unknown) => void }
+    { resolve: (value: unknown) => void; reject: (reason: unknown) => void; timer: ReturnType<typeof setTimeout> }
   >();
   protected buffer = '';
   protected capabilities: Record<string, unknown> | undefined;
+  private exitResolve: (() => void) | null = null;
 
   abstract getInitializeOptions(): Record<string, unknown>;
 
@@ -39,7 +44,7 @@ export abstract class BaseLSPClient {
     this.error = undefined;
     this.buffer = '';
     this.requestId = 0;
-    this.pendingRequests.clear();
+    this.cancelAllPending('Client stopped before request completed');
 
     const command = this.serverCommand[0];
     const args = this.serverCommand.slice(1);
@@ -47,6 +52,7 @@ export abstract class BaseLSPClient {
     this.process = spawn(command, args, {
       cwd: workspaceRoot,
       stdio: ['pipe', 'pipe', 'pipe'],
+      detached: true,
     });
 
     this.process.stdout?.on('data', (data: Buffer) => {
@@ -66,11 +72,12 @@ export abstract class BaseLSPClient {
     this.process.on('exit', (code, signal) => {
       this.status = LSPClientStatus.Stopped;
       this.process = null;
+      this.cancelAllPending(`LSP process exited with code ${code}, signal ${signal}`);
 
-      this.pendingRequests.forEach(({ reject }) => {
-        reject(new Error(`LSP process exited with code ${code}, signal ${signal}`));
-      });
-      this.pendingRequests.clear();
+      if (this.exitResolve) {
+        this.exitResolve();
+        this.exitResolve = null;
+      }
     });
 
     await this.initialize(workspaceRoot);
@@ -78,21 +85,72 @@ export abstract class BaseLSPClient {
   }
 
   async stop(): Promise<void> {
-    if (!this.process) {
+    const proc = this.process;
+
+    if (!proc) {
       return;
     }
+
+    const pid = proc.pid;
+    if (pid == null) {
+      this.process = null;
+      this.status = LSPClientStatus.Stopped;
+      this.cancelAllPending('Client stopped');
+      this.capabilities = undefined;
+      return;
+    }
+
+    const processGroup = -pid;
 
     try {
       this.sendNotification('shutdown', null);
     } catch (_e) {
-      // Ignore errors during shutdown
+      void _e;
     }
 
-    this.process.kill();
-    this.process = null;
+    try {
+      proc.stdin?.end();
+    } catch (_e) {
+      void _e;
+    }
+
+    try {
+      process.kill(processGroup, 'SIGTERM');
+    } catch (_e) {
+      void _e;
+      try {
+        proc.kill();
+      } catch (_e2) {
+        void _e2;
+      }
+    }
+
     this.status = LSPClientStatus.Stopped;
-    this.pendingRequests.clear();
+    this.cancelAllPending('Client stopped');
     this.capabilities = undefined;
+
+    const exited = await this.waitForExit(STOP_SIGTERM_TIMEOUT_MS);
+    if (!exited) {
+      try {
+        process.kill(processGroup, 'SIGKILL');
+      } catch (_e) {
+        void _e;
+      }
+      await this.waitForExit(1_000);
+    }
+
+    this.process = null;
+  }
+
+  private waitForExit(timeoutMs: number): Promise<boolean> {
+    if (!this.process) {
+      return Promise.resolve(true);
+    }
+
+    return new Promise((resolve) => {
+      this.exitResolve = () => resolve(true);
+      setTimeout(() => resolve(false), timeoutMs);
+    });
   }
 
   getStatus(): LSPClientInfo {
@@ -214,13 +272,11 @@ export abstract class BaseLSPClient {
       content = contents.map((c) => (typeof c === 'string' ? c : c.value || '')).join('\n');
     } else if (typeof contents === 'object') {
       const contentObj = contents as Record<string, unknown>;
-      // Handle MarkupContent format: { kind: 'markdown' | 'plaintext', value: string }
       if ('value' in contentObj && typeof contentObj.value === 'string') {
         content = contentObj.value;
       } else if ('kind' in contentObj && 'value' in contentObj) {
         content = String(contentObj.value);
       } else {
-        // Fallback for MarkedString format
         const value = contentObj.value;
         content = typeof value === 'string' ? value : '';
       }
@@ -300,11 +356,16 @@ export abstract class BaseLSPClient {
     };
   }
 
-  protected async sendRequest(method: string, params: unknown): Promise<unknown> {
+  protected async sendRequest(method: string, params: unknown, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<unknown> {
     const id = ++this.requestId;
 
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        reject(new Error(`LSP request '${method}' timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      this.pendingRequests.set(id, { resolve, reject, timer });
 
       const message = {
         jsonrpc: '2.0',
@@ -317,9 +378,18 @@ export abstract class BaseLSPClient {
         this.sendMessage(message);
       } catch (err) {
         this.pendingRequests.delete(id);
+        clearTimeout(timer);
         reject(err);
       }
     });
+  }
+
+  private cancelAllPending(reason: string): void {
+    for (const [, { reject, timer }] of this.pendingRequests) {
+      clearTimeout(timer);
+      reject(new Error(reason));
+    }
+    this.pendingRequests.clear();
   }
 
   protected sendNotification(method: string, params: unknown): void {
@@ -402,6 +472,7 @@ export abstract class BaseLSPClient {
     }
 
     this.pendingRequests.delete(id);
+    clearTimeout(pending.timer);
 
     if ('error' in response) {
       const error = response.error as Record<string, unknown>;
@@ -415,7 +486,6 @@ export abstract class BaseLSPClient {
     const method = notification.method as string;
 
     if (method === 'textDocument/publishDiagnostics') {
-      // Handle diagnostics if needed
     }
   }
 
@@ -437,7 +507,7 @@ export abstract class BaseLSPClient {
       initializationOptions: this.getInitializeOptions(),
     };
 
-    const result = await this.sendRequest('initialize', params);
+    const result = await this.sendRequest('initialize', params, INIT_TIMEOUT_MS);
 
     if (result && typeof result === 'object') {
       this.capabilities = result as Record<string, unknown>;
@@ -451,15 +521,12 @@ export abstract class BaseLSPClient {
 
     let uri = '';
 
-    // Handle Location format (uri property)
     if (typeof loc.uri === 'string') {
       uri = loc.uri;
     } else if (loc.uri && typeof loc.uri === 'object') {
       const uriObj = loc.uri as Record<string, unknown>;
       uri = uriObj.uri as string;
-    }
-    // Handle LocationLink format (targetUri property)
-    else if (typeof loc.targetUri === 'string') {
+    } else if (typeof loc.targetUri === 'string') {
       uri = loc.targetUri;
     }
 
@@ -468,7 +535,6 @@ export abstract class BaseLSPClient {
       end: { line: 0, character: 0 },
     };
 
-    // Handle Location format (range property)
     if (loc.range) {
       const r = loc.range as Record<string, unknown>;
       const start = r.start as Position;
@@ -477,9 +543,7 @@ export abstract class BaseLSPClient {
         start: { line: start.line + 1, character: start.character + 1 },
         end: { line: end.line + 1, character: end.character + 1 },
       };
-    }
-    // Handle LocationLink format (targetSelectionRange preferred, fallback to targetRange)
-    else if (loc.targetSelectionRange) {
+    } else if (loc.targetSelectionRange) {
       const r = loc.targetSelectionRange as Record<string, unknown>;
       const start = r.start as Position;
       const end = r.end as Position;

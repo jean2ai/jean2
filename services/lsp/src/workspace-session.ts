@@ -24,6 +24,7 @@ export class WorkspaceSession {
   private openFiles: Map<string, OpenFileInfo> = new Map();
   private diagnostics: DiagnosticsManager;
   private onDiagnosticsCallback: ((uri: string, diagnostics: Diagnostic[]) => void) | null = null;
+  private clientStartPromises: Map<string, Promise<BaseLSPClient>> = new Map();
 
   constructor(workspaceId: WorkspaceId, workspaceRoot: string) {
     this.workspaceId = workspaceId;
@@ -46,6 +47,7 @@ export class WorkspaceSession {
       }
     }
     this.clients.clear();
+    this.clientStartPromises.clear();
     this.openFiles.clear();
     this.diagnostics.clearAll();
   }
@@ -62,6 +64,27 @@ export class WorkspaceSession {
   async startClientIfNeeded(languageId: string): Promise<BaseLSPClient> {
     const existingClient = this.clients.get(languageId);
 
+    if (existingClient) {
+      return existingClient;
+    }
+
+    const inflight = this.clientStartPromises.get(languageId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const startPromise = this._startClient(languageId);
+    this.clientStartPromises.set(languageId, startPromise);
+
+    try {
+      return await startPromise;
+    } finally {
+      this.clientStartPromises.delete(languageId);
+    }
+  }
+
+  private async _startClient(languageId: string): Promise<BaseLSPClient> {
+    const existingClient = this.clients.get(languageId);
     if (existingClient) {
       return existingClient;
     }

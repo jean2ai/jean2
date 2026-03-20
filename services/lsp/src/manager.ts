@@ -11,7 +11,7 @@ import type {
 import { WorkspaceSession } from '@/workspace-session';
 import { getIdleTimeoutMs } from './env';
 
-const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_IDLE_TIMEOUT_MS = 60 * 1000;
 
 export class LSPManager {
   private workspaces: Map<WorkspaceId, WorkspaceSession> = new Map();
@@ -23,14 +23,21 @@ export class LSPManager {
     this.startCleanupTimer();
   }
 
-  async initialize(workspaceId: WorkspaceId, workspaceRoot: string): Promise<void> {
+  async initialize(workspaceId: WorkspaceId, workspaceRoot: string): Promise<boolean> {
     const existingSession = this.workspaces.get(workspaceId);
+
     if (existingSession) {
+      if (existingSession.workspaceRoot === workspaceRoot) {
+        existingSession.updateAccess();
+        return false;
+      }
+
       await existingSession.shutdown();
     }
 
     const session = new WorkspaceSession(workspaceId, workspaceRoot);
     this.workspaces.set(workspaceId, session);
+    return true;
   }
 
   async shutdownWorkspace(workspaceId: WorkspaceId): Promise<void> {
@@ -81,7 +88,7 @@ export class LSPManager {
   private startCleanupTimer(): void {
     this.cleanupInterval = setInterval(() => {
       this.cleanupIdleWorkspaces();
-    }, 5 * 60 * 1000);
+    }, 30 * 1000);
   }
 
   private stopCleanupTimer(): void {

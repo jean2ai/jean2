@@ -49,6 +49,6 @@ export function getHost(): string {
 }
 
 export function getIdleTimeoutMs(): number {
-  const parsed = parseInt(process.env.JEAN2_LSP_IDLE_TIMEOUT_MS || '1800000', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1800000;
+  const parsed = parseInt(process.env.JEAN2_LSP_IDLE_TIMEOUT_MS || '180000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 180000;
 }

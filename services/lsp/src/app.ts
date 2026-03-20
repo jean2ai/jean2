@@ -17,8 +17,8 @@ app.post('/initialize', async (c) => {
       return c.json({ success: false, error: 'workspaceRoot is required' }, 400);
     }
 
-    await getLspManager().initialize(workspaceId, workspaceRoot);
-    return c.json({ success: true });
+    const created = await getLspManager().initialize(workspaceId, workspaceRoot);
+    return c.json({ success: true, created });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('LSP initialize error:', message);
