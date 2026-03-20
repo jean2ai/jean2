@@ -1,183 +1,208 @@
 # Jean2
 
-A monorepo for building and deploying AI agent applications with a modern tech stack.
+**Build your own AI agent. No lock-in, no limits, no opinions about what it should do.**
+
+Jean2 is a self-hosted AI agent platform. Run a single server, connect any LLM, define your own tools and prompts, and access your agents from any device. It's not just for coding — it's for whatever you want an AI to do.
+
+Your code. Your keys. Your agent.
+
+---
+
+## Why Jean2?
+
+Every AI agent tool tells you what to do — what prompts to use, what tools you get, what models to pick. Jean2 is different. It's a platform for building *your* agent:
+
+- **No baked-in behavior.** System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. The agent does what you tell it to.
+- **No vendor lock-in.** Connect any combination of LLM providers. Use budget models for routine tasks and premium models for hard problems. Switch per-session.
+- **One server, your whole system.** Jean2 uses workspaces to organize projects, but the server runs once and manages everything. Every directory on your machine is a potential workspace.
+- **Remote-first.** Access your agents from anywhere. Connect from your desktop, your phone, any browser. A simple Tailscale setup means your agents are always with you — at your desk, on the couch, on the train.
+- **Extensible at every level.** Write tools in any runtime. Connect MCP servers. Define agent personalities. Add skills. The agent adapts to your workflow — not the other way around.
+
+---
+
+## Install
+
+Download the latest release from [GitHub Releases](https://github.com/YOUR-ORG/jean2/releases).
+
+The server binary is self-contained — no runtime installation needed.
+
+```bash
+jean2 init
+jean2 start
+```
+
+Set your API key(s) in `~/.jean2/.env` and connect from any client.
+
+For development from source, see [Contributing](#contributing).
+
+---
 
 ## Features
 
-- **Workspace Management** - Organize sessions into workspaces (physical or virtual directories)
-- **Real-time Chat** - WebSocket-based communication for instant AI responses
-- **Tool Execution** - Extensible tool system with approval workflow for dangerous operations
-- **Multi-Model Support** - Switch between LLM providers (OpenAI, Anthropic, OpenRouter, Google)
-- **Token Tracking** - Monitor prompt, completion, and total token usage per session
-- **Preconfigs** - Save and reuse agent configurations with custom system prompts and tool sets
+### Multi-Provider LLM Streaming
 
-## Tech Stack
+Connect to any combination of LLM providers — OpenAI, Anthropic, Google, OpenRouter, MiniMax, Zhipu, or any OpenAI-compatible endpoint. Switch providers and models per-session. Models are organized into **budget**, **standard**, and **premium** tiers. Custom base URLs supported for self-hosted or proxy setups.
 
-### Server
-- **Bun**: Fast JavaScript runtime and toolkit
-- **Hono**: Fast and lightweight web framework
-- **AI SDK**: Built-in support for AI models and tool integration
-- **SQLite**: Embedded database for local persistence
-
-### Client
-- **React 19**: Latest React version with improved performance
-- **Vite**: Next-generation frontend tooling
-- **TypeScript**: Type-safe development
-
-## Getting Started
-
-### Prerequisites
-
-- Bun >= 1.0.0
-
-### Installation
-
-```bash
-bun install
-```
-
-### Development
-
-Run all services in development mode:
-
-```bash
-bun run dev
-```
-
-Run specific service:
-
-```bash
-# Server only
-bun run dev:server
-
-# Client only
-bun run dev:client
-```
-
-### Build
-
-Build all packages:
-
-```bash
-bun run build
-```
-
-### Type Check
-
-```bash
-bun run typecheck
-```
-
-### Lint
-
-```bash
-bun run lint
-```
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and configure:
-
-### Server Configuration
-- `PORT`: Server port (default: 3000)
-- `HOST`: Server host (default: 0.0.0.0)
-
-### Database
-- `DATABASE_PATH`: SQLite database file path (default: ./data/agent.db)
-
-### Optional Paths
-- `PRECONFIGS_PATH`: Preconfigs directory (default: ~/.jean2/preconfigs)
-- `TOOLS_PATH`: Tools directory (default: ./packages/server/data/tools)
-
-### LLM Provider API Keys (set the ones you need)
-- `LLM_OPENAI_API_KEY`: OpenAI API key
-- `LLM_ANTHROPIC_API_KEY`: Anthropic API key
-- `LLM_OPENROUTER_API_KEY`: OpenRouter API key
-- `LLM_GOOGLE_API_KEY`: Google AI API key
-
-### LLM Settings
-- `LLM_BASE_URL`: Optional base URL override
-- `LLM_MAX_TOKENS`: Maximum output tokens (default: 4096)
-- `LLM_TEMPERATURE`: Response temperature (default: 0.7)
-
-## API Endpoints
-
-Once the server is running:
-
-### Root
-- `GET /` - Server status and info
-
-### API
-- `GET /api/info` - Server information
-- `GET /api/health` - Health check
-- `GET /api/models` - List available models with defaults
+Built on [Vercel AI SDK v6](https://sdk.vercel.ai/) with real-time streaming and multi-step tool execution.
 
 ### Workspaces
-- `GET /api/workspaces` - List all workspaces
-- `POST /api/workspaces` - Create a new workspace
-- `GET /api/workspaces/:id` - Get a workspace
-- `PATCH /api/workspaces/:id` - Update workspace name
-- `DELETE /api/workspaces/:id` - Delete a workspace
-- `GET /api/workspaces/:id/sessions` - List sessions in a workspace
 
-### Sessions
-- `GET /api/sessions` - List all sessions (optional `?status=active|closed`)
-- `POST /api/sessions` - Create a new session
-- `GET /api/sessions/:id` - Get a session
-- `PUT /api/sessions/:id` - Update a session (title, status, model selection)
-- `DELETE /api/sessions/:id` - Delete a session
-- `GET /api/sessions/:id/messages` - Get messages for a session
+Organize your work by project, by machine, by whatever makes sense. Workspaces map to directories on your server and isolate sessions, tools, permissions, and MCP connections. Switch between them instantly from any client.
 
-### Preconfigs
-- `GET /api/preconfigs` - List all preconfigs
-- `POST /api/preconfigs` - Create a new preconfig
-- `GET /api/preconfigs/:id` - Get a preconfig
-- `PUT /api/preconfigs/:id` - Update a preconfig
-- `DELETE /api/preconfigs/:id` - Delete a preconfig (non-default only)
+### Tool System
 
-### Tools
-- `GET /api/tools` - List all available tools
-- `GET /api/tools/:name` - Get a specific tool
+Tools are just files on disk. A tool is a directory with two files: `tool.json` (name, description, input/output schemas, runtime) and a script. Drop it in the tools directory and the agent picks it up — no build step, no registration.
 
-### WebSocket
-- `WS /ws?sessionId=xxx` - WebSocket connection for real-time chat
+When the agent calls a tool, it receives input as JSON on **stdin** and must print a JSON result to **stdout**. That's the entire protocol. Tools execute in sandboxed child processes and support any runtime — `bun`, `node`, `python`, `bash`, `go`, `binary`, `powershell`, or anything else you configure.
 
-## Project Structure
+Tools can optionally define a security check script that runs before execution — for example, a file-write tool might ask the user to approve the target path. Dangerous operations require explicit approval. Approved permissions are cached per-workspace.
+
+Jean2 provides a registry of default tools to get started — download the ones you need, or write your own.
+
+### MCP (Model Context Protocol)
+
+Connect to any MCP server — local (stdio) or remote (StreamableHTTP/SSE). Configure per-workspace in `.jean2/mcp.json`. Remote servers support OAuth. MCP tools are automatically injected into agent sessions.
+
+### Subagent Orchestration
+
+Agents can spawn hierarchical subagents for complex tasks. Subagents run in isolated sessions, inherit workspace context, and support cascading interrupts. Configure which preconfigs can spawn subagents and set depth limits.
+
+### Preconfigs (Agent Personalities)
+
+Preconfigs define what an agent *is* — its system prompt, available tools, model preferences, skills access, and capabilities. Create as many as you need: a coding agent, a research assistant, a deployment runner, whatever your workflow requires.
+
+Create preconfigs via the REST API or drop JSON files in `~/.jean2/preconfigs/`.
+
+### Skills
+
+Skills are discoverable instruction sets stored as `SKILL.md` files in `.agents/skills/`. Load them at runtime to give the agent specialized workflows — writing patterns, deployment procedures, code review checklists, anything you want.
+
+### Session Management
+
+- **Compact** — LLM-powered conversation summarization with structured output
+- **Fork** — Branch any session at any message
+- **Revert** — Undo to any previous point
+- **Interrupt** — Cancel running generation with automatic cascade to subagents
+- **Queue** — Queue messages while the agent is busy
+
+### LSP Code Intelligence
+
+A standalone HTTP→LSP bridge (`@jean2/lsp`) provides go-to-definition, find-references, hover info, document symbols, and diagnostics. Supports TypeScript and PHP with an extensible language client architecture.
+
+### Clients
+
+One server, every device:
+
+| Client | Platform |
+|--------|----------|
+| **Desktop** | Tauri 2 native macOS app with multi-window support |
+| **iOS** | Tauri 2 native iPhone app |
+| **Web** | `npx @jean2/client` — zero-install, any browser |
+
+Connect from anywhere. The client talks to the server over WebSocket and REST — same protocol, same experience, whether you're on your desk or on the go.
+
+Features streaming chat with real-time deltas, file tree browser, tool permission dialogs, diff viewers, terminal output, syntax-highlighted code blocks, markdown rendering, dark/light themes, offline detection with auto-reconnect, and multi-server + multi-workspace support.
+
+---
+
+## Architecture
 
 ```
-jean2/
-├── packages/
-│   ├── server/          # Backend API server
-│   ├── client/          # Frontend React application
-│   └── shared/          # Shared types and utilities
+┌─────────────────────────────────────────────────────────────────┐
+│                       Client Layer                               │
+│    ┌──────────┐  ┌──────────┐  ┌─────────────────────────┐     │
+│    │ Desktop  │  │ iPhone   │  │ Web (npx @jean2/client) │     │
+│    │ (Tauri)  │  │ (Tauri)  │  │                         │     │
+│    └────┬─────┘  └────┬─────┘  └──────────┬──────────────┘     │
+│         └──────────────┴───────────────────┘                     │
+│                         ·                                        │
+│              WebSocket + REST (any network)                      │
+│              local · Tailscale · VPN · public                     │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────────┐
+│                    Server (@jean2/server)                        │
+│                                                                  │
+│  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐         │
+│  │ Agent Loop  │  │ Tool     │  │ MCP Manager       │         │
+│  │ (AI SDK v6) │  │ Executor │  │ (stdio + remote)  │         │
+│  └──────┬──────┘  └────┬─────┘  └────────┬──────────┘         │
+│         └───────────────┼────────────────┘                       │
+│               ┌─────────┴──────────┐                            │
+│               │   ~/.jean2/tools/ │                            │
+│               │   (any runtime)   │                            │
+│               └──────────────────┘                            │
+│                     ┌──────────────┐                             │
+│                     │ Subagent     │                             │
+│                     │ Orchestrator │                             │
+│                     └──────┬───────┘                             │
+│               ┌────────────┴────────────┐                        │
+│               │     SQLite Store       │                        │
+│               │ Sessions · Messages    │                        │
+│               │ Permissions · History  │                        │
+│               └────────────────────────┘                        │
+│                                                                  │
+│              Workspaces → directories on your machine            │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────────┐
+│                     Services Layer                               │
+│   ┌──────────────────────────────────────────────────┐         │
+│   │ LSP Service (@jean2/lsp)                         │         │
+│   │ TypeScript · PHP — definitions, references,      │         │
+│   │ hover, symbols, diagnostics                      │         │
+│   └──────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Server
+### Packages
 
-- `src/index.ts` - Entry point and WebSocket handling
-- `src/app.ts` - Hono app and REST API routes
-- `src/core/` - Core agent logic, preconfig management, tool approvals
-- `src/tools/` - Tool definitions, registry, and execution
-- `src/store/` - SQLite database layer (sessions, messages, workspaces, tools)
-- `src/config/` - Model configuration
+| Package | Description |
+|---------|-------------|
+| [`@jean2/server`](packages/server/README.md) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
+| [`@jean2/client`](packages/client/README.md) | React 19 + Tauri 2 UI — chat, file browser, permissions, multi-server |
+| [`@jean2/shared`](packages/shared/README.md) | Shared TypeScript types and WebSocket protocol definitions |
+| [`@jean2/lsp`](services/lsp/README.md) | Standalone LSP HTTP bridge — code intelligence service |
 
-### Client
+### Tech Stack
 
-- `src/main.tsx` - Application entry point
-- `src/App.tsx` - Main application component
-- `src/components/` - React components
-  - `ChatView.tsx` - Main chat interface
-  - `Message.tsx` - Message rendering with markdown support
-  - `SessionList.tsx` - Session sidebar
-  - `WorkspaceSelector.tsx` - Workspace switcher
-  - `ModelSelector.tsx` - Model/provider selection
-  - `TokenUsage.tsx` - Token usage display
-  - `ApprovalDialog.tsx` - Tool approval modal
+| Layer | Technology |
+|-------|-----------|
+| Runtime | [Bun](https://bun.sh/) |
+| Server | [Hono](https://hono.dev/), AI SDK v6, SQLite |
+| Client | React 19, Vite 6, TypeScript |
+| UI | Tailwind CSS v4, shadcn/ui, Radix UI |
+| Desktop / Mobile | [Tauri 2](https://tauri.app/) |
+| LLM | Vercel AI SDK v6, MCP SDK |
 
-### Shared
+---
 
-- `src/types/` - TypeScript interfaces (Session, Message, Workspace, Tool, etc.)
+## Configuration
+
+All configuration lives in `~/.jean2/`:
+
+```
+~/.jean2/
+  config.json        # Server settings (created by init)
+  models.json        # LLM model definitions and defaults
+  .env               # API keys and environment variables
+  auth-token.json    # SHA-256 hashed API token
+  AGENTS.md          # Global instructions (injected into every session)
+  data/
+    agent.db         # SQLite database
+  tools/             # Tool definitions (one directory per tool)
+  preconfigs/        # Agent personality presets
+  prompts/           # Reusable prompt templates
+```
+
+See the [server README](packages/server/README.md) for the full environment variable reference and API documentation.
+
+---
+
+## Contributing
+
+Contributions are welcome. See [AGENTS.md](AGENTS.md) for project conventions, code style, and development workflow.
 
 ## License
 
-Apache 2.0
+[Apache 2.0](LICENSE)

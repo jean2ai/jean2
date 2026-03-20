@@ -1,28 +1,14 @@
 # edit
 
-Performs string replacements in files with fuzzy matching support. Strategies include: exact, line_start, line_end, partial, and multi_line matching.
+Server tool for performing string replacements in files with fuzzy matching support. Tries 5 matching strategies in order: exact, line_start, line_end, partial (whitespace-tolerant), and multi_line. Fails if old string is not found or found multiple times.
+
+## Requirements
+
+- **Runtime**: `bun`
 
 ## Parameters
 
 - `path` (required): Absolute path to the file to edit
 - `oldString` (required): The text to find and replace
 - `newString` (required): The replacement text
-- `strategy` (optional): Matching strategy to use: 'exact' | 'line_start' | 'line_end' | 'partial' | 'multi_line'
-
-## Installation
-
-Download the tool bundle from GitHub releases and extract it.
-
-## Usage
-
-```json
-{
-  "name": "edit",
-  "parameters": {
-    "path": "/path/to/file.ts",
-    "oldString": "const foo = 'bar';",
-    "newString": "const foo = 'baz';",
-    "strategy": "exact"
-  }
-}
-```
+- `strategy` (optional): Matching strategy to use: `exact` | `line_start` | `line_end` | `partial` | `multi_line`

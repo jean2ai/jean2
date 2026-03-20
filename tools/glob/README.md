@@ -1,24 +1,13 @@
 # glob
 
-Find files matching glob patterns. Returns matching file paths sorted by modification time. Supports patterns like `**/*.ts`, `src/**/*.tsx`, etc.
+Server tool for finding files matching glob patterns. Implements custom glob-to-regex conversion and recursive directory walker. Supports `*`, `**`, and `?` wildcards. Automatically skips `node_modules`.
+
+## Requirements
+
+- **Runtime**: `bun`
+- **Alternative**: `node >= 22` (with `--experimental-strip-types`)
 
 ## Parameters
 
 - `pattern` (required): The glob pattern to match
 - `path` (optional): The directory to search in. Defaults to workspace root.
-
-## Installation
-
-Download the tool bundle from GitHub releases and extract it.
-
-## Usage
-
-```json
-{
-  "name": "glob",
-  "parameters": {
-    "pattern": "**/*.ts",
-    "path": "/workspace"
-  }
-}
-```

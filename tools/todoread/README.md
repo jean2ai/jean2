@@ -1,20 +1,11 @@
 # todoread
 
-Read the current task list for the session. Use to check progress on multi-step tasks.
+Server tool for reading the task list for the current session. Returns todos ordered by priority then creation time. Data is stored in a local SQLite database.
+
+## Requirements
+
+- **Runtime**: `bun`
 
 ## Parameters
 
-No parameters required.
-
-## Installation
-
-Download the tool bundle from GitHub releases and extract it.
-
-## Usage
-
-```json
-{
-  "name": "todoread",
-  "parameters": {}
-}
-```
+None.
