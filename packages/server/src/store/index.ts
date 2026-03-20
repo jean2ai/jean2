@@ -64,7 +64,11 @@ function initializeSchema(db: Database): void {
       prompt_tokens INTEGER DEFAULT 0,
       completion_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,
+      parent_id TEXT,
+      agent_name TEXT,
+      subagent_status TEXT,
       running_at TEXT,
+      compacting INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     )
   `);
@@ -88,6 +92,7 @@ function initializeSchema(db: Database): void {
       cost REAL DEFAULT 0,
       completed_at INTEGER,
       error TEXT,
+      compacted INTEGER NOT NULL DEFAULT 0,
 
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
@@ -95,6 +100,7 @@ function initializeSchema(db: Database): void {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_session_status ON messages(session_id, status) WHERE status = \'streaming\'');
+  db.run('CREATE INDEX IF NOT EXISTS idx_messages_compacted ON messages(session_id, compacted)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS parts (
@@ -178,55 +184,6 @@ function initializeSchema(db: Database): void {
   `);
 
   db.run('CREATE INDEX IF NOT EXISTS idx_queued_messages_session ON queued_messages(session_id, position)');
-
-  // Migration: Add parent_id and agent_name columns for subagent support
-  const tableInfo = db.query("PRAGMA table_info(sessions)").all() as { name: string }[];
-  const columnNames = tableInfo.map(row => row.name);
-
-  if (!columnNames.includes('parent_id')) {
-    console.log('Migrating: Adding parent_id column to sessions table');
-    db.run('ALTER TABLE sessions ADD COLUMN parent_id TEXT');
-  }
-
-  if (!columnNames.includes('agent_name')) {
-    console.log('Migrating: Adding agent_name column to sessions table');
-    db.run('ALTER TABLE sessions ADD COLUMN agent_name TEXT');
-  }
-
-  if (!columnNames.includes('subagent_status')) {
-    console.log('Migrating: Adding subagent_status column to sessions table');
-    db.run('ALTER TABLE sessions ADD COLUMN subagent_status TEXT');
-  }
-
-  if (!columnNames.includes('running_at')) {
-    console.log('Migrating: Adding running_at column to sessions table');
-    db.run('ALTER TABLE sessions ADD COLUMN running_at TEXT');
-  }
-
-  // Migration: Create queued_messages table if it doesn't exist
-  const queuedTableInfo = db.query("PRAGMA table_info(queued_messages)").all() as { name: string }[];
-  if (queuedTableInfo.length === 0) {
-    console.log('Creating queued_messages table');
-  }
-
-  // Migration: Add compacted column to messages table
-  const messageColumnInfo = db.query("PRAGMA table_info(messages)").all() as { name: string }[];
-  const messageColumnNames = messageColumnInfo.map(row => row.name);
-
-  if (!messageColumnNames.includes('compacted')) {
-    console.log('Migrating: Adding compacted column to messages table');
-    db.run('ALTER TABLE messages ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0');
-    db.run('CREATE INDEX IF NOT EXISTS idx_messages_compacted ON messages(session_id, compacted)');
-  }
-
-  // Migration: Add compacting column to sessions table
-  const sessionColumnInfo = db.query("PRAGMA table_info(sessions)").all() as { name: string }[];
-  const sessionColumnNames = sessionColumnInfo.map(row => row.name);
-
-  if (!sessionColumnNames.includes('compacting')) {
-    console.log('Migrating: Adding compacting column to sessions table');
-    db.run('ALTER TABLE sessions ADD COLUMN compacting INTEGER NOT NULL DEFAULT 0');
-  }
 }
 
 export { Database };
