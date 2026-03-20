@@ -279,21 +279,24 @@ export class WorkspaceSession {
       }
     }
 
-    const typescriptExtensions = new Set([
-      '.ts',
-      '.tsx',
-      '.js',
-      '.jsx',
-      '.mjs',
-      '.cjs',
-      '.mts',
-      '.cts',
+    const extensionMap = new Map<string, string>([
+      ['.ts', 'typescript'],
+      ['.tsx', 'typescript'],
+      ['.js', 'typescript'],
+      ['.jsx', 'typescript'],
+      ['.mjs', 'typescript'],
+      ['.cjs', 'typescript'],
+      ['.mts', 'typescript'],
+      ['.cts', 'typescript'],
+      ['.php', 'php'],
+      ['.phtml', 'php'],
     ]);
 
-    if (typescriptExtensions.has(extension)) {
-      return 'typescript';
+    const languageId = extensionMap.get(extension);
+    if (languageId) {
+      return languageId;
     }
 
-    return 'typescript';
+    throw new Error(`Unsupported file extension: ${extension || '(none)'}`);
   }
 }

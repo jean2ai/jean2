@@ -252,15 +252,52 @@ export abstract class BaseLSPClient {
       return [];
     }
 
-    return result.map((symbol) => {
-      const sym = symbol as Record<string, unknown>;
-      return {
+    const symbols: DocumentSymbolResult = [];
+
+    for (const symbol of result) {
+      this.collectSymbols(symbol as Record<string, unknown>, uri, undefined, symbols);
+    }
+
+    return symbols;
+  }
+
+  private collectSymbols(
+    sym: Record<string, unknown>,
+    uri: string,
+    containerName: string | undefined,
+    symbols: DocumentSymbolResult,
+  ): void {
+    if (sym.location) {
+      symbols.push({
         name: sym.name as string,
         kind: sym.kind as number,
         location: this.normalizeLocation(sym.location),
         containerName: sym.containerName as string | undefined,
-      };
-    });
+      });
+    } else if (sym.range) {
+      const range = this.normalizeRange(sym.range as Record<string, unknown>);
+      symbols.push({
+        name: sym.name as string,
+        kind: sym.kind as number,
+        location: { uri, range },
+        containerName,
+      });
+
+      if (Array.isArray(sym.children)) {
+        for (const child of sym.children) {
+          this.collectSymbols(child as Record<string, unknown>, uri, sym.name as string, symbols);
+        }
+      }
+    }
+  }
+
+  private normalizeRange(range: Record<string, unknown>): Range {
+    const start = range.start as Position;
+    const end = range.end as Position;
+    return {
+      start: { line: start.line + 1, character: start.character + 1 },
+      end: { line: end.line + 1, character: end.character + 1 },
+    };
   }
 
   protected async sendRequest(method: string, params: unknown): Promise<unknown> {
