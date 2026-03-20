@@ -2,16 +2,6 @@ name: Publish Client to NPM
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
   release:
     types: [published]
 
@@ -37,46 +27,6 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Bump version (manual dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        id: bump
-        run: |
-          cd packages/client
-          CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
-          
-          IFS='.' read -ra PARTS <<< "$CURRENT_VERSION"
-          major="${PARTS[0]}"
-          minor="${PARTS[1]}"
-          patch="${PARTS[2]}"
-          
-          case "${{ inputs.version }}" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-          esac
-          
-          NEW_VERSION="$major.$minor.$patch"
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          
-          # Update VERSION file
-          echo "$NEW_VERSION" > VERSION
-          
-          # Update dev package.json
-          node -e "const p=require('./package.json');p.version='$NEW_VERSION';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
-          
-          # Update npm template package.json
-          node -e "const p=require('./package.npm.json');p.version='$NEW_VERSION';require('fs').writeFileSync('package.npm.json',JSON.stringify(p,null,2)+'\n')"
-        shell: bash
-
-      - name: Get version (release)
-        if: github.event_name == 'release'
-        id: release_version
-        run: |
-          cd packages/client
-          VERSION=$(cat VERSION | tr -d '[:space:]')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
-
       - name: Build client
         run: |
           cd packages/client
@@ -95,4 +45,6 @@ jobs:
       - name: Publish to npm
         run: |
           cd packages/client
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "Publishing version $VERSION"
           npm publish --provenance --access public
