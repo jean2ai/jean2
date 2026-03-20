@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,7 @@ interface ChatViewProps {
   messagesWithParts: MessageWithParts[];
   queuedMessages: QueuedMessage[];
   preconfigs: Preconfig[];
+  prompts?: PromptInfo[];
   models: Model[];
   defaultModel: string;
   onSendMessage: (content: string) => void;
@@ -242,6 +243,7 @@ export function ChatView({
   messagesWithParts,
   queuedMessages,
   preconfigs,
+  prompts,
   models,
   defaultModel,
   onSendMessage,
@@ -431,6 +433,7 @@ export function ChatView({
           workspaceId={session.workspaceId}
           serverUrl={serverUrl}
           apiToken={apiToken}
+          prompts={prompts}
         />
       )}
 

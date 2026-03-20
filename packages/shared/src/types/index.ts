@@ -12,3 +12,4 @@ export * from './visualization';
 export * from './mcp';
 export * from './skill';
 export * from './server';
+export * from './prompt';

@@ -53,6 +53,9 @@ import { listTools, getTool } from './tools';
 // Import MCP operations
 import * as mcp from './mcp';
 
+// Import prompt operations
+import { listPrompts, ensurePromptsDir } from './prompts/registry';
+
 // Import config functions
 import { getModelsConfig, getAllModels } from './config';
 
@@ -74,6 +77,9 @@ function expandPath(path: string): string {
 export function createApp() {
   // Initialize authentication token
   initializeToken();
+
+  // Ensure prompts directory exists
+  ensurePromptsDir();
   
   const app = new Hono();
 
@@ -670,6 +676,19 @@ export function createApp() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: 'Failed to complete auth', message }, 500);
+    }
+  });
+
+  // ============================================================================
+  // Prompts API
+  // ============================================================================
+
+  app.get('/api/prompts', async (c) => {
+    try {
+      const prompts = await listPrompts();
+      return c.json({ prompts });
+    } catch (_error) {
+      return c.json({ prompts: [] });
     }
   });
 

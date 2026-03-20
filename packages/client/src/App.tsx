@@ -9,6 +9,7 @@ import type {
   ServerMessage,
   ClientMessage,
   Preconfig,
+  PromptInfo,
   Workspace,
   ToolPermission,
   QueuedMessage,
@@ -67,6 +68,7 @@ function AppContent() {
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
+  const [prompts, setPrompts] = useState<PromptInfo[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
@@ -340,12 +342,14 @@ function AppContent() {
     Promise.all([
       fetchWithAuth(`${apiUrl}/sessions`, { signal }).then(r => r.json()),
       fetchWithAuth(`${apiUrl}/preconfigs`, { signal }).then(r => r.json()),
+      fetchWithAuth(`${apiUrl}/prompts`, { signal }).then(r => r.json()),
       fetchWithAuth(`${apiUrl}/models`, { signal }).then(r => r.json()),
       fetchWithAuth(`${apiUrl}/workspaces`, { signal }).then(r => r.json()),
     ])
-      .then(([sessionsData, preconfigsData, modelsData, workspacesData]) => {
+      .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData]) => {
         setSessions(sessionsData.sessions || []);
         setPreconfigs(preconfigsData.preconfigs || []);
+        setPrompts(promptsData.prompts || []);
         setModels(modelsData.models || []);
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
 
@@ -988,6 +992,7 @@ function AppContent() {
             messagesWithParts={messagesWithParts}
             queuedMessages={queuedMessages[currentSession.id] || []}
             preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
+            prompts={prompts}
             models={models}
             defaultModel={defaultModel}
             onSendMessage={sendChatMessage}

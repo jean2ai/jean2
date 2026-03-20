@@ -137,6 +137,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   // Create directories
   mkdirSync(dirname(finalDbPath), { recursive: true });
   mkdirSync(finalToolsPath, { recursive: true });
+  mkdirSync(join(homedir(), '.jean2', 'prompts'), { recursive: true });
 
   // Create empty .env file
   const envPath = join(homedir(), '.jean2', '.env');
