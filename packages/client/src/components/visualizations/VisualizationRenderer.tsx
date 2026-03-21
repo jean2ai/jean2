@@ -75,7 +75,7 @@ export function VisualizationRenderer({ visualization }: VisualizationRendererPr
 
     case 'markdown':
       return (
-        <div className="prose prose-sm dark:prose-invert max-w-none">
+        <div className="prose prose-sm dark:prose-invert">
           {visualization.content}
         </div>
       );

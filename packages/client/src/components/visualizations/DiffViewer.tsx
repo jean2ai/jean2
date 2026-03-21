@@ -98,7 +98,7 @@ export function DiffViewer({ hunks, path, language: propLanguage, additions, del
 
   return (
     <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
-      <div style={{ minWidth: 'max-content' }}>
+      <div>
         <div className="flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
             onClick={() => setExpanded(!expanded)}

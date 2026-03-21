@@ -3,14 +3,15 @@ import remarkGfm from 'remark-gfm';
 import { Highlight, themes } from 'prism-react-renderer';
 import { cn } from '@/lib/utils';
 
-interface MarkdownRendererProps {
+export interface MarkdownRendererProps {
   children: string;
   className?: string;
+  inverted?: boolean;
 }
 
-export function MarkdownRenderer({ children, className }: MarkdownRendererProps) {
+export function MarkdownRenderer({ children, className, inverted = false }: MarkdownRendererProps) {
   return (
-    <div className={cn('markdown-render max-w-none', className)}>
+    <div className={cn('markdown-render break-words', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -25,8 +26,8 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
 
             if (!isInline && language) {
               return (
-                <div className="w-full max-w-full overflow-x-auto my-2">
-                  <Highlight theme={themes.oneDark} code={codeString.trim()} language={language}>
+                <div className="w-full max-w-full overflow-x-auto my-2 min-w-0">
+                  <Highlight theme={inverted ? themes.nightOwl : themes.oneDark} code={codeString.trim()} language={language}>
                     {({ className: hlClassName, style, tokens, getLineProps, getTokenProps }) => (
                       <pre className={cn('rounded-lg text-sm p-3', hlClassName)} style={style}>
                         {tokens.map((line, i) => (
@@ -44,7 +45,7 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
             }
 
             return (
-              <code className={cn('px-1.5 py-0.5 rounded bg-muted text-sm font-mono break-all', codeClassName)} {...props}>
+              <code className={cn('px-1.5 py-0.5 rounded text-sm font-mono break-all', inverted ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted', codeClassName)} {...props}>
                 {codeChildren}
               </code>
             );
@@ -55,7 +56,7 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                className={cn('underline underline-offset-2 transition-colors', inverted ? 'text-primary-foreground/80 hover:text-primary-foreground' : 'text-primary hover:text-primary/80')}
                 {...props}
               >
                 {children}
@@ -63,7 +64,7 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
             );
           },
           p({ children }) {
-            return <p className="last:mb-0 leading-relaxed break-words">{children}</p>;
+            return <p className="last:mb-0 leading-relaxed wrap-break-words">{children}</p>;
           },
           ul({ children }) {
             return <ul className="list-outside list-disc pl-4">{children}</ul>;
@@ -86,19 +87,19 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
           },
           blockquote({ children }) {
             return (
-              <blockquote className="border-l-2 border-muted-foreground/40 pl-3 my-1.5 text-muted-foreground italic">
+              <blockquote className={cn('border-l-2 pl-3 my-1.5 italic', inverted ? 'border-primary-foreground/40 text-primary-foreground/70' : 'border-muted-foreground/40 text-muted-foreground')}>
                 {children}
               </blockquote>
             );
           },
           strong({ children }) {
-            return <strong className="font-semibold">{children}</strong>;
+            return <strong className={cn('font-semibold', inverted && 'text-primary-foreground')}>{children}</strong>;
           },
           em({ children }) {
             return <em className="italic">{children}</em>;
           },
           hr() {
-            return <hr className="my-3 border-border" />;
+            return <hr className={cn('my-3', inverted ? 'border-primary-foreground/30' : 'border-border')} />;
           },
           table({ children }) {
             return (
@@ -111,14 +112,14 @@ export function MarkdownRenderer({ children, className }: MarkdownRendererProps)
           },
           th({ children }) {
             return (
-              <th className="border border-border px-2 py-1.5 bg-muted text-left font-semibold">
+              <th className={cn('border border-border px-2 py-1.5 text-left font-semibold', inverted ? 'bg-primary-foreground/10 text-primary-foreground' : 'bg-muted')}>
                 {children}
               </th>
             );
           },
           td({ children }) {
             return (
-              <td className="border border-border px-2 py-1.5">
+              <td className={cn('border px-2 py-1.5', inverted ? 'border-primary-foreground/20' : 'border-border')}>
                 {children}
               </td>
             );

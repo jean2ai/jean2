@@ -43,7 +43,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'flex flex-col gap-1 mb-4 animate-slide-up',
+        'flex flex-col gap-1 mb-4 animate-slide-up min-w-0',
         isUser ? 'items-end' : 'items-start'
       )}
     >
@@ -118,7 +118,7 @@ export function MessageBubble({
 
       <div
         className={cn(
-          'rounded-2xl px-4 py-3 max-w-full sm:max-w-full relative group',
+          'rounded-2xl px-4 py-3 max-w-full relative group min-w-0 overflow-hidden',
           isQueued
             ? 'bg-muted border-2 border-dashed border-muted-foreground/30 opacity-80'
             : isUser

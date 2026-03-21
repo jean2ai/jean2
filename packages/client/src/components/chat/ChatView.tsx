@@ -172,11 +172,13 @@ function MessageParts({
   pendingPermissions,
   onPermissionResponse,
   onNavigateToSubagent,
+  inverted = false,
 }: {
   parts: Part[];
   pendingPermissions: PendingPermissionRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
+  inverted?: boolean;
 }) {
   // Sort parts by createdAt to ensure chronological order
   const sortedParts = [...parts].sort((a, b) => a.createdAt - b.createdAt);
@@ -188,7 +190,7 @@ function MessageParts({
           case 'text':
             return (
               <div key={part.id} className="min-w-0">
-                <MarkdownRenderer>{part.text || '...'}</MarkdownRenderer>
+                <MarkdownRenderer inverted={inverted}>{part.text || '...'}</MarkdownRenderer>
               </div>
             );
 
@@ -196,7 +198,7 @@ function MessageParts({
             return (
               <div
                 key={part.id}
-                className="text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2"
+                className="text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2 wrap-break-word"
               >
                 {part.text}
               </div>
@@ -383,6 +385,7 @@ export function ChatView({
                     pendingPermissions={pendingPermissions}
                     onPermissionResponse={onPermissionResponse}
                     onNavigateToSubagent={onNavigateToSubagent}
+                    inverted={item.message.role === 'user'}
                   />
                 )}
               </MessageBubble>
