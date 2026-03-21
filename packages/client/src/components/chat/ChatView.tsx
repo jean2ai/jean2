@@ -198,7 +198,7 @@ function MessageParts({
             return (
               <div
                 key={part.id}
-                className="text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2 wrap-break-word"
+                className="visualization-container text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2 wrap-break-word"
               >
                 {part.text}
               </div>

@@ -11,7 +11,7 @@ export interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ children, className, inverted = false }: MarkdownRendererProps) {
   return (
-    <div className={cn('markdown-render break-words', className)}>
+    <div className={cn('visualization-container markdown-render overflow-x-auto wrap-break-words break', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -45,7 +45,7 @@ export function MarkdownRenderer({ children, className, inverted = false }: Mark
             }
 
             return (
-              <code className={cn('px-1.5 py-0.5 rounded text-sm font-mono break-all', inverted ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted', codeClassName)} {...props}>
+              <code className={cn('px-1.5 py-0.5 rounded text-sm font-mono', inverted ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted', codeClassName)} {...props}>
                 {codeChildren}
               </code>
             );
