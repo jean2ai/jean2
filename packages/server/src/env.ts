@@ -110,6 +110,16 @@ export function getLLMMaxTokens(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 32000;
 }
 
+export function getLLMMaxSteps(): number {
+  const parsed = parseInt(process.env.JEAN2_LLM_MAX_STEPS || '10', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+}
+
+export function getLLMSubagentMaxSteps(): number {
+  const parsed = parseInt(process.env.JEAN2_LLM_SUBAGENT_MAX_STEPS || '50', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
+}
+
 export function getLLMApiKeys(): Record<string, string | undefined> {
   return {
     openai: getLLMOpenAIApiKey(),

@@ -103,6 +103,8 @@ All settings can be placed in `~/.jean2/.env`. System environment variables take
 | `JEAN2_MODELS_PATH` | `~/.jean2/models.json` | Models config file path |
 | `JEAN2_LLM_TEMPERATURE` | `0.7` | Default LLM temperature |
 | `JEAN2_LLM_MAX_TOKENS` | `32000` | Max output token cap |
+| `JEAN2_LLM_MAX_STEPS` | `10` | Max agent loop steps (main agent) |
+| `JEAN2_LLM_SUBAGENT_MAX_STEPS` | `50` | Max agent loop steps (subagent) |
 | `JEAN2_LLM_BASE_URL` | — | Custom OpenAI-compatible base URL |
 | `JEAN2_LLM_OPENAI_API_KEY` | — | OpenAI API key |
 | `JEAN2_LLM_ANTHROPIC_API_KEY` | — | Anthropic API key |

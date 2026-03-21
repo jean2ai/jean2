@@ -26,6 +26,8 @@ import {
   getLLMZhipuCodingApiKey,
   getLLMBaseUrl,
   getLLMTemperature,
+  getLLMMaxSteps,
+  getLLMSubagentMaxSteps,
 } from '../env';
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
@@ -567,7 +569,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     tools: aiTools,
     maxOutputTokens: getMaxOutputTokens(resolvedModelId),
     temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
-    stopWhen: stepCountIs(maxSteps ?? 10),
+    stopWhen: stepCountIs(maxSteps ?? getLLMMaxSteps()),
     abortSignal: abortController.signal,
     // Use callbacks for step tracking
     experimental_onStepStart: (stepStartEvent) => {
@@ -1007,7 +1009,7 @@ export async function executeChildSession(options: {
       workspaceId,
       modelId: modelId ?? undefined,
       providerId: providerId ?? undefined,
-      maxSteps: 50,
+      maxSteps: getLLMSubagentMaxSteps(),
       // Route permission requests through parent session for approval
       onPermissionRequest: createPermissionRequestHandler(childSessionId),
     })) {

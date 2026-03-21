@@ -136,7 +136,17 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   // Create empty .env file
   const envPath = join(homedir(), '.jean2', '.env');
   if (!existsSync(envPath)) {
-    writeFileSync(envPath, '# Jean2 Environment Variables\n# Add your API keys here\n# Example: JEAN2_LLM_OPENAI_API_KEY=your-key-here\n');
+    writeFileSync(envPath, `# Jean2 Environment Variables
+# Add your API keys and configuration here
+
+# LLM API Keys
+# JEAN2_LLM_OPENAI_API_KEY=your-key-here
+# JEAN2_LLM_ANTHROPIC_API_KEY=your-key-here
+
+# Agent Configuration
+# JEAN2_LLM_MAX_STEPS=10
+# JEAN2_LLM_SUBAGENT_MAX_STEPS=50
+`);
   }
 
   // Create empty AGENTS.md file
