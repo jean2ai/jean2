@@ -14,6 +14,7 @@ import type {
   ToolPermission,
   QueuedMessage,
   SavedServer,
+  ProviderStatus,
 } from '@jean2/shared';
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -55,7 +56,7 @@ type ClientMessagePayload =
   | { sessionId: string; content: string }
   | { toolCallId: string; approved: boolean }
   | { sessionId: string; preconfigId?: string }
-  | { sessionId: string; modelId: string; providerId: string }
+  | { sessionId: string; modelId: string; providerId: string; variant?: string | null }
   | { toolCallId: string; allowed: boolean; alwaysAllow: boolean }
   | { workspaceId: string; includeRevoked?: boolean }
   | { permissionId: string }
@@ -63,7 +64,8 @@ type ClientMessagePayload =
   | { sessionId: string; reason?: string }
   | { queueId: string }
   | { sessionId: string; messageId: string }
-  | { sessionId: string; messageIds: string[] };
+  | { sessionId: string; messageIds: string[] }
+  | { provider: string };
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections } = useServerContext();
@@ -84,6 +86,7 @@ function AppContent() {
     totalTokens: number
   }>({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   const [currentModel, setCurrentModel] = useState<string>('gpt-4o');
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
   const [models, setModels] = useState<Array<{
     id: string;
     name: string;
@@ -91,8 +94,18 @@ function AppContent() {
     tier: 'budget' | 'standard' | 'premium';
     providerId: string;
     providerName: string;
+    variants?: Record<string, { providerOptions: Record<string, unknown> }>;
   }>>([]);
   const [defaultModel, setDefaultModel] = useState<string>('gpt-4o');
+
+  // Auto-clear variant when current model doesn't support it
+  useEffect(() => {
+    const modelVariants = models.find(m => m.id === currentModel)?.variants;
+    if (selectedVariant && modelVariants && !modelVariants[selectedVariant]) {
+      setSelectedVariant(null);
+    }
+  }, [currentModel, selectedVariant, models]);
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -106,6 +119,7 @@ function AppContent() {
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
+  const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -355,13 +369,15 @@ function AppContent() {
       fetchWithAuth(`${apiUrl}/prompts`, { signal }).then(r => r.json()),
       fetchWithAuth(`${apiUrl}/models`, { signal }).then(r => r.json()),
       fetchWithAuth(`${apiUrl}/workspaces`, { signal }).then(r => r.json()),
+      fetchWithAuth(`${apiUrl}/providers`, { signal }).then(r => r.json()),
     ])
-      .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData]) => {
+      .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData, providersData]) => {
         setSessions(sessionsData.sessions || []);
         setPreconfigs(preconfigsData.preconfigs || []);
         setPrompts(promptsData.prompts || []);
         setModels(modelsData.models || []);
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
+        setProviderStatuses(providersData.providers || []);
 
         // Handle workspace selection
         const workspaces = workspacesData.workspaces || [];
@@ -467,7 +483,8 @@ function AppContent() {
             [msg.session.id]: {}
           }));
           setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-          setCurrentModel(defaultModel);
+          setCurrentModel(msg.session.selectedModel || defaultModel);
+          setSelectedVariant(msg.session.selectedVariant ?? null);
           pendingSessionCreateRef.current = false;
         }
         break;
@@ -497,6 +514,14 @@ function AppContent() {
 
         setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         setCurrentModel(msg.session.selectedModel || defaultModel);
+        setSelectedVariant(msg.session.selectedVariant || null);
+
+        // Clear variant if restored model doesn't support it
+        const restoredModelId = msg.session.selectedModel || defaultModel;
+        const restoredVariants = models.find(m => m.id === restoredModelId)?.variants;
+        if (msg.session.selectedVariant && restoredVariants && !restoredVariants[msg.session.selectedVariant]) {
+          setSelectedVariant(null);
+        }
         break;
 
       case 'message.created':
@@ -653,6 +678,9 @@ function AppContent() {
         ));
         if (currentSession?.id === msg.session.id) {
           setCurrentSession(msg.session);
+          if (msg.session.selectedVariant !== undefined) {
+            setSelectedVariant(msg.session.selectedVariant);
+          }
         }
         break;
 
@@ -784,6 +812,29 @@ function AppContent() {
           setStreamingSessionId(null);
         }
         break;
+
+      case 'provider.status': {
+        setProviderStatuses(prev => {
+          const existing = prev.find(s => s.provider === msg.provider);
+          if (existing) {
+            return prev.map(s => s.provider === msg.provider
+              ? { ...s, connected: msg.connected, authorizationUrl: msg.authorizationUrl, error: msg.error }
+              : s
+            );
+          }
+          return [...prev, { provider: msg.provider, connected: msg.connected, authorizationUrl: msg.authorizationUrl, error: msg.error }];
+        });
+        break;
+      }
+
+      case 'provider.connected':
+        setProviderStatuses(prev =>
+          prev.map(s => s.provider === msg.provider
+            ? { ...s, connected: msg.connected, connectedAt: msg.connectedAt, accountId: msg.accountId }
+            : s
+          )
+        );
+        break;
     }
   }, [currentSession, defaultModel, streamingSessionId]);
 
@@ -880,10 +931,24 @@ function AppContent() {
   }, [currentSession, sendMessage]);
 
   const updateSessionModel = useCallback((modelId: string, providerId: string) => {
+    setCurrentModel(modelId);
+    setSelectedVariant(null);
     if (currentSession) {
       sendMessage('session.update_model', { sessionId: currentSession.id, modelId, providerId });
     }
   }, [currentSession, sendMessage]);
+
+  const updateSessionVariant = useCallback((variant: string | null) => {
+    if (currentSession) {
+      sendMessage('session.update_model', {
+        sessionId: currentSession.id,
+        modelId: currentSession.selectedModel || currentModel,
+        providerId: currentSession.selectedProvider || 'openai',
+        variant,
+      });
+      setSelectedVariant(variant);
+    }
+  }, [currentSession, currentModel, sendMessage]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     sendMessage('session.rename', { sessionId, title });
@@ -933,6 +998,14 @@ function AppContent() {
       sendMessage('permission.list', { workspaceId: activeWorkspace.id });
     }
   }, [activeWorkspace, sendMessage]);
+
+  const connectProvider = useCallback((provider: string) => {
+    sendMessage('provider.connect', { provider });
+  }, [sendMessage]);
+
+  const disconnectProvider = useCallback((provider: string) => {
+    sendMessage('provider.disconnect', { provider });
+  }, [sendMessage]);
 
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
@@ -1029,11 +1102,15 @@ function AppContent() {
             preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
             prompts={prompts}
             models={models}
+            codexConnected={providerStatuses.some(s => s.provider === 'codex' && s.connected)}
             defaultModel={defaultModel}
             onSendMessage={sendChatMessage}
             onRemoveFromQueue={removeFromQueue}
             onChangePreconfig={updateSessionPreconfig}
             onChangeModel={updateSessionModel}
+            onChangeVariant={updateSessionVariant}
+            selectedVariant={selectedVariant}
+            variants={models.find(m => m.id === currentModel)?.variants}
             pendingPermissions={pendingPermissions}
             onPermissionResponse={handlePermissionResponse}
             onRename={handleRenameSession}
@@ -1229,6 +1306,9 @@ function AppContent() {
             }}
             apiToken={apiToken}
             onLogout={handleLogout}
+            providerStatuses={providerStatuses}
+            onConnectProvider={connectProvider}
+            onDisconnectProvider={disconnectProvider}
           />
 
           <MCPManagementDialog

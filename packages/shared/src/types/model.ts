@@ -3,6 +3,10 @@
  */
 export type ModelTier = 'budget' | 'standard' | 'premium';
 
+export interface VariantOption {
+  providerOptions: Record<string, unknown>;
+}
+
 /**
  * Definition of an LLM model
  */
@@ -15,6 +19,7 @@ export interface ModelDefinition {
   contextWindow: number;
   /** Pricing tier */
   tier: ModelTier;
+  variants?: Record<string, VariantOption>;
 }
 
 /**

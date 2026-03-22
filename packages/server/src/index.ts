@@ -55,6 +55,7 @@ import {
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
 } from './env';
+import * as providerManager from './providers';
 
 export interface ServerOptions {
   port?: number;
@@ -462,8 +463,9 @@ function handleTerminalMessage(ws: ServerWebSocket, message: string | Buffer | u
 async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Promise<void> {
   switch (msg.type) {
     case 'session.create': {
+      const sessionId = crypto.randomUUID();
       const session = createSession({
-        id: crypto.randomUUID(),
+        id: sessionId,
         workspaceId: msg.workspaceId || '',
         preconfigId: msg.preconfigId || null,
         title: msg.title || 'New Session',
@@ -473,6 +475,22 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         agentName: null,
       });
       clients.set(ws, { sessionId: session.id });
+
+      // Apply preconfig settings (model, provider, variant) if defined
+      if (msg.preconfigId) {
+        const preconfig = await getPreconfig(msg.preconfigId);
+        if (preconfig) {
+          const updates: { selectedModel?: string; selectedProvider?: string; selectedVariant?: string | null } = {};
+          if (preconfig.model) updates.selectedModel = preconfig.model;
+          if (preconfig.provider) updates.selectedProvider = preconfig.provider;
+          updates.selectedVariant = preconfig.variant ?? null;
+          const updated = updateSession(sessionId, updates);
+          send(ws, { type: 'session.created', session: updated! });
+          broadcastSessionCreatedExclude(updated!, ws);
+          break;
+        }
+      }
+
       send(ws, { type: 'session.created', session });
       broadcastSessionCreatedExclude(session, ws);
       break;
@@ -541,9 +559,16 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         return;
       }
-      const updates: { preconfigId?: string } = {};
+      const updates: { preconfigId?: string; selectedVariant?: string | null } = {};
       if (msg.preconfigId !== undefined) {
         updates.preconfigId = msg.preconfigId;
+        // Apply preconfig's variant if defined
+        const preconfig = await getPreconfig(msg.preconfigId);
+        if (preconfig?.variant) {
+          updates.selectedVariant = preconfig.variant;
+        } else {
+          updates.selectedVariant = null;
+        }
       }
       const updated = updateSession(msg.sessionId, updates);
       send(ws, { type: 'session.updated', session: updated! });
@@ -558,7 +583,8 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       }
       const updated = updateSession(msg.sessionId, {
         selectedModel: msg.modelId,
-        selectedProvider: msg.providerId
+        selectedProvider: msg.providerId,
+        selectedVariant: msg.variant || null,
       });
       send(ws, { type: 'session.updated', session: updated! });
       break;
@@ -730,6 +756,67 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
 
+    case 'provider.connect': {
+      try {
+        const result = await providerManager.connectProvider(msg.provider);
+        const status = await providerManager.getProviderStatus(msg.provider);
+        broadcast({
+          type: 'provider.status',
+          provider: msg.provider,
+          connected: status.connected,
+          authorizationUrl: result.authorizationUrl,
+        });
+
+        if (msg.provider === 'codex') {
+          const { setOAuthCompletionCallback, getCodexStatus } = await import('./providers');
+          setOAuthCompletionCallback((success, error) => {
+            if (success) {
+              const newStatus = getCodexStatus();
+              broadcast({
+                type: 'provider.connected',
+                provider: msg.provider,
+                connected: true,
+                connectedAt: newStatus.connectedAt,
+                accountId: newStatus.accountId,
+              });
+            } else {
+              broadcast({
+                type: 'provider.status',
+                provider: msg.provider,
+                connected: false,
+                error: error || 'OAuth flow failed',
+              });
+            }
+            setOAuthCompletionCallback(undefined);
+          });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to connect provider';
+        broadcast({
+          type: 'provider.status',
+          provider: msg.provider,
+          connected: false,
+          error: message,
+        });
+      }
+      break;
+    }
+
+    case 'provider.disconnect': {
+      try {
+        await providerManager.disconnectProvider(msg.provider);
+        broadcast({
+          type: 'provider.connected',
+          provider: msg.provider,
+          connected: false,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to disconnect provider';
+        send(ws, { type: 'error', code: 'provider_error', message });
+      }
+      break;
+    }
+
     default:
       send(ws, { type: 'error', code: 'unknown_message', message: 'Unknown message type' });
   }
@@ -746,14 +833,18 @@ async function handleSessionCompact(
       return;
     }
 
+    const config = getModelsConfig();
+    const modelId = config.defaultModel;
+    const provider = config.defaultProvider;
+
     updateSession(msg.sessionId, { compacting: true });
     broadcastSessionUpdated(getSession(msg.sessionId)!);
 
     const result = await compactMessages({
       sessionId: msg.sessionId,
       messageIds: msg.messageIds,
-      modelId: session.selectedModel || undefined,
-      providerId: session.selectedProvider || undefined,
+      modelId,
+      providerId: provider,
     });
 
     broadcast({ type: 'message.created', message: result.message });
@@ -918,7 +1009,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   }
 
   // Check API key
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'codex';
   const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
     'openai': getLLMOpenAIApiKey,
     'anthropic': getLLMAnthropicApiKey,
@@ -927,11 +1018,12 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     'minimax': getLLMMinimaxApiKey,
     'zhipu': getLLMZhipuApiKey,
     'zhipu-coding': getLLMZhipuCodingApiKey,
+    'codex': () => 'oauth',
   };
   const apiKeyGetter = apiKeyGetterMap[provider as Provider];
   const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;
 
-  if (!apiKey) {
+  if (!apiKey && provider !== 'codex') {
     const envKey = `JEAN2_LLM_${provider.toUpperCase()}_API_KEY`;
     send(ws, { type: 'error', code: 'no_api_key', message: `No API key configured for provider: ${provider}. Set ${envKey}` });
     return;
@@ -979,6 +1071,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
       onPermissionRequest,
       modelId: modelId,
       providerId: provider,
+      variant: session.selectedVariant || undefined,
       workspacePath,
       workspaceId: session.workspaceId || undefined,
     })) {
@@ -1012,6 +1105,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             sessionId,
             usage: event.usage,
             model: event.model,
+            variant: event.variant ?? undefined,
           });
           // Persist usage to database
           const currentSession = getSession(sessionId);

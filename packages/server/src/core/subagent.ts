@@ -225,6 +225,13 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         parentId: sessionId,
         agentName: subagent_type,
         subagentStatus: 'running',
+        selectedModel: subagentPreconfig.model !== null
+          ? subagentPreconfig.model
+          : parentModelId,
+        selectedProvider: subagentPreconfig.provider !== null
+          ? subagentPreconfig.provider
+          : parentProviderId,
+        selectedVariant: subagentPreconfig.variant ?? null,
       });
 
       broadcastSessionCreated(childSession);
@@ -255,6 +262,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       providerId: subagentPreconfig.provider !== null
         ? subagentPreconfig.provider
         : parentProviderId,
+      variant: subagentPreconfig.variant ?? undefined,
     });
 
     // Check if was aborted during execution

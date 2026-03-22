@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { TokenMeter } from './TokenMeter';
 import { ModelSelector } from './ModelSelector';
+import { VariantSelector } from './VariantSelector';
 import { PreconfigSelector } from './PreconfigSelector';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -31,6 +32,7 @@ interface ChatHeaderProps {
   modelName: string;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
+  onChangeVariant: (variant: string | null) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateBack?: () => void;
   isStreaming?: boolean;
@@ -38,6 +40,9 @@ interface ChatHeaderProps {
   onCompact?: () => void;
   isCompacting?: boolean;
   canCompact?: boolean;
+  codexConnected?: boolean;
+  selectedVariant: string | null;
+  variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
 
 export function ChatHeader({
@@ -48,6 +53,7 @@ export function ChatHeader({
   modelName,
   onChangePreconfig,
   onChangeModel,
+  onChangeVariant,
   onRename,
   onNavigateBack,
   isStreaming,
@@ -55,6 +61,9 @@ export function ChatHeader({
   onCompact,
   isCompacting,
   canCompact,
+  codexConnected,
+  selectedVariant,
+  variants,
 }: ChatHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(session.title || '');
@@ -168,6 +177,15 @@ export function ChatHeader({
           onChangeModel={onChangeModel}
           disabled={session.status === 'closed' || !!session.parentId}
           iconOnly={isMobile}
+          codexConnected={codexConnected}
+        />
+
+        <VariantSelector
+          variants={variants}
+          selectedVariant={selectedVariant}
+          onChangeVariant={onChangeVariant}
+          disabled={session.status === 'closed' || !!session.parentId}
+          iconOnly={isMobile}
         />
 
         <PreconfigSelector
@@ -181,19 +199,21 @@ export function ChatHeader({
         <Separator orientation="vertical" className="hidden sm:block" />
 
         {onCompact && (
-          <Button
-            variant="outline"
-            size={isMobile ? 'icon' : 'sm'}
-            onClick={onCompact}
-            disabled={isStreaming || isCompacting || !canCompact}
-            title={isCompacting ? 'Compacting...' : 'Compact older messages'}
-          >
-            <Minimize2 className="size-4" />
-            {!isMobile && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size={isMobile ? 'icon' : 'sm'}
+              onClick={onCompact}
+              disabled={isStreaming || isCompacting || !canCompact}
+              title={isCompacting ? 'Compacting...' : 'Compact older messages'}
+            >
+              <Minimize2 className="size-4" />
+              {!isMobile && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
+            </Button>
+            <Separator orientation="vertical" className="hidden sm:block" />
+          </>
         )}
 
-        <Separator orientation="vertical" className="hidden sm:block" />
 
         <Button
           variant={isStreaming ? 'destructive' : 'outline'}

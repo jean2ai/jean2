@@ -53,6 +53,88 @@
           "tier": "budget"
         }
       ]
+    },
+    {
+      "id": "codex",
+      "name": "Codex (ChatGPT)",
+      "models": [
+        {
+          "id": "gpt-5.1-codex",
+          "name": "GPT-5.1 Codex",
+          "contextWindow": 200000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        },
+        {
+          "id": "gpt-5.2-codex",
+          "name": "GPT-5.2 Codex",
+          "contextWindow": 200000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        },
+        {
+          "id": "gpt-5.3-codex",
+          "name": "GPT-5.3 Codex",
+          "contextWindow": 400000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        },
+        {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "contextWindow": 400000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        },
+        {
+          "id": "gpt-5.1-codex-mini",
+          "name": "GPT-5.1 Codex Mini",
+          "contextWindow": 200000,
+          "maxOutputTokens": 64000,
+          "tier": "standard",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        },
+        {
+          "id": "gpt-5.1-codex-max",
+          "name": "GPT-5.1 Codex Max",
+          "contextWindow": 400000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+          }
+        }
+      ]
     }
   ],
   "defaultModel": "MiniMax-M2.7",

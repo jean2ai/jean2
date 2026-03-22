@@ -46,11 +46,13 @@ interface ChatViewProps {
   preconfigs: Preconfig[];
   prompts?: PromptInfo[];
   models: Model[];
+  codexConnected?: boolean;
   defaultModel: string;
   onSendMessage: (content: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
+  onChangeVariant: (variant: string | null) => void;
   pendingPermissions: PendingPermissionRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onRename: (sessionId: string, title: string) => void;
@@ -70,6 +72,8 @@ interface ChatViewProps {
   isCompacting?: boolean;
   serverUrl?: string;
   apiToken?: string;
+  selectedVariant: string | null;
+  variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -247,11 +251,13 @@ export function ChatView({
   preconfigs,
   prompts,
   models,
+  codexConnected,
   defaultModel,
   onSendMessage,
   onRemoveFromQueue,
   onChangePreconfig,
   onChangeModel,
+  onChangeVariant,
   pendingPermissions,
   onPermissionResponse,
   onRename,
@@ -267,6 +273,8 @@ export function ChatView({
   isCompacting,
   serverUrl,
   apiToken,
+  selectedVariant,
+  variants,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -324,6 +332,7 @@ export function ChatView({
         modelName={modelName}
         onChangePreconfig={onChangePreconfig}
         onChangeModel={onChangeModel}
+        onChangeVariant={onChangeVariant}
         onRename={onRename}
         onNavigateBack={onNavigateBack}
         isStreaming={isStreaming}
@@ -331,6 +340,9 @@ export function ChatView({
         onCompact={onCompact}
         isCompacting={isCompacting}
         canCompact={messagesWithParts.length >= 4}
+        codexConnected={codexConnected}
+        selectedVariant={selectedVariant}
+        variants={variants}
       />
 
       {session.status === 'closed' && (

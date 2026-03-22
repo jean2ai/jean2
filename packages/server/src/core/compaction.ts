@@ -1,5 +1,6 @@
-import { generateText } from 'ai';
+import { generateText, streamText } from 'ai';
 import { getModel } from './agent';
+import { findModel } from '@/config';
 import {
   listMessagesWithParts,
   createPart,
@@ -86,15 +87,53 @@ export async function compactMessages(
         .replace('{CONVERSATION}', conversationText)
     : COMPACTION_PROMPT_FIRST.replace('{CONVERSATION}', conversationText);
 
+  console.log('[compaction] modelId:', modelId, 'providerId:', providerId);
+
   const model = await getModel(modelId, providerId);
 
-  const result = await generateText({
-    model,
-    prompt,
-    maxOutputTokens: 2000,
-  });
+  const isCodex = providerId === 'codex' ||
+    findModel(modelId || '')?.providerId === 'codex';
 
-  const summary = result.text;
+  let summary: string;
+  let usage: { prompt: number; completion: number };
+
+  if (isCodex) {
+    const stream = streamText({
+      model,
+      prompt,
+      providerOptions: {
+        openai: {
+          instructions: prompt,
+          store: false,
+        },
+      },
+    });
+    summary = await stream.text;
+    const resultUsage = await stream.usage;
+    usage = {
+      prompt: resultUsage.inputTokens ?? 0,
+      completion: resultUsage.outputTokens ?? 0,
+    };
+  } else {
+    try {
+      const result = await generateText({
+        model,
+        prompt,
+        maxOutputTokens: 2000,
+      });
+      summary = result.text;
+      usage = {
+        prompt: result.usage.inputTokens ?? 0,
+        completion: result.usage.outputTokens ?? 0,
+      };
+    } catch (err) {
+      console.error('[compaction] generateText failed:', err);
+      if (err instanceof Error) {
+        console.error('[compaction] error message:', err.message);
+      }
+      throw err;
+    }
+  }
   const now = Date.now();
   const msgId = randomUUID();
 
@@ -121,10 +160,7 @@ export async function compactMessages(
   return {
     message: systemMessage,
     part: compactionPart,
-    tokensUsed: {
-      prompt: result.usage.inputTokens ?? 0,
-      completion: result.usage.outputTokens ?? 0,
-    },
+    tokensUsed: usage,
   };
 }
 

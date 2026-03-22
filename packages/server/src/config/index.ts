@@ -216,6 +216,7 @@ export interface ModelDefinition {
   contextWindow: number;
   maxOutputTokens?: number;
   tier: 'budget' | 'standard' | 'premium';
+  variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
 
 export interface ProviderDefinition {
@@ -253,6 +254,14 @@ export function getAllModels(): Array<ModelDefinition & { providerId: string; pr
 
 export function findModel(modelId: string): (ModelDefinition & { providerId: string; providerName: string }) | undefined {
   return getAllModels().find(m => m.id === modelId);
+}
+
+export function findModelVariant(
+  modelId: string,
+  variantKey: string,
+): Record<string, unknown> | undefined {
+  const model = findModel(modelId);
+  return model?.variants?.[variantKey]?.providerOptions;
 }
 
 /**

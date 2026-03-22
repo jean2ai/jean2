@@ -99,6 +99,7 @@ export interface ChatUsageMessage {
     totalTokens: number;
   };
   model: string;
+  variant?: string;
 }
 
 export interface PermissionRequestMessage {
@@ -288,6 +289,22 @@ export interface InvalidRequestErrorMessage {
   message: string;
 }
 
+export interface ProviderStatusMessage {
+  type: 'provider.status';
+  provider: string;
+  connected: boolean;
+  authorizationUrl?: string;
+  error?: string;
+}
+
+export interface ProviderConnectedMessage {
+  type: 'provider.connected';
+  provider: string;
+  connected: boolean;
+  connectedAt?: string;
+  accountId?: string;
+}
+
 export type ServerMessage =
   | MessageCreatedMessage
   | MessageUpdatedMessage
@@ -325,4 +342,6 @@ export type ServerMessage =
   | ServerErrorMessage
   | TimeoutErrorMessage
   | AuthErrorMessage
-  | InvalidRequestErrorMessage;
+  | InvalidRequestErrorMessage
+  | ProviderStatusMessage
+  | ProviderConnectedMessage;

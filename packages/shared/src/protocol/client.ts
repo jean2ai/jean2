@@ -38,6 +38,7 @@ export interface SessionUpdateModelMessage {
   sessionId: string;
   modelId: string;
   providerId: string;
+  variant?: string;
 }
 
 export interface SessionReopenMessage {
@@ -135,6 +136,16 @@ export interface QueueRemoveMessage {
   queueId: string;
 }
 
+export interface ProviderConnectMessage {
+  type: 'provider.connect';
+  provider: string;
+}
+
+export interface ProviderDisconnectMessage {
+  type: 'provider.disconnect';
+  provider: string;
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
@@ -155,4 +166,6 @@ export type ClientMessage =
   | SessionForkMessage
   | SessionInterruptMessage
   | QueueAddMessage
-  | QueueRemoveMessage;
+  | QueueRemoveMessage
+  | ProviderConnectMessage
+  | ProviderDisconnectMessage;

@@ -14,6 +14,7 @@ interface SessionRow {
   metadata: string | null;
   selected_model: string | null;
   selected_provider: string | null;
+  selected_variant: string | null;
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
@@ -34,8 +35,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -47,6 +48,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.metadata ? JSON.stringify(s.metadata) : null,
     s.selectedModel ?? null,
     s.selectedProvider ?? null,
+    s.selectedVariant ?? null,
     s.parentId ?? null,
     s.agentName ?? null,
     s.subagentStatus ?? null,
@@ -87,7 +89,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -117,6 +119,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.selectedProvider !== undefined) {
     setClauses.push('selected_provider = ?');
     values.push(updates.selectedProvider);
+  }
+  if (updates.selectedVariant !== undefined) {
+    setClauses.push('selected_variant = ?');
+    values.push(updates.selectedVariant);
   }
   if (updates.promptTokens !== undefined) {
     setClauses.push('prompt_tokens = ?');
@@ -181,6 +187,7 @@ function mapRowToSession(row: SessionRow): Session {
     metadata: row.metadata ? JSON.parse(row.metadata) : null,
     selectedModel: row.selected_model ?? null,
     selectedProvider: row.selected_provider ?? null,
+    selectedVariant: row.selected_variant ?? null,
     promptTokens: row.prompt_tokens ?? undefined,
     completionTokens: row.completion_tokens ?? undefined,
     totalTokens: row.total_tokens ?? undefined,

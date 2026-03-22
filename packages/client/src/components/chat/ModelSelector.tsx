@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Cpu } from 'lucide-react';
 
 interface Model {
@@ -25,6 +26,7 @@ interface ModelSelectorProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   disabled?: boolean;
   iconOnly?: boolean;
+  codexConnected?: boolean;
 }
 
 function getTierBadge(tier: string): string {
@@ -42,6 +44,7 @@ export function ModelSelector({
   onChangeModel,
   disabled,
   iconOnly = false,
+  codexConnected = false,
 }: ModelSelectorProps) {
   const groupedModels = models.reduce((acc, model) => {
     if (!acc[model.providerName]) {
@@ -81,12 +84,22 @@ export function ModelSelector({
             <SelectGroup key={providerName}>
               <SelectLabel>{providerName}</SelectLabel>
               {providerModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
+                <SelectItem key={model.id} value={model.id} disabled={model.providerId === 'codex' && !codexConnected}>
                   <span className="flex items-center gap-2">
                     {model.name}
                     <span className="text-muted-foreground text-xs">
                       {getTierBadge(model.tier)}
                     </span>
+                    {model.providerId === 'codex' && codexConnected && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+                        Sub
+                      </Badge>
+                    )}
+                    {model.providerId === 'codex' && !codexConnected && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                        OAuth
+                      </Badge>
+                    )}
                   </span>
                 </SelectItem>
               ))}

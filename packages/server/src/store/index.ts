@@ -61,6 +61,7 @@ function initializeSchema(db: Database): void {
       metadata TEXT,
       selected_model TEXT,
       selected_provider TEXT,
+      selected_variant TEXT,
       prompt_tokens INTEGER DEFAULT 0,
       completion_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,

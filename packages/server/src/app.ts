@@ -66,6 +66,9 @@ import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/fi
 import { requireAuth, isPublicRoute } from './auth/middleware';
 import { initializeToken } from './auth/token';
 
+// Import provider operations
+import * as providers from './providers';
+
 // Helper function to expand ~ to user's home directory
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
@@ -751,6 +754,57 @@ export function createApp() {
       });
     } catch (_error) {
       return c.json({ models: [], error: 'Failed to load models' });
+    }
+  });
+
+  // ============================================================================
+  // Providers API
+  // ============================================================================
+
+  // GET /api/providers - List all providers with status
+  app.get('/api/providers', async (c) => {
+    try {
+      const providerStatuses = await Promise.all([
+        providers.getProviderStatus('codex'),
+      ]);
+      return c.json({ providers: providerStatuses });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'Failed to get providers', message }, 500);
+    }
+  });
+
+  // POST /api/providers/codex/connect - Start OAuth flow
+  app.post('/api/providers/codex/connect', async (c) => {
+    try {
+      const result = await providers.connectProvider('codex');
+      const status = await providers.getProviderStatus('codex');
+      return c.json({ authorizationUrl: result.authorizationUrl, status });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'Failed to start connection', message }, 500);
+    }
+  });
+
+  // GET /api/providers/codex/status - Get Codex connection status
+  app.get('/api/providers/codex/status', async (c) => {
+    try {
+      const status = await providers.getProviderStatus('codex');
+      return c.json({ status });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'Failed to get status', message }, 500);
+    }
+  });
+
+  // DELETE /api/providers/codex - Disconnect Codex
+  app.delete('/api/providers/codex', async (c) => {
+    try {
+      await providers.disconnectProvider('codex');
+      return c.json({ success: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'Failed to disconnect', message }, 500);
     }
   });
 

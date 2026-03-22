@@ -6,7 +6,7 @@ import { createMessage, listMessages as storeListMessages, createPart, updatePar
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import * as mcp from '@/mcp';
 import type { PermissionRequestCallback } from '@/tools';
-import { findModel, getMaxOutputTokens } from '@/config';
+import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { loadInstructions, formatInstructions } from './instructions';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
@@ -31,6 +31,7 @@ import {
 } from '../env';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
 import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
+import { getCodexConfig, createCodexFetch, OAUTH_DUMMY_KEY } from '@/providers';
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
   // Default model
@@ -79,6 +80,8 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         return getLLMZhipuApiKey();
       case 'zhipu-coding':
         return getLLMZhipuCodingApiKey();
+      case 'codex':
+        return OAUTH_DUMMY_KEY;
       default:
         return getLLMOpenAIApiKey();
     }
@@ -91,6 +94,19 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
   }
 
   switch (provider) {
+    case 'codex': {
+      const codexConfig = await getCodexConfig();
+      if (!codexConfig) {
+        throw new Error('Codex not connected. Please connect your ChatGPT subscription in Settings.');
+      }
+      const codexFetch = await createCodexFetch(codexConfig);
+      const openai = createOpenAI({
+        apiKey: OAUTH_DUMMY_KEY,
+        fetch: codexFetch,
+      });
+      return openai.responses(model) as unknown as LanguageModel;
+    }
+
     case 'openrouter': {
       const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
       const openrouter = createOpenRouter({ apiKey });
@@ -149,6 +165,7 @@ export interface ChatOptions {
   messages: MessageWithParts[];
   modelId?: string;
   providerId?: string;
+  variant?: string;
   workspacePath?: string;
   workspaceId?: string;
   onPermissionRequest?: PermissionRequestCallback;
@@ -507,8 +524,8 @@ async function buildAiSdkTools(
   return tools;
 }
 
-export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
-  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
+export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
 
   // Register session with interrupt manager
   const abortController = interruptManager.registerSession(_sessionId);
@@ -564,12 +581,33 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   let yieldFn: ((event: MessageEvent) => void) | null = null;
 
   // Create a deferred yield function that will be set up after we enter the generator
+
+  const isCodex = providerId === 'codex';
+
+  // Resolve variant providerOptions if applicable
+  const variantOpts = variant ? findModelVariant(resolvedModelId || '', variant) : undefined;
+
+  // Build providerOptions based on isCodex and variant
+  let providerOptions: Record<string, Record<string, unknown>> | undefined;
+  if (isCodex) {
+    providerOptions = {
+      openai: {
+        instructions: systemMessage || 'You are a helpful assistant.',
+        store: false,
+        ...(variantOpts || {}),
+      },
+    };
+  } else if (variantOpts) {
+    providerOptions = { openai: variantOpts };
+  }
+
   const result = streamText({
     model,
-    system: systemMessage,
+    system: isCodex ? undefined : systemMessage,
     messages: aiMessages,
     tools: aiTools,
-    maxOutputTokens: getMaxOutputTokens(resolvedModelId),
+    maxOutputTokens: isCodex ? undefined : getMaxOutputTokens(resolvedModelId),
+    providerOptions: providerOptions as Parameters<typeof streamText>[0]['providerOptions'],
     temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
     stopWhen: stepCountIs(maxSteps ?? getLLMMaxSteps()),
     abortSignal: abortController.signal,
@@ -946,6 +984,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         totalTokens: usageData.totalTokens ?? 0,
       },
       model: actualModelId,
+      variant: variant || null,
     };
   }
 
@@ -983,7 +1022,7 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
 
 export async function* streamChatWithRetry(
   options: ChatOptions
-): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
   let retries = 0;
   const maxRetries = 3;
   let _lastError: ReturnType<typeof classifyApiError> | null = null;
@@ -1055,11 +1094,12 @@ export async function executeChildSession(options: {
   resumeFromHistory?: boolean;
   modelId?: string | null;
   providerId?: string | null;
+  variant?: string | null;
 }): Promise<{
   parts: Part[];
   error?: string;
 }> {
-  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId } = options;
+  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant } = options;
 
   // Build initial message with parts
   let messages: MessageWithParts[];
@@ -1126,6 +1166,7 @@ export async function executeChildSession(options: {
       workspaceId,
       modelId: modelId ?? undefined,
       providerId: providerId ?? undefined,
+      variant: variant ?? undefined,
       maxSteps: getLLMSubagentMaxSteps(),
       // Route permission requests through parent session for approval
       onPermissionRequest: createPermissionRequestHandler(childSessionId),
