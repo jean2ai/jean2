@@ -29,6 +29,8 @@ import {
   getLLMMaxSteps,
   getLLMSubagentMaxSteps,
 } from '../env';
+import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
+import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
   // Default model
@@ -505,7 +507,7 @@ async function buildAiSdkTools(
   return tools;
 }
 
-export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string }> {
+export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
 
   // Register session with interrupt manager
@@ -700,12 +702,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       }
 
       // Process any callback events that were queued
-    while (callbackEventQueue.length > 0) {
-      const event = callbackEventQueue.shift()!;
-      yield event;
-    }
+      while (callbackEventQueue.length > 0) {
+        const event = callbackEventQueue.shift()!;
+        yield event;
+      }
 
-    switch (delta.type) {
+      switch (delta.type) {
       case 'text-delta': {
         const textContent = delta.text || '';
         if (textContent) {
@@ -856,13 +858,69 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       }
     }
   }
+  } catch (err) {
+    const classified = classifyApiError(err);
+
+    // Check if it's an abort/interrupt (already handled)
+    if (abortController.signal.aborted) {
+      const interruptedMessage: AssistantMessage = {
+        ...assistantMessage,
+        status: 'error',
+        error: 'Interrupted by user',
+      };
+      yield { type: 'message.updated', message: interruptedMessage };
+      updateMessage(messageId, interruptedMessage);
+      return;
+    }
+
+    // Handle non-retryable errors - yield error event and return
+    if (!classified.retryable) {
+      if (classified.type === ApiErrorType.Authentication) {
+        yield {
+          type: 'error.auth',
+          code: ERROR_AUTH,
+          message: classified.message,
+        };
+      } else if (classified.type === ApiErrorType.InvalidRequest) {
+        yield {
+          type: 'error.invalid_request',
+          code: ERROR_INVALID_REQUEST,
+          message: classified.message,
+        };
+      } else {
+        yield {
+          type: 'error',
+          code: ERROR_CHAT_FAILED,
+          message: classified.message,
+        } as ErrorMessage;
+      }
+
+      // Update message status to error
+      const errorMessage: AssistantMessage = {
+        ...assistantMessage,
+        status: 'error',
+        error: classified.message,
+      };
+      yield { type: 'message.updated', message: errorMessage };
+      updateMessage(messageId, errorMessage);
+      return;
+    }
+
+    // For retryable errors, throw to let caller handle retry
+    throw classified;
+  }
 
   // Finalize: get usage data FIRST, then update message with actual tokens
-  const totalUsagePromise = result.totalUsage;
-  const usagePromise = result.usage;
-
-  const [totalUsage, usage] = await Promise.all([totalUsagePromise, usagePromise]);
-  const usageData = usage ?? totalUsage;
+  let usageData = null;
+  try {
+    const totalUsagePromise = result.totalUsage;
+    const usagePromise = result.usage;
+    const [totalUsage, usage] = await Promise.all([totalUsagePromise, usagePromise]);
+    usageData = usage ?? totalUsage;
+  } catch (_usageErr) {
+    // Usage is optional - continue without it
+    console.warn('Failed to get usage data:', _usageErr);
+  }
 
   const finalMessage: AssistantMessage = {
     ...assistantMessage,
@@ -890,17 +948,16 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       model: actualModelId,
     };
   }
-  } finally {
-    // Cleanup interrupt registration
-    interruptManager.unregisterSession(_sessionId);
 
-    // Clear runningAt and broadcast session update for main sessions
-    if (isMainSession) {
-      updateSession(_sessionId, { runningAt: null });
-      const updatedSession = getSession(_sessionId);
-      if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
-      }
+  // Cleanup interrupt registration
+  interruptManager.unregisterSession(_sessionId);
+
+  // Clear runningAt and broadcast session update for main sessions
+  if (isMainSession) {
+    updateSession(_sessionId, { runningAt: null });
+    const updatedSession = getSession(_sessionId);
+    if (updatedSession) {
+      broadcastSessionUpdated(updatedSession);
     }
   }
 }
@@ -922,6 +979,66 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
     message: finalMessage!,
     toolCalls,
   };
+}
+
+export async function* streamChatWithRetry(
+  options: ChatOptions
+): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+  let retries = 0;
+  const maxRetries = 3;
+  let _lastError: ReturnType<typeof classifyApiError> | null = null;
+
+  while (retries <= maxRetries) {
+    try {
+      for await (const event of streamChat(options)) {
+        yield event;
+      }
+      // Stream completed successfully
+      return;
+    } catch (err) {
+      const classifiedError = classifyApiError(err);
+      _lastError = classifiedError;
+
+      if (!classifiedError.retryable || retries === maxRetries) {
+        // Max retries exhausted or non-retryable - yield error and return
+        if (classifiedError.type === ApiErrorType.RateLimit) {
+          yield {
+            type: 'error.rate_limit',
+            code: ERROR_RATE_LIMIT,
+            message: classifiedError.message,
+            retryAfterMs: classifiedError.retryAfterMs || 5000,
+          };
+        } else if (classifiedError.type === ApiErrorType.ServerError) {
+          yield {
+            type: 'error.server',
+            code: ERROR_SERVER_ERROR,
+            message: classifiedError.message,
+            retryAfterMs: classifiedError.retryAfterMs,
+          };
+        } else if (classifiedError.type === ApiErrorType.Timeout) {
+          yield {
+            type: 'error.timeout',
+            code: ERROR_TIMEOUT,
+            message: classifiedError.message,
+            retryAfterMs: classifiedError.retryAfterMs,
+          };
+        } else {
+          yield {
+            type: 'error',
+            code: ERROR_CHAT_FAILED,
+            message: classifiedError.message,
+          } as ErrorMessage;
+        }
+        return;
+      }
+
+      retries++;
+      console.log(`[streamChat] Retryable error: ${classifiedError.type}, retrying (${retries}/${maxRetries}) in ${classifiedError.retryAfterMs || 1000}ms...`);
+
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, classifiedError.retryAfterMs || 1000 * retries));
+    }
+  }
 }
 
 /**
@@ -1001,7 +1118,7 @@ export async function executeChildSession(options: {
 
   try {
     // Run the agent loop without streaming callbacks
-    for await (const event of streamChat({
+    for await (const event of streamChatWithRetry({
       sessionId: childSessionId,
       preconfig,
       messages,
@@ -1032,11 +1149,30 @@ export async function executeChildSession(options: {
           totalTokens: event.usage.totalTokens,
         });
       }
+    } else if (event.type === 'error.rate_limit') {
+      console.warn(`[Child Session ${childSessionId}] Rate limited, retrying in ${event.retryAfterMs}ms...`);
+    } else if (event.type === 'error.server') {
+      console.warn(`[Child Session ${childSessionId}] Server error: ${event.message}`);
+    } else if (event.type === 'error.timeout') {
+      console.warn(`[Child Session ${childSessionId}] Timeout: ${event.message}`);
+    } else if (event.type === 'error' || event.type === 'error.auth' || event.type === 'error.invalid_request') {
+      // Capture error from non-retryable errors
+      const errMsg = event.message;
+      if (!error) {
+        error = errMsg;
+      }
+      console.error(`[Child Session ${childSessionId}] ${event.type}: ${errMsg}`);
     }
     }
   } catch (err) {
-    error = err instanceof Error ? err.message : String(err);
-    console.error(`[Child Session ${childSessionId}] Error:`, error);
+    const classified = classifyApiError(err);
+    error = classified.message;
+
+    if (classified.retryable) {
+      console.error(`[Child Session ${childSessionId}] Retryable error (${classified.type}): ${classified.message}`);
+    } else {
+      console.error(`[Child Session ${childSessionId}] Non-retryable error (${classified.type}): ${classified.message}`);
+    }
   }
 
   return {

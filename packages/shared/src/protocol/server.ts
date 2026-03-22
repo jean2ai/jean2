@@ -58,6 +58,7 @@ export interface ToolApprovalRequiredMessage {
   dangerous: boolean;
 }
 
+// code can be: 'rate_limit' | 'server_error' | 'timeout' | 'authentication' | 'invalid_request' | 'chat_error' | 'parse_error' | 'not_found' | etc.
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -250,6 +251,43 @@ export interface QueueSendingMessage {
   queueId: string;
 }
 
+// =============================================================================
+// Error Messages
+// =============================================================================
+
+export interface RateLimitErrorMessage {
+  type: 'error.rate_limit';
+  code: 'rate_limit';
+  message: string;
+  retryAfterMs: number;
+}
+
+export interface ServerErrorMessage {
+  type: 'error.server';
+  code: 'server_error';
+  message: string;
+  retryAfterMs?: number;
+}
+
+export interface TimeoutErrorMessage {
+  type: 'error.timeout';
+  code: 'timeout';
+  message: string;
+  retryAfterMs?: number;
+}
+
+export interface AuthErrorMessage {
+  type: 'error.auth';
+  code: 'authentication';
+  message: string;
+}
+
+export interface InvalidRequestErrorMessage {
+  type: 'error.invalid_request';
+  code: 'invalid_request';
+  message: string;
+}
+
 export type ServerMessage =
   | MessageCreatedMessage
   | MessageUpdatedMessage
@@ -282,4 +320,9 @@ export type ServerMessage =
   | QueueListMessage
   | QueueAddedMessage
   | QueueRemovedMessage
-  | QueueSendingMessage;
+  | QueueSendingMessage
+  | RateLimitErrorMessage
+  | ServerErrorMessage
+  | TimeoutErrorMessage
+  | AuthErrorMessage
+  | InvalidRequestErrorMessage;

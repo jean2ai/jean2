@@ -30,7 +30,7 @@ import {
   updateToolApproval,
   listPendingApprovals
 } from '@/store/tool-approvals';
-import { streamChat } from './core/agent';
+import { streamChatWithRetry } from './core/agent';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
 import { compactMessages } from './core/compaction';
 import { revertToStep } from './core/revert';
@@ -817,7 +817,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
 
   try {
     // Stream the response - agent now handles all message/part creation
-    for await (const event of streamChat({
+    for await (const event of streamChatWithRetry({
       sessionId,
       preconfig,
       messages: history,
@@ -869,6 +869,54 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
           }
           break;
         }
+
+        case 'error.rate_limit':
+          send(ws, {
+            type: 'error.rate_limit',
+            code: 'rate_limit',
+            message: event.message,
+            retryAfterMs: event.retryAfterMs,
+          });
+          // Don't continue processing - rate limit errors are terminal
+          return;
+
+        case 'error.server':
+          send(ws, {
+            type: 'error.server',
+            code: 'server_error',
+            message: event.message,
+            retryAfterMs: event.retryAfterMs,
+          });
+          // Server errors may be temporary - still process queue
+          await processQueueAfterStream(ws, sessionId);
+          return;
+
+        case 'error.timeout':
+          send(ws, {
+            type: 'error.timeout',
+            code: 'timeout',
+            message: event.message,
+            retryAfterMs: event.retryAfterMs,
+          });
+          // Timeouts may be temporary - still process queue
+          await processQueueAfterStream(ws, sessionId);
+          return;
+
+        case 'error.auth':
+          send(ws, {
+            type: 'error',
+            code: 'authentication',
+            message: event.message,
+          });
+          return;
+
+        case 'error.invalid_request':
+          send(ws, {
+            type: 'error',
+            code: 'invalid_request',
+            message: event.message,
+          });
+          return;
       }
     }
 
@@ -876,8 +924,9 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     await processQueueAfterStream(ws, sessionId);
 
   } catch (err: unknown) {
+    // This catch handles unexpected errors not classified by streamChatWithRetry
     const message = err instanceof Error ? err.message : 'Chat failed';
-    console.error('Chat error:', err);
+    console.error('Unexpected chat error:', err);
     send(ws, { type: 'error', code: 'chat_error', message });
   }
 }

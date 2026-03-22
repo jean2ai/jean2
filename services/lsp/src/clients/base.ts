@@ -486,6 +486,7 @@ export abstract class BaseLSPClient {
     const method = notification.method as string;
 
     if (method === 'textDocument/publishDiagnostics') {
+      // diagnostics handling not implemented yet
     }
   }
 
