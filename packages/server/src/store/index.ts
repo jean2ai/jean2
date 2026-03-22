@@ -184,6 +184,28 @@ function initializeSchema(db: Database): void {
   `);
 
   db.run('CREATE INDEX IF NOT EXISTS idx_queued_messages_session ON queued_messages(session_id, position)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS terminal_sessions (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      shell TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT 'main',
+      status TEXT NOT NULL DEFAULT 'running',
+      exit_code INTEGER,
+      pid INTEGER,
+      cols INTEGER NOT NULL DEFAULT 80,
+      rows INTEGER NOT NULL DEFAULT 24,
+      created_at INTEGER NOT NULL,
+      last_activity_at INTEGER NOT NULL,
+      destroyed_at INTEGER,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace ON terminal_sessions(workspace_id, status)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_terminal_sessions_activity ON terminal_sessions(last_activity_at)');
 }
 
 export { Database };
@@ -195,3 +217,4 @@ export * from './tool-approvals';
 export * from './workspaces';
 export * from './permissions';
 export * from './queued-messages';
+export * from './terminal-sessions';

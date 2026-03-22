@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, TerminalSquare } from 'lucide-react';
 import type {
   Session,
   Message,
@@ -18,6 +18,7 @@ import type {
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { FilesPanel } from '@/components/layout/FilesPanel';
+import { TerminalPanel } from '@/components/layout/TerminalPanel';
 import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
@@ -96,6 +97,7 @@ function AppContent() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showFilesPanel, setShowFilesPanel] = useState(false);
+  const [showTerminalPanel, setShowTerminalPanel] = useState(false);
   const [showMCPDialog, setShowMCPDialog] = useState(false);
   const [sidebarViewMode, setSidebarViewMode] = useState<'default' | 'overview'>(() => {
     return (localStorage.getItem('jean2_sidebar_view') as 'default' | 'overview') || 'default';
@@ -803,6 +805,12 @@ function AppContent() {
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+        e.preventDefault();
+        setShowTerminalPanel(prev => !prev);
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
         try {
@@ -1106,14 +1114,18 @@ function AppContent() {
             <span className="font-semibold">Jean2</span>
           </div>
           <div className="flex items-center gap-1">
-            <QuickSwitcher 
-              onServerSwitch={handleServerSwitch}
-              onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
-            />
-            <SidebarLayoutToggle 
-              viewMode={sidebarViewMode} 
-              onViewModeChange={setSidebarViewMode} 
-            />
+            {isLoggedIn && (
+              <QuickSwitcher
+                onServerSwitch={handleServerSwitch}
+                onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
+              />
+            )}
+            {isLoggedIn && (
+              <SidebarLayoutToggle
+                viewMode={sidebarViewMode}
+                onViewModeChange={setSidebarViewMode}
+              />
+            )}
             {isLoggedIn && activeWorkspace && (
               <Button
                 variant="ghost"
@@ -1122,6 +1134,16 @@ function AppContent() {
                 title={showFilesPanel ? 'Hide Files' : 'Show Files'}
               >
                 <FolderOpen className="w-4 h-4" />
+              </Button>
+            )}
+            {isLoggedIn && activeWorkspace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowTerminalPanel(!showTerminalPanel)}
+                title={showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}
+              >
+                <TerminalSquare className="w-4 h-4" />
               </Button>
             )}
           </div>
@@ -1140,10 +1162,12 @@ function AppContent() {
                 onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
               />
             )}
-            <SidebarLayoutToggle 
-              viewMode={sidebarViewMode} 
-              onViewModeChange={setSidebarViewMode} 
-            />
+            {isLoggedIn && (
+              <SidebarLayoutToggle
+                viewMode={sidebarViewMode}
+                onViewModeChange={setSidebarViewMode}
+              />
+            )}
             {isLoggedIn && activeWorkspace && (
               <Button
                 variant="ghost"
@@ -1154,10 +1178,32 @@ function AppContent() {
                 <FolderOpen className="w-4 h-4" />
               </Button>
             )}
+            {isLoggedIn && activeWorkspace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setShowTerminalPanel(!showTerminalPanel)}
+                title={showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}
+              >
+                <TerminalSquare className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </header>
 
         {renderMainContent()}
+
+        {isLoggedIn && (
+          <TerminalPanel
+            workspaceId={activeWorkspace?.id}
+            workspacePath={activeWorkspace?.path}
+            workspaceName={activeWorkspace?.name}
+            serverUrl={serverUrl ?? undefined}
+            apiToken={apiToken ?? undefined}
+            isOpen={showTerminalPanel}
+            onClose={() => setShowTerminalPanel(false)}
+          />
+        )}
       </main>
 
       {isLoggedIn && (

@@ -375,3 +375,16 @@ pre {
 main {
   overscroll-behavior: contain;
 }
+
+/* xterm.js terminal styles */
+.xterm {
+  padding: 4px;
+}
+
+.xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.xterm-screen {
+  height: 100% !important;
+}

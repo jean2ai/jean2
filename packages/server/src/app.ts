@@ -336,12 +336,55 @@ export function createApp() {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
+    // Import getTerminalManager dynamically to avoid circular dependency
+    const { getTerminalManager } = await import('./services/terminal');
+    getTerminalManager().destroySessionsForWorkspace(workspace.path);
+
     const deleted = deleteWorkspace(id);
 
     if (!deleted) {
       return c.json({ error: 'Internal Server Error', message: 'Failed to delete workspace' }, 500);
     }
 
+    return c.json({ success: true });
+  });
+
+  // ============================================================================
+  // Terminal Sessions API
+  // ============================================================================
+
+  // GET /api/workspaces/:id/terminals - List active terminal sessions
+  app.get('/api/workspaces/:id/terminals', async (c) => {
+    const workspaceId = c.req.param('id');
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    const { getTerminalManager } = await import('./services/terminal');
+    const sessions = getTerminalManager().listSessionsForWorkspace(workspace.path);
+    return c.json({ sessions });
+  });
+
+  // GET /api/workspaces/:id/terminals/:sessionId - Get single session info
+  app.get('/api/workspaces/:id/terminals/:sessionId', async (c) => {
+    const sessionId = c.req.param('sessionId');
+
+    const { getTerminalManager } = await import('./services/terminal');
+    const session = getTerminalManager().getSession(sessionId);
+    if (!session) {
+      return c.json({ error: 'Not Found', message: 'Terminal session not found' }, 404);
+    }
+    return c.json(session);
+  });
+
+  // DELETE /api/workspaces/:id/terminals/:sessionId - Kill and destroy a terminal session
+  app.delete('/api/workspaces/:id/terminals/:sessionId', async (c) => {
+    const sessionId = c.req.param('sessionId');
+
+    const { getTerminalManager } = await import('./services/terminal');
+    getTerminalManager().destroySessionById(sessionId);
     return c.json({ success: true });
   });
 

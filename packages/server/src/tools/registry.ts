@@ -4,13 +4,15 @@ import type { ToolDefinition } from '@jean2/shared';
 import type { DiscoveredTool } from './types';
 import { resolveToolsPath } from '../config';
 
-const DEFAULT_TOOLS_PATH = resolveToolsPath();
+function getDefaultToolsPath(): string {
+  return resolveToolsPath();
+}
 
 const toolsCache: Map<string, DiscoveredTool> = new Map();
 let lastScanTime = 0;
 const CACHE_TTL = 60000; // 1 minute cache
 
-export async function scanTools(toolsPath: string = DEFAULT_TOOLS_PATH): Promise<DiscoveredTool[]> {
+export async function scanTools(toolsPath: string = getDefaultToolsPath()): Promise<DiscoveredTool[]> {
   const tools: DiscoveredTool[] = [];
   
   // Resolve to absolute path to ensure tool paths are absolute

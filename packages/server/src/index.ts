@@ -6,7 +6,9 @@ import { registerBroadcastCallback, broadcastSessionCreatedExclude, broadcastSes
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
+import { getTerminalManager, encodeFrame, OPCODES } from '@/services/terminal';
 import type { PermissionType } from '@jean2/shared';
+import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
   createSession,
   getSession,
@@ -38,6 +40,12 @@ import { forkSession } from './core/fork';
 import { interruptManager } from './core/interrupt';
 import type { ServerWebSocket } from 'bun';
 import { validateToken, updateLastUsed, isAuthEnabled } from './auth/token';
+
+// WebSocket data type for Bun's upgrade data
+interface WsData {
+  path: string;
+  params?: Record<string, string>;
+}
 import {
   getLLMOpenAIApiKey,
   getLLMAnthropicApiKey,
@@ -86,6 +94,8 @@ function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
 }
 
 async function startServer(options?: ServerOptions): Promise<ServerInstance> {
+  cleanupRunningSessionsOnStartup();
+
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();
 
@@ -128,6 +138,48 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     async fetch(req: Request): Promise<Response | undefined> {
       const url = new URL(req.url);
 
+      if (url.pathname === '/ws/terminal') {
+        if (isAuthEnabled()) {
+          const token = url.searchParams.get('token');
+          if (!token || !validateToken(token)) {
+            return new Response(
+              JSON.stringify({
+                error: 'Unauthorized',
+                message: 'Invalid or missing API token for terminal connection',
+              }),
+              {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+              }
+            );
+          }
+          updateLastUsed();
+        }
+
+        const cwd = url.searchParams.get('cwd');
+        const workspaceId = url.searchParams.get('workspaceId') || 'default';
+        const shell = url.searchParams.get('shell') || undefined;
+        const sessionId = url.searchParams.get('sessionId') || undefined;
+
+        if (!cwd || !workspaceId) {
+          return new Response(
+            JSON.stringify({ error: 'bad_request', message: 'Missing required parameter: cwd' }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const params: Record<string, string> = { cwd, workspaceId };
+        if (shell) params.shell = shell;
+        if (sessionId) params.sessionId = sessionId;
+        const upgraded = server.upgrade(req, {
+          data: { path: '/ws/terminal', params } as unknown as undefined,
+        });
+        if (!upgraded) {
+          return new Response('WebSocket upgrade failed', { status: 400 });
+        }
+        return undefined;
+      }
+
       // Handle WebSocket upgrade
       if (url.pathname === '/ws') {
         // Validate token before upgrading
@@ -150,7 +202,9 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           updateLastUsed();
         }
 
-        const upgraded = server.upgrade(req);
+        const upgraded = server.upgrade(req, {
+          data: { path: '/ws' } as unknown as undefined,
+        });
         if (!upgraded) {
           return new Response('WebSocket upgrade failed', { status: 400 });
         }
@@ -162,19 +216,87 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     },
 
     websocket: {
-      open(ws: ServerWebSocket) {
+      open(ws) {
+        const wsData = ws.data as WsData | undefined;
+        if (wsData?.path === '/ws/terminal') {
+          const sessionId = wsData.params?.sessionId;
+          if (sessionId) {
+            const reconnected = getTerminalManager().reconnectSession(ws as unknown as ServerWebSocket, sessionId);
+            if (!reconnected) {
+              const errorPayload = new TextEncoder().encode(JSON.stringify({ message: 'Session not found' }));
+              ws.send(encodeFrame(OPCODES.ERROR, errorPayload));
+              ws.close();
+              return;
+            }
+            const session = getTerminalManager().getSession(sessionId);
+            if (session) {
+              const initPayload = new TextEncoder().encode(JSON.stringify({
+                sessionId: session.id,
+                pid: session.pid,
+                shell: session.shell,
+                cwd: session.cwd,
+                cols: session.cols,
+                rows: session.rows,
+                createdAt: session.createdAt,
+                status: session.status,
+                exitCode: session.exitCode,
+                isReconnect: true,
+                title: session.title,
+              }));
+              ws.send(encodeFrame(OPCODES.INIT_ACK, initPayload));
+            }
+          } else {
+            const createdId = getTerminalManager().createSession(ws as unknown as ServerWebSocket, {
+              shell: wsData.params?.shell,
+              cwd: wsData.params?.cwd || '',
+              workspaceId: '',
+              cols: 80,
+              rows: 24,
+            });
+            if (createdId) {
+              const session = getTerminalManager().getSession(createdId);
+              if (session) {
+                const initPayload = new TextEncoder().encode(JSON.stringify({
+                  sessionId: session.id,
+                  pid: session.pid,
+                  shell: session.shell,
+                  cwd: session.cwd,
+                  cols: session.cols,
+                  rows: session.rows,
+                  createdAt: session.createdAt,
+                  status: session.status,
+                  exitCode: session.exitCode,
+                  isReconnect: false,
+                  title: session.title,
+                }));
+                ws.send(encodeFrame(OPCODES.INIT_ACK, initPayload));
+              }
+            }
+          }
+          return;
+        }
         clients.set(ws, {});
-        console.log('Client connected. Total clients:', clients.size);
       },
 
-      close(ws: ServerWebSocket) {
+      close(ws) {
+        const wsData = ws.data as WsData | undefined;
+        if (wsData?.path === '/ws/terminal') {
+          getTerminalManager().removeClient(ws as unknown as ServerWebSocket);
+          return;
+        }
         clients.delete(ws);
-        console.log('Client disconnected. Total clients:', clients.size);
       },
 
-      async message(ws: ServerWebSocket, message: string | Buffer) {
+      async message(ws, message) {
+        const wsData = ws.data as WsData | undefined;
+        if (wsData?.path === '/ws/terminal') {
+          if (message !== undefined) {
+            handleTerminalMessage(ws as unknown as ServerWebSocket, message as string | Buffer | undefined);
+          }
+          return;
+        }
         try {
-          const msg: ClientMessage = JSON.parse(message.toString());
+          const msg: ClientMessage = JSON.parse((message ?? '').toString());
           await handleClientMessage(ws, msg);
         } catch (err) {
           console.error('WebSocket message error:', err);
@@ -198,8 +320,8 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   const cleanup = () => {
     server.stop();
+    getTerminalManager().destroyAllSessions();
     closeDatabase();
-    // Remove listeners to prevent duplicate calls
     process.removeListener('SIGTERM', onShutdown);
     process.removeListener('SIGINT', onShutdown);
   };
@@ -302,6 +424,39 @@ function createPermissionRequestHandler(sessionId: string) {
       }, 5 * 60 * 1000);
     });
   };
+}
+
+function handleTerminalMessage(ws: ServerWebSocket, message: string | Buffer | undefined): void {
+  try {
+    if (!message) return;
+    const data = message instanceof Buffer
+      ? new Uint8Array(message.buffer, message.byteOffset, message.byteLength)
+      : new TextEncoder().encode(message as string);
+    if (data.length < 1) return;
+
+    const opcode = data[0];
+    const payload = data.slice(1);
+
+    switch (opcode) {
+      case 0x01: {
+        const input = new TextDecoder().decode(payload);
+        getTerminalManager().handleInput(ws, input);
+        break;
+      }
+      case 0x02: {
+        const { cols, rows } = JSON.parse(new TextDecoder().decode(payload)) as { cols: number; rows: number };
+        getTerminalManager().handleResize(ws, cols, rows);
+        break;
+      }
+      case 0x03: {
+        getTerminalManager().destroySession(ws);
+        ws.close();
+        break;
+      }
+    }
+  } catch (err) {
+    console.error('Terminal message error:', err);
+  }
 }
 
 async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Promise<void> {

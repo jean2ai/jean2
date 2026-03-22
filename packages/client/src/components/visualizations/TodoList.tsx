@@ -90,7 +90,7 @@ export function TodoList({ title, items }: TodoListProps) {
                 )}
               />
               <span className={cn(
-                'flex-1',
+                'flex-1 break-all',
                 item.status === 'completed' && 'line-through text-muted-foreground',
                 item.status === 'cancelled' && 'text-muted-foreground',
               )}>
