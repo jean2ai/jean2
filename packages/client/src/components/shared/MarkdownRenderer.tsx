@@ -67,14 +67,14 @@ export function MarkdownRenderer({ children, className, inverted = false }: Mark
             return <p className="last:mb-0 leading-relaxed wrap-break-words">{children}</p>;
           },
           ul({ children }) {
-            return <ul className="list-outside list-disc pl-4">{children}</ul>;
+            return <ul className="list-outside list-disc pl-8">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-outside list-decimal pl-4">{children}</ol>;
+            return <ol className="list-outside list-decimal pl-8">{children}</ol>;
           },
           li({ children, className }) {
             const isNested = className?.includes('nested');
-            return <li className={cn('leading-snug', isNested && 'ml-4')}>{children}</li>;
+            return <li className={cn('leading-snug', isNested && 'ml-8')}>{children}</li>;
           },
           h1({ children }) {
             return <h1 className="text-lg font-semibold mb-1.5 mt-3 first:mt-0">{children}</h1>;

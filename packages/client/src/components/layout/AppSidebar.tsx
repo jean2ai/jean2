@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/collapsible';
 
 import { SessionMenuButton } from './SessionMenuButton';
+import { WorkspaceOverview } from './WorkspaceOverview';
 import { Badge } from '@/components/ui/badge';
 import { useServerContext } from '@/contexts/ServerContext';
 
@@ -36,6 +37,10 @@ interface AppSidebarProps {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
 
+  allSessions: Session[];
+  viewMode: 'default' | 'overview';
+  favoritedWorkspaceIds: string[];
+
   onCreateSession: () => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -46,6 +51,8 @@ interface AppSidebarProps {
   onCreateVirtualWorkspace: () => void;
   onCreatePhysicalWorkspace: (path: string) => void;
   onDeleteWorkspace: (id: string) => void;
+
+  onCreateSessionInWorkspace: (workspaceId: string) => void;
 
   onOpenSettings: () => void;
   onOpenMCP: () => void;
@@ -61,6 +68,9 @@ export function AppSidebar({
   connected,
   workspaces,
   activeWorkspace,
+  allSessions,
+  viewMode,
+  favoritedWorkspaceIds,
   onCreateSession,
   onResumeSession,
   onCloseSession,
@@ -69,6 +79,7 @@ export function AppSidebar({
   onSelectWorkspace,
   onCreateVirtualWorkspace,
   onCreatePhysicalWorkspace,
+  onCreateSessionInWorkspace,
   onOpenSettings,
   onOpenMCP,
   onOpenAddServer,
@@ -103,114 +114,138 @@ export function AppSidebar({
       <SidebarHeader>
         <div className="p-2 space-y-2">
           <ServerSwitcher onOpenAddServer={onOpenAddServer} onServerSwitch={onServerSwitch} />
-          <WorkspaceSwitcher
-            workspaces={workspaces}
-            activeWorkspace={activeWorkspace}
-            onSelectWorkspace={onSelectWorkspace}
-            onCreateVirtualWorkspace={onCreateVirtualWorkspace}
-            onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
-            isWorkspaceFavorited={isWorkspaceFavorited}
-            onToggleFavorite={handleToggleWorkspaceFavorite}
-          />
+          {viewMode !== 'overview' && (
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              activeWorkspace={activeWorkspace}
+              onSelectWorkspace={onSelectWorkspace}
+              onCreateVirtualWorkspace={onCreateVirtualWorkspace}
+              onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
+              isWorkspaceFavorited={isWorkspaceFavorited}
+              onToggleFavorite={handleToggleWorkspaceFavorite}
+            />
+          )}
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={onCreateSession}
-              disabled={!connected}
-              className="w-full"
-            >
-              <Plus className="size-4" data-icon="inline-start" />
-              <span>New Chat</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        {viewMode !== 'overview' && (
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={onCreateSession}
+                disabled={!connected}
+                className="w-full"
+              >
+                <Plus className="size-4" data-icon="inline-start" />
+                <span>New Chat</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        )}
       </SidebarHeader>
 
       {/* Content: Session lists */}
       <SidebarContent>
-        {/* Active Sessions */}
-        {activeSessions.length > 0 && (
-          <Collapsible defaultOpen className="group/collapsible">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-2">
-                    <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    Active
-                  </span>
-                  <Badge variant="secondary">{activeSessions.length}</Badge>
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {activeSessions.map(session => (
-                      <SessionMenuButton
-                        key={session.id}
-                        session={session}
-                        allSessions={sessions}
-                        isActive={currentSession?.id === session.id}
-                        currentSessionId={currentSessionId}
-                        streamingSessionId={streamingSessionId}
-                        onResumeSession={onResumeSession}
-                        onCloseSession={onCloseSession}
-                        onReopenSession={onReopenSession}
-                        onDeleteSession={onDeleteSession}
-                      />
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
+        {viewMode === 'overview' ? (
+          <WorkspaceOverview
+            allSessions={allSessions}
+            currentSession={currentSession}
+            currentSessionId={currentSessionId}
+            streamingSessionId={streamingSessionId}
+            favoritedWorkspaceIds={favoritedWorkspaceIds}
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            onSelectWorkspace={onSelectWorkspace}
+            onResumeSession={onResumeSession}
+            onCloseSession={onCloseSession}
+            onReopenSession={onReopenSession}
+            onDeleteSession={onDeleteSession}
+            onCreateSessionInWorkspace={onCreateSessionInWorkspace}
+            connected={connected}
+          />
+        ) : (
+          <>
+            {/* Active Sessions */}
+            {activeSessions.length > 0 && (
+              <Collapsible defaultOpen className="group/collapsible">
+                <SidebarGroup>
+                  <SidebarGroupLabel asChild>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full">
+                      <span className="flex items-center gap-2">
+                        <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        Active
+                      </span>
+                      <Badge variant="secondary">{activeSessions.length}</Badge>
+                    </CollapsibleTrigger>
+                  </SidebarGroupLabel>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {activeSessions.map(session => (
+                          <SessionMenuButton
+                            key={session.id}
+                            session={session}
+                            allSessions={sessions}
+                            isActive={currentSession?.id === session.id}
+                            currentSessionId={currentSessionId}
+                            streamingSessionId={streamingSessionId}
+                            onResumeSession={onResumeSession}
+                            onCloseSession={onCloseSession}
+                            onReopenSession={onReopenSession}
+                            onDeleteSession={onDeleteSession}
+                          />
+                        ))}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            )}
 
-        {/* Archived Sessions */}
-        {archivedSessions.length > 0 && (
-          <Collapsible defaultOpen className="group/collapsible">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-2">
-                    <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    Archived
-                  </span>
-                  <Badge variant="secondary">{archivedSessions.length}</Badge>
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {archivedSessions.map(session => (
-                      <SessionMenuButton
-                        key={session.id}
-                        session={session}
-                        allSessions={sessions}
-                        isActive={currentSession?.id === session.id}
-                        currentSessionId={currentSessionId}
-                        streamingSessionId={streamingSessionId}
-                        onResumeSession={onResumeSession}
-                        onCloseSession={onCloseSession}
-                        onReopenSession={onReopenSession}
-                        onDeleteSession={onDeleteSession}
-                      />
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
+            {/* Archived Sessions */}
+            {archivedSessions.length > 0 && (
+              <Collapsible defaultOpen className="group/collapsible">
+                <SidebarGroup>
+                  <SidebarGroupLabel asChild>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full">
+                      <span className="flex items-center gap-2">
+                        <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        Archived
+                      </span>
+                      <Badge variant="secondary">{archivedSessions.length}</Badge>
+                    </CollapsibleTrigger>
+                  </SidebarGroupLabel>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {archivedSessions.map(session => (
+                          <SessionMenuButton
+                            key={session.id}
+                            session={session}
+                            allSessions={sessions}
+                            isActive={currentSession?.id === session.id}
+                            currentSessionId={currentSessionId}
+                            streamingSessionId={streamingSessionId}
+                            onResumeSession={onResumeSession}
+                            onCloseSession={onCloseSession}
+                            onReopenSession={onReopenSession}
+                            onDeleteSession={onDeleteSession}
+                          />
+                        ))}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            )}
 
-
-        {/* Empty State */}
-        {activeSessions.length === 0 && archivedSessions.length === 0 && (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            No sessions yet.
-            <br />
-            Start a new chat to begin.
-          </div>
+            {/* Empty State */}
+            {activeSessions.length === 0 && archivedSessions.length === 0 && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                No sessions yet.
+                <br />
+                Start a new chat to begin.
+              </div>
+            )}
+          </>
         )}
       </SidebarContent>
 

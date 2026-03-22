@@ -27,6 +27,7 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import FirstServerScreen from '@/components/FirstServerScreen';
 import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
+import { SidebarLayoutToggle } from '@/components/layout/SidebarLayoutToggle';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 
 interface PendingPermissionRequest {
@@ -64,7 +65,7 @@ type ClientMessagePayload =
   | { sessionId: string; messageIds: string[] };
 
 function AppContent() {
-  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState } = useServerContext();
+  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections } = useServerContext();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
@@ -96,6 +97,9 @@ function AppContent() {
   const [showSettings, setShowSettings] = useState(false);
   const [showFilesPanel, setShowFilesPanel] = useState(false);
   const [showMCPDialog, setShowMCPDialog] = useState(false);
+  const [sidebarViewMode, setSidebarViewMode] = useState<'default' | 'overview'>(() => {
+    return (localStorage.getItem('jean2_sidebar_view') as 'default' | 'overview') || 'default';
+  });
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
@@ -113,6 +117,10 @@ function AppContent() {
   const [nextRetryIn, setNextRetryIn] = useState(0);
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isCompacting = currentSession?.compacting ?? false;
+
+  useEffect(() => {
+    localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
+  }, [sidebarViewMode]);
 
   // Connection timeout constants
   const CONNECTION_TIMEOUT = 10000; // 10 seconds
@@ -823,8 +831,15 @@ function AppContent() {
   const resumeSession = useCallback((sessionId: string) => {
     setPendingPermissions([]);
     setStreamingSessionId(null);
+    const session = sessions.find(s => s.id === sessionId);
+    if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
+      const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
+      if (targetWorkspace) {
+        setActiveWorkspace(targetWorkspace);
+      }
+    }
     sendMessage('session.resume', { sessionId });
-  }, [sendMessage]);
+  }, [sendMessage, sessions, workspaces, activeWorkspace]);
 
   const closeSession = useCallback((sessionId: string) => {
     sendMessage('session.close', { sessionId });
@@ -913,10 +928,22 @@ function AppContent() {
 
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
+  const favoritedWorkspaceIds = quickConnections
+    .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
+    .map(conn => conn.workspaceId!);
+
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
   // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
+
+  const createSessionInWorkspace = useCallback((workspaceId: string) => {
+    setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
+    pendingSessionCreateRef.current = true;
+    const primary = primaryPreconfigs[0]?.id;
+    sendMessage('session.create', { preconfigId: primary, workspaceId });
+  }, [sendMessage, workspaces, primaryPreconfigs]);
+
   const isPrimarySession = !currentSession?.parentId;
 
   const isLoggedIn = !!(activeServer);
@@ -1041,6 +1068,9 @@ function AppContent() {
     <SidebarProvider defaultOpen={true}>
       {isLoggedIn && (
         <AppSidebar
+          allSessions={sessions}
+          viewMode={sidebarViewMode}
+          favoritedWorkspaceIds={favoritedWorkspaceIds}
           sessions={workspaceSessions}
           currentSession={currentSession}
           currentSessionId={currentSession?.id ?? null}
@@ -1061,6 +1091,7 @@ function AppContent() {
           onOpenMCP={() => setShowMCPDialog(true)}
           onOpenAddServer={() => setShowAddServer(true)}
           onServerSwitch={handleServerSwitch}
+          onCreateSessionInWorkspace={createSessionInWorkspace}
         />
       )}
 
@@ -1078,6 +1109,10 @@ function AppContent() {
             <QuickSwitcher 
               onServerSwitch={handleServerSwitch}
               onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
+            />
+            <SidebarLayoutToggle 
+              viewMode={sidebarViewMode} 
+              onViewModeChange={setSidebarViewMode} 
             />
             {isLoggedIn && activeWorkspace && (
               <Button
@@ -1105,6 +1140,10 @@ function AppContent() {
                 onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
               />
             )}
+            <SidebarLayoutToggle 
+              viewMode={sidebarViewMode} 
+              onViewModeChange={setSidebarViewMode} 
+            />
             {isLoggedIn && activeWorkspace && (
               <Button
                 variant="ghost"

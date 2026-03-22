@@ -54,6 +54,7 @@ export function FilesPanel({ workspaceId, serverUrl, apiToken, isOpen, onClose }
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0))' }}>
             <ScrollArea className="flex-1 min-h-0 pb-8">
               <FileTree
+                key={workspaceId}
                 workspaceId={workspaceId}
                 serverUrl={serverUrl}
                 apiToken={apiToken}
@@ -106,6 +107,7 @@ export function FilesPanel({ workspaceId, serverUrl, apiToken, isOpen, onClose }
         <div className="flex flex-1 flex-col min-h-0 overflow-hidden" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0))' }}>
           <ScrollArea className="flex-1 min-h-0">
             <FileTree
+              key={workspaceId}
               workspaceId={workspaceId}
               serverUrl={serverUrl}
               apiToken={apiToken}
