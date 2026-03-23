@@ -19,6 +19,7 @@
     "build:bin": "bun build --compile --outfile=dist/bin/jean2 src/cli.ts",
     "build:bin:macos": "bun build --compile --outfile=dist/bin/jean2-macos-arm64 src/cli.ts",
     "build:bin:linux": "bun build --compile --outfile=dist/bin/jean2-linux-x64 src/cli.ts",
+    "build:bin:windows": "bun build --compile --target=bun-x64-windows --outfile=dist/bin/jean2-windows-x64.exe src/cli.ts",
     "build:all": "bun run build && bun run build:bin"
   },
   "dependencies": {

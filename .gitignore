@@ -63,3 +63,5 @@ vite.config.ts.sig
 .kontexted/
 
 *.bun-build
+
+preconfigs-testing
