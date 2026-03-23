@@ -767,11 +767,11 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
           authorizationUrl: result.authorizationUrl,
         });
 
-        if (msg.provider === 'codex') {
-          const { setOAuthCompletionCallback, getCodexStatus } = await import('./providers');
-          setOAuthCompletionCallback((success, error) => {
+        const provider = getProvider(msg.provider);
+        if (provider?.onConnectComplete) {
+          provider.onConnectComplete((success, error) => {
             if (success) {
-              const newStatus = getCodexStatus();
+              const newStatus = providerManager.getProviderStatus(msg.provider);
               broadcast({
                 type: 'provider.connected',
                 provider: msg.provider,
@@ -784,10 +784,9 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
                 type: 'provider.status',
                 provider: msg.provider,
                 connected: false,
-                error: error || 'OAuth flow failed',
+                error: error || 'Connection flow failed',
               });
             }
-            setOAuthCompletionCallback(undefined);
           });
         }
       } catch (err) {
@@ -1009,7 +1008,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   }
 
   // Check API key
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'codex';
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
   const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
     'openai': getLLMOpenAIApiKey,
     'anthropic': getLLMAnthropicApiKey,
@@ -1018,12 +1017,13 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     'minimax': getLLMMinimaxApiKey,
     'zhipu': getLLMZhipuApiKey,
     'zhipu-coding': getLLMZhipuCodingApiKey,
-    'codex': () => 'oauth',
   };
   const apiKeyGetter = apiKeyGetterMap[provider as Provider];
   const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;
 
-  if (!apiKey && provider !== 'codex') {
+  // Skip API key check if provider is a registered connectable provider (handles its own auth)
+  const isConnectableProvider = providerManager.getProvider(provider) !== null;
+  if (!apiKey && !isConnectableProvider) {
     const envKey = `JEAN2_LLM_${provider.toUpperCase()}_API_KEY`;
     send(ws, { type: 'error', code: 'no_api_key', message: `No API key configured for provider: ${provider}. Set ${envKey}` });
     return;

@@ -761,12 +761,14 @@ export function createApp() {
   // Providers API
   // ============================================================================
 
-  // GET /api/providers - List all providers with status
+  // GET /api/providers - List all connectable providers with status and metadata
   app.get('/api/providers', async (c) => {
     try {
-      const providerStatuses = await Promise.all([
-        providers.getProviderStatus('codex'),
-      ]);
+      const allProviders = providers.getConnectableProviders();
+      const providerStatuses = allProviders.map(p => ({
+        ...p.descriptor,
+        ...p.getStatus(),
+      }));
       return c.json({ providers: providerStatuses });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -774,11 +776,12 @@ export function createApp() {
     }
   });
 
-  // POST /api/providers/codex/connect - Start OAuth flow
-  app.post('/api/providers/codex/connect', async (c) => {
+  // POST /api/providers/:providerId/connect - Start connection flow
+  app.post('/api/providers/:providerId/connect', async (c) => {
+    const providerId = c.req.param('providerId');
     try {
-      const result = await providers.connectProvider('codex');
-      const status = await providers.getProviderStatus('codex');
+      const result = await providers.connectProvider(providerId);
+      const status = await providers.getProviderStatus(providerId);
       return c.json({ authorizationUrl: result.authorizationUrl, status });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -786,10 +789,11 @@ export function createApp() {
     }
   });
 
-  // GET /api/providers/codex/status - Get Codex connection status
-  app.get('/api/providers/codex/status', async (c) => {
+  // GET /api/providers/:providerId/status - Get provider connection status
+  app.get('/api/providers/:providerId/status', async (c) => {
+    const providerId = c.req.param('providerId');
     try {
-      const status = await providers.getProviderStatus('codex');
+      const status = await providers.getProviderStatus(providerId);
       return c.json({ status });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -797,10 +801,11 @@ export function createApp() {
     }
   });
 
-  // DELETE /api/providers/codex - Disconnect Codex
-  app.delete('/api/providers/codex', async (c) => {
+  // DELETE /api/providers/:providerId - Disconnect provider
+  app.delete('/api/providers/:providerId', async (c) => {
+    const providerId = c.req.param('providerId');
     try {
-      await providers.disconnectProvider('codex');
+      await providers.disconnectProvider(providerId);
       return c.json({ success: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

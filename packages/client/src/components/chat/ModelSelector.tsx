@@ -26,7 +26,8 @@ interface ModelSelectorProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   disabled?: boolean;
   iconOnly?: boolean;
-  codexConnected?: boolean;
+  connectedProviderIds?: Set<string>;
+  connectableProviderIds?: Set<string>;
 }
 
 function getTierBadge(tier: string): string {
@@ -44,7 +45,8 @@ export function ModelSelector({
   onChangeModel,
   disabled,
   iconOnly = false,
-  codexConnected = false,
+  connectedProviderIds,
+  connectableProviderIds,
 }: ModelSelectorProps) {
   const groupedModels = models.reduce((acc, model) => {
     if (!acc[model.providerName]) {
@@ -84,18 +86,18 @@ export function ModelSelector({
             <SelectGroup key={providerName}>
               <SelectLabel>{providerName}</SelectLabel>
               {providerModels.map((model) => (
-                <SelectItem key={model.id} value={model.id} disabled={model.providerId === 'codex' && !codexConnected}>
+                <SelectItem key={model.id} value={model.id} disabled={connectableProviderIds?.has(model.providerId) && !connectedProviderIds?.has(model.providerId)}>
                   <span className="flex items-center gap-2">
                     {model.name}
                     <span className="text-muted-foreground text-xs">
                       {getTierBadge(model.tier)}
                     </span>
-                    {model.providerId === 'codex' && codexConnected && (
+                    {connectableProviderIds?.has(model.providerId) && connectedProviderIds?.has(model.providerId) && (
                       <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
                         Sub
                       </Badge>
                     )}
-                    {model.providerId === 'codex' && !codexConnected && (
+                    {connectableProviderIds?.has(model.providerId) && !connectedProviderIds?.has(model.providerId) && (
                       <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
                         OAuth
                       </Badge>

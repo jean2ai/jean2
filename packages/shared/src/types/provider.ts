@@ -1,4 +1,14 @@
-export type ProviderType = 'codex';
+export type ProviderType = string;
+
+export type AuthType = 'api_key' | 'oauth' | 'none';
+
+export interface ProviderDescriptor {
+  id: string;
+  displayName: string;
+  description?: string;
+  authType: AuthType;
+  connectable: boolean;
+}
 
 export interface ProviderStatus {
   provider: string;
@@ -7,6 +17,10 @@ export interface ProviderStatus {
   error?: string;
   connectedAt?: string;
   accountId?: string;
+  displayName?: string;
+  description?: string;
+  authType?: AuthType;
+  connectable?: boolean;
 }
 
 export interface CodexProviderConfig {

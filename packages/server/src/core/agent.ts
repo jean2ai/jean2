@@ -31,18 +31,22 @@ import {
 } from '../env';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
 import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
-import { getCodexConfig, createCodexFetch, OAUTH_DUMMY_KEY } from '@/providers';
+import { getProvider, createModelForProvider } from '@/providers';
 
-export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
-  // Default model
+interface ModelWithMetadata {
+  model: LanguageModel;
+  useProviderInstructions?: boolean;
+  omitMaxOutputTokens?: boolean;
+  providerOptions?: Record<string, Record<string, unknown>>;
+}
+
+async function getModelWithMetadata(modelId?: string, providerId?: string, systemPrompt?: string): Promise<ModelWithMetadata> {
   const defaultModelId = 'gpt-4o';
   const resolvedModelId = modelId || defaultModelId;
 
-  // If we have a provider from session, use it directly
   let provider = providerId;
   let model = resolvedModelId;
 
-  // Only look up if provider not provided
   if (!provider) {
     const modelInfo = findModel(resolvedModelId);
 
@@ -50,7 +54,6 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
       provider = modelInfo.providerId;
       model = modelInfo.id;
     } else {
-      // Fallback: try to parse from model ID string for unknown models
       if (resolvedModelId.includes('/')) {
         provider = 'openrouter';
       } else if (resolvedModelId.startsWith('claude-')) {
@@ -63,7 +66,21 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
     }
   }
 
-  // Get API key for the provider
+  const registeredProvider = provider ? getProvider(provider) : undefined;
+  if (registeredProvider) {
+    const result = await createModelForProvider({
+      modelId: model,
+      providerId: provider,
+      systemPrompt: systemPrompt || '',
+    });
+    return {
+      model: result.model,
+      useProviderInstructions: result.useProviderInstructions,
+      omitMaxOutputTokens: result.omitMaxOutputTokens,
+      providerOptions: result.providerOptions,
+    };
+  }
+
   const getApiKey = () => {
     switch (provider) {
       case 'openai':
@@ -80,8 +97,6 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         return getLLMZhipuApiKey();
       case 'zhipu-coding':
         return getLLMZhipuCodingApiKey();
-      case 'codex':
-        return OAUTH_DUMMY_KEY;
       default:
         return getLLMOpenAIApiKey();
     }
@@ -94,40 +109,27 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
   }
 
   switch (provider) {
-    case 'codex': {
-      const codexConfig = await getCodexConfig();
-      if (!codexConfig) {
-        throw new Error('Codex not connected. Please connect your ChatGPT subscription in Settings.');
-      }
-      const codexFetch = await createCodexFetch(codexConfig);
-      const openai = createOpenAI({
-        apiKey: OAUTH_DUMMY_KEY,
-        fetch: codexFetch,
-      });
-      return openai.responses(model) as unknown as LanguageModel;
-    }
-
     case 'openrouter': {
       const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
       const openrouter = createOpenRouter({ apiKey });
-      return openrouter.chat(model) as unknown as LanguageModel;
+      return { model: openrouter.chat(model) as unknown as LanguageModel };
     }
 
     case 'anthropic': {
       const anthropic = createAnthropic({ apiKey });
-      return anthropic.chat(model) as unknown as LanguageModel;
+      return { model: anthropic.chat(model) as unknown as LanguageModel };
     }
 
     case 'google': {
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
       const google = createGoogleGenerativeAI({ apiKey });
-      return google.chat(model) as unknown as LanguageModel;
+      return { model: google.chat(model) as unknown as LanguageModel };
     }
 
     case 'minimax': {
       const { createMinimax } = await import('vercel-minimax-ai-provider');
       const minimax = createMinimax({ apiKey });
-      return minimax.chat(model) as unknown as LanguageModel;
+      return { model: minimax.chat(model) as unknown as LanguageModel };
     }
 
     case 'zhipu': {
@@ -136,7 +138,7 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         apiKey,
         baseURL: 'https://open.bigmodel.cn/api/paas/v4',
       });
-      return zhipu.chat(model) as unknown as LanguageModel;
+      return { model: zhipu.chat(model) as unknown as LanguageModel };
     }
 
     case 'zhipu-coding': {
@@ -145,7 +147,7 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         apiKey,
         baseURL: 'https://api.z.ai/api/coding/paas/v4',
       });
-      return zhipu.chat(model) as unknown as LanguageModel;
+      return { model: zhipu.chat(model) as unknown as LanguageModel };
     }
 
     case 'openai':
@@ -154,9 +156,14 @@ export async function getModel(modelId?: string, providerId?: string): Promise<L
         apiKey,
         baseURL: getLLMBaseUrl() || undefined,
       });
-      return openai.chat(model) as unknown as LanguageModel;
+      return { model: openai.chat(model) as unknown as LanguageModel };
     }
   }
+}
+
+export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
+  const { model } = await getModelWithMetadata(modelId, providerId);
+  return model;
 }
 
 export interface ChatOptions {
@@ -551,7 +558,6 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Resolve model: session override > preconfig > env default
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
-  const model = await getModel(resolvedModelId, providerId);
 
   const toolNames = preconfig.tools || [];
   const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents, preconfig.skills);
@@ -572,6 +578,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     systemMessage = systemMessage + '\n\n' + workspaceContext;
   }
 
+  const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =
+    await getModelWithMetadata(resolvedModelId, providerId, systemMessage);
+
   // Convert messages for ai-sdk
   const aiMessages = await convertToAiSdkMessages(messages);
 
@@ -582,20 +591,15 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Create a deferred yield function that will be set up after we enter the generator
 
-  const isCodex = providerId === 'codex';
-
   // Resolve variant providerOptions if applicable
   const variantOpts = variant ? findModelVariant(resolvedModelId || '', variant) : undefined;
 
-  // Build providerOptions based on isCodex and variant
+  // Build providerOptions from model factory result and variant
   let providerOptions: Record<string, Record<string, unknown>> | undefined;
-  if (isCodex) {
+  if (baseProviderOptions) {
     providerOptions = {
-      openai: {
-        instructions: systemMessage || 'You are a helpful assistant.',
-        store: false,
-        ...(variantOpts || {}),
-      },
+      ...baseProviderOptions,
+      ...(variantOpts ? { openai: { ...(baseProviderOptions.openai || {}), ...variantOpts } } : {}),
     };
   } else if (variantOpts) {
     providerOptions = { openai: variantOpts };
@@ -603,10 +607,10 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   const result = streamText({
     model,
-    system: isCodex ? undefined : systemMessage,
+    system: useProviderInstructions ? undefined : systemMessage,
     messages: aiMessages,
     tools: aiTools,
-    maxOutputTokens: isCodex ? undefined : getMaxOutputTokens(resolvedModelId),
+    maxOutputTokens: omitMaxOutputTokens ? undefined : getMaxOutputTokens(resolvedModelId),
     providerOptions: providerOptions as Parameters<typeof streamText>[0]['providerOptions'],
     temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
     stopWhen: stepCountIs(maxSteps ?? getLLMMaxSteps()),

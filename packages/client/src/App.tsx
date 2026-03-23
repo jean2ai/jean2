@@ -1102,7 +1102,8 @@ function AppContent() {
             preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
             prompts={prompts}
             models={models}
-            codexConnected={providerStatuses.some(s => s.provider === 'codex' && s.connected)}
+            connectedProviderIds={new Set(providerStatuses.filter(s => s.connected).map(s => s.provider))}
+            connectableProviderIds={new Set(providerStatuses.filter(s => s.connectable).map(s => s.provider))}
             defaultModel={defaultModel}
             onSendMessage={sendChatMessage}
             onRemoveFromQueue={removeFromQueue}

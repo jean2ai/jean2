@@ -47,7 +47,7 @@ export function ProviderCard({ provider, onConnect, onDisconnect }: ProviderCard
         <div className="flex items-center gap-2">
           <div className={`size-2 rounded-full ${provider.connected ? 'bg-green-500' : 'bg-muted-foreground'}`} />
           <span className="text-sm font-medium">
-            {provider.provider === 'codex' ? 'ChatGPT (Codex)' : provider.provider}
+            {provider.displayName || provider.provider}
           </span>
         </div>
         {provider.connected && (

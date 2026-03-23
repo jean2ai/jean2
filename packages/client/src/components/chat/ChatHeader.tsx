@@ -40,7 +40,8 @@ interface ChatHeaderProps {
   onCompact?: () => void;
   isCompacting?: boolean;
   canCompact?: boolean;
-  codexConnected?: boolean;
+  connectedProviderIds?: Set<string>;
+  connectableProviderIds?: Set<string>;
   selectedVariant: string | null;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
@@ -61,7 +62,8 @@ export function ChatHeader({
   onCompact,
   isCompacting,
   canCompact,
-  codexConnected,
+  connectedProviderIds,
+  connectableProviderIds,
   selectedVariant,
   variants,
 }: ChatHeaderProps) {
@@ -177,7 +179,8 @@ export function ChatHeader({
           onChangeModel={onChangeModel}
           disabled={session.status === 'closed' || !!session.parentId}
           iconOnly={isMobile}
-          codexConnected={codexConnected}
+          connectedProviderIds={connectedProviderIds}
+          connectableProviderIds={connectableProviderIds}
         />
 
         <VariantSelector

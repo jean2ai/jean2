@@ -1,4 +1,7 @@
-import type { CodexProviderConfig } from '@jean2/shared';
+import type { LanguageModel } from 'ai';
+import type { CodexProviderConfig, ProviderStatus } from '@jean2/shared';
+import { registerProvider } from './registry';
+import type { ConnectableProvider } from './registry';
 import { loadProviderConfig, saveProviderConfig, deleteProviderConfig } from './storage';
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
@@ -376,3 +379,62 @@ export async function createCodexFetch(config: CodexProviderConfig): Promise<typ
 }
 
 export { OAUTH_DUMMY_KEY };
+
+const codexProvider: ConnectableProvider = {
+  descriptor: {
+    id: 'codex',
+    displayName: 'ChatGPT (Codex)',
+    description: 'Use ChatGPT subscription models via OAuth',
+    authType: 'oauth',
+    connectable: true,
+  },
+
+  getStatus(): ProviderStatus {
+    const status = getCodexStatus();
+    return {
+      provider: 'codex',
+      connected: status.connected,
+      connectedAt: status.connectedAt,
+      accountId: status.accountId,
+    };
+  },
+
+  async connect() {
+    const result = await startCodexConnect();
+    return { authorizationUrl: result.authorizationUrl };
+  },
+
+  async disconnect() {
+    disconnectCodex();
+  },
+
+  async createModel(options) {
+    const config = await getCodexConfig();
+    if (!config) {
+      throw new Error('Codex not connected. Please connect your ChatGPT subscription in Settings.');
+    }
+    const codexFetch = await createCodexFetch(config);
+    const { createOpenAI } = await import('@ai-sdk/openai');
+    const openai = createOpenAI({
+      apiKey: OAUTH_DUMMY_KEY,
+      fetch: codexFetch,
+    });
+    return {
+      model: openai.responses(options.modelId) as unknown as LanguageModel,
+      useProviderInstructions: true,
+      omitMaxOutputTokens: true,
+      providerOptions: {
+        openai: {
+          instructions: options.systemPrompt || 'You are a helpful assistant.',
+          store: false,
+        },
+      },
+    };
+  },
+
+  onConnectComplete(callback) {
+    setOAuthCompletionCallback(callback);
+  },
+};
+
+registerProvider(codexProvider);

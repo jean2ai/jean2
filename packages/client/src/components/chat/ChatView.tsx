@@ -46,7 +46,8 @@ interface ChatViewProps {
   preconfigs: Preconfig[];
   prompts?: PromptInfo[];
   models: Model[];
-  codexConnected?: boolean;
+  connectedProviderIds?: Set<string>;
+  connectableProviderIds?: Set<string>;
   defaultModel: string;
   onSendMessage: (content: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
@@ -251,7 +252,8 @@ export function ChatView({
   preconfigs,
   prompts,
   models,
-  codexConnected,
+  connectedProviderIds,
+  connectableProviderIds,
   defaultModel,
   onSendMessage,
   onRemoveFromQueue,
@@ -340,7 +342,8 @@ export function ChatView({
         onCompact={onCompact}
         isCompacting={isCompacting}
         canCompact={messagesWithParts.length >= 4}
-        codexConnected={codexConnected}
+        connectedProviderIds={connectedProviderIds}
+        connectableProviderIds={connectableProviderIds}
         selectedVariant={selectedVariant}
         variants={variants}
       />
