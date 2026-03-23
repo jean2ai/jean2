@@ -315,6 +315,17 @@ jobs:
       - name: Install
         run: bun install
 
+      - name: Sync version from VERSION file
+        run: |
+          V=$(cat packages/client/VERSION)
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('packages/client/src-tauri/tauri.conf.json', 'utf8'));
+            conf.version = '$V';
+            fs.writeFileSync('packages/client/src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+          "
+          echo "Set tauri.conf.json version to $V"
+
       - name: Build client (macOS)
         id: build
         run: |
@@ -324,13 +335,19 @@ jobs:
             echo "ERROR: No DMG artifact found"
             exit 1
           fi
-          echo "artifact=$DMG" >> $GITHUB_OUTPUT
+          # Convert to absolute path from repo root
+          ABS_DMG="$(pwd)/$DMG"
+          echo "artifact=$ABS_DMG" >> $GITHUB_OUTPUT
 
       - name: Upload macOS artifact
         env:
           TAG: ${{ needs.prepare-client-release.outputs.tag }}
         run: |
-          gh release upload "$TAG" "${{ steps.build.outputs.artifact }}" --clobber
+          DMG_PATH="${{ steps.build.outputs.artifact }}"
+          BASENAME=$(basename "$DMG_PATH")
+          # Copy to versionless name: Jean2-macos-aarch64.dmg
+          cp "$DMG_PATH" "Jean2-macos-aarch64.dmg"
+          gh release upload "$TAG" "Jean2-macos-aarch64.dmg" --clobber
 
   release-client-windows:
     needs: [prepare-releases, prepare-client-release]
@@ -351,6 +368,18 @@ jobs:
 
       - name: Install
         run: bun install
+
+      - name: Sync version from VERSION file
+        shell: bash
+        run: |
+          V=$(cat packages/client/VERSION)
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('packages/client/src-tauri/tauri.conf.json', 'utf8'));
+            conf.version = '$V';
+            fs.writeFileSync('packages/client/src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+          "
+          echo "Set tauri.conf.json version to $V"
 
       - name: Build client (Windows)
         shell: bash
@@ -373,7 +402,9 @@ jobs:
             if [ -n "$MSI_FILES" ]; then
               for msi in $MSI_FILES; do
                 echo "Uploading MSI: $msi"
-                gh release upload "$TAG" "$msi" --clobber
+                # Copy to versionless name: Jean2-windows-x64.msi
+                cp "$msi" "Jean2-windows-x64.msi"
+                gh release upload "$TAG" "Jean2-windows-x64.msi" --clobber
                 FOUND=1
               done
             fi
@@ -385,7 +416,9 @@ jobs:
             if [ -n "$EXE_FILES" ]; then
               for exe in $EXE_FILES; do
                 echo "Uploading EXE: $exe"
-                gh release upload "$TAG" "$exe" --clobber
+                # Copy to versionless name: Jean2-windows-x64.exe
+                cp "$exe" "Jean2-windows-x64.exe"
+                gh release upload "$TAG" "Jean2-windows-x64.exe" --clobber
                 FOUND=1
               done
             fi
