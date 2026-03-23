@@ -198,7 +198,7 @@ jobs:
               mkdir -p packages/server/dist
               bun build --compile --target=bun-darwin-arm64 --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
               bun build --compile --target=bun-linux-x64 --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
-              [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
               gh release create "$TAG" --title "Server $V" $PRE \
                 packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
             fi
@@ -213,7 +213,7 @@ jobs:
               mkdir -p services/lsp/dist
               bun build --compile --target=bun-darwin-arm64 --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/cli.ts
               bun build --compile --target=bun-linux-x64 --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/cli.ts
-              [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
               gh release create "$TAG" --title "LSP $V" $PRE \
                 services/lsp/dist/jean2-lsp-darwin services/lsp/dist/jean2-lsp-linux
             fi
@@ -227,15 +227,78 @@ jobs:
               git tag -f "$TAG"
               git push origin "$TAG" --force
               tar -czf "$TOOL_NAME.tar.gz" -C "$P" .
-              [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
               gh release create "$TAG" --title "Tool $TOOL_NAME $V" $PRE "$TOOL_NAME.tar.gz"
             fi
           fi
 
-  release-client:
+  prepare-client-release:
     needs: prepare-releases
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     if: inputs.release_client
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+      release_exists: ${{ steps.info.outputs.release_exists }}
+      should_skip: ${{ steps.info.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: info
+        run: |
+          V=$(cat packages/client/VERSION)
+          TAG="client/v${V}"
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          
+          # Check if release exists
+          if gh release view "$TAG" 2>/dev/null; then
+            if [ "${{ inputs.force }}" != "true" ]; then
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+              echo "should_skip=true" >> $GITHUB_OUTPUT
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+              echo "Release $TAG already exists, skipping..."
+              exit 0
+            else
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
+            fi
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          
+          # Configure git and push tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG"
+          git push origin "$TAG" --force
+          
+          # Determine prerelease flag based on version containing hyphen
+          if [[ "$V" == *"-"* ]]; then
+            PRE="true"
+          else
+            PRE="false"
+          fi
+          echo "prerelease=$PRE" >> $GITHUB_OUTPUT
+          
+          # Create the GitHub release exactly once (without artifacts)
+          if [ "$PRE" == "true" ]; then
+            gh release create "$TAG" --title "Client $V" --prerelease
+          else
+            gh release create "$TAG" --title "Client $V"
+          fi
+          echo "Release $TAG created successfully"
+
+  release-client-macos:
+    needs: [prepare-releases, prepare-client-release]
+    runs-on: macos-latest
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -252,18 +315,85 @@ jobs:
       - name: Install
         run: bun install
 
-      - name: Client
+      - name: Build client (macOS)
+        id: build
         run: |
-          V=$(cat packages/client/VERSION) && TAG="client/v${V}"
-          if gh release view "$TAG" 2>/dev/null && [ "${{ inputs.force }}" != "true" ]; then
-            echo "Skipping $TAG - release already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -f "$TAG"
-            git push origin "$TAG" --force
-            cd packages/client && bun run tauri build --target aarch64-apple-darwin
-            DMG=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
-            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
-            gh release create "$TAG" --title "Client $V" $PRE "$DMG"
+          cd packages/client && bun run tauri build --target aarch64-apple-darwin
+          DMG=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          if [ -z "$DMG" ]; then
+            echo "ERROR: No DMG artifact found"
+            exit 1
           fi
+          echo "artifact=$DMG" >> $GITHUB_OUTPUT
+
+      - name: Upload macOS artifact
+        env:
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
+        run: |
+          gh release upload "$TAG" "${{ steps.build.outputs.artifact }}" --clobber
+
+  release-client-windows:
+    needs: [prepare-releases, prepare-client-release]
+    runs-on: windows-latest
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install
+        run: bun install
+
+      - name: Build client (Windows)
+        shell: bash
+        run: |
+          cd packages/client
+          bun run tauri build --target x86_64-pc-windows-msvc
+
+      - name: Discover and upload Windows artifacts
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
+        id: upload
+        run: |
+          BUNDLE_DIR="packages/client/src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          FOUND=0
+          
+          # Upload MSI installers if found
+          if [ -d "$BUNDLE_DIR/msi" ]; then
+            MSI_FILES=$(find "$BUNDLE_DIR/msi" -name "*.msi" 2>/dev/null)
+            if [ -n "$MSI_FILES" ]; then
+              for msi in $MSI_FILES; do
+                echo "Uploading MSI: $msi"
+                gh release upload "$TAG" "$msi" --clobber
+                FOUND=1
+              done
+            fi
+          fi
+          
+          # Upload NSIS installers (.exe) if found
+          if [ -d "$BUNDLE_DIR/nsis" ]; then
+            EXE_FILES=$(find "$BUNDLE_DIR/nsis" -name "*.exe" 2>/dev/null)
+            if [ -n "$EXE_FILES" ]; then
+              for exe in $EXE_FILES; do
+                echo "Uploading EXE: $exe"
+                gh release upload "$TAG" "$exe" --clobber
+                FOUND=1
+              done
+            fi
+          fi
+          
+          if [ "$FOUND" -eq 0 ]; then
+            echo "ERROR: No Windows installer artifacts (.msi or .exe) found in $BUNDLE_DIR"
+            exit 1
+          fi
+          
+          echo "Successfully uploaded Windows artifacts"
