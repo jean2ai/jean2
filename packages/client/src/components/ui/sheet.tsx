@@ -67,13 +67,14 @@ function SheetContent({
         style={(() => {
           const safeAreaStyle = side === "left" || side === "right"
             ? {
-                top: "env(safe-area-inset-top, 0)",
-                bottom: "env(safe-area-inset-bottom, 0)",
+                top: "env(safe-area-inset-top, 0px)",
+                bottom: "env(safe-area-inset-bottom, 0px)",
+                height: "calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
               }
             : side === "top"
-              ? { top: "env(safe-area-inset-top, 0)" }
+              ? { top: "env(safe-area-inset-top, 0px)" }
               : side === "bottom"
-                ? { bottom: "env(safe-area-inset-bottom, 0)" }
+                ? { bottom: "env(safe-area-inset-bottom, 0px)" }
                 : undefined;
           return safeAreaStyle ? { ...safeAreaStyle, ...styleProp } : styleProp;
         })()}
