@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Loader2, Unplug, Plug } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Unplug, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/shared';
 
@@ -11,18 +11,6 @@ interface ProviderCardProps {
 
 export function ProviderCard({ provider, onConnect, onDisconnect }: ProviderCardProps) {
   const [loading, setLoading] = useState(false);
-  const popupRef = useRef<Window | null>(null);
-
-  useEffect(() => {
-    if (provider.authorizationUrl && popupRef.current) {
-      try {
-        popupRef.current.location.href = provider.authorizationUrl;
-      } catch {
-        window.open(provider.authorizationUrl, '_blank');
-      }
-      popupRef.current = null;
-    }
-  }, [provider.authorizationUrl]);
 
   useEffect(() => {
     if (provider.error || provider.connected) {
@@ -30,9 +18,13 @@ export function ProviderCard({ provider, onConnect, onDisconnect }: ProviderCard
     }
   }, [provider.error, provider.connected]);
 
+  useEffect(() => {
+    if (provider.authorizationUrl) {
+      setLoading(false);
+    }
+  }, [provider.authorizationUrl]);
+
   const handleConnect = () => {
-    const popup = window.open('', '_blank', 'width=600,height=700');
-    popupRef.current = popup;
     setLoading(true);
     onConnect();
   };
@@ -68,7 +60,7 @@ export function ProviderCard({ provider, onConnect, onDisconnect }: ProviderCard
       )}
 
       <div className="flex gap-2">
-        {!provider.connected ? (
+        {!provider.connected && !provider.authorizationUrl && (
           <Button
             size="sm"
             onClick={handleConnect}
@@ -76,12 +68,39 @@ export function ProviderCard({ provider, onConnect, onDisconnect }: ProviderCard
           >
             {loading ? (
               <Loader2 className="size-3 animate-spin" data-icon="inline-start" />
-            ) : (
-              <Plug className="size-3" data-icon="inline-start" />
-            )}
+            ) : null}
             Connect
           </Button>
-        ) : (
+        )}
+
+        {!provider.connected && provider.authorizationUrl && (
+          <div className="flex flex-col gap-2">
+            <a
+              href={provider.authorizationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-xs text-blue-500 underline break-all"
+            >
+              {provider.authorizationUrl}
+            </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(provider.authorizationUrl!);
+                } catch {
+                  // silently fail
+                }
+              }}
+            >
+              <Copy className="size-3" data-icon="inline-start" />
+              Copy URL
+            </Button>
+          </div>
+        )}
+
+        {provider.connected && (
           <Button
             variant="destructive"
             size="sm"

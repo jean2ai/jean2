@@ -767,7 +767,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
           authorizationUrl: result.authorizationUrl,
         });
 
-        const provider = getProvider(msg.provider);
+        const provider = providerManager.getProvider(msg.provider);
         if (provider?.onConnectComplete) {
           provider.onConnectComplete((success, error) => {
             if (success) {
