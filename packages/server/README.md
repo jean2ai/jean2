@@ -6,7 +6,7 @@ Provides multi-provider LLM streaming, tool execution with security policies, su
 
 ## Features
 
-- **Multi-provider LLM** — Anthropic, OpenAI, Google, OpenRouter, MiniMax, Zhipu (including custom coding endpoints)
+- **Multi-provider LLM** — Anthropic, OpenAI, Google, OpenRouter, MiniMax, Zhipu, Codex (ChatGPT subscription via OAuth), and any OpenAI-compatible endpoint
 - **Streaming agent loop** — multi-step tool execution with real-time WebSocket streaming
 - **Tool system** — file-based tools with Bun/Node/Python/Bash/Go/Binary runtimes, security checks, and permission caching
 - **Subagent orchestration** — hierarchical task delegation with configurable depth limits (max 2 levels)
@@ -18,6 +18,7 @@ Provides multi-provider LLM streaming, tool execution with security policies, su
 - **SQLite storage** — sessions, messages, parts, permissions, queued messages, tool approvals
 - **Daemon mode** — background server with PID file management and log tailing
 - **Instructions** — global (`~/.jean2/AGENTS.md`) and project-level instructions injected into system prompts
+- **Remote terminal** — PTY sessions with WebSocket binary frame protocol, multi-tab support, session reconnection, and idle cleanup
 
 ## Quick Start
 
@@ -84,6 +85,7 @@ Commands:
   tools/                # Tool definitions (one directory per tool)
   preconfigs/           # Agent personality presets
   prompts/              # Reusable prompt templates (*.md)
+  providers/            # OAuth provider tokens (e.g. codex.json)
   server.pid            # Daemon PID file
   server.log            # Daemon log file
   workspaces/           # Virtual workspace directories
@@ -319,6 +321,11 @@ src/
     auth.ts             # MCP auth token storage
     oauth-provider.ts   # OAuth redirect flow for remote MCP
   
+  providers/
+    codex.ts            # Codex OAuth provider (ChatGPT subscription)
+    registry.ts         # Provider registration and model factory
+    storage.ts          # OAuth token persistence (~/.jean2/providers/)
+  
   skills/
     registry.ts         # SKILL.md discovery from .agents/skills/
     skill-tool.ts       # AI SDK tool for loading skills at runtime
@@ -329,6 +336,9 @@ src/
   
   services/
     files.ts            # Directory listing and file search
+    terminal/
+      manager.ts        # PTY session lifecycle management
+      frames.ts         # Binary frame protocol (opcodes)
   
   daemon/
     index.ts            # Background daemon start/stop/status/logs
@@ -457,6 +467,41 @@ When performing this task, follow these steps...
 ```
 
 Skills are loaded at runtime via the `skill` tool, which injects the full skill content into the agent's context. Preconfigs can restrict which skills are available via the `skills` field.
+
+## Remote Terminal
+
+The server provides a WebSocket endpoint for remote terminal (PTY) access within workspaces.
+
+### WebSocket Endpoint
+
+Connect to `ws://<host>:<port>/ws/terminal?token=<token>&workspaceId=<id>&sessionId=<optional-existing-session>`.
+
+Messages use a binary frame protocol with typed opcodes:
+
+| Opcode | Value | Direction | Description |
+|--------|-------|-----------|-------------|
+| INPUT | 0x01 | Client → Server | Send keystrokes/input to PTY |
+| RESIZE | 0x02 | Client → Server | Resize terminal (columns, rows) |
+| CLOSE | 0x03 | Client → Server | Destroy PTY session |
+| OUTPUT | 0x04 | Server → Client | PTY output data |
+| EXIT | 0x05 | Server → Client | Process exited (exit code) |
+| ERROR | 0x06 | Server → Client | Error occurred |
+| INIT_ACK | 0x07 | Server → Client | Session initialization acknowledgment |
+| TITLE | 0x08 | Server → Client | Terminal title change |
+
+### REST Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/workspaces/:id/terminals/:sessionId` | Get terminal session info |
+| DELETE | `/api/workspaces/:id/terminals/:sessionId` | Kill a terminal session |
+
+### Session Management
+
+- Terminal sessions are workspace-isolated
+- Supports session reconnection with scrollback buffer
+- Idle sessions are automatically cleaned up after 30 minutes
+- Shell defaults to `$SHELL` environment variable
 
 ## Preconfigs
 

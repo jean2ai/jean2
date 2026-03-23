@@ -22,9 +22,11 @@ Every AI agent tool tells you what to do — what prompts to use, what tools you
 
 ## Install
 
-Download the latest release from [GitHub Releases](https://github.com/YOUR-ORG/jean2/releases).
+Download the latest release from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases).
 
 The server binary is self-contained — no runtime installation needed.
+
+> **Windows users:** Server binaries are not produced for Windows. Use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) to run the server.
 
 ```bash
 jean2 init
@@ -41,7 +43,7 @@ For development from source, see [Contributing](#contributing).
 
 ### Multi-Provider LLM Streaming
 
-Connect to any combination of LLM providers — OpenAI, Anthropic, Google, OpenRouter, MiniMax, Zhipu, or any OpenAI-compatible endpoint. Switch providers and models per-session. Models are organized into **budget**, **standard**, and **premium** tiers. Custom base URLs supported for self-hosted or proxy setups.
+Connect to any combination of LLM providers — OpenAI, Anthropic, Google, OpenRouter, MiniMax, Zhipu, Codex (ChatGPT subscription via OAuth), or any OpenAI-compatible endpoint. Switch providers and models per-session. Models are organized into **budget**, **standard**, and **premium** tiers. Custom base URLs supported for self-hosted or proxy setups.
 
 Built on [Vercel AI SDK v6](https://sdk.vercel.ai/) with real-time streaming and multi-step tool execution.
 
@@ -89,19 +91,23 @@ Skills are discoverable instruction sets stored as `SKILL.md` files in `.agents/
 
 A standalone HTTP→LSP bridge (`@jean2/lsp`) provides go-to-definition, find-references, hover info, document symbols, and diagnostics. Supports TypeScript and PHP with an extensible language client architecture.
 
+### Remote Terminal
+
+Full remote terminal with PTY support. Connect to a shell in any workspace with multi-tab terminals, session reconnection with scrollback, and configurable shell. Uses xterm.js on the client and Bun's PTY support on the server.
+
 ### Clients
 
 One server, every device:
 
 | Client | Platform |
 |--------|----------|
-| **Desktop** | Tauri 2 native macOS app with multi-window support |
+| **Desktop** | Tauri 2 native app (macOS, Windows) |
 | **iOS** | Tauri 2 native iPhone app |
 | **Web** | `npx @jean2/client` — zero-install, any browser |
 
 Connect from anywhere. The client talks to the server over WebSocket and REST — same protocol, same experience, whether you're on your desk or on the go.
 
-Features streaming chat with real-time deltas, file tree browser, tool permission dialogs, diff viewers, terminal output, syntax-highlighted code blocks, markdown rendering, dark/light themes, offline detection with auto-reconnect, and multi-server + multi-workspace support.
+Features streaming chat with real-time deltas, file tree browser, tool permission dialogs, diff viewers, terminal output, syntax-highlighted code blocks, markdown rendering, dark/light themes, offline detection with auto-reconnect, and multi-server + multi-workspace support. Includes a built-in remote terminal and two view modes (Default and Overview) for seamless multi-workspace switching.
 
 ---
 
@@ -193,6 +199,10 @@ All configuration lives in `~/.jean2/`:
   tools/             # Tool definitions (one directory per tool)
   preconfigs/        # Agent personality presets
   prompts/           # Reusable prompt templates
+  providers/         # OAuth provider tokens (e.g. codex.json)
+  server.pid         # Daemon PID file
+  server.log         # Daemon log file
+  workspaces/        # Virtual workspace directories
 ```
 
 See the [server README](packages/server/README.md) for the full environment variable reference and API documentation.

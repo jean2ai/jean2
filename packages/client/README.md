@@ -4,7 +4,7 @@ Cross-platform frontend for the Jean2 AI Agent. Connects to a Jean2 server over 
 
 Three deployment targets:
 
-- **Tauri Desktop** — Native macOS application with multi-window support
+- **Tauri Desktop** — Native macOS and Windows application with multi-window support
 - **Tauri iOS** — Native iPhone application
 - **Web CLI** — Run locally via `npx @jean2/client`
 
@@ -18,14 +18,16 @@ Three deployment targets:
 - File tree browser and file path autocomplete
 - MCP (Model Context Protocol) server management
 - Queued messages when a session is busy streaming
+- Built-in remote terminal with multi-tab support and session reconnection
 - Offline detection with exponential backoff auto-reconnect
 - Dark and light themes (persists per platform)
 - Responsive layout — works on desktop and mobile viewports
+- Two view modes — Default (session list) and Overview (multi-workspace dashboard with Quick Switcher)
 
 ## Prerequisites
 
 - [Bun](https://bun.sh/)
-- For Tauri desktop builds: [Rust](https://www.rust-lang.org/tools/install) and Xcode Command Line Tools (`xcode-select --install`)
+- For Tauri desktop builds: [Rust](https://www.rust-lang.org/tools/install) and Xcode Command Line Tools (`xcode-select --install`) (macOS) or Visual Studio Build Tools (Windows)
 - For iOS builds: Xcode, Apple Developer account — see [README-ios.md](README-ios.md)
 
 ## Development
@@ -78,6 +80,13 @@ Apps downloaded from GitHub releases are not code-signed. macOS will block openi
 
 ```bash
 xattr -cr /Applications/Jean2.app
+```
+
+### Tauri Windows
+
+```bash
+# Windows (x64)
+bun run tauri:build:windows
 ```
 
 ### Tauri iOS
@@ -146,7 +155,7 @@ packages/client/
   components.json        shadcn/ui configuration (radix-nova style)
   vite.config.ts         Vite — React, Tailwind, path aliases, dev proxy
   package.npm.json       Minimal manifest for npm publish (CLI mode)
-  VERSION                Client version (0.2.1)
+  VERSION                Client version
 ```
 
 ## Technology Stack
@@ -158,7 +167,7 @@ packages/client/
 | Styling      | Tailwind CSS v4, shadcn/ui, Radix UI        |
 | Fonts        | Geist Variable                              |
 | Icons        | Lucide React                                |
-| Desktop      | Tauri 2 (Rust)                              |
+| Desktop      | Tauri 2 (Rust) — macOS, Windows              |
 | Mobile       | Tauri 2 iOS                                 |
 | Markdown     | react-markdown + remark-gfm                 |
 | Code blocks  | prism-react-renderer                        |
