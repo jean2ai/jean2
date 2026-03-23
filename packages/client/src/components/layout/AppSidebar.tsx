@@ -85,7 +85,7 @@ export function AppSidebar({
   onOpenAddServer,
   onServerSwitch,
 }: AppSidebarProps) {
-  const { quickConnections, addToQuickConnections, activeServer } = useServerContext();
+  const { quickConnections, addToQuickConnections, removeFromQuickConnections, activeServer } = useServerContext();
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
@@ -103,7 +103,15 @@ export function AppSidebar({
   };
 
   const handleToggleWorkspaceFavorite = (workspaceId: string, workspaceName: string) => {
-    if (activeServer) {
+    if (!activeServer) return;
+
+    const existing = quickConnections.find(
+      conn => conn.workspaceId === workspaceId && conn.serverId === activeServer.id
+    );
+
+    if (existing) {
+      removeFromQuickConnections(existing.id);
+    } else {
       addToQuickConnections(activeServer.id, activeServer.name, workspaceId, workspaceName);
     }
   };
