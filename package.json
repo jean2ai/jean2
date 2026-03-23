@@ -22,7 +22,8 @@
     "build:bin:macos": "cd packages/server && bun run build:bin:macos",
     "build:bin:linux": "cd packages/server && bun run build:bin:linux",
     "build:bin:windows": "cd packages/server && bun run build:bin:windows",
-    "build:all": "cd packages/server && bun run build:all"
+    "build:all": "cd packages/server && bun run build:all",
+    "tauri:build:windows": "cd packages/client && bun run tauri:build:windows"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
