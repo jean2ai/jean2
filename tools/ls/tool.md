@@ -8,12 +8,11 @@ inputSchema:
     path:
       type: string
       description: "The directory to list. Supports relative paths from workspace, absolute paths, or home paths. Defaults to workspace root."
-    recursive:
-      type: boolean
-      description: "Whether to list recursively (show tree). Default true."
-    depth:
-      type: number
-      description: "Maximum depth for tree. Default unlimited."
+    ignore:
+      type: array
+      items:
+        type: string
+      description: "List of additional directory or file names to ignore."
     showHidden:
       type: boolean
       description: "Whether to show hidden files (starting with .). Default false."
@@ -21,6 +20,8 @@ outputSchema:
   type: object
   properties:
     content:
+      type: string
+    error:
       type: string
 timeout: 30000
 requireApproval: false
@@ -41,8 +42,7 @@ When NOT to use:
 
 Usage:
 - path (optional): Directory to list. Defaults to workspace root.
-- recursive (optional): Show tree structure. Default true.
-- depth (optional): Maximum depth for tree. Default unlimited.
+- ignore (optional): List of additional directory or file names to ignore.
 - showHidden (optional): Show hidden files (dotfiles). Default false.
 
-Note: Common directories (node_modules, .git, dist) are automatically hidden.
+Note: Output is limited to 100 entries. Common directories (node_modules, .git, dist, build, target, vendor, .venv, coverage, etc.) are automatically hidden. When truncated, a message is shown indicating the limit was reached.

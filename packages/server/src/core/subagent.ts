@@ -320,6 +320,13 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       ...(result.error && { error: result.error }),
     };
   } catch (err: unknown) {
+    console.error('[executeSubagent] AI SDK error', {
+      sessionId,
+      childSessionId: childSession?.id,
+      subagentType: subagent_type,
+      rawError: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err,
+    });
+
     if (childSession) {
       updateSession(childSession.id, { subagentStatus: 'error' });
       const updatedSession = getSession(childSession.id);

@@ -13,7 +13,7 @@ import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type Suba
 import { randomUUID } from 'crypto';
 import { createPermissionRequestHandler } from '@/index';
 import { interruptManager } from './interrupt';
-import { broadcastSessionUpdated } from './broadcast';
+import { broadcastSessionUpdated, broadcastEvent } from './broadcast';
 import { stripVisualization } from '../utils/strip-visualization';
 import { createSkillTool } from '@/skills';
 import {
@@ -587,7 +587,10 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Variables to track step parts for yielding from callbacks
   const stepParts: StepPart[] = [];
   const messageId = randomUUID();
-  let yieldFn: ((event: MessageEvent) => void) | null = null;
+  let yieldFn: ((event: MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null }) => void) | null = null;
+  // Tracks the latest step's usage for context window monitoring (not billing totals).
+  // Final event (result.usage) also uses last-step-only semantics for consistency.
+  const latestUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
   // Create a deferred yield function that will be set up after we enter the generator
 
@@ -692,6 +695,26 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         finishReason: finishedStepPart.finishReason,
         tokens: finishedStepPart.tokens,
       });
+
+      // Emit intermediate usage event with latest step's usage
+      if (stepUsage) {
+        latestUsage.promptTokens = stepUsage.inputTokens ?? 0;
+        latestUsage.completionTokens = stepUsage.outputTokens ?? 0;
+        latestUsage.totalTokens = stepUsage.totalTokens ?? 0;
+
+        if (yieldFn) {
+          yieldFn({
+            type: 'usage',
+            usage: {
+              promptTokens: latestUsage.promptTokens,
+              completionTokens: latestUsage.completionTokens,
+              totalTokens: latestUsage.totalTokens,
+            },
+            model: resolvedModelId ?? 'gpt-4o',
+            variant: variant ?? null,
+          });
+        }
+      }
     },
   });
 
@@ -722,9 +745,17 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Set up the yield function for callbacks
   // Use a queue to handle events from callbacks since we can't yield from inside a callback
-  const callbackEventQueue: MessageEvent[] = [];
+  const callbackEventQueue: Array<
+    | MessageEvent
+    | {
+        type: 'usage';
+        usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+        model: string;
+        variant: string | null;
+      }
+  > = [];
 
-  yieldFn = (event: MessageEvent) => {
+  yieldFn = (event) => {
     callbackEventQueue.push(event);
   };
 
@@ -903,6 +934,16 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   } catch (err) {
     const classified = classifyApiError(err);
 
+    console.error('[streamChat] AI SDK error', {
+      sessionId: _sessionId,
+      model: resolvedModelId,
+      provider: providerId,
+      errorType: classified.type,
+      errorMessage: classified.message,
+      retryable: classified.retryable,
+      rawError: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err,
+    });
+
     // Check if it's an abort/interrupt (already handled)
     if (abortController.signal.aborted) {
       const interruptedMessage: AssistantMessage = {
@@ -1042,6 +1083,18 @@ export async function* streamChatWithRetry(
       const classifiedError = classifyApiError(err);
       _lastError = classifiedError;
 
+      console.error('[streamChatWithRetry] AI SDK error', {
+        sessionId: options.sessionId,
+        model: options.modelId,
+        provider: options.providerId,
+        attempt: retries + 1,
+        maxRetries,
+        errorType: classifiedError.type,
+        errorMessage: classifiedError.message,
+        retryable: classifiedError.retryable,
+        rawError: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err,
+      });
+
       if (!classifiedError.retryable || retries === maxRetries) {
         // Max retries exhausted or non-retryable - yield error and return
         if (classifiedError.type === ApiErrorType.RateLimit) {
@@ -1175,17 +1228,23 @@ export async function executeChildSession(options: {
       // Route permission requests through parent session for approval
       onPermissionRequest: createPermissionRequestHandler(childSessionId),
     })) {
-    if (event.type === 'part.created') {
+    if (event.type === 'message.created') {
+      broadcastEvent(event);
+    } else if (event.type === 'part.created') {
       finalParts.push(event.part);
+      broadcastEvent(event);
     } else if (event.type === 'part.append' && event.field === 'text') {
       const part = finalParts.find(p => p.id === event.partId);
       if (part && part.type === 'text') {
         part.text = (part.text || '') + event.delta;
       }
+      broadcastEvent(event);
+    } else if (event.type === 'part.updated') {
+      broadcastEvent(event);
     } else if (event.type === 'message.updated' && event.message.role === 'assistant') {
       updateMessage(event.message.id, event.message);
+      broadcastEvent(event);
     } else if (event.type === 'usage') {
-      // Update child session token totals
       const currentSession = getSession(childSessionId);
       if (currentSession) {
         updateSession(childSessionId, {
@@ -1194,6 +1253,13 @@ export async function executeChildSession(options: {
           totalTokens: event.usage.totalTokens,
         });
       }
+      broadcastEvent({
+        type: 'chat.usage',
+        sessionId: childSessionId,
+        usage: event.usage,
+        model: event.model,
+        variant: event.variant ?? undefined,
+      });
     } else if (event.type === 'error.rate_limit') {
       console.warn(`[Child Session ${childSessionId}] Rate limited, retrying in ${event.retryAfterMs}ms...`);
     } else if (event.type === 'error.server') {
@@ -1201,7 +1267,6 @@ export async function executeChildSession(options: {
     } else if (event.type === 'error.timeout') {
       console.warn(`[Child Session ${childSessionId}] Timeout: ${event.message}`);
     } else if (event.type === 'error' || event.type === 'error.auth' || event.type === 'error.invalid_request') {
-      // Capture error from non-retryable errors
       const errMsg = event.message;
       if (!error) {
         error = errMsg;

@@ -44,3 +44,8 @@ export function broadcastSessionUpdated(session: Session): void {
     session,
   });
 }
+
+export function broadcastEvent(message: ServerMessage): void {
+  if (!broadcastCallback) return;
+  broadcastCallback(message);
+}

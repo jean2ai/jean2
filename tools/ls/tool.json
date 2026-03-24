@@ -1,6 +1,6 @@
 {
   "name": "ls",
-  "description": "List directory contents with tree formatting.\n\nWhen to use:\n- Exploring project structure for the first time\n- Understanding directory layout\n- Viewing file organization\n\nWhen NOT to use:\n- Finding specific files: Use glob tool instead\n- Searching file contents: Use grep tool instead\n\nUsage:\n- path (optional): Directory to list. Defaults to workspace root.\n- recursive (optional): Show tree structure. Default true.\n- depth (optional): Maximum depth for tree. Default unlimited.\n- showHidden (optional): Show hidden files (dotfiles). Default false.\n\nNote: Common directories (node_modules, .git, dist) are automatically hidden.",
+  "description": "List directory contents with tree formatting.\n\nWhen to use:\n- Exploring project structure for the first time\n- Understanding directory layout\n- Viewing file organization\n\nWhen NOT to use:\n- Finding specific files: Use glob tool instead\n- Searching file contents: Use grep tool instead\n\nUsage:\n- path (optional): Directory to list. Defaults to workspace root.\n- ignore (optional): List of additional directory or file names to ignore.\n- showHidden (optional): Show hidden files (dotfiles). Default false.\n\nNote: Output is limited to 100 entries. Common directories (node_modules, .git, dist, build, target, vendor, .venv, coverage, etc.) are automatically hidden. When truncated, a message is shown indicating the limit was reached.",
   "script": "script.ts",
   "runtime": "bun",
   "inputSchema": {
@@ -10,13 +10,12 @@
         "type": "string",
         "description": "The directory to list. Supports relative paths from workspace, absolute paths, or home paths. Defaults to workspace root."
       },
-      "recursive": {
-        "type": "boolean",
-        "description": "Whether to list recursively (show tree). Default true."
-      },
-      "depth": {
-        "type": "number",
-        "description": "Maximum depth for tree. Default unlimited."
+      "ignore": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "List of additional directory or file names to ignore."
       },
       "showHidden": {
         "type": "boolean",
@@ -28,6 +27,9 @@
     "type": "object",
     "properties": {
       "content": {
+        "type": "string"
+      },
+      "error": {
         "type": "string"
       }
     }

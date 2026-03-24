@@ -1,11 +1,11 @@
 import { readdir, stat } from 'fs/promises';
+import type { Dirent } from 'fs';
 import path from 'node:path';
 import os from 'node:os';
 
 interface Input {
   path?: string;
-  recursive?: boolean;
-  depth?: number;
+  ignore?: string[];
   showHidden?: boolean;
   workspacePath: string;
 }
@@ -13,21 +13,52 @@ interface Input {
 interface Output {
   content: string;
   error?: string;
+  _truncated?: boolean;
+  _count?: number;
   _visualization?: {
     type: 'none';
     message: string;
   };
 }
 
-const IGNORED_DIRS = [
+const LIMIT = 100;
+
+const IGNORED_NAMES = new Set([
   'node_modules',
   '.git',
+  '__pycache__',
   'dist',
   'build',
-  '.next',
+  'target',
+  'vendor',
+  'bin',
+  'obj',
+  '.idea',
+  '.vscode',
+  '.zig-cache',
+  'zig-out',
+  '.coverage',
   'coverage',
+  'tmp',
+  'temp',
+  '.cache',
+  'cache',
+  'logs',
+  '.venv',
+  'venv',
+  'env',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.svelte-kit',
+  '.turbo',
   '.DS_Store',
-];
+  'Thumbs.db',
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.env.development',
+]);
 
 function resolvePath(p: string, ws: string): string {
   if (p === '~' || p.startsWith('~/')) {
@@ -41,102 +72,123 @@ function resolvePath(p: string, ws: string): string {
   return path.resolve(ws, p);
 }
 
-interface TreeNode {
-  name: string;
-  isDirectory: boolean;
-  children: TreeNode[];
+function shouldIgnore(name: string, additionalIgnore?: string[]): boolean {
+  if (IGNORED_NAMES.has(name)) {
+    return true;
+  }
+  if (additionalIgnore && additionalIgnore.includes(name)) {
+    return true;
+  }
+  return false;
 }
 
-async function buildTree(
+async function walkDirectory(
   dirPath: string,
-  currentDepth: number,
-  maxDepth: number | undefined,
-  showHidden: boolean
-): Promise<TreeNode | null> {
-  const dirName = path.basename(dirPath);
-
-  if (IGNORED_DIRS.includes(dirName)) {
-    return null;
+  relativePath: string,
+  files: string[],
+  showHidden: boolean,
+  additionalIgnore?: string[]
+): Promise<void> {
+  if (files.length >= LIMIT) {
+    return;
   }
 
+  let entries: Dirent[];
   try {
-    const stats = await stat(dirPath);
-    const node: TreeNode = {
-      name: dirName,
-      isDirectory: stats.isDirectory(),
-      children: [],
-    };
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch (err) {
+    const errno = err as NodeJS.ErrnoException;
+    if (errno.code === 'EACCES' || errno.code === 'EPERM' || errno.code === 'ENOENT') {
+      return;
+    }
+    throw err;
+  }
 
-    if (!stats.isDirectory()) {
-      return node;
+  for (const entry of entries) {
+    if (files.length >= LIMIT) {
+      return;
     }
 
-    if (maxDepth !== undefined && currentDepth >= maxDepth) {
-      return node;
+    if (!showHidden && entry.name.startsWith('.')) {
+      continue;
     }
 
-    const entries = await readdir(dirPath, { withFileTypes: true });
+    if (shouldIgnore(entry.name, additionalIgnore)) {
+      continue;
+    }
 
-    const children: TreeNode[] = [];
+    const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
 
-    for (const entry of entries) {
-      if (!showHidden && entry.name.startsWith('.')) {
-        continue;
-      }
-
+    if (entry.isDirectory()) {
       const fullPath = path.join(dirPath, entry.name);
-      const childNode = await buildTree(
-        fullPath,
-        currentDepth + 1,
-        maxDepth,
-        showHidden
-      );
-
-      if (childNode) {
-        children.push(childNode);
-      }
+      await walkDirectory(fullPath, entryRelativePath, files, showHidden, additionalIgnore);
+    } else {
+      files.push(entryRelativePath);
     }
-
-    children.sort((a, b) => {
-      if (a.isDirectory !== b.isDirectory) {
-        return a.isDirectory ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-
-    node.children = children;
-    return node;
-  } catch (error) {
-    const err = error as NodeJS.ErrnoException;
-    if (err.code === 'EACCES' || err.code === 'EPERM' || err.code === 'ENOENT') {
-      return null;
-    }
-    throw error;
   }
 }
 
-function formatTree(node: TreeNode, prefix: string = '', isLast: boolean = true): string[] {
-  const lines: string[] = [];
+function buildDirectoryStructure(files: string[]): { dirs: Set<string>; filesByDir: Map<string, string[]> } {
+  const dirs = new Set<string>();
+  const filesByDir = new Map<string, string[]>();
 
-  if (prefix === '') {
-    lines.push(node.name + '/');
-  } else {
-    const branch = isLast ? '└── ' : '├── ';
-    lines.push(prefix + branch + (node.isDirectory ? node.name + '/' : node.name));
-  }
+  for (const file of files) {
+    const dir = path.dirname(file);
+    const parts = dir === '.' ? [] : dir.split('/');
 
-  if (node.isDirectory && node.children.length > 0) {
-    const childPrefix = prefix + (isLast ? '    ' : '│   ');
-
-    for (let i = 0; i < node.children.length; i++) {
-      const child = node.children[i];
-      const isLastChild = i === node.children.length - 1;
-      const childLines = formatTree(child, childPrefix, isLastChild);
-      lines.push(...childLines);
+    for (let i = 0; i <= parts.length; i++) {
+      const dirPath = i === 0 ? '.' : parts.slice(0, i).join('/');
+      dirs.add(dirPath);
     }
+
+    const fileName = path.basename(file);
+    if (!filesByDir.has(dir)) {
+      filesByDir.set(dir, []);
+    }
+    filesByDir.get(dir)!.push(fileName);
   }
 
-  return lines;
+  return { dirs, filesByDir };
+}
+
+function renderDir(
+  dirPath: string,
+  depth: number,
+  dirs: Set<string>,
+  filesByDir: Map<string, string[]>,
+  isLast: boolean = true,
+  parentPrefix: string = ''
+): string {
+  const lines: string[] = [];
+  const branch = isLast ? '└── ' : '├── ';
+
+  if (depth === 0) {
+    lines.push('./');
+  } else {
+    lines.push(`${parentPrefix}${branch}${path.basename(dirPath)}/`);
+  }
+
+  const childPrefix = parentPrefix + (isLast ? '    ' : '│   ');
+
+  const childDirs = Array.from(dirs)
+    .filter((d) => path.dirname(d) === dirPath && d !== dirPath)
+    .sort();
+
+  const childFiles = (filesByDir.get(dirPath) || []).slice().sort();
+
+  for (let i = 0; i < childDirs.length; i++) {
+    const isLastDir = i === childDirs.length - 1 && childFiles.length === 0;
+    const dirLines = renderDir(childDirs[i], depth + 1, dirs, filesByDir, isLastDir, childPrefix);
+    lines.push(dirLines);
+  }
+
+  for (let i = 0; i < childFiles.length; i++) {
+    const isLastFile = i === childFiles.length - 1;
+    const fileBranch = isLastFile ? '└── ' : '├── ';
+    lines.push(`${childPrefix}${fileBranch}${childFiles[i]}`);
+  }
+
+  return lines.join('\n');
 }
 
 async function main(): Promise<void> {
@@ -160,34 +212,42 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { path: inputPath, recursive = true, depth, showHidden = false, workspacePath } = input;
+  const { path: inputPath, ignore, showHidden = false, workspacePath } = input;
 
   try {
     const cwd = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;
 
-    const stats = await stat(cwd);
-
-    if (!stats.isDirectory()) {
-      const output: Output = {
-        content: path.basename(cwd),
-        error: undefined,
-        _visualization: { type: 'none', message: `Ls: ${inputPath || 'workspace'}` },
-      };
+    let dirStat;
+    try {
+      dirStat = await stat(cwd);
+    } catch {
+      const output: Output = { content: '', error: `Directory not found: ${cwd}` };
       console.log(JSON.stringify(output));
       return;
     }
 
-    const tree = await buildTree(cwd, 0, recursive ? depth : 1, showHidden);
-
-    if (!tree) {
-      const output: Output = { content: '', error: 'Unable to read directory' };
+    if (!dirStat.isDirectory()) {
+      const output: Output = { content: '', error: `Not a directory: ${cwd}` };
       console.log(JSON.stringify(output));
       return;
     }
 
-    const treeLines = formatTree(tree);
+    const files: string[] = [];
+    await walkDirectory(cwd, '', files, showHidden, ignore);
+
+    const truncated = files.length >= LIMIT;
+    const { dirs, filesByDir } = buildDirectoryStructure(files);
+
+    let content = renderDir('.', 0, dirs, filesByDir);
+
+    if (truncated) {
+      content += `\n\n(Showing 100 of ${files.length} entries. Use grep or glob for targeted searching.)`;
+    }
+
     const output: Output = {
-      content: treeLines.join('\n'),
+      content,
+      _truncated: truncated || undefined,
+      _count: files.length,
       _visualization: { type: 'none', message: `Ls: ${inputPath || 'workspace'}` },
     };
     console.log(JSON.stringify(output));
