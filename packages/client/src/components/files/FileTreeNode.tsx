@@ -89,14 +89,14 @@ export function FileTreeNode({
       <button
         onClick={handleClick}
         className={cn(
-          'flex items-center gap-1.5 w-full px-1.5 py-0.5 rounded text-sm',
+          'flex items-center gap-1.5 w-full min-w-0 overflow-x-hidden px-1.5 py-0.5 rounded text-sm',
           'hover:bg-accent hover:text-accent-foreground',
           'transition-colors text-left',
         )}
         style={{ paddingLeft: `${depth * 12 + 6}px` }}
       >
-        <Icon className={cn('w-4 h-4 flex-shrink-0', iconColor)} />
-        <span className="truncate">{entry.name}</span>
+        <Icon className={cn('w-4 h-4 shrink-0', iconColor)} />
+        <span className="truncate min-w-0 flex-1">{entry.name}</span>
       </button>
     );
   }
@@ -106,24 +106,24 @@ export function FileTreeNode({
       <CollapsibleTrigger asChild>
         <button
           className={cn(
-            'flex items-center gap-1.5 w-full px-1.5 py-0.5 rounded text-sm',
+            'flex items-center gap-1.5 w-full min-w-0 overflow-x-hidden px-1.5 py-0.5 rounded text-sm',
             'hover:bg-accent hover:text-accent-foreground',
             'transition-colors text-left',
           )}
           style={{ paddingLeft: `${depth * 12 + 6}px` }}
         >
           {isLoading ? (
-            <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
           ) : (
             <ChevronRight
               className={cn(
-                'w-3 h-3 flex-shrink-0 transition-transform',
+                'w-3 h-3 shrink-0 transition-transform',
                 isOpen && 'rotate-90'
               )}
             />
           )}
-          <Icon className={cn('w-4 h-4 flex-shrink-0', iconColor)} />
-          <span className="truncate">{entry.name}</span>
+          <Icon className={cn('w-4 h-4 shrink-0', iconColor)} />
+          <span className="truncate min-w-0 flex-1">{entry.name}</span>
         </button>
       </CollapsibleTrigger>
 

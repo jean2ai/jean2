@@ -78,38 +78,39 @@ export function FileTree({ workspaceId, serverUrl, apiToken, onFileSelect, showH
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-2">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Files
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5"
-            onClick={loadRoot}
-          >
-            <RefreshCw className="w-3 h-3" />
-          </Button>
-        </div>
-
-        <div className="space-y-0.5">
-          {files.map(file => (
-            <FileTreeNode
-              key={file.path}
-              entry={file}
-              workspaceId={workspaceId}
-              parentPath={currentPath}
-              depth={0}
-              onFileSelect={onFileSelect}
-              showHidden={showHidden}
-              serverUrl={serverUrl}
-              apiToken={apiToken}
-            />
-          ))}
-        </div>
+    <div className="flex flex-col h-full min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between min-w-0 overflow-hidden px-3 py-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide truncate min-w-0">
+          Files
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 shrink-0"
+          onClick={loadRoot}
+        >
+          <RefreshCw className="w-3 h-3" />
+        </Button>
       </div>
-    </ScrollArea>
+      <ScrollArea className="flex-1 min-h-0 min-w-0">
+        <div className="px-2 pb-2 min-w-0 overflow-hidden">
+          <div className="space-y-0.5">
+            {files.map(file => (
+              <FileTreeNode
+                key={file.path}
+                entry={file}
+                workspaceId={workspaceId}
+                parentPath={currentPath}
+                depth={0}
+                onFileSelect={onFileSelect}
+                showHidden={showHidden}
+                serverUrl={serverUrl}
+                apiToken={apiToken}
+              />
+            ))}
+          </div>
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
