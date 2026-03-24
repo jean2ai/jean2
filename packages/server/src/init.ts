@@ -144,8 +144,8 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
 # JEAN2_LLM_ANTHROPIC_API_KEY=your-key-here
 
 # Agent Configuration
-# JEAN2_LLM_MAX_STEPS=10
-# JEAN2_LLM_SUBAGENT_MAX_STEPS=50
+JEAN2_LLM_MAX_STEPS=500
+JEAN2_LLM_SUBAGENT_MAX_STEPS=500
 `);
   }
 
