@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile, unlink, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
+import matter from 'gray-matter';
 import type { Preconfig, PreconfigMode } from '@jean2/shared';
 import { getPreconfigsPath } from '../env';
 
@@ -132,14 +133,58 @@ async function ensureDir(): Promise<void> {
   await mkdir(PRECONFIGS_DIR, { recursive: true });
 }
 
+export function getPreconfigMdPath(id: string): string {
+  return join(PRECONFIGS_DIR, `${id}.md`);
+}
+
+export function getPreconfigJsonPath(id: string): string {
+  return join(PRECONFIGS_DIR, `${id}.json`);
+}
+
+export async function preconfigExists(id: string): Promise<{ md: boolean; json: boolean }> {
+  await ensureDir();
+  const mdPath = getPreconfigMdPath(id);
+  const jsonPath = getPreconfigJsonPath(id);
+  return {
+    md: existsSync(mdPath),
+    json: existsSync(jsonPath),
+  };
+}
+
+function parsePreconfigMd(content: string): Preconfig {
+  const { data, content: body } = matter(content);
+  return {
+    id: data.id || '',
+    name: data.name || '',
+    description: data.description || '',
+    systemPrompt: body.trim(),
+    tools: data.tools ?? null,
+    model: data.model ?? null,
+    provider: data.provider ?? null,
+    variant: data.variant ?? null,
+    settings: data.settings ?? null,
+    isDefault: data.isDefault ?? false,
+    mode: data.mode,
+    canSpawnSubagents: data.canSpawnSubagents,
+    skills: data.skills ?? null,
+  };
+}
+
+function serializePreconfigMd(preconfig: Preconfig): string {
+  const { id: _id, systemPrompt, ...frontmatterData } = preconfig;
+  const frontmatter = Object.fromEntries(
+    Object.entries(frontmatterData).filter(([, v]) => v !== undefined)
+  );
+  return matter.stringify(systemPrompt || '', frontmatter);
+}
+
 export async function initializePreconfigs(): Promise<void> {
   await ensureDir();
 
-  // Check if any preconfigs exist
   const files = await readdir(PRECONFIGS_DIR).catch(() => []);
-  const jsonFiles = files.filter(f => f.endsWith('.json'));
+  const preconfigFiles = files.filter(f => f.endsWith('.json') || f.endsWith('.md'));
 
-  if (jsonFiles.length === 0) {
+  if (preconfigFiles.length === 0) {
     // Create default preconfigs
     for (const preconfig of DEFAULT_PRECONFIGS) {
       await createPreconfig(preconfig);
@@ -152,10 +197,32 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
   await ensureDir();
 
   const files = await readdir(PRECONFIGS_DIR).catch(() => []);
+  const mdFiles = files.filter(f => f.endsWith('.md'));
   const jsonFiles = files.filter(f => f.endsWith('.json'));
 
+  // Create a set of ids that have .md files (for precedence check)
+  const mdIds = new Set(mdFiles.map(f => f.replace(/\.md$/, '')));
+
   const preconfigs: Preconfig[] = [];
+
+  // Parse .md files first
+  for (const file of mdFiles) {
+    try {
+      const content = await readFile(join(PRECONFIGS_DIR, file), 'utf-8');
+      const parsed = parsePreconfigMd(content);
+      const id = parsed.id || file.replace(/\.md$/, '');
+      preconfigs.push({ ...parsed, id });
+    } catch (e) {
+      console.error(`Failed to read preconfig ${file}:`, e);
+    }
+  }
+
+  // Parse .json files, but skip if corresponding .md exists
   for (const file of jsonFiles) {
+    const id = file.replace(/\.json$/, '');
+    if (mdIds.has(id)) {
+      continue; // .md takes precedence
+    }
     try {
       const content = await readFile(join(PRECONFIGS_DIR, file), 'utf-8');
       preconfigs.push(JSON.parse(content) as Preconfig);
@@ -174,15 +241,32 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
 export async function getPreconfig(id: string): Promise<Preconfig | null> {
   await ensureDir();
 
+  // Check for .md first (precedence)
+  const mdPath = getPreconfigMdPath(id);
+  if (existsSync(mdPath)) {
+    try {
+      const content = await readFile(mdPath, 'utf-8');
+      const parsed = parsePreconfigMd(content);
+      return { ...parsed, id };
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  // Fall back to .json
+  const jsonPath = getPreconfigJsonPath(id);
   try {
-    const content = await readFile(join(PRECONFIGS_DIR, `${id}.json`), 'utf-8');
+    const content = await readFile(jsonPath, 'utf-8');
     return JSON.parse(content) as Preconfig;
   } catch (_e) {
     return null;
   }
 }
 
-export async function createPreconfig(preconfig: Omit<Preconfig, 'id'> & { id?: string }): Promise<Preconfig> {
+export async function createPreconfig(
+  preconfig: Omit<Preconfig, 'id'> & { id?: string },
+  format?: 'json' | 'md'
+): Promise<Preconfig> {
   await ensureDir();
 
   const newPreconfig: Preconfig = {
@@ -190,15 +274,22 @@ export async function createPreconfig(preconfig: Omit<Preconfig, 'id'> & { id?: 
     id: preconfig.id || randomUUID(),
   };
 
-  await writeFile(
-    join(PRECONFIGS_DIR, `${newPreconfig.id}.json`),
-    JSON.stringify(newPreconfig, null, 2)
-  );
+  if (format === 'md') {
+    await writeFile(getPreconfigMdPath(newPreconfig.id), serializePreconfigMd(newPreconfig));
+  } else {
+    await writeFile(
+      getPreconfigJsonPath(newPreconfig.id),
+      JSON.stringify(newPreconfig, null, 2)
+    );
+  }
 
   return newPreconfig;
 }
 
-export async function updatePreconfig(id: string, updates: Partial<Omit<Preconfig, 'id'>>): Promise<Preconfig | null> {
+export async function updatePreconfig(
+  id: string,
+  updates: Partial<Omit<Preconfig, 'id'>>
+): Promise<Preconfig | null> {
   const existing = await getPreconfig(id);
   if (!existing) return null;
 
@@ -208,21 +299,42 @@ export async function updatePreconfig(id: string, updates: Partial<Omit<Preconfi
     id, // Ensure id is not changed
   };
 
-  await writeFile(
-    join(PRECONFIGS_DIR, `${id}.json`),
-    JSON.stringify(updated, null, 2)
-  );
+  const { md, json } = await preconfigExists(id);
+
+  if (md) {
+    await writeFile(getPreconfigMdPath(id), serializePreconfigMd(updated));
+  } else if (json) {
+    await writeFile(
+      getPreconfigJsonPath(id),
+      JSON.stringify(updated, null, 2)
+    );
+  }
 
   return updated;
 }
 
 export async function deletePreconfig(id: string): Promise<boolean> {
-  try {
-    await unlink(join(PRECONFIGS_DIR, `${id}.json`));
-    return true;
-  } catch (_e) {
-    return false;
+  const { md, json } = await preconfigExists(id);
+
+  if (md) {
+    try {
+      await unlink(getPreconfigMdPath(id));
+      return true;
+    } catch (_e) {
+      return false;
+    }
   }
+
+  if (json) {
+    try {
+      await unlink(getPreconfigJsonPath(id));
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 export async function getDefaultPreconfig(): Promise<Preconfig | null> {

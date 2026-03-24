@@ -30,6 +30,7 @@
     "@openrouter/ai-sdk-provider": "^2.3.3",
     "ai": "^6.0.116",
     "fast-glob": "^3.3.3",
+    "gray-matter": "^4.0.3",
     "hono": "^4.12.8",
     "vercel-minimax-ai-provider": "^0.0.2",
     "zhipu-ai-provider": "^0.2.2"

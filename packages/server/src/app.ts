@@ -496,6 +496,8 @@ export function createApp() {
   app.post('/api/preconfigs', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     
+    const format = body.format === 'md' ? 'md' : undefined;
+    
     const preconfig = await createPreconfig({
       name: body.name || 'Custom Preconfig',
       description: body.description || '',
@@ -505,7 +507,7 @@ export function createApp() {
       provider: body.provider || null,
       settings: body.settings || null,
       isDefault: false,
-    });
+    }, format);
     
     return c.json({ preconfig }, 201);
   });
