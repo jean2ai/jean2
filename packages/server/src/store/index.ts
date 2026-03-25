@@ -93,7 +93,11 @@ function initializeSchema(db: Database): void {
       cost REAL DEFAULT 0,
       completed_at INTEGER,
       error TEXT,
-      compacted INTEGER NOT NULL DEFAULT 0,
+
+      -- Compaction metadata (on assistant messages)
+      summary INTEGER DEFAULT 0,
+      mode TEXT,
+      parent_id TEXT,
 
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
@@ -101,7 +105,8 @@ function initializeSchema(db: Database): void {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_session_created ON messages(session_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_session_status ON messages(session_id, status) WHERE status = \'streaming\'');
-  db.run('CREATE INDEX IF NOT EXISTS idx_messages_compacted ON messages(session_id, compacted)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_messages_summary ON messages(session_id, summary) WHERE summary = 1');
+  db.run('CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS parts (
@@ -219,3 +224,7 @@ export * from './workspaces';
 export * from './permissions';
 export * from './queued-messages';
 export * from './terminal-sessions';
+
+// Re-export for recovery functions
+export { findOrphanedCompactionTriggers } from './messages';
+export { reconcileSessionCompaction, reconcileAllSessionsCompaction } from './compaction-recovery';

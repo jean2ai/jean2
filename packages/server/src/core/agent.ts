@@ -28,10 +28,14 @@ import {
   getLLMTemperature,
   getLLMMaxSteps,
   getLLMSubagentMaxSteps,
+  getCompactionAutoThresholdRatio,
+  getCompactionAutoReserveCapTokens,
+  getCompactionAutoSafetyMarginTokens,
 } from '../env';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
 import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
 import { getProvider, createModelForProvider } from '@/providers';
+import type { CompactionPolicy } from './compaction';
 
 interface ModelWithMetadata {
   model: LanguageModel;
@@ -177,6 +181,7 @@ export interface ChatOptions {
   workspaceId?: string;
   onPermissionRequest?: PermissionRequestCallback;
   maxSteps?: number;
+  compactionPolicy?: CompactionPolicy;
 }
 
 export interface ChatResult {
@@ -273,11 +278,26 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
       output: unknown;
     }> = [];
 
+    const hasCompactionTrigger = parts.some(p => p.type === 'compaction');
+
+    // Skip assistant messages from a failed compaction round — they must not
+    // re-enter the model context (would cause the model to see a spurious,
+    // incoherent "error" assistant turn before the next user turn).
+    if (msg.role === 'assistant' && msg.mode === 'compact_failed') {
+      continue;
+    }
+
     for (const part of parts) {
       if (isTextPart(part)) {
         textBlocks.push(part.text);
       } else if (part.type === 'compaction') {
-        textBlocks.push((part as CompactionPart).summary);
+        // Compaction part is metadata-only; convert to user instruction
+        const compactionPart = part as CompactionPart;
+        if (compactionPart.overflow) {
+          textBlocks.push('Continue from where we left off, summarizing what we did so far.');
+        } else {
+          textBlocks.push('What did we do so far?');
+        }
       } else if (isToolPart(part)) {
         const toolPart = part;
 
@@ -291,12 +311,25 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
 
         // Add tool-result only for completed or error tools
         if (toolPart.state.status === 'completed') {
-          toolResultBlocks.push({
-            type: 'tool-result' as const,
-            toolCallId: toolPart.callId,
-            toolName: toolPart.name,
-            output: { type: 'json' as const, value: stripVisualization(toolPart.state.output) },
-          });
+          const isCompacted = !!(toolPart.state as { compactedAt?: number }).compactedAt;
+          const isSkillTool = toolPart.name === 'skill';
+
+          // Prune stale tool results: mark with placeholder, but preserve skill tool output
+          if (isCompacted && !isSkillTool) {
+            toolResultBlocks.push({
+              type: 'tool-result' as const,
+              toolCallId: toolPart.callId,
+              toolName: toolPart.name,
+              output: { type: 'text' as const, value: '[Old tool result content cleared]' },
+            });
+          } else {
+            toolResultBlocks.push({
+              type: 'tool-result' as const,
+              toolCallId: toolPart.callId,
+              toolName: toolPart.name,
+              output: { type: 'json' as const, value: stripVisualization(toolPart.state.output) },
+            });
+          }
         } else if (toolPart.state.status === 'error') {
           toolResultBlocks.push({
             type: 'tool-result' as const,
@@ -331,13 +364,12 @@ async function convertToAiSdkMessages(messages: MessageWithParts[]): Promise<Mod
       });
     }
 
-    const hasCompaction = parts.some(p => p.type === 'compaction');
-
     // Case 1: No tool calls - just text content
+    // Compaction triggers are always user role
     if (!hasToolCalls) {
       const content = textBlocks.join('\n\n');
       result.push({
-        role: hasCompaction ? 'user' : (msg.role as 'user' | 'assistant' | 'system'),
+        role: hasCompactionTrigger ? 'user' : (msg.role as 'user' | 'assistant' | 'system'),
         content,
       });
       continue;
@@ -532,7 +564,7 @@ async function buildAiSdkTools(
 }
 
 export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | ContextOverflowErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
-  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
+  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps, compactionPolicy } = options;
 
   // Register session with interrupt manager
   const abortController = interruptManager.registerSession(_sessionId);
@@ -592,17 +624,31 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Final event (result.usage) also uses last-step-only semantics for consistency.
   const latestUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
-  // Auto-compaction: track accumulated input tokens across steps
-  let accumulatedInputTokens = 0;
+  // Auto-compaction: track latest step input tokens for threshold check
+  let latestStepInputTokens = 0;
   let needsCompaction = false;
   const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;
   const contextWindow = modelDef?.contextWindow;
-  const maxOutputTokensForThreshold = contextWindow
-    ? getMaxOutputTokens(resolvedModelId)
-    : 0;
-  const overflowThreshold = contextWindow
-    ? contextWindow - maxOutputTokensForThreshold - 20_000
-    : 0;
+  const modelMaxOutputTokens = contextWindow ? getMaxOutputTokens(resolvedModelId) : 0;
+
+  // Resolve hybrid formula parameters from compactionPolicy or env defaults
+  const autoThresholdRatio = compactionPolicy?.autoThresholdRatio ?? getCompactionAutoThresholdRatio();
+  const autoReserveCapTokens = compactionPolicy?.autoReserveCapTokens ?? getCompactionAutoReserveCapTokens();
+  const autoSafetyMarginTokens = compactionPolicy?.autoSafetyMarginTokens ?? getCompactionAutoSafetyMarginTokens();
+
+  // Compute auto-compaction threshold using hybrid formula:
+  // reserve = min(modelMaxOutputTokens, reserveCapTokens)
+  // threshold = min(floor(contextWindow * ratio), contextWindow - reserve - safetyMarginTokens)
+  let autoThreshold: number;
+  if (contextWindow) {
+    const reserve = Math.min(modelMaxOutputTokens, autoReserveCapTokens);
+    const ratioBasedThreshold = Math.floor(contextWindow * autoThresholdRatio);
+    const safeThreshold = contextWindow - reserve - autoSafetyMarginTokens;
+    // Defensive: ensure non-negative threshold for edge cases (e.g., tiny context windows)
+    autoThreshold = Math.max(0, Math.min(ratioBasedThreshold, safeThreshold));
+  } else {
+    autoThreshold = 0;
+  }
 
   // Create a deferred yield function that will be set up after we enter the generator
 
@@ -658,10 +704,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       const stepPromptTokens = stepUsage?.inputTokens ?? 0;
       const stepCompletionTokens = stepUsage?.outputTokens ?? 0;
 
-      // Auto-compaction: accumulate tokens and check threshold (main sessions only)
+      // Auto-compaction: check latest step input tokens against threshold (main sessions only)
+      // Trigger when the latest step's input tokens >= autoThreshold
       if (isMainSession && contextWindow) {
-        accumulatedInputTokens += stepUsage?.inputTokens ?? 0;
-        if (accumulatedInputTokens >= overflowThreshold) {
+        latestStepInputTokens = stepUsage?.inputTokens ?? 0;
+        if (latestStepInputTokens >= autoThreshold) {
           needsCompaction = true;
         }
       }

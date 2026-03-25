@@ -1,8 +1,10 @@
 import { useRef, useEffect, useState } from 'react';
 import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo, AssistantMessage } from '@jean2/shared';
+import { isAssistantMessage } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
@@ -71,6 +73,8 @@ interface ChatViewProps {
   onFork?: (sessionId: string, messageId: string) => void;
   onCompact?: () => void;
   isCompacting?: boolean;
+  compactionSuccess?: boolean;
+  onClearCompactionSuccess?: () => void;
   serverUrl?: string;
   apiToken?: string;
   selectedVariant: string | null;
@@ -145,8 +149,63 @@ function mergeMessagesWithQueue(
   return [...sortedRegularItems, ...sortedQueuedItems];
 }
 
+function CompactionInProgressBanner() {
+  return (
+    <div className="mx-4 mt-4 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border border-border">
+      <Minimize2 className="size-4 animate-pulse" />
+      <span>Compacting conversation...</span>
+    </div>
+  );
+}
+
+function CompactionSuccessBanner() {
+  return (
+    <div className="mx-4 mt-4 flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg px-3 py-2 border border-green-500/20">
+      <CheckCircle2 className="size-4" />
+      <span>Compaction complete</span>
+    </div>
+  );
+}
+
+function CompactionFailedMessage({
+  message,
+  textContent,
+  onRetry,
+}: {
+  message: AssistantMessage;
+  textContent: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 mb-4 animate-slide-up min-w-0">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-destructive ml-3">
+        <AlertTriangle className="size-3" />
+        Compaction Failed
+      </div>
+      <div className="rounded-2xl px-4 py-3 max-w-full bg-destructive/10 border border-destructive/30 rounded-bl-md">
+        <p className="text-sm text-destructive/90">
+          {textContent || message.error || 'Compaction failed. The conversation could not be summarized.'}
+        </p>
+        {onRetry && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRetry}
+            className="mt-2 h-7 text-xs gap-1.5"
+          >
+            <RotateCcw className="size-3" />
+            Retry
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CompactionDivider({ part }: { part: CompactionPart }) {
   const [expanded, setExpanded] = useState(false);
+
+  const reason = part.overflow ? 'overflow' : part.auto ? 'auto' : 'manual';
 
   return (
     <div className="flex flex-col items-center my-4">
@@ -156,12 +215,12 @@ function CompactionDivider({ part }: { part: CompactionPart }) {
       >
         {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         <span className="border-b border-dashed border-muted-foreground/40 pb-px">
-          {part.compactedMessageIds.length} messages compacted
+          {reason === 'overflow' ? 'Context overflow' : reason === 'auto' ? 'Auto' : 'Manual'} compaction
         </span>
       </button>
       {expanded && (
-        <div className="mt-2 max-w-lg w-full rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-          <MarkdownRenderer>{part.summary}</MarkdownRenderer>
+        <div className="mt-2 text-xs text-muted-foreground italic">
+          Summary available in the assistant message below
         </div>
       )}
     </div>
@@ -273,11 +332,25 @@ export function ChatView({
   onFork: _onFork,
   onCompact,
   isCompacting,
+  compactionSuccess,
+  onClearCompactionSuccess,
   serverUrl,
   apiToken,
   selectedVariant,
   variants,
 }: ChatViewProps) {
+  const isPrimarySession = !session.parentId;
+  const isMainActiveSession = isPrimarySession && session.status === 'active';
+
+  // Auto-clear compaction success after delay
+  useEffect(() => {
+    if (compactionSuccess) {
+      const timer = setTimeout(() => {
+        onClearCompactionSuccess?.();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [compactionSuccess, onClearCompactionSuccess]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const SCROLL_THRESHOLD = 150;
@@ -348,6 +421,10 @@ export function ChatView({
         variants={variants}
       />
 
+      {isCompacting && <CompactionInProgressBanner />}
+
+      {compactionSuccess && <CompactionSuccessBanner />}
+
       {session.status === 'closed' && (
         <Alert className="mx-4 mt-4">
           <AlertDescription>
@@ -368,6 +445,19 @@ export function ChatView({
               const compactionPart = item.parts.find(
                 (p): p is CompactionPart => p.type === 'compaction'
               );
+
+              const isCompactFailed = isAssistantMessage(item.message) && item.message.mode === 'compact_failed';
+
+              if (isCompactFailed) {
+                return (
+                  <CompactionFailedMessage
+                    key={item.message.id}
+                    message={item.message as AssistantMessage}
+                    textContent={getTextContent(item.parts)}
+                    onRetry={isMainActiveSession && !isCompacting ? onCompact : undefined}
+                  />
+                );
+              }
 
               if (compactionPart) {
                 return (

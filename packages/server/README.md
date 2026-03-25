@@ -93,16 +93,24 @@ Commands:
 
 ### Environment Variables
 
-All settings can be placed in `~/.jean2/.env`. System environment variables take precedence.
+All settings can be placed in `~/.jean2/.env`. Process environment variables take precedence over values in `~/.jean2/.env`.
+
+#### Server
 
 | Variable | Default | Description |
 |---|---|---|
 | `JEAN2_PORT` | `8742` | Server listen port |
 | `JEAN2_HOST` | `0.0.0.0` | Server bind host |
-| `JEAN2_DATABASE_PATH` | `~/.jean2/data/agent.db` | SQLite database path |
+| `JEAN2_DISABLE_AUTH` | `false` | Disable authentication (for development only) |
+| `JEAN2_DATABASE_PATH` | — | SQLite database path (defaults to `~/.jean2/data/agent.db`) |
 | `JEAN2_TOOLS_PATH` | `~/.jean2/tools` | Tools directory path |
 | `JEAN2_PRECONFIGS_PATH` | `~/.jean2/preconfigs` | Preconfigs directory path |
-| `JEAN2_MODELS_PATH` | `~/.jean2/models.json` | Models config file path |
+| `JEAN2_MODELS_PATH` | — | Models config file path (defaults to `~/.jean2/models.json`) |
+
+#### LLM
+
+| Variable | Default | Description |
+|---|---|---|
 | `JEAN2_LLM_TEMPERATURE` | `0.7` | Default LLM temperature |
 | `JEAN2_LLM_MAX_TOKENS` | `32000` | Max output token cap |
 | `JEAN2_LLM_MAX_STEPS` | `10` | Max agent loop steps (main agent) |
@@ -115,6 +123,53 @@ All settings can be placed in `~/.jean2/.env`. System environment variables take
 | `JEAN2_LLM_MINIMAX_API_KEY` | — | MiniMax API key |
 | `JEAN2_LLM_ZHIPU_API_KEY` | — | Zhipu API key (open.bigmodel.cn) |
 | `JEAN2_LLM_ZHIPU_CODING_API_KEY` | — | Zhipu Coding API key (api.z.ai) |
+
+#### Compaction
+
+| Variable | Default | Description |
+|---|---|---|
+| `JEAN2_COMPACTION_MODEL` | — | Model ID for summarization (defaults to session model) |
+| `JEAN2_COMPACTION_PROVIDER` | — | Provider for summarization (defaults to session provider) |
+| `JEAN2_COMPACTION_MAX_TOKENS` | `2000` | Max output tokens for summary |
+| `JEAN2_COMPACTION_AUTO_THRESHOLD_RATIO` | `0.75` | Ratio for hybrid auto-compaction threshold |
+| `JEAN2_COMPACTION_AUTO_RESERVE_CAP_TOKENS` | `32000` | Cap token reserve for auto-compaction formula |
+| `JEAN2_COMPACTION_AUTO_SAFETY_MARGIN_TOKENS` | `20000` | Safety margin tokens for auto-compaction |
+| `JEAN2_COMPACTION_PRESERVE_RECENT_TOOL_COUNT` | `3` | Recent completed tool outputs to preserve |
+| `JEAN2_COMPACTION_PRESERVE_SMALL_TOOL_CHARS` | `200` | Small tool output size threshold (chars) |
+| `JEAN2_COMPACTION_TOOL_CLEAR_CHARS_THRESHOLD` | `1000` | Minimum size for clearing tool outputs |
+| `JEAN2_COMPACTION_MAX_PRUNED_TOOL_COUNT` | `50` | Max tools to prune per compaction |
+
+### Compaction Configuration
+
+Manual (`session.compact`) and automatic compaction share the same policy surface. Both flows:
+
+1. Persist a trigger message with a `CompactionPart`
+2. Generate an assistant summary message with `mode: 'compaction'`
+3. Mark eligible tool outputs as compacted
+
+**Model selection**: `JEAN2_COMPACTION_MODEL` / `JEAN2_COMPACTION_PROVIDER` override the session's model/provider for summarization. When unset, compaction uses the session's current model.
+
+**Auto-compaction**: Uses a hybrid threshold formula (`autoThresholdRatio`, `autoReserveCapTokens`, `autoSafetyMarginTokens`) to trigger before the context window is exhausted.
+
+**Tool pruning**: After summarization, completed tool outputs are evaluated for pruning. Protected items (skill tools, small outputs ≤200 chars, the N most recent) are preserved. Older, larger outputs exceeding `toolClearCharsThreshold` are marked as compacted and replaced with placeholders in subsequent context builds.
+
+Example `.env` tuning:
+
+```bash
+# Use a cheaper model for summarization
+JEAN2_COMPACTION_MODEL=gpt-5.1-codex-mini
+JEAN2_COMPACTION_PROVIDER=openai
+JEAN2_COMPACTION_MAX_TOKENS=1500
+
+# Tune auto-compaction aggressiveness (lower ratio = earlier trigger)
+JEAN2_COMPACTION_AUTO_THRESHOLD_RATIO=0.70
+JEAN2_COMPACTION_AUTO_RESERVE_CAP_TOKENS=32000
+JEAN2_COMPACTION_AUTO_SAFETY_MARGIN_TOKENS=15000
+
+# Tune tool pruning (preserve more recent tools, raise clear threshold)
+JEAN2_COMPACTION_PRESERVE_RECENT_TOOL_COUNT=5
+JEAN2_COMPACTION_TOOL_CLEAR_CHARS_THRESHOLD=2000
+```
 
 ### Models Configuration
 
@@ -199,7 +254,7 @@ All `/api/*` endpoints (except `/api/health` and `/api/info`) require authentica
 | GET | `/api/tools/:name` | Get a tool definition |
 | GET | `/api/workspaces/:id/mcp/status` | MCP server statuses |
 | POST | `/api/workspaces/:id/mcp/connect` | Connect to an MCP server |
-| POST | `/api/workspaces/:id/mcp/disconnect` | Disconnect from MCP server |
+| POST | `/api/workspaces/:id/mcp/disconnect` | Disconnect an MCP server |
 | POST | `/api/workspaces/:id/mcp/auth` | Start OAuth flow |
 | POST | `/api/workspaces/:id/mcp/auth/callback` | Handle OAuth callback |
 
@@ -523,7 +578,7 @@ Custom preconfigs can be created via the REST API or by placing JSON files in `~
 
 ### Compaction
 
-LLM-powered conversation summarization. Messages are condensed into a `compaction` part with a structured summary (Decisions, Changes, Context, Open Items). Supports incremental compaction that builds on previous summaries.
+LLM-powered conversation summarization using an append-only message history. Compaction persists a trigger message with a `CompactionPart` and an assistant summary message with `mode: 'compaction'`. Incremental compaction builds on previous summaries. Tool outputs are marked as compacted when they exceed size thresholds.
 
 ### Revert
 

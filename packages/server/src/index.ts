@@ -2,7 +2,7 @@ globalThis.AI_SDK_LOG_WARNINGS = false;
 
 import { createApp } from './app';
 import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
-import { registerBroadcastCallback, broadcastSessionCreatedExclude, broadcastSessionUpdated } from './core/broadcast';
+import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
@@ -18,12 +18,14 @@ import {
   updateMessage,
   createPart,
   listMessagesWithParts,
-  listMessagesForContext,
+  buildEffectiveContextHistory,
   addMessageToQueue,
   getQueuedMessage,
   listQueuedMessages,
   deleteQueuedMessage,
   getNextQueuedMessage,
+  reconcileSessionCompaction,
+  reconcileAllSessionsCompaction,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
@@ -34,14 +36,13 @@ import {
 } from '@/store/tool-approvals';
 import { streamChatWithRetry } from './core/agent';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
-import { compactMessages } from './core/compaction';
+import { executeCompaction } from './core/compaction-executor';
 import { revertToStep } from './core/revert';
 import { forkSession } from './core/fork';
 import { interruptManager } from './core/interrupt';
 import type { ServerWebSocket } from 'bun';
 import { validateToken, updateLastUsed, isAuthEnabled } from './auth/token';
 
-// WebSocket data type for Bun's upgrade data
 interface WsData {
   path: string;
   params?: Record<string, string>;
@@ -67,11 +68,8 @@ export interface ServerInstance {
   cleanup: () => void;
 }
 
-// Store connected clients with their session info
 const clients = new Map<ServerWebSocket, { sessionId?: string }>();
 
-// Store only the resolve functions in memory (can't persist these)
-// The actual permission data is stored in the database
 const pendingPermissionResolvers = new Map<string, {
   resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void
 }>();
@@ -96,16 +94,15 @@ function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
 
 async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   cleanupRunningSessionsOnStartup();
+  reconcileAllSessionsCompaction();
 
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();
 
   console.log('Starting AI Agent Server...');
 
-  // Register broadcast callback for other modules
   registerBroadcastCallback(broadcast as (message: ServerMessage, excludeWs?: unknown) => void);
 
-  // Check available API keys
   const availableProviders: string[] = [];
   if (getLLMOpenAIApiKey()) availableProviders.push('openai');
   if (getLLMAnthropicApiKey()) availableProviders.push('anthropic');
@@ -122,12 +119,10 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_ANTHROPIC_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_GOOGLE_API_KEY, JEAN2_LLM_MINIMAX_API_KEY');
   }
 
-  // Scan for tools
   console.log('Scanning for tools...');
   const tools = await scanTools();
   console.log(`Found ${tools.length} tools: ${tools.map(t => t.definition.name).join(', ')}`);
 
-  // Create the app
   const app = createApp();
 
   console.log(`Server starting on http://${host}:${port}`);
@@ -181,9 +176,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
         return undefined;
       }
 
-      // Handle WebSocket upgrade
       if (url.pathname === '/ws') {
-        // Validate token before upgrading
         if (isAuthEnabled()) {
           const token = url.searchParams.get('token');
 
@@ -212,7 +205,6 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
         return undefined;
       }
 
-      // Handle API requests with Hono
       return app.fetch(req);
     },
 
@@ -309,7 +301,6 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   console.log(`AI Agent Server running at http://${host}:${port}`);
 
-  // Setup signal handlers for graceful shutdown
   const onShutdown = (signal: string) => {
     console.log(`Received ${signal}, shutting down...`);
     cleanup();
@@ -334,7 +325,6 @@ function send(ws: ServerWebSocket, msg: ServerMessage) {
   ws.send(JSON.stringify(msg));
 }
 
-// Centralized permission handler that routes to parent session for subagents
 function createPermissionRequestHandler(sessionId: string) {
   return async (
     toolCallId: string,
@@ -344,7 +334,6 @@ function createPermissionRequestHandler(sessionId: string) {
   ): Promise<{ allowed: boolean; alwaysAllow: boolean }> => {
     const session = getSession(sessionId);
 
-    // Find root parent session (for subagents)
     let parentSessionId = sessionId;
     let currentSession = session;
     while (currentSession?.parentId) {
@@ -358,10 +347,8 @@ function createPermissionRequestHandler(sessionId: string) {
       return { allowed: false, alwaysAllow: false };
     }
 
-    // Determine subagent name if this is a subagent session
     let subagentName: string | undefined;
     if (session?.parentId) {
-      // Extract agent name from title (format: "Task (subagent@claude)")
       const titleParts = session.title?.split('(');
       if (titleParts && titleParts.length > 1) {
         const agentPart = titleParts[1].split('@')[1]?.split(' ')[0];
@@ -374,7 +361,6 @@ function createPermissionRequestHandler(sessionId: string) {
       }
     }
 
-    // Send permission request to parent session
     send(clientWs, {
       type: 'permission.request',
       sessionId: parentSessionId,
@@ -389,7 +375,6 @@ function createPermissionRequestHandler(sessionId: string) {
       details: securityResult.details,
     });
 
-    // Store the approval in database
     createToolApproval({
       id: toolCallId,
       sessionId: parentSessionId,
@@ -407,15 +392,12 @@ function createPermissionRequestHandler(sessionId: string) {
     });
 
     return new Promise((resolve) => {
-      // Store only the resolve function in memory
       pendingPermissionResolvers.set(toolCallId, { resolve });
 
-      // 5 minute timeout
       setTimeout(() => {
         const pending = pendingPermissionResolvers.get(toolCallId);
         if (pending) {
           pendingPermissionResolvers.delete(toolCallId);
-          // Update database status to timeout
           updateToolApproval(toolCallId, {
             status: 'timeout',
             respondedAt: new Date().toISOString()
@@ -476,7 +458,6 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       });
       clients.set(ws, { sessionId: session.id });
 
-      // Apply preconfig settings (model, provider, variant) if defined
       if (msg.preconfigId) {
         const preconfig = await getPreconfig(msg.preconfigId);
         if (preconfig) {
@@ -504,25 +485,26 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       }
       clients.set(ws, { sessionId: session.id });
 
-      // Get full conversation state
+      reconcileSessionCompaction(session.id);
+
+      const reconciledSession = getSession(msg.sessionId);
+
       const messages = listMessagesWithParts(session.id);
 
-      // Check if the session is currently active/running
       const isRunning = interruptManager.isSessionActive(session.id);
 
       send(ws, {
         type: 'session.resumed',
-        session,
+        session: reconciledSession!,
         messages,
-        usage: session.totalTokens ? {
-          promptTokens: session.promptTokens ?? 0,
-          completionTokens: session.completionTokens ?? 0,
-          totalTokens: session.totalTokens ?? 0,
+        usage: reconciledSession!.totalTokens ? {
+          promptTokens: reconciledSession!.promptTokens ?? 0,
+          completionTokens: reconciledSession!.completionTokens ?? 0,
+          totalTokens: reconciledSession!.totalTokens ?? 0,
         } : undefined,
         isRunning,
       });
 
-      // Send any pending permission requests for this session from database
       const pendingApprovals = listPendingApprovals(msg.sessionId);
 
       for (const approval of pendingApprovals) {
@@ -541,7 +523,6 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         });
       }
 
-      // Send queued messages
       const queuedMessages = listQueuedMessages(msg.sessionId);
       if (queuedMessages.length > 0) {
         send(ws, {
@@ -562,7 +543,6 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       const updates: { preconfigId?: string; selectedVariant?: string | null } = {};
       if (msg.preconfigId !== undefined) {
         updates.preconfigId = msg.preconfigId;
-        // Apply preconfig's variant if defined
         const preconfig = await getPreconfig(msg.preconfigId);
         if (preconfig?.variant) {
           updates.selectedVariant = preconfig.variant;
@@ -644,13 +624,11 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       if (pending) {
         pendingPermissionResolvers.delete(msg.toolCallId);
 
-        // Update database with the response
         updateToolApproval(msg.toolCallId, {
           status: msg.allowed ? 'approved' : 'denied',
           respondedAt: new Date().toISOString(),
         });
 
-        // Resolve the promise
         pending.resolve({ allowed: msg.allowed, alwaysAllow: msg.alwaysAllow });
       } else {
         console.warn('permission.response received for unknown toolCallId:', msg.toolCallId);
@@ -823,55 +801,28 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
 
 async function handleSessionCompact(
   ws: ServerWebSocket,
-  msg: { sessionId: string; messageIds: string[] }
+  msg: { sessionId: string; messageIds?: string[] }
 ) {
-  try {
-    const session = getSession(msg.sessionId);
-    if (!session) {
-      send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
-      return;
-    }
+  const session = getSession(msg.sessionId);
+  if (!session) {
+    send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+    return;
+  }
 
-    const config = getModelsConfig();
-    const modelId = config.defaultModel;
-    const provider = config.defaultProvider;
+  const execResult = await executeCompaction(msg.sessionId, 'manual');
 
-    updateSession(msg.sessionId, { compacting: true });
-    broadcastSessionUpdated(getSession(msg.sessionId)!);
-
-    const result = await compactMessages({
-      sessionId: msg.sessionId,
-      messageIds: msg.messageIds,
-      modelId,
-      providerId: provider,
-    });
-
-    broadcast({ type: 'message.created', message: result.message });
-    broadcast({ type: 'part.created', sessionId: msg.sessionId, part: result.part });
-
+  if (execResult.ok) {
     send(ws, {
       type: 'compaction.complete',
       sessionId: msg.sessionId,
-      compactedCount: msg.messageIds.length,
-      tokensUsed: result.tokensUsed,
+      tokensUsed: execResult.result.tokensUsed,
     });
-
-    const currentSession = getSession(msg.sessionId);
-    if (currentSession) {
-      updateSession(msg.sessionId, {
-        promptTokens: (currentSession.promptTokens ?? 0) + result.tokensUsed.prompt,
-        completionTokens: (currentSession.completionTokens ?? 0) + result.tokensUsed.completion,
-        totalTokens: (currentSession.totalTokens ?? 0) + result.tokensUsed.prompt + result.tokensUsed.completion,
-        compacting: false,
-      });
-      broadcastSessionUpdated(getSession(msg.sessionId)!);
+  } else {
+    if (execResult.skipped) {
+      send(ws, { type: 'error', code: 'invalid_session', message: execResult.error });
+    } else {
+      send(ws, { type: 'error', code: 'compaction_error', message: execResult.error });
     }
-  } catch (error) {
-    updateSession(msg.sessionId, { compacting: false });
-    const updatedSession = getSession(msg.sessionId);
-    if (updatedSession) broadcastSessionUpdated(updatedSession);
-    const message = error instanceof Error ? error.message : 'Compaction failed';
-    send(ws, { type: 'error', code: 'compaction_error', message });
   }
 }
 
@@ -939,100 +890,73 @@ async function handleSessionFork(
   }
 }
 
-async function processQueueAfterStream(ws: ServerWebSocket, sessionId: string): Promise<void> {
+function findReplayText(sessionId: string): string | null {
+  const allMessages = listMessagesWithParts(sessionId);
+
+  for (let i = allMessages.length - 2; i >= 0; i--) {
+    const m = allMessages[i];
+    if (m.message.role !== 'user') continue;
+    if (m.parts.every((p) => p.type === 'compaction')) continue;
+
+    const texts: string[] = [];
+    for (const p of m.parts) {
+      if (p.type === 'text' && p.text !== undefined) {
+        if (!p.text.startsWith('Continue:') && !p.text.startsWith('Continue from')) {
+          texts.push(p.text);
+        }
+      }
+    }
+    const text = texts.join(' ').trim();
+    if (text) {
+      return `Replay: ${text}`;
+    }
+  }
+
+  return null;
+}
+
+async function drainQueue(ws: ServerWebSocket, sessionId: string): Promise<string | null> {
   const nextMsg = getNextQueuedMessage(sessionId);
 
   if (!nextMsg) {
-    return;
+    return null;
   }
 
-  // Notify client that we're sending this queued message
   broadcast({
     type: 'queue.sending',
     sessionId,
     queueId: nextMsg.id,
   });
 
-  // Remove from queue before sending (to prevent double-send on error)
   deleteQueuedMessage(nextMsg.id);
 
-  // Send the message (this will trigger a new stream)
-  await handleChat(ws, sessionId, nextMsg.content);
+  return nextMsg.content;
 }
 
-async function handleChat(ws: ServerWebSocket, sessionId: string, content: string) {
-  const session = getSession(sessionId);
-  if (!session) {
-    send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
-    return;
-  }
+interface ChatTurnResult {
+  streamCompleted: boolean;
+  needsAutoCompaction: boolean;
+  contextOverflow: boolean;
+  isFatal: boolean;
+  isQueueDrainable: boolean;
+  errorMessage?: string;
+  errorCode?: string;
+  errorType?: 'rate_limit' | 'server' | 'timeout' | 'auth' | 'context_overflow' | 'invalid_request';
+  retryAfterMs?: number;
+}
 
-  // Prevent sending messages to closed/archived sessions
-  if (session.status === 'closed') {
-    send(ws, { type: 'error', code: 'session_closed', message: 'Cannot send messages to an archived session. Reopen it first.' });
-    return;
-  }
-
-  // Get workspace path for tool execution
-  const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;
-  const workspacePath = workspace?.path;
-
-  // Get preconfig (for default model)
-  const preconfig = session.preconfigId
-    ? await getPreconfig(session.preconfigId)
-    : await getDefaultPreconfig();
-
-  if (!preconfig) {
-    send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found' });
-    return;
-  }
-
-  // Get the default model from config
-  const config = getModelsConfig();
-  const configDefaultModel = config.defaultModel;
-
-  // Determine which model and provider will be used
-  const modelId = session.selectedModel || preconfig?.model || configDefaultModel;
-  const provider = session.selectedProvider ||
-                  (preconfig?.model ? findProviderFromModel(preconfig.model) : null) ||
-                  config.defaultProvider;
-
-  // Helper function to find provider from model
-  function findProviderFromModel(m: string): string {
-    const modelInfo = findModel(m);
-    if (modelInfo) return modelInfo.providerId;
-    if (m.includes('/')) return 'openrouter';
-    if (m.startsWith('claude-')) return 'anthropic';
-    if (m.startsWith('gemini-')) return 'google';
-    return 'openai';
-  }
-
-  // Check API key
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
-  const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
-    'openai': getLLMOpenAIApiKey,
-    'anthropic': getLLMAnthropicApiKey,
-    'openrouter': getLLMOpenRouterApiKey,
-    'google': getLLMGoogleApiKey,
-    'minimax': getLLMMinimaxApiKey,
-    'zhipu': getLLMZhipuApiKey,
-    'zhipu-coding': getLLMZhipuCodingApiKey,
-  };
-  const apiKeyGetter = apiKeyGetterMap[provider as Provider];
-  const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;
-
-  // Skip API key check if provider is a registered connectable provider (handles its own auth)
-  const isConnectableProvider = providerManager.getProvider(provider) !== null;
-  if (!apiKey && !isConnectableProvider) {
-    const envKey = `JEAN2_LLM_${provider.toUpperCase()}_API_KEY`;
-    send(ws, { type: 'error', code: 'no_api_key', message: `No API key configured for provider: ${provider}. Set ${envKey}` });
-    return;
-  }
-
-  // Create user message FIRST (before loading history)
+async function runSingleChatTurn(
+  ws: ServerWebSocket,
+  sessionId: string,
+  content: string,
+  preconfig: NonNullable<Awaited<ReturnType<typeof getPreconfig>>>,
+  modelId: string,
+  provider: string,
+  workspacePath: string | null | undefined,
+  session: NonNullable<ReturnType<typeof getSession>>,
+): Promise<ChatTurnResult> {
   const userMsgId = crypto.randomUUID();
 
-  // Create user message in DB
   const userMessage = {
     id: userMsgId,
     sessionId,
@@ -1041,7 +965,6 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   };
   createMessage(userMessage);
 
-  // Create text part for user message
   const textPartId = crypto.randomUUID();
   const textPart = {
     id: textPartId,
@@ -1052,43 +975,15 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   };
   createPart(textPart, sessionId);
 
-  // Send user message and part to client
   broadcast({ type: 'message.created', message: userMessage });
   broadcast({ type: 'part.created', sessionId, part: textPart });
 
-  // Get message history (NOW as MessageWithParts)
-  const history = listMessagesForContext(sessionId);
-
-  // Permission request callback - routes to parent session for subagents
+  const { messages: history } = buildEffectiveContextHistory(sessionId);
   const onPermissionRequest = createPermissionRequestHandler(sessionId);
 
   let pendingCompaction = false;
 
-  async function tryAutoCompact(): Promise<boolean> {
-    const allMessages = listMessagesForContext(sessionId);
-    const lastUserIdx = allMessages.reduceRight(
-      (idx, m, i) => idx === -1 && m.message.role === 'user' ? i : idx,
-      -1,
-    );
-
-    if (lastUserIdx > 0) {
-      const idsToCompact = allMessages.slice(0, lastUserIdx)
-        .filter(m => m.message.role !== 'system')
-        .map(m => m.message.id);
-
-      if (idsToCompact.length > 0) {
-        await handleSessionCompact(ws, {
-          sessionId,
-          messageIds: idsToCompact,
-        });
-        return true;
-      }
-    }
-    return false;
-  }
-
   try {
-    // Stream the response - agent now handles all message/part creation
     for await (const event of streamChatWithRetry({
       sessionId,
       preconfig,
@@ -1097,17 +992,15 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
       modelId: modelId,
       providerId: provider,
       variant: session.selectedVariant || undefined,
-      workspacePath,
+      workspacePath: workspacePath ?? undefined,
       workspaceId: session.workspaceId || undefined,
     })) {
-      // Relay all events directly to client
       switch (event.type) {
         case 'message.created':
           broadcast(event);
           break;
 
         case 'message.updated':
-          // Persist the message update to database (status, tokens, etc.)
           updateMessage(event.message.id, event.message);
           broadcast(event);
           break;
@@ -1132,7 +1025,6 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             model: event.model,
             variant: event.variant ?? undefined,
           });
-          // Persist usage to database
           const currentSession = getSession(sessionId);
           if (currentSession) {
             updateSession(sessionId, {
@@ -1155,8 +1047,16 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             message: event.message,
             retryAfterMs: event.retryAfterMs,
           });
-          // Don't continue processing - rate limit errors are terminal
-          return;
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: true,
+            isQueueDrainable: false,
+            errorMessage: event.message,
+            errorType: 'rate_limit',
+            retryAfterMs: event.retryAfterMs,
+          };
 
         case 'error.server':
           send(ws, {
@@ -1165,9 +1065,16 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             message: event.message,
             retryAfterMs: event.retryAfterMs,
           });
-          // Server errors may be temporary - still process queue
-          await processQueueAfterStream(ws, sessionId);
-          return;
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: false,
+            isQueueDrainable: true,
+            errorMessage: event.message,
+            errorType: 'server',
+            retryAfterMs: event.retryAfterMs,
+          };
 
         case 'error.timeout':
           send(ws, {
@@ -1176,9 +1083,16 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             message: event.message,
             retryAfterMs: event.retryAfterMs,
           });
-          // Timeouts may be temporary - still process queue
-          await processQueueAfterStream(ws, sessionId);
-          return;
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: false,
+            isQueueDrainable: true,
+            errorMessage: event.message,
+            errorType: 'timeout',
+            retryAfterMs: event.retryAfterMs,
+          };
 
         case 'error.auth':
           send(ws, {
@@ -1186,18 +1100,27 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             code: 'authentication',
             message: event.message,
           });
-          return;
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: true,
+            isQueueDrainable: false,
+            errorMessage: event.message,
+            errorType: 'auth',
+          };
 
-        case 'error.context_overflow':
-          {
-            const compacted = await tryAutoCompact();
-            if (compacted) {
-              await processQueueAfterStream(ws, sessionId);
-              return;
-            }
-            send(ws, { type: 'error', code: 'context_overflow', message: event.message });
-            return;
-          }
+        case 'error.context_overflow': {
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: true,
+            isFatal: false,
+            isQueueDrainable: false,
+            errorMessage: event.message,
+            errorType: 'context_overflow',
+          };
+        }
 
         case 'error.invalid_request':
           send(ws, {
@@ -1205,27 +1128,179 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
             code: 'invalid_request',
             message: event.message,
           });
-          return;
+          return {
+            streamCompleted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: true,
+            isQueueDrainable: false,
+            errorMessage: event.message,
+            errorType: 'invalid_request',
+          };
       }
     }
 
-    // Auto-compaction: if the agent flagged that compaction is needed
-    if (pendingCompaction) {
-      await tryAutoCompact();
-    }
-
-    // Process queue after successful stream
-    await processQueueAfterStream(ws, sessionId);
-
+    return {
+      streamCompleted: true,
+      needsAutoCompaction: pendingCompaction,
+      contextOverflow: false,
+      isFatal: false,
+      isQueueDrainable: false,
+    };
   } catch (err: unknown) {
-    // This catch handles unexpected errors not classified by streamChatWithRetry
     const message = err instanceof Error ? err.message : 'Chat failed';
     console.error('Unexpected chat error:', err);
     send(ws, { type: 'error', code: 'chat_error', message });
+    return {
+      streamCompleted: false,
+      needsAutoCompaction: false,
+      contextOverflow: false,
+      isFatal: true,
+      isQueueDrainable: false,
+      errorMessage: message,
+      errorType: 'server',
+    };
   }
 }
 
-// Run server when file is executed directly
+async function handleChat(ws: ServerWebSocket, sessionId: string, content: string): Promise<void> {
+  const session = getSession(sessionId);
+  if (!session) {
+    send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+    return;
+  }
+
+  if (session.status === 'closed') {
+    send(ws, { type: 'error', code: 'session_closed', message: 'Cannot send messages to an archived session. Reopen it first.' });
+    return;
+  }
+
+  const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;
+  const workspacePath = workspace?.path;
+
+  const preconfig = session.preconfigId
+    ? await getPreconfig(session.preconfigId)
+    : await getDefaultPreconfig();
+
+  if (!preconfig) {
+    send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found' });
+    return;
+  }
+
+  const config = getModelsConfig();
+  const configDefaultModel = config.defaultModel;
+
+  const modelId = session.selectedModel || preconfig?.model || configDefaultModel;
+  const provider = session.selectedProvider ||
+                  (preconfig?.model ? findProviderFromModel(preconfig.model) : null) ||
+                  config.defaultProvider;
+
+  function findProviderFromModel(m: string): string {
+    const modelInfo = findModel(m);
+    if (modelInfo) return modelInfo.providerId;
+    if (m.includes('/')) return 'openrouter';
+    if (m.startsWith('claude-')) return 'anthropic';
+    if (m.startsWith('gemini-')) return 'google';
+    return 'openai';
+  }
+
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
+  const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
+    'openai': getLLMOpenAIApiKey,
+    'anthropic': getLLMAnthropicApiKey,
+    'openrouter': getLLMOpenRouterApiKey,
+    'google': getLLMGoogleApiKey,
+    'minimax': getLLMMinimaxApiKey,
+    'zhipu': getLLMZhipuApiKey,
+    'zhipu-coding': getLLMZhipuCodingApiKey,
+  };
+  const apiKeyGetter = apiKeyGetterMap[provider as Provider];
+  const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;
+
+  const isConnectableProvider = providerManager.getProvider(provider) !== null;
+  if (!apiKey && !isConnectableProvider) {
+    const envKey = `JEAN2_LLM_${provider.toUpperCase()}_API_KEY`;
+    send(ws, { type: 'error', code: 'no_api_key', message: `No API key configured for provider: ${provider}. Set ${envKey}` });
+    return;
+  }
+
+  let currentContent: string = content;
+  let overflowRetryDepth = 0;
+
+  while (true) {
+    const result = await runSingleChatTurn(
+      ws,
+      sessionId,
+      currentContent,
+      preconfig,
+      modelId,
+      provider,
+      workspacePath,
+      session,
+    );
+
+    if (result.contextOverflow) {
+      if (overflowRetryDepth >= 1) {
+        send(ws, { type: 'error', code: 'context_overflow', message: result.errorMessage ?? 'Context overflow' });
+        return;
+      }
+
+      const currentSession = getSession(sessionId);
+      const isMainSession = currentSession && !currentSession.parentId;
+
+      if (isMainSession) {
+        const replayText = findReplayText(sessionId);
+        const execResult = await executeCompaction(sessionId, 'overflow');
+
+        if (execResult.ok) {
+          overflowRetryDepth++;
+          currentContent = replayText ?? 'Continue from where we left off, using the compacted context.';
+          continue;
+        }
+      }
+
+      send(ws, { type: 'error', code: 'context_overflow', message: result.errorMessage ?? 'Context overflow' });
+      return;
+    }
+
+    if (result.isFatal) {
+      return;
+    }
+
+    if (result.isQueueDrainable) {
+      const nextContent = await drainQueue(ws, sessionId);
+      if (nextContent) {
+        currentContent = nextContent;
+        continue;
+      }
+    }
+
+    if (result.streamCompleted && result.needsAutoCompaction) {
+      const currentSession = getSession(sessionId);
+      if (currentSession && !currentSession.parentId) {
+        await executeCompaction(sessionId, 'auto');
+      }
+      const nextContent = await drainQueue(ws, sessionId);
+      if (nextContent) {
+        currentContent = nextContent;
+        continue;
+      }
+      return;
+    }
+
+    if (result.streamCompleted) {
+      const nextContent = await drainQueue(ws, sessionId);
+      if (nextContent) {
+        currentContent = nextContent;
+        continue;
+      }
+      return;
+    }
+
+    return;
+  }
+}
+
 if (import.meta.main) {
   startServer().catch((err: unknown) => {
     console.error('Failed to start server:', err);

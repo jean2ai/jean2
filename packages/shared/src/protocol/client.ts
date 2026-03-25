@@ -87,7 +87,6 @@ export interface PermissionRevokeAllMessage {
 export interface SessionCompactMessage {
   type: 'session.compact';
   sessionId: string;
-  messageIds: string[];
 }
 
 // =============================================================================

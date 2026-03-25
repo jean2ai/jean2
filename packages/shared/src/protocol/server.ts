@@ -173,7 +173,6 @@ export interface SubagentProgressMessage {
 export interface CompactionCompleteMessage {
   type: 'compaction.complete';
   sessionId: string;
-  compactedCount: number;
   tokensUsed: {
     prompt: number;
     completion: number;

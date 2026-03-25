@@ -6,6 +6,7 @@ import type {
 
   UserMessage,
   SystemMessage,
+  AssistantMessage,
   ToolPart,
 } from '@jean2/shared';
 
@@ -27,7 +28,10 @@ interface MessageRow {
   cost: number;
   completed_at: number | null;
   error: string | null;
-  compacted: number;
+  // Compaction metadata
+  summary: number;
+  mode: string | null;
+  parent_id: string | null;
 }
 
 interface PartRow {
@@ -54,7 +58,7 @@ function rowToMessage(row: MessageRow): Message {
   if (row.role === 'assistant') {
     return {
       ...base,
-      role: 'assistant',
+      role: 'assistant' as const,
       status: row.status as 'streaming' | 'completed' | 'error',
       modelId: row.model_id!,
       providerId: row.provider_id!,
@@ -66,7 +70,10 @@ function rowToMessage(row: MessageRow): Message {
       cost: row.cost,
       completedAt: row.completed_at ?? undefined,
       error: row.error ?? undefined,
-    };
+      summary: row.summary ? true : undefined,
+      mode: (row.mode as 'chat' | 'compaction' | 'compact_failed' | undefined) ?? undefined,
+      parentId: row.parent_id ?? undefined,
+    } as AssistantMessage;
   }
 
   return base as UserMessage | SystemMessage;
@@ -87,7 +94,9 @@ function messageToRow(message: Message): MessageRow {
     cost: 0,
     completed_at: null,
     error: null,
-    compacted: 0,
+    summary: 0,
+    mode: null,
+    parent_id: null,
   };
 
   if (message.role === 'assistant') {
@@ -102,6 +111,9 @@ function messageToRow(message: Message): MessageRow {
       cost: message.cost,
       completed_at: message.completedAt ?? null,
       error: message.error ?? null,
+      summary: message.summary ? 1 : 0,
+      mode: message.mode ?? null,
+      parent_id: message.parentId ?? null,
     };
   }
 
@@ -146,8 +158,9 @@ export function createMessage(message: Message): Message {
     `
     INSERT INTO messages (
       id, session_id, role, created_at, status, model_id, provider_id,
-      agent, tokens_prompt, tokens_completion, cost, completed_at, error
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      agent, tokens_prompt, tokens_completion, cost, completed_at, error,
+      summary, mode, parent_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       row.id,
@@ -163,6 +176,9 @@ export function createMessage(message: Message): Message {
       row.cost,
       row.completed_at,
       row.error,
+      row.summary,
+      row.mode,
+      row.parent_id,
     ],
   );
 
@@ -193,7 +209,8 @@ export function updateMessage(
     UPDATE messages SET
       status = ?, model_id = ?, provider_id = ?, agent = ?,
       tokens_prompt = ?, tokens_completion = ?, cost = ?,
-      completed_at = ?, error = ?
+      completed_at = ?, error = ?,
+      summary = ?, mode = ?, parent_id = ?
     WHERE id = ?
   `,
     [
@@ -206,6 +223,9 @@ export function updateMessage(
       row.cost,
       row.completed_at,
       row.error,
+      row.summary,
+      row.mode,
+      row.parent_id,
       id,
     ],
   );
@@ -452,40 +472,62 @@ export function transitionToolToRunningByCallId(
 }
 
 // =============================================================================
-// Compaction-Aware Loading
+// Compaction Recovery (Workstream 2)
 // =============================================================================
 
-export function markMessagesCompacted(messageIds: string[]): void {
-  if (messageIds.length === 0) return;
+/**
+ * Find orphaned compaction triggers for a session.
+ *
+ * An orphaned trigger is a user message that has a 'compaction' part,
+ * but NO assistant message exists with parentId pointing to it.
+ * This can happen if compaction crashed/interrupted after trigger creation.
+ *
+ * The query:
+ * 1. Finds all user messages with a compaction part (potential triggers)
+ * 2. LEFT JOINs against assistant messages where parent_id matches
+ * 3. Returns only those where no assistant outcome was found
+ *
+ * Uses existing indexes: idx_messages_session_created (session_id, created_at)
+ * and idx_messages_parent (parent_id).
+ */
+export function findOrphanedCompactionTriggers(sessionId: string): Message[] {
   const db = getDatabase();
-  const placeholders = messageIds.map(() => '?').join(', ');
-  db.run(
-    `UPDATE messages SET compacted = 1 WHERE id IN (${placeholders})`,
-    messageIds,
-  );
-}
 
-export function getLatestCompactionSummary(sessionId: string): string | null {
-  const db = getDatabase();
-  const row = db
+  // Find user messages with a 'compaction' part that have no assistant outcome
+  const rows = db
     .query(
-      `SELECT p.data FROM parts p
-       JOIN messages m ON p.message_id = m.id
-       WHERE p.session_id = ? AND p.type = 'compaction'
-       ORDER BY m.created_at DESC
-       LIMIT 1`,
+      `
+      SELECT m.* FROM messages m
+      WHERE m.session_id = ?
+        AND m.role = 'user'
+        AND EXISTS (
+          SELECT 1 FROM parts p
+          WHERE p.message_id = m.id AND p.type = 'compaction'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM messages outcome
+          WHERE outcome.parent_id = m.id
+        )
+      ORDER BY m.created_at ASC
+      `,
     )
-    .get(sessionId) as { data: string } | undefined;
-  if (!row) return null;
-  const data = JSON.parse(row.data);
-  return data.summary ?? null;
+    .all(sessionId) as MessageRow[];
+
+  return rows.map(rowToMessage);
 }
 
-export function listMessagesForContext(sessionId: string): MessageWithParts[] {
+// =============================================================================
+// Compaction-Aware Loading (Append-Only History with Traversal)
+// =============================================================================
+
+/**
+ * List all messages for a session (full history for UI inspection).
+ */
+export function listMessagesForSession(sessionId: string): MessageWithParts[] {
   const db = getDatabase();
   const rows = db
     .query(
-      `SELECT * FROM messages WHERE session_id = ? AND compacted = 0 ORDER BY created_at ASC`,
+      `SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
     )
     .all(sessionId) as MessageRow[];
 
@@ -493,4 +535,74 @@ export function listMessagesForContext(sessionId: string): MessageWithParts[] {
     message: rowToMessage(row),
     parts: getPartsByMessage(row.id),
   }));
+}
+
+/**
+ * Build effective context history by traversing append-only history.
+ *
+ * Compaction model:
+ * - All messages remain in the database (append-only)
+ * - Compaction trigger is a user message with a 'compaction' part
+ * - Summary assistant message has parentId pointing to trigger, summary=true, mode='compaction'
+ *
+ * Effective context includes:
+ * - The compaction trigger message (with 'compaction' part)
+ * - The summary assistant message (with summary=true, mode='compaction')
+ * - All messages AFTER the summary (i.e., subsequent user/assistant turns)
+ *
+ * Pre-boundary history (before trigger) is EXCLUDED from model context.
+ */
+export function buildEffectiveContextHistory(
+  sessionId: string,
+): {
+  messages: MessageWithParts[];
+  latestCompactionBoundary: string | null;
+  hasCompaction: boolean;
+} {
+  const allMessages = listMessagesForSession(sessionId);
+
+  // Find the latest trigger+summary pair
+  // The trigger (user message with 'compaction' part) comes BEFORE its summary
+  // We need to find the trigger's index to return it + summary + subsequent
+  let latestTriggerIndex = -1;
+
+  for (let i = allMessages.length - 1; i >= 0; i--) {
+    const item = allMessages[i];
+    const msg = item.message;
+
+    // Look for summary assistant messages (they indicate end of a compaction boundary)
+    if (
+      msg.role === 'assistant' &&
+      (msg as AssistantMessage).summary === true &&
+      (msg as AssistantMessage).mode === 'compaction' &&
+      (msg as AssistantMessage).parentId
+    ) {
+      // Found a summary - now find its trigger (parentId)
+      const triggerId = (msg as AssistantMessage).parentId!;
+      const triggerIndex = allMessages.findIndex((m) => m.message.id === triggerId);
+      if (triggerIndex !== -1) {
+        latestTriggerIndex = triggerIndex;
+        break;
+      }
+    }
+  }
+
+  // If no compaction boundary found, return all messages
+  if (latestTriggerIndex === -1) {
+    return {
+      messages: allMessages,
+      latestCompactionBoundary: null,
+      hasCompaction: false,
+    };
+  }
+
+  // Return messages from trigger onwards (trigger + summary + subsequent)
+  const effectiveMessages = allMessages.slice(latestTriggerIndex);
+  const boundaryMsgId = allMessages[latestTriggerIndex].message.id;
+
+  return {
+    messages: effectiveMessages,
+    latestCompactionBoundary: boundaryMsgId,
+    hasCompaction: true,
+  };
 }

@@ -64,7 +64,6 @@ type ClientMessagePayload =
   | { sessionId: string; reason?: string }
   | { queueId: string }
   | { sessionId: string; messageId: string }
-  | { sessionId: string; messageIds: string[] }
   | { provider: string };
 
 function AppContent() {
@@ -133,6 +132,7 @@ function AppContent() {
   const [nextRetryIn, setNextRetryIn] = useState(0);
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isCompacting = currentSession?.compacting ?? false;
+  const [compactionSuccess, setCompactionSuccess] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
@@ -773,6 +773,9 @@ function AppContent() {
         break;
 
       case 'compaction.complete':
+        if (msg.sessionId === currentSession?.id) {
+          setCompactionSuccess(true);
+        }
         break;
 
       case 'session.forked': {
@@ -890,6 +893,7 @@ function AppContent() {
   const resumeSession = useCallback((sessionId: string) => {
     setPendingPermissions([]);
     setStreamingSessionId(null);
+    setCompactionSuccess(false);
     const session = sessions.find(s => s.id === sessionId);
     if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
       const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
@@ -912,8 +916,8 @@ function AppContent() {
     sendMessage('session.fork', { sessionId, messageId });
   }, [sendMessage]);
 
-  const compactSession = useCallback((sessionId: string, messageIds: string[]) => {
-    sendMessage('session.compact', { sessionId, messageIds });
+  const compactSession = useCallback((sessionId: string) => {
+    sendMessage('session.compact', { sessionId });
   }, [sendMessage]);
 
   const reopenSession = useCallback((sessionId: string) => {
@@ -1126,17 +1130,16 @@ function AppContent() {
             onCompact={
               (() => {
                 const compactable = messagesWithParts.filter(
-                  m => m.message.role !== 'system' && !m.parts.some(p => p.type === 'compaction')
+                  m => m.message.role !== 'system'
                 );
                 return compactable.length >= 4
-                  ? () => {
-                      const toCompact = compactable.slice(0, compactable.length - 2).map(m => m.message.id);
-                      if (toCompact.length > 0) compactSession(currentSession.id, toCompact);
-                    }
+                  ? () => compactSession(currentSession.id)
                   : undefined;
               })()
             }
             isCompacting={isCompacting}
+            compactionSuccess={compactionSuccess}
+            onClearCompactionSuccess={() => setCompactionSuccess(false)}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}
           />

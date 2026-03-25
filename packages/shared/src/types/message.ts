@@ -25,6 +25,7 @@ export interface ToolStateCompleted extends ToolStateBase {
   output: unknown;
   startedAt: number;
   completedAt: number;
+  compactedAt?: number; // When this tool's results were compacted into a summary
   childSessionId?: string; // For 'task' tool: ID of the child/subagent session
 }
 
@@ -107,8 +108,8 @@ export interface StepPart extends PartBase {
 
 export interface CompactionPart extends PartBase {
   type: 'compaction';
-  summary: string; // LLM-generated summary
-  compactedMessageIds: string[]; // IDs of messages that were summarized
+  auto: boolean; // true if triggered automatically, false if manual
+  overflow?: boolean; // true if triggered due to context overflow
 }
 
 export type Part =
@@ -155,6 +156,10 @@ export interface AssistantMessage extends MessageBase {
   cost: number;
   completedAt?: number;
   error?: string;
+  // Compaction-related metadata
+  summary?: boolean; // true if this message contains a compaction summary
+  mode?: 'chat' | 'compaction' | 'compact_failed'; // 'compaction' if summary, 'compact_failed' if compaction failed
+  parentId?: string; // Parent message ID for task lineage (links summary to compacted messages)
 }
 
 export type Message = UserMessage | AssistantMessage | SystemMessage;
