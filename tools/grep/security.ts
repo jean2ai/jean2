@@ -110,6 +110,26 @@ async function main() {
       return;
     }
 
+    const JEAN2_TEMP_PREFIX = '/tmp/jean2/';
+
+    if (normalizedPath.startsWith(JEAN2_TEMP_PREFIX)) {
+      const result: SecurityResult = {
+        allowed: true,
+        requiresApproval: false,
+        permissionType: 'tool',
+        permissionKey: 'tool:grep',
+        message: 'Searching Jean2 temp directory (persisted tool output).',
+        details: {
+          originalPath: searchPath || workspacePath,
+          normalizedPath,
+          resolvedPath: normalizedPath,
+          pattern: input.args.pattern,
+        },
+      };
+      console.log(JSON.stringify(result));
+      return;
+    }
+
     const resolvedPath = resolvePath(normalizedPath, workspacePath);
 
     const outsideWorkspace = isOutsideWorkspace(resolvedPath, workspacePath);

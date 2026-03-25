@@ -89,6 +89,26 @@ async function main() {
       return;
     }
 
+    const JEAN2_TEMP_PREFIX = '/tmp/jean2/';
+
+    if (normalizedPath.startsWith(JEAN2_TEMP_PREFIX)) {
+      const result: GlobSecurityResult = {
+        allowed: true,
+        requiresApproval: false,
+        permissionType: 'tool',
+        permissionKey: 'tool:glob',
+        message: 'Globbing Jean2 temp directory (persisted tool output).',
+        details: {
+          originalPath: searchPath,
+          normalizedPath,
+          resolvedPath: normalizedPath,
+          pattern,
+        },
+      };
+      console.log(JSON.stringify(result));
+      return;
+    }
+
     const resolvedPath = resolvePath(normalizedPath, workspacePath);
     const outsideWorkspace = isOutsideWorkspace(resolvedPath, workspacePath);
 

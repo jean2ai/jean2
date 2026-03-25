@@ -1,9 +1,11 @@
 import TurndownService from "turndown";
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 interface Input {
   url: string;
   format?: "markdown" | "text" | "html";
   timeout?: number;
+  sessionId?: string;
 }
 
 interface Output {
@@ -11,6 +13,9 @@ interface Output {
   title?: string;
   contentType?: string;
   error?: string;
+  _persisted?: boolean;
+  _filePath?: string;
+  _originalSize?: number;
   _visualization?: {
     type: "none";
     message: string;
@@ -21,8 +26,12 @@ const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 const DEFAULT_TIMEOUT = 30; // 30 seconds
 const MAX_TIMEOUT = 120; // 2 minutes
 
+const PERSIST_THRESHOLD = 50_000;
+const PREVIEW_CHARS = 10_000;
+const JEAN2_TEMP_PREFIX = '/tmp/jean2/';
+
 const input: Input = JSON.parse(await Bun.stdin.text());
-const { url, format = "markdown", timeout } = input;
+const { url, format = "markdown", timeout, sessionId } = input;
 
 // Validate URL
 if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -114,18 +123,47 @@ try {
     outputContent = content;
   }
 
-  const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
+  if (outputContent.length > PERSIST_THRESHOLD && sessionId) {
+    const dir = `${JEAN2_TEMP_PREFIX}${sessionId}`;
+    mkdirSync(dir, { recursive: true });
 
-  const output: Output = {
-    content: outputContent,
-    title,
-    contentType,
-    _visualization: {
-      type: "none",
-      message: `Fetched: ${displayUrl}`,
-    },
-  };
-  console.log(JSON.stringify(output));
+    const safeName = url
+      .replace(/^https?:\/\//, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 100);
+    const filePath = `${dir}/webfetch-${safeName}-${Date.now()}.md`;
+    writeFileSync(filePath, outputContent);
+
+    const preview = outputContent.slice(0, PREVIEW_CHARS);
+    const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
+
+    const output: Output = {
+      content: preview + `\n\n---\n[Content truncated: ${outputContent.length} chars total. Full content saved to ${filePath}. Use read-file tool to read more.]`,
+      title,
+      contentType,
+      _persisted: true,
+      _filePath: filePath,
+      _originalSize: outputContent.length,
+      _visualization: {
+        type: "none",
+        message: `Fetched: ${displayUrl} (${outputContent.length} chars, persisted)`,
+      },
+    };
+    console.log(JSON.stringify(output));
+  } else {
+    const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
+
+    const output: Output = {
+      content: outputContent,
+      title,
+      contentType,
+      _visualization: {
+        type: "none",
+        message: `Fetched: ${displayUrl}`,
+      },
+    };
+    console.log(JSON.stringify(output));
+  }
 } catch (e) {
   clearTimeout(timeoutId);
   const errorMessage = e instanceof Error ? e.message : "Unknown error occurred";

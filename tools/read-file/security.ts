@@ -108,6 +108,25 @@ async function main() {
       return;
     }
 
+    const JEAN2_TEMP_PREFIX = '/tmp/jean2/';
+
+    if (normalizedPath.startsWith(JEAN2_TEMP_PREFIX)) {
+      const result: ReadFileSecurityResult = {
+        allowed: true,
+        requiresApproval: false,
+        permissionType: 'tool',
+        permissionKey: 'tool:read-file',
+        message: 'Reading from Jean2 temp directory (persisted tool output).',
+        details: {
+          originalPath: filePath,
+          normalizedPath,
+          resolvedPath: normalizedPath,
+        },
+      };
+      console.log(JSON.stringify(result));
+      return;
+    }
+
     const resolvedPath = resolvePath(normalizedPath, workspacePath);
 
     const outsideWorkspace = isOutsideWorkspace(resolvedPath, workspacePath);

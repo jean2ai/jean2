@@ -1,6 +1,7 @@
 import { getDatabase } from './index';
 import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
 import { getWorkspace } from './workspaces';
+import { rmSync, existsSync } from 'fs';
 
 // Interface for raw database row from sessions table
 interface SessionRow {
@@ -163,9 +164,27 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   return getSession(id);
 }
 
+const OUTPUT_DIR_PREFIX = '/tmp/jean2/';
+
+function cleanupSessionOutputDir(sessionId: string): void {
+  const dir = `${OUTPUT_DIR_PREFIX}${sessionId}`;
+  if (existsSync(dir)) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch (err) {
+      console.warn(`[cleanup] Failed to remove output dir ${dir}:`, err);
+    }
+  }
+}
+
 export function deleteSession(id: string): boolean {
   const db = getDatabase();
   const result = db.run('DELETE FROM sessions WHERE id = ?', [id]);
+
+  if (result.changes > 0) {
+    cleanupSessionOutputDir(id);
+  }
+
   return result.changes > 0;
 }
 
