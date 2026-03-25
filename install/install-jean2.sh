@@ -4,14 +4,12 @@ set -euo pipefail
 
 VERSION_FILE_URL="https://raw.githubusercontent.com/rabbyte-tech/jean2/refs/heads/main/packages/server/VERSION"
 REPO="rabbyte-tech/jean2"
-RELEASE_API_URL="https://api.github.com/repos/${REPO}/releases"
 INSTALL_DIR="${HOME}/.jean2/bin"
 BINARY_NAME="jean2"
 BINARY_PATH=""
 
 FORCE=false
 SKIP_PATH=false
-SKIP_SHA256=false
 CUSTOM_VERSION=""
 CUSTOM_INSTALL_DIR=""
 SHELL_CONFIG_FILE=""
@@ -79,7 +77,6 @@ OPTIONS:
   --install-dir <path>  Install to custom directory (default: ~/.jean2/bin)
   --force              Reinstall even if binary exists
   --no-path            Skip adding to PATH
-  --no-sha256          Skip SHA256 verification
   --help               Show this help message
 
 EXAMPLES:
@@ -110,10 +107,6 @@ parse_args() {
         ;;
       --no-path)
         SKIP_PATH=true
-        shift
-        ;;
-      --no-sha256)
-        SKIP_SHA256=true
         shift
         ;;
       --help)
@@ -181,50 +174,10 @@ check_existing_install() {
   fi
 }
 
-fetch_release_info() {
-  local os="$1"
-  local version="$2"
-  local tag="server/v${version}"
-  local release_url="${RELEASE_API_URL}/tags/${tag}"
-  local asset_name="jean2-${os}"
-
-  info "Fetching release info for $tag..."
-
-  local response
-  if ! response=$(curl -fsSL "$release_url" 2>/dev/null); then
-    error "Failed to fetch release info. Check version or network connectivity."
-  fi
-
-  local download_url
-  download_url=$(printf '%s\n' "$response" | grep -o "\"browser_download_url\": *\"[^\"]*${asset_name}\"" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/' || true)
-
-  if [[ -z "$download_url" ]]; then
-    error "Binary asset '$asset_name' not found in release $tag"
-  fi
-
-  local digest
-  if command -v python3 &>/dev/null; then
-    digest=$(printf '%s\n' "$response" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for asset in data.get('assets', []):
-    if asset['name'] == '${asset_name}':
-        print(asset.get('digest', ''))
-        break
-" 2>/dev/null || echo "")
-  else
-    warn "Could not determine SHA256 digest (python3 not available or digest not in release)"
-    digest=""
-  fi
-
-  echo "${download_url}|${digest}"
-}
-
 download_binary() {
-  local url="$1"
-  local os="$2"
+  local url="https://github.com/${REPO}/releases/download/server%2Fv${VERSION}/jean2-${OS}"
 
-  info "Downloading Jean2 for $os..."
+  info "Downloading Jean2 for $OS..."
   info "URL: $url"
 
   TEMP_FILE=$(mktemp)
@@ -235,28 +188,6 @@ download_binary() {
 
   success "Download complete"
   echo "$TEMP_FILE"
-}
-
-verify_checksum() {
-  local file="$1"
-  local expected_digest="$2"
-
-  if [[ -z "$expected_digest" ]]; then
-    warn "Skipping checksum verification (no digest provided)"
-    return 0
-  fi
-
-  info "Verifying SHA256 checksum..."
-
-  local hash
-  hash="sha256:$(shasum -a 256 "$file" | cut -d' ' -f1)"
-
-  if [[ "$hash" != "$expected_digest" ]]; then
-    local expected_hash="${expected_digest#sha256:}"
-    error "Checksum mismatch!\n  Expected: $expected_hash\n  Actual:   ${hash#sha256:}"
-  fi
-
-  success "Checksum verified"
 }
 
 install_binary() {
@@ -337,41 +268,29 @@ configure_path() {
 main() {
   parse_args "$@"
 
-  local os
-  os=$(detect_os)
+  OS=$(detect_os)
 
-  local version
   if [[ -n "$CUSTOM_VERSION" ]]; then
-    version="$CUSTOM_VERSION"
-    info "Using specified version: $version"
+    VERSION="$CUSTOM_VERSION"
+    info "Using specified version: $VERSION"
   else
-    version=$(fetch_version)
-    info "Using latest version: $version"
+    VERSION=$(fetch_version)
+    info "Using latest version: $VERSION"
   fi
 
   BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 
   check_existing_install
 
-  local release_info
-  release_info=$(fetch_release_info "$os" "$version")
-
-  local download_url="${release_info%%|*}"
-  local digest="${release_info#*|}"
-
   local temp_file
-  temp_file=$(download_binary "$download_url" "$os")
-
-  if [[ "$SKIP_SHA256" != true ]]; then
-    verify_checksum "$temp_file" "$digest"
-  fi
+  temp_file=$(download_binary)
 
   install_binary "$temp_file"
 
   configure_path
 
   echo ""
-  success "Jean2 v${version} installed successfully!"
+  success "Jean2 v${VERSION} installed successfully!"
   echo ""
   info "Binary location: $BINARY_PATH"
   echo ""
