@@ -30,7 +30,7 @@ import {
   getLLMSubagentMaxSteps,
 } from '../env';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
-import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
+import type { RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, AuthErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
 import { getProvider, createModelForProvider } from '@/providers';
 
 interface ModelWithMetadata {
@@ -531,7 +531,7 @@ async function buildAiSdkTools(
   return tools;
 }
 
-export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | ContextOverflowErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps } = options;
 
   // Register session with interrupt manager
@@ -592,6 +592,18 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Final event (result.usage) also uses last-step-only semantics for consistency.
   const latestUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
+  // Auto-compaction: track accumulated input tokens across steps
+  let accumulatedInputTokens = 0;
+  let needsCompaction = false;
+  const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;
+  const contextWindow = modelDef?.contextWindow;
+  const maxOutputTokensForThreshold = contextWindow
+    ? getMaxOutputTokens(resolvedModelId)
+    : 0;
+  const overflowThreshold = contextWindow
+    ? contextWindow - maxOutputTokensForThreshold - 20_000
+    : 0;
+
   // Create a deferred yield function that will be set up after we enter the generator
 
   // Resolve variant providerOptions if applicable
@@ -645,6 +657,14 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       const stepUsage = stepFinishEvent.usage;
       const stepPromptTokens = stepUsage?.inputTokens ?? 0;
       const stepCompletionTokens = stepUsage?.outputTokens ?? 0;
+
+      // Auto-compaction: accumulate tokens and check threshold (main sessions only)
+      if (isMainSession && contextWindow) {
+        accumulatedInputTokens += stepUsage?.inputTokens ?? 0;
+        if (accumulatedInputTokens >= overflowThreshold) {
+          needsCompaction = true;
+        }
+      }
 
       // Map AI SDK finish reason to our type
       let finishReason: 'stop' | 'tool-calls' | 'error' | 'length' | undefined;
@@ -964,6 +984,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
           code: ERROR_AUTH,
           message: classified.message,
         };
+      } else if (classified.type === ApiErrorType.ContextOverflow) {
+        yield {
+          type: 'error.context_overflow',
+          code: 'context_overflow',
+          message: classified.message,
+        } as ContextOverflowErrorMessage;
       } else if (classified.type === ApiErrorType.InvalidRequest) {
         yield {
           type: 'error.invalid_request',
@@ -1033,6 +1059,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     };
   }
 
+  // Auto-compaction: yield needs_compaction event for main sessions
+  if (isMainSession && needsCompaction) {
+    yield { type: 'needs_compaction', sessionId: _sessionId };
+  }
+
   // Cleanup interrupt registration
   interruptManager.unregisterSession(_sessionId);
 
@@ -1067,7 +1098,7 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
 
 export async function* streamChatWithRetry(
   options: ChatOptions
-): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | ContextOverflowErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
   let retries = 0;
   const maxRetries = 3;
   let _lastError: ReturnType<typeof classifyApiError> | null = null;
@@ -1111,6 +1142,12 @@ export async function* streamChatWithRetry(
             message: classifiedError.message,
             retryAfterMs: classifiedError.retryAfterMs,
           };
+        } else if (classifiedError.type === ApiErrorType.ContextOverflow) {
+          yield {
+            type: 'error.context_overflow',
+            code: 'context_overflow',
+            message: classifiedError.message,
+          } as ContextOverflowErrorMessage;
         } else if (classifiedError.type === ApiErrorType.Timeout) {
           yield {
             type: 'error.timeout',

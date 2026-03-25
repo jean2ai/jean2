@@ -1062,6 +1062,31 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   // Permission request callback - routes to parent session for subagents
   const onPermissionRequest = createPermissionRequestHandler(sessionId);
 
+  let pendingCompaction = false;
+
+  async function tryAutoCompact(): Promise<boolean> {
+    const allMessages = listMessagesForContext(sessionId);
+    const lastUserIdx = allMessages.reduceRight(
+      (idx, m, i) => idx === -1 && m.message.role === 'user' ? i : idx,
+      -1,
+    );
+
+    if (lastUserIdx > 0) {
+      const idsToCompact = allMessages.slice(0, lastUserIdx)
+        .filter(m => m.message.role !== 'system')
+        .map(m => m.message.id);
+
+      if (idsToCompact.length > 0) {
+        await handleSessionCompact(ws, {
+          sessionId,
+          messageIds: idsToCompact,
+        });
+        return true;
+      }
+    }
+    return false;
+  }
+
   try {
     // Stream the response - agent now handles all message/part creation
     for await (const event of streamChatWithRetry({
@@ -1119,6 +1144,10 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
           break;
         }
 
+        case 'needs_compaction':
+          pendingCompaction = true;
+          break;
+
         case 'error.rate_limit':
           send(ws, {
             type: 'error.rate_limit',
@@ -1159,6 +1188,17 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
           });
           return;
 
+        case 'error.context_overflow':
+          {
+            const compacted = await tryAutoCompact();
+            if (compacted) {
+              await processQueueAfterStream(ws, sessionId);
+              return;
+            }
+            send(ws, { type: 'error', code: 'context_overflow', message: event.message });
+            return;
+          }
+
         case 'error.invalid_request':
           send(ws, {
             type: 'error',
@@ -1167,6 +1207,11 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
           });
           return;
       }
+    }
+
+    // Auto-compaction: if the agent flagged that compaction is needed
+    if (pendingCompaction) {
+      await tryAutoCompact();
     }
 
     // Process queue after successful stream

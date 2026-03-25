@@ -289,6 +289,12 @@ export interface InvalidRequestErrorMessage {
   message: string;
 }
 
+export interface ContextOverflowErrorMessage {
+  type: 'error.context_overflow';
+  code: 'context_overflow';
+  message: string;
+}
+
 export interface ProviderStatusMessage {
   type: 'provider.status';
   provider: string;
@@ -343,5 +349,6 @@ export type ServerMessage =
   | TimeoutErrorMessage
   | AuthErrorMessage
   | InvalidRequestErrorMessage
+  | ContextOverflowErrorMessage
   | ProviderStatusMessage
   | ProviderConnectedMessage;

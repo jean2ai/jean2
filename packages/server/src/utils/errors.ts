@@ -1,10 +1,23 @@
 'use strict';
 
+const OVERFLOW_PATTERNS = [
+  /context window exceeds limit/i,
+  /prompt is too long/i,
+  /exceeds the context window/i,
+  /input token count.*exceeds.*maximum/i,
+  /maximum context length is \d+/i,
+  /exceeds the limit of \d+/i,
+  /exceeded model token limit/i,
+  /context[_ ]length[_ ]exceeded/i,
+  /request entity too large/i,
+];
+
 export enum ApiErrorType {
   RateLimit = 'rate_limit',
   ServerError = 'server_error',
   Timeout = 'timeout',
   Authentication = 'authentication',
+  ContextOverflow = 'context_overflow',
   InvalidRequest = 'invalid_request',
   Unknown = 'unknown',
 }
@@ -87,6 +100,20 @@ export function classifyApiError(error: unknown): ClassifiedError {
         message,
         originalError: error,
       };
+    }
+
+    if (status === 400 || status === 413) {
+      const errorMessage = message;
+      for (const pattern of OVERFLOW_PATTERNS) {
+        if (pattern.test(errorMessage)) {
+          return {
+            type: ApiErrorType.ContextOverflow,
+            retryable: false,
+            message: errorMessage,
+            originalError: error,
+          };
+        }
+      }
     }
 
     if (status === 400) {
