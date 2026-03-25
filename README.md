@@ -22,18 +22,14 @@ Every AI agent tool tells you what to do — what prompts to use, what tools you
 
 ## Install
 
-Download the latest release from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases).
+See [INSTALL.md](install/INSTALL.md) for full installation instructions — server, LSP service, client, and tools.
 
-The server binary is self-contained — no runtime installation needed.
-
-> **Windows users:** Server binaries are not produced for Windows. Use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) to run the server.
-
-```bash
-jean2 init
-jean2 start
-```
-
-Set your API key(s) in `~/.jean2/.env` and connect from any client.
+> **Quick start:** Download the server binary from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases) and run:
+>
+> ```bash
+> jean2 init
+> jean2 start
+> ```
 
 For development from source, see [Contributing](#contributing).
 
