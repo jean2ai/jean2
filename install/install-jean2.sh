@@ -55,15 +55,15 @@ error() {
 }
 
 warn() {
-  echo -e "${YELLOW}warning${NC}: $*"
+  echo -e "${YELLOW}warning${NC}: $*" >&2
 }
 
 info() {
-  echo -e "${CYAN}info${NC}: $*"
+  echo -e "${CYAN}info${NC}: $*" >&2
 }
 
 success() {
-  echo -e "${GREEN}${*}${NC}"
+  echo -e "${GREEN}${*}${NC}" >&2
 }
 
 usage() {
