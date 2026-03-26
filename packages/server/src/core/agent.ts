@@ -9,7 +9,8 @@ import { randomUUID } from 'crypto';
 import { interruptManager } from './interrupt';
 import { broadcastSessionUpdated } from './broadcast';
 import { getModelWithMetadata } from './model-utils';
-import { parseToolInput, createStepPart } from './part-utils';
+import { parseToolInput } from './part-utils';
+import { createStepCallbacks, type CallbackEvent } from './step-handlers';
 import { convertToAiSdkMessages } from './message-utils';
 import { buildAiSdkTools } from './build-tools';
 import {
@@ -96,17 +97,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Convert messages for ai-sdk
   const aiMessages = await convertToAiSdkMessages(messages);
 
-  // Variables to track step parts for yielding from callbacks
-  const stepParts: StepPart[] = [];
-  const messageId = randomUUID();
-  let yieldFn: ((event: MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null }) => void) | null = null;
-  // Tracks the latest step's usage for context window monitoring (not billing totals).
-  // Final event (result.usage) also uses last-step-only semantics for consistency.
-  const latestUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
-
-  // Auto-compaction: track latest step input tokens for threshold check
-  let latestStepInputTokens = 0;
-  let needsCompaction = false;
+  // Resolve model definition for context window
   const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;
   const contextWindow = modelDef?.contextWindow;
   const modelMaxOutputTokens = contextWindow ? getMaxOutputTokens(resolvedModelId) : 0;
@@ -130,7 +121,22 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     autoThreshold = 0;
   }
 
-  // Create a deferred yield function that will be set up after we enter the generator
+  const messageId = randomUUID();
+  const stepCtx = {
+    messageId,
+    sessionId: _sessionId,
+    stepParts: [] as StepPart[],
+    yieldFn: null as ((event: CallbackEvent) => void) | null,
+    isMainSession,
+    contextWindow,
+    autoThreshold,
+    resolvedModelId,
+    variant,
+    needsCompaction: false,
+    latestUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+  };
+
+  const { experimental_onStepStart, onStepFinish } = createStepCallbacks(stepCtx);
 
   // Resolve variant providerOptions if applicable
   const variantOpts = variant ? findModelVariant(resolvedModelId || '', variant) : undefined;
@@ -156,113 +162,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
     stopWhen: stepCountIs(maxSteps ?? getLLMMaxSteps()),
     abortSignal: abortController.signal,
-    // Use callbacks for step tracking
-    experimental_onStepStart: (stepStartEvent) => {
-      // Create step started part
-      const stepNumber = stepStartEvent.stepNumber + 1; // Convert to 1-indexed
-
-      const startedStepPart = createStepPart({
-        messageId,
-        sessionId: _sessionId,
-        number: stepNumber,
-        status: 'started',
-      });
-      stepParts.push(startedStepPart);
-
-      // Emit part.created event via yield function
-      if (yieldFn) {
-        yieldFn({ type: 'part.created', sessionId: _sessionId, part: startedStepPart });
-      }
-      createPart(startedStepPart, _sessionId);
-    },
-    onStepFinish: (stepFinishEvent) => {
-      // stepFinishEvent contains: stepNumber, finishReason, usage, totalUsage
-      const stepNumber = stepFinishEvent.stepNumber + 1; // Convert to 1-indexed
-
-      // Get step-level usage
-      const stepUsage = stepFinishEvent.usage;
-      const stepPromptTokens = stepUsage?.inputTokens ?? 0;
-      const stepCompletionTokens = stepUsage?.outputTokens ?? 0;
-
-      // Auto-compaction: check latest step input tokens against threshold (main sessions only)
-      // Trigger when the latest step's input tokens >= autoThreshold
-      if (isMainSession && contextWindow) {
-        latestStepInputTokens = stepUsage?.inputTokens ?? 0;
-        if (latestStepInputTokens >= autoThreshold) {
-          needsCompaction = true;
-        }
-      }
-
-      // Map AI SDK finish reason to our type
-      let finishReason: 'stop' | 'tool-calls' | 'error' | 'length' | undefined;
-      if (stepFinishEvent.finishReason) {
-        if (stepFinishEvent.finishReason === 'stop') {
-          finishReason = 'stop';
-        } else if (stepFinishEvent.finishReason === 'tool-calls') {
-          finishReason = 'tool-calls';
-        } else if (stepFinishEvent.finishReason === 'length') {
-          finishReason = 'length';
-        } else if (stepFinishEvent.finishReason === 'error' || stepFinishEvent.finishReason === 'other') {
-          finishReason = 'error';
-        }
-      }
-
-      // Find existing step part to reuse its ID
-      const existingStepPart = stepParts.find(sp => sp.number === stepNumber);
-
-      // Create finished step part, reusing existing ID and createdAt
-      const finishedStepPart: StepPart = {
-        id: existingStepPart?.id || randomUUID(),
-        messageId,
-        createdAt: existingStepPart?.createdAt || Date.now(),
-        type: 'step',
-        number: stepNumber,
-        status: 'finished',
-        finishReason,
-        tokens: {
-          prompt: stepPromptTokens,
-          completion: stepCompletionTokens,
-        },
-      };
-
-      // Update the step part in our array
-      if (existingStepPart) {
-        const index = stepParts.indexOf(existingStepPart);
-        stepParts[index] = finishedStepPart;
-      } else {
-        stepParts.push(finishedStepPart);
-      }
-
-      // Emit part.updated event
-      if (yieldFn) {
-        yieldFn({ type: 'part.updated', sessionId: _sessionId, part: finishedStepPart });
-      }
-      updatePart(finishedStepPart.id, {
-        status: finishedStepPart.status,
-        finishReason: finishedStepPart.finishReason,
-        tokens: finishedStepPart.tokens,
-      });
-
-      // Emit intermediate usage event with latest step's usage
-      if (stepUsage) {
-        latestUsage.promptTokens = stepUsage.inputTokens ?? 0;
-        latestUsage.completionTokens = stepUsage.outputTokens ?? 0;
-        latestUsage.totalTokens = stepUsage.totalTokens ?? 0;
-
-        if (yieldFn) {
-          yieldFn({
-            type: 'usage',
-            usage: {
-              promptTokens: latestUsage.promptTokens,
-              completionTokens: latestUsage.completionTokens,
-              totalTokens: latestUsage.totalTokens,
-            },
-            model: resolvedModelId ?? 'gpt-4o',
-            variant: variant ?? null,
-          });
-        }
-      }
-    },
+    experimental_onStepStart,
+    onStepFinish,
   });
 
   const toolParts: ToolPart[] = [];
@@ -292,17 +193,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Set up the yield function for callbacks
   // Use a queue to handle events from callbacks since we can't yield from inside a callback
-  const callbackEventQueue: Array<
-    | MessageEvent
-    | {
-        type: 'usage';
-        usage: { promptTokens: number; completionTokens: number; totalTokens: number };
-        model: string;
-        variant: string | null;
-      }
-  > = [];
+  const callbackEventQueue: Array<CallbackEvent> = [];
 
-  yieldFn = (event) => {
+  stepCtx.yieldFn = (event) => {
     callbackEventQueue.push(event);
   };
 
@@ -577,9 +470,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     yield {
       type: 'usage',
       usage: {
-        promptTokens: usageData.inputTokens ?? 0,
-        completionTokens: usageData.outputTokens ?? 0,
-        totalTokens: usageData.totalTokens ?? 0,
+        promptTokens: stepCtx.latestUsage.promptTokens,
+        completionTokens: stepCtx.latestUsage.completionTokens,
+        totalTokens: stepCtx.latestUsage.totalTokens,
       },
       model: actualModelId,
       variant: variant || null,
@@ -587,7 +480,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   }
 
   // Auto-compaction: yield needs_compaction event for main sessions
-  if (isMainSession && needsCompaction) {
+  if (isMainSession && stepCtx.needsCompaction) {
     yield { type: 'needs_compaction', sessionId: _sessionId };
   }
 
