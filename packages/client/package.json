@@ -51,6 +51,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.2",

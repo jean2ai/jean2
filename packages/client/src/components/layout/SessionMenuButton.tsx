@@ -20,6 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { useCompletionFlash } from '@/hooks/useCompletionFlash';
+import { cn } from '@/lib/utils';
 
 interface SessionMenuButtonProps {
   session: Session;
@@ -144,6 +146,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const isStreaming = session.id === streamingSessionId;
   const hasPendingPermission = pendingPermissions.some(p => p.sessionId === session.id);
 
+  const isRunning = isStreaming || session.subagentStatus === 'running' || !!session.runningAt;
+  const { isFlashing } = useCompletionFlash(session.id, isRunning);
+
   // No children - simple item with spacer for alignment
   if (!hasChildren) {
     return (
@@ -157,7 +162,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             <SidebarMenuButton
               isActive={isActive}
               onClick={() => onResumeSession(session.id)}
-              className="flex-1 min-w-0"
+              className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
             >
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -206,7 +211,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             <SidebarMenuButton
               isActive={isActive}
               onClick={() => onResumeSession(session.id)}
-              className="flex-1 min-w-0"
+              className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
             >
               <Tooltip>
                 <TooltipTrigger asChild>

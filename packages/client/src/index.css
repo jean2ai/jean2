@@ -20,6 +20,7 @@
   --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
   --animate-blink: blink 1s ease-in-out infinite;
   --animate-stream-cursor: stream-cursor 1s ease-in-out infinite;
+  --animate-completion-flash: completion-flash 5s ease-out forwards;
 }
 
 @keyframes fade-in {
@@ -62,6 +63,18 @@
 @keyframes stream-cursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+@keyframes completion-flash {
+  0% {
+    background-color: oklch(0.85 0.15 145 / 0.4);
+  }
+  20% {
+    background-color: oklch(0.85 0.12 145 / 0.25);
+  }
+  100% {
+    background-color: oklch(0.85 0 0 / 0);
+  }
 }
 
 @layer base {
