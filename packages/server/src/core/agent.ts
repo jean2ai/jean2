@@ -1,6 +1,6 @@
 import { streamText, stepCountIs } from 'ai';
-import type { MessageWithParts, TextPart, ToolPart, StepPart, ReasoningPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/shared';
-import { createMessage, createPart, updatePart, updateMessage, getSession, updateSession, getPart } from '@/store';
+import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/shared';
+import { createMessage, updateMessage, getSession, updateSession } from '@/store';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
@@ -9,8 +9,9 @@ import { randomUUID } from 'crypto';
 import { interruptManager } from './interrupt';
 import { broadcastSessionUpdated } from './broadcast';
 import { getModelWithMetadata } from './model-utils';
-import { parseToolInput } from './part-utils';
+
 import { createStepCallbacks, type CallbackEvent } from './step-handlers';
+import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
 import { buildAiSdkTools } from './build-tools';
 import {
@@ -166,11 +167,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     onStepFinish,
   });
 
-  const toolParts: ToolPart[] = [];
-  let _currentText = ''
-  let _currentTextPartId: string | null = null;
-  let _currentReasoning = ''
-  let _currentReasoningPartId: string | null = null;
+  
 
   // Create assistant message
   const assistantMessage: AssistantMessage = {
@@ -191,18 +188,30 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Emit message.created event
   yield { type: 'message.created', message: assistantMessage };
 
-  // Set up the yield function for callbacks
-  // Use a queue to handle events from callbacks since we can't yield from inside a callback
-  const callbackEventQueue: Array<CallbackEvent> = [];
+  // Set up the yield function for callbacks and stream handlers
+  // Use a single queue to handle events from callbacks since we can't yield from inside a callback
+  const eventQueue: Array<CallbackEvent> = [];
 
   stepCtx.yieldFn = (event) => {
-    callbackEventQueue.push(event);
+    eventQueue.push(event);
   };
+
+  const streamCtx = {
+    messageId,
+    sessionId: _sessionId,
+    toolParts: [] as ToolPart[],
+    currentText: '',
+    currentTextPartId: null as string | null,
+    currentReasoning: '',
+    currentReasoningPartId: null as string | null,
+    yieldFn: (event: MessageEvent) => { eventQueue.push(event); },
+  };
+
+  const handlers = createStreamHandlers(streamCtx);
 
   try {
     for await (const delta of result.fullStream) {
 
-      // Check for abort
       if (abortController.signal.aborted) {
         const interruptedMessage: AssistantMessage = {
           ...assistantMessage,
@@ -214,163 +223,26 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         return;
       }
 
-      // Process any callback events that were queued
-      while (callbackEventQueue.length > 0) {
-        const event = callbackEventQueue.shift()!;
+      switch (delta.type) {
+      case 'text-delta':
+        handlers.handleTextDelta(delta);
+        break;
+      case 'reasoning-delta':
+        handlers.handleReasoningDelta(delta);
+        break;
+      case 'tool-call':
+        handlers.handleToolCall(delta);
+        break;
+      case 'tool-result':
+        handlers.handleToolResult(delta);
+        break;
+      }
+
+      while (eventQueue.length > 0) {
+        const event = eventQueue.shift()!;
         yield event;
       }
-
-      switch (delta.type) {
-      case 'text-delta': {
-        const textContent = delta.text || '';
-        if (textContent) {
-          _currentText += textContent;
-
-          // Emit part.append event for streaming text
-          if (_currentTextPartId) {
-            yield { type: 'part.append', sessionId: _sessionId, partId: _currentTextPartId, field: 'text', delta: textContent };
-            updatePart(_currentTextPartId, { text: _currentText });
-          } else {
-            // Create new text part
-            _currentTextPartId = randomUUID();
-            const textPart: TextPart = {
-              id: _currentTextPartId,
-              messageId,
-              createdAt: Date.now(),
-              type: 'text',
-              text: textContent,
-            };
-            yield { type: 'part.created', sessionId: _sessionId, part: textPart };
-            createPart(textPart, _sessionId);
-          }
-        }
-        break;
-      }
-
-      case 'reasoning-delta': {
-        const reasoningContent = delta.text || '';
-        if (reasoningContent) {
-          _currentReasoning += reasoningContent;
-
-          // Emit part.append event for streaming reasoning
-          if (_currentReasoningPartId) {
-            yield { type: 'part.append', sessionId: _sessionId, partId: _currentReasoningPartId, field: 'reasoning', delta: reasoningContent };
-            updatePart(_currentReasoningPartId, { text: _currentReasoning });
-          } else {
-            // Create new reasoning part
-            _currentReasoningPartId = randomUUID();
-            const reasoningPart: ReasoningPart = {
-              id: _currentReasoningPartId,
-              messageId,
-              createdAt: Date.now(),
-              type: 'reasoning',
-              text: reasoningContent,
-            };
-            yield { type: 'part.created', sessionId: _sessionId, part: reasoningPart };
-            createPart(reasoningPart, _sessionId);
-          }
-        }
-        break;
-      }
-
-      case 'tool-call': {
-        // Create tool part
-        const toolPartId = randomUUID();
-        const toolPart: ToolPart = {
-          id: toolPartId,
-          messageId,
-          createdAt: Date.now(),
-          type: 'tool',
-          callId: delta.toolCallId,
-          name: delta.toolName,
-          state: {
-            status: 'pending',
-            input: parseToolInput(delta.input),
-          },
-        };
-        toolParts.push(toolPart);
-
-        // Emit part.created event
-        yield { type: 'part.created', sessionId: _sessionId, part: toolPart };
-        createPart(toolPart, _sessionId);
-
-        // Reset text tracking so subsequent text creates a new part
-        _currentTextPartId = null;
-        _currentText = '';
-        _currentReasoningPartId = null;
-        _currentReasoning = '';
-        break;
-      }
-
-      case 'tool-result': {
-        // AI SDK v6 emits tool-result events after tool execution completes
-        // Find the corresponding tool part and update it
-        const existingToolPart = toolParts.find((tp) => tp.callId === delta.toolCallId);
-
-        if (existingToolPart) {
-          // Get the latest state from database (might have childSessionId from subagent start)
-          // The local toolParts array doesn't get updated when transitionToolToRunningByCallId is called
-          const latestPart = getPart(existingToolPart.id) as ToolPart | null;
-          const latestState = latestPart?.state;
-
-          // Extract the result from the output
-          let resultData: unknown;
-          if (typeof delta.output === 'string') {
-            try {
-              resultData = JSON.parse(delta.output);
-            } catch {
-              resultData = delta.output;
-            }
-          } else if (delta.output && typeof delta.output === 'object' && 'value' in delta.output) {
-            resultData = (delta.output as { value: unknown }).value;
-          } else {
-            resultData = delta.output;
-          }
-
-          // Check if it's an error result
-          const isErrorResult = !!(resultData && typeof resultData === 'object' && 'error' in resultData);
-
-          // Preserve childSessionId from the latest database state
-          const existingChildSessionId = latestState && 'childSessionId' in latestState
-            ? latestState.childSessionId
-            : undefined;
-
-          // Update the tool part
-          const updatedToolPart: ToolPart = {
-            ...existingToolPart,
-            state: isErrorResult
-              ? {
-                  status: 'error' as const,
-                  input: existingToolPart.state.input,
-                  error: String((resultData as { error: unknown }).error),
-                  startedAt: Date.now(),
-                  failedAt: Date.now(),
-                  ...(existingChildSessionId && { childSessionId: existingChildSessionId }),
-                }
-              : {
-                  status: 'completed' as const,
-                  input: existingToolPart.state.input,
-                  output: resultData,
-                  startedAt: Date.now(),
-                  completedAt: Date.now(),
-                  ...(existingChildSessionId && { childSessionId: existingChildSessionId }),
-                },
-          };
-
-          // Update the tool part in our array
-          const index = toolParts.indexOf(existingToolPart);
-          if (index !== -1) {
-            toolParts[index] = updatedToolPart;
-          }
-
-          // Emit part.updated event
-          yield { type: 'part.updated', sessionId: _sessionId, part: updatedToolPart };
-          updatePart(updatedToolPart.id, { state: updatedToolPart.state });
-        }
-        break;
-      }
     }
-  }
   } catch (err) {
     const classified = classifyApiError(err);
 
