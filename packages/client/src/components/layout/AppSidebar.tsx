@@ -33,6 +33,7 @@ interface AppSidebarProps {
   currentSession: Session | null;
   currentSessionId: string | null;
   streamingSessionId: string | null;
+  pendingPermissions: { sessionId: string }[];
   connected: boolean;
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
@@ -65,6 +66,7 @@ export function AppSidebar({
   currentSession,
   currentSessionId,
   streamingSessionId,
+  pendingPermissions,
   connected,
   workspaces,
   activeWorkspace,
@@ -168,6 +170,7 @@ export function AppSidebar({
             onDeleteSession={onDeleteSession}
             onCreateSessionInWorkspace={onCreateSessionInWorkspace}
             connected={connected}
+            pendingPermissions={pendingPermissions}
           />
         ) : (
           <>
@@ -195,6 +198,7 @@ export function AppSidebar({
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
                             streamingSessionId={streamingSessionId}
+                            pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}
@@ -232,6 +236,7 @@ export function AppSidebar({
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
                             streamingSessionId={streamingSessionId}
+                            pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}

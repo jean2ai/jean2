@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/shared';
@@ -27,6 +27,7 @@ interface SessionMenuButtonProps {
   isActive: boolean;
   currentSessionId: string | null;
   streamingSessionId: string | null;
+  pendingPermissions: { sessionId: string }[];
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
@@ -122,6 +123,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   isActive,
   currentSessionId,
   streamingSessionId,
+  pendingPermissions,
   onResumeSession,
   onCloseSession,
   onReopenSession,
@@ -140,6 +142,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   );
 
   const isStreaming = session.id === streamingSessionId;
+  const hasPendingPermission = pendingPermissions.some(p => p.sessionId === session.id);
 
   // No children - simple item with spacer for alignment
   if (!hasChildren) {
@@ -160,6 +163,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <TooltipTrigger asChild>
                   <span className="truncate flex items-center gap-2">
                     <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
+                    {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                     {session.title || 'Untitled'}
                   </span>
                 </TooltipTrigger>
@@ -208,6 +212,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <TooltipTrigger asChild>
                   <span className="truncate flex items-center gap-2">
                     <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
+                    {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                     {session.title || 'Untitled'}
                   </span>
                 </TooltipTrigger>
@@ -237,6 +242,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   isActive={currentSessionId === child.id}
                   currentSessionId={currentSessionId}
                   streamingSessionId={streamingSessionId}
+                  pendingPermissions={pendingPermissions}
                   onResumeSession={onResumeSession}
                   onCloseSession={onCloseSession}
                   onReopenSession={onReopenSession}

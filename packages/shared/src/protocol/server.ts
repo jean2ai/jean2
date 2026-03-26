@@ -140,6 +140,23 @@ export interface PermissionAllRevokedMessage {
   count: number;
 }
 
+export interface PermissionsSyncResponseMessage {
+  type: 'permissions.sync';
+  approvals: Array<{
+    sessionId: string;
+    childSessionId?: string;
+    subagentName?: string;
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+    permissionType: PermissionType;
+    permissionKey: string;
+    message: string;
+    details?: Record<string, unknown>;
+    dangerous?: boolean;
+  }>;
+}
+
 export interface SubagentStartedMessage {
   type: 'subagent.started';
   parentSessionId: string;
@@ -331,6 +348,7 @@ export type ServerMessage =
   | PermissionListMessage
   | PermissionRevokedMessage
   | PermissionAllRevokedMessage
+  | PermissionsSyncResponseMessage
   | SubagentStartedMessage
   | SubagentCompletedMessage
   | SubagentProgressMessage

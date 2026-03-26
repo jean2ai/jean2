@@ -80,6 +80,10 @@ export interface PermissionRevokeAllMessage {
   workspaceId: string;
 }
 
+export interface PermissionsSyncMessage {
+  type: 'permissions.sync';
+}
+
 // =============================================================================
 // Compaction Messages
 // =============================================================================
@@ -160,6 +164,7 @@ export type ClientMessage =
   | PermissionListRequestMessage
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage
+  | PermissionsSyncMessage
   | SessionCompactMessage
   | SessionRevertMessage
   | SessionForkMessage

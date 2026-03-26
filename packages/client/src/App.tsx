@@ -34,6 +34,7 @@ import { AddServerDialog } from '@/components/modals/AddServerDialog';
 
 interface PendingPermissionRequest {
   toolCallId: string;
+  sessionId: string;
   toolName: string;
   args: Record<string, unknown>;
   permissionType: string;
@@ -287,6 +288,10 @@ function AppContent() {
       setRetryCount(0);
       setConnectionTimedOut(false);
 
+      // Clear pending permissions — session.resume will re-send current session's,
+      // and permissions.sync will fetch all other sessions' pending approvals
+      setPendingPermissions([]);
+
       // Auto-resume active session after reconnect to restore streaming
       if (currentSessionIdRef.current) {
         socket.send(JSON.stringify({
@@ -294,6 +299,9 @@ function AppContent() {
           sessionId: currentSessionIdRef.current,
         }));
       }
+
+      // Request all pending approvals across all sessions for sidebar indicators
+      socket.send(JSON.stringify({ type: 'permissions.sync' }));
     };
 
     socket.onclose = (event) => {
@@ -785,6 +793,28 @@ function AppContent() {
         setPermissions(msg.permissions);
         break;
 
+      case 'permissions.sync':
+        setPendingPermissions(prev => {
+          const existingIds = new Set(prev.map(p => p.toolCallId));
+          const newPermissions = msg.approvals
+            .filter(a => !existingIds.has(a.toolCallId))
+            .map(a => ({
+              toolCallId: a.toolCallId,
+              sessionId: a.sessionId,
+              toolName: a.toolName,
+              args: a.args,
+              permissionType: a.permissionType,
+              permissionKey: a.permissionKey,
+              message: a.message,
+              details: a.details,
+              dangerous: a.dangerous,
+              childSessionId: a.childSessionId,
+              subagentName: a.subagentName,
+            }));
+          return [...prev, ...newPermissions];
+        });
+        break;
+
       case 'permission.revoked':
         setPermissions(prev => prev.map(p =>
           p.id === msg.permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
@@ -801,6 +831,7 @@ function AppContent() {
       case 'permission.request': {
         const request: PendingPermissionRequest = {
           toolCallId: msg.toolCallId,
+          sessionId: msg.sessionId,
           toolName: msg.toolName,
           args: msg.args,
           permissionType: msg.permissionType,
@@ -981,7 +1012,7 @@ function AppContent() {
   }, [sendMessage, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string) => {
-    setPendingPermissions([]);
+    setPendingPermissions(prev => prev.filter(p => p.sessionId !== sessionId));
     setStreamingSessionId(null);
     setCompactionSuccess(false);
     const session = sessions.find(s => s.id === sessionId);
@@ -1271,6 +1302,7 @@ function AppContent() {
           onOpenAddServer={() => setShowAddServer(true)}
           onServerSwitch={handleServerSwitch}
           onCreateSessionInWorkspace={createSessionInWorkspace}
+          pendingPermissions={pendingPermissions}
         />
       )}
 

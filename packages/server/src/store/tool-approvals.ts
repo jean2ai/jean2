@@ -72,6 +72,12 @@ export function listPendingApprovals(sessionId: string): ToolApproval[] {
   return rows.map(mapRowToToolApproval);
 }
 
+export function listAllPendingApprovals(): ToolApproval[] {
+  const db = getDatabase();
+  const rows = db.query('SELECT * FROM tool_approvals WHERE status = ? ORDER BY requested_at ASC').all('pending') as ToolApprovalRow[];
+  return rows.map(mapRowToToolApproval);
+}
+
 function mapRowToToolApproval(row: ToolApprovalRow): ToolApproval {
   return {
     id: row.id,

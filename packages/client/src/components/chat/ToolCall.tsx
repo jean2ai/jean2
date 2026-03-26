@@ -8,6 +8,7 @@ import { VisualizationRenderer } from '@/components/visualizations';
 
 interface PendingPermissionRequest {
   toolCallId: string;
+  sessionId: string;
   toolName: string;
   args: Record<string, unknown>;
   permissionType: string;

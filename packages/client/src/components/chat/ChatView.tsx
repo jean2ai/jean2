@@ -15,6 +15,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 interface PendingPermissionRequest {
   toolCallId: string;
+  sessionId: string;
   toolName: string;
   args: Record<string, unknown>;
   permissionType: string;
@@ -390,6 +391,7 @@ export function ChatView({
 
   // Find orphaned permissions (not tied to a visible tool part)
   const orphanedPermissions = pendingPermissions.filter((p) => {
+    if (p.sessionId !== session.id) return false;
     return !messagesWithParts.some((mwp) =>
       mwp.parts.some(
         (part) => part.type === 'tool' && (part as ToolPart).callId === p.toolCallId

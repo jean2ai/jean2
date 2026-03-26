@@ -32,7 +32,8 @@ import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermission
 import {
   createToolApproval,
   updateToolApproval,
-  listPendingApprovals
+  listPendingApprovals,
+  listAllPendingApprovals
 } from '@/store/tool-approvals';
 import { streamChatWithRetry } from './core/retry';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
@@ -73,15 +74,6 @@ const clients = new Map<ServerWebSocket, { sessionId?: string }>();
 const pendingPermissionResolvers = new Map<string, {
   resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void
 }>();
-
-function getWsForSession(sessionId: string): ServerWebSocket | undefined {
-  for (const [ws, data] of clients.entries()) {
-    if (data.sessionId === sessionId) {
-      return ws;
-    }
-  }
-  return undefined;
-}
 
 function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
   const messageStr = JSON.stringify(message);
@@ -341,12 +333,6 @@ function createPermissionRequestHandler(sessionId: string) {
       currentSession = getSession(parentSessionId);
     }
 
-    const clientWs = getWsForSession(parentSessionId);
-
-    if (!clientWs) {
-      return { allowed: false, alwaysAllow: false };
-    }
-
     let subagentName: string | undefined;
     if (session?.parentId) {
       const titleParts = session.title?.split('(');
@@ -402,6 +388,7 @@ function createPermissionRequestHandler(sessionId: string) {
             status: 'timeout',
             respondedAt: new Date().toISOString()
           });
+          broadcast({ type: 'permission.granted', toolCallId, cached: false });
           resolve({ allowed: false, alwaysAllow: false });
         }
       }, 5 * 60 * 1000);
@@ -640,6 +627,26 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
     case 'permission.list': {
       const permissions = getWorkspacePermissions(msg.workspaceId, msg.includeRevoked);
       send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, permissions });
+      break;
+    }
+
+    case 'permissions.sync': {
+      const approvals = listAllPendingApprovals();
+      send(ws, {
+        type: 'permissions.sync',
+        approvals: approvals.map(a => ({
+          sessionId: a.sessionId,
+          childSessionId: a.childSessionId,
+          subagentName: a.subagentName,
+          toolCallId: a.toolCallId,
+          toolName: a.toolName,
+          args: a.args,
+          permissionType: (a.permissionType || 'tool') as PermissionType,
+          permissionKey: a.permissionKey || '',
+          message: a.message || '',
+          details: a.details,
+        })),
+      });
       break;
     }
 
