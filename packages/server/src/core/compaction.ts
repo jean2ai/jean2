@@ -1,5 +1,5 @@
 import { generateText, streamText } from 'ai';
-import { getModel } from './agent';
+import { getModel } from './model-utils';
 import { findModel } from '@/config';
 import {
   listMessagesWithParts,

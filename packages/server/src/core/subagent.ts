@@ -1,7 +1,7 @@
 import type { ToolDefinition, TextPart, Session } from '@jean2/shared';
 import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
-import { executeChildSession } from './agent';
+import { executeChildSession } from './child-session';
 import { getModelsConfig, findModel } from '@/config';
 import { broadcastSessionCreated, broadcastSessionUpdated } from './broadcast';
 import { randomUUID } from 'crypto';

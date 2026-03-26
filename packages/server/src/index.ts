@@ -34,7 +34,7 @@ import {
   updateToolApproval,
   listPendingApprovals
 } from '@/store/tool-approvals';
-import { streamChatWithRetry } from './core/agent';
+import { streamChatWithRetry } from './core/retry';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
 import { executeCompaction } from './core/compaction-executor';
 import { revertToStep } from './core/revert';
