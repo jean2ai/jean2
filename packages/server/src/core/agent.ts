@@ -20,8 +20,8 @@ import {
   getCompactionAutoReserveCapTokens,
   getCompactionAutoSafetyMarginTokens,
 } from '../env';
-import { classifyApiError, ApiErrorType, ERROR_AUTH, ERROR_INVALID_REQUEST, ERROR_CHAT_FAILED } from '@/utils/errors';
-import type { AuthErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, ErrorMessage } from '@jean2/shared';
+import { classifyApiError } from '@/utils/errors';
+import { createErrorEvent, type ErrorEvent } from './error-handling';
 import type { CompactionPolicy } from './compaction';
 
 export interface ChatOptions {
@@ -43,7 +43,7 @@ export interface ChatResult {
   toolCalls: ToolPart[];
 }
 
-export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | AuthErrorMessage | ContextOverflowErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | ErrorEvent> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps, compactionPolicy } = options;
 
   // Register session with interrupt manager
@@ -398,31 +398,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
     // Handle non-retryable errors - yield error event and return
     if (!classified.retryable) {
-      if (classified.type === ApiErrorType.Authentication) {
-        yield {
-          type: 'error.auth',
-          code: ERROR_AUTH,
-          message: classified.message,
-        };
-      } else if (classified.type === ApiErrorType.ContextOverflow) {
-        yield {
-          type: 'error.context_overflow',
-          code: 'context_overflow',
-          message: classified.message,
-        } as ContextOverflowErrorMessage;
-      } else if (classified.type === ApiErrorType.InvalidRequest) {
-        yield {
-          type: 'error.invalid_request',
-          code: ERROR_INVALID_REQUEST,
-          message: classified.message,
-        };
-      } else {
-        yield {
-          type: 'error',
-          code: ERROR_CHAT_FAILED,
-          message: classified.message,
-        } as ErrorMessage;
-      }
+      yield createErrorEvent(classified);
 
       // Update message status to error
       const errorMessage: AssistantMessage = {
