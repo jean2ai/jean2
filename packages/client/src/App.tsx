@@ -133,6 +133,9 @@ function AppContent() {
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isCompacting = currentSession?.compacting ?? false;
   const [compactionSuccess, setCompactionSuccess] = useState(false);
+  
+  // Track sessions that have been interrupted (to prevent stale events from reactivating streaming)
+  const [interruptedSessions, setInterruptedSessions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
@@ -492,6 +495,13 @@ function AppContent() {
       case 'session.resumed':
         setCurrentSession(msg.session);
 
+        // Clear interrupted status since session is being resumed
+        setInterruptedSessions(prev => {
+          const next = new Set(prev);
+          next.delete(msg.session.id);
+          return next;
+        });
+
         // Restore streaming state if session is running
         if (msg.isRunning) {
           setStreamingSessionId(msg.session.id);
@@ -517,10 +527,12 @@ function AppContent() {
         setSelectedVariant(msg.session.selectedVariant || null);
 
         // Clear variant if restored model doesn't support it
-        const restoredModelId = msg.session.selectedModel || defaultModel;
-        const restoredVariants = models.find(m => m.id === restoredModelId)?.variants;
-        if (msg.session.selectedVariant && restoredVariants && !restoredVariants[msg.session.selectedVariant]) {
-          setSelectedVariant(null);
+        {
+          const restoredModelId = msg.session.selectedModel || defaultModel;
+          const restoredVariants = models.find(m => m.id === restoredModelId)?.variants;
+          if (msg.session.selectedVariant && restoredVariants && !restoredVariants[msg.session.selectedVariant]) {
+            setSelectedVariant(null);
+          }
         }
         break;
 
@@ -536,9 +548,14 @@ function AppContent() {
             [msg.message.id]: []
           }
         }));
-        // Track streaming state
+        // Track streaming state and clear interrupted status for this session
         if ('status' in msg.message && msg.message.status === 'streaming') {
           setStreamingSessionId(msg.message.sessionId);
+          setInterruptedSessions(prev => {
+            const next = new Set(prev);
+            next.delete(msg.message.sessionId);
+            return next;
+          });
         }
         break;
 
@@ -584,7 +601,10 @@ function AppContent() {
         break;
 
       case 'part.append':
-        setStreamingSessionId(msg.sessionId);
+        // Skip setting streaming state if session was interrupted (prevents stale events)
+        if (!interruptedSessions.has(msg.sessionId)) {
+          setStreamingSessionId(msg.sessionId);
+        }
         setPartsBySession(prev => {
           const sessionParts = prev[msg.sessionId] || {};
 
@@ -667,6 +687,12 @@ function AppContent() {
           delete newMap[msg.sessionId];
           return newMap;
         });
+        // Clean up interrupted status for deleted session
+        setInterruptedSessions(prev => {
+          const next = new Set(prev);
+          next.delete(msg.sessionId);
+          return next;
+        });
         if (currentSession?.id === msg.sessionId) {
           setCurrentSession(null);
         }
@@ -732,6 +758,8 @@ function AppContent() {
         break;
 
       case 'session.interrupted':
+        // Track interrupted session to prevent stale events from reactivating streaming
+        setInterruptedSessions(prev => new Set(prev).add(msg.sessionId));
         if (streamingSessionId === msg.sessionId) {
           setStreamingSessionId(null);
         }
@@ -839,7 +867,7 @@ function AppContent() {
         );
         break;
     }
-  }, [currentSession, defaultModel, streamingSessionId]);
+  }, [currentSession, defaultModel, streamingSessionId, models, interruptedSessions]);
 
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
@@ -1123,7 +1151,7 @@ function AppContent() {
             modelName={currentModel}
             onNavigateToSubagent={resumeSession}
             onNavigateBack={handleNavigateBack}
-            isStreaming={streamingSessionId === currentSession.id}
+            isStreaming={streamingSessionId === currentSession.id || !!currentSession.runningAt}
             onInterrupt={handleInterruptSession}
             onRevert={revertSession}
             onFork={forkSession}

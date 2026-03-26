@@ -19,7 +19,7 @@ interface MessageRow {
   session_id: string;
   role: 'user' | 'assistant' | 'system';
   created_at: number;
-  status: 'streaming' | 'completed' | 'error' | null;
+  status: 'streaming' | 'completed' | 'error' | 'interrupted' | null;
   model_id: string | null;
   provider_id: string | null;
   agent: string | null;
@@ -59,7 +59,7 @@ function rowToMessage(row: MessageRow): Message {
     return {
       ...base,
       role: 'assistant' as const,
-      status: row.status as 'streaming' | 'completed' | 'error',
+      status: row.status as 'streaming' | 'completed' | 'error' | 'interrupted',
       modelId: row.model_id!,
       providerId: row.provider_id!,
       agent: row.agent ?? undefined,

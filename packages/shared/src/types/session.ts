@@ -1,6 +1,6 @@
 export type SessionStatus = 'active' | 'closed';
 
-export type SubagentStatus = 'running' | 'completed' | 'error';
+export type SubagentStatus = 'running' | 'completed' | 'error' | 'interrupted';
 
 export interface Session {
   id: string;

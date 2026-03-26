@@ -174,7 +174,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
   const abortHandler = () => {
     wasAborted = true;
     if (childSession) {
-      updateSession(childSession.id, { subagentStatus: 'error' });
+      updateSession(childSession.id, { subagentStatus: 'interrupted' });
       const updatedSession = getSession(childSession.id);
       if (updatedSession) {
         broadcastSessionUpdated(updatedSession);

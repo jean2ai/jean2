@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle, Pause } from 'lucide-react';
 import type { ToolPart, AnyVisualization } from '@jean2/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,8 @@ function getStatusIcon(status: string) {
       return <CheckCircle className="size-3 text-success" />;
     case 'error':
       return <XCircle className="size-3 text-destructive" />;
+    case 'interrupted':
+      return <Pause className="size-3 text-warning" />;
     default:
       return null;
   }

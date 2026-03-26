@@ -308,6 +308,7 @@ export function useTerminal(
   const isInitialMount = useRef(true);
   useEffect(() => {
     if (isInitialMount.current) {
+      // eslint-disable-next-line react-hooks/immutability
       isInitialMount.current = false;
       return;
     }

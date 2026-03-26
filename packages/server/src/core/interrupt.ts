@@ -78,9 +78,14 @@ class InterruptManager {
       }
     }
     
-    updateSession(sessionId, {
-      subagentStatus: 'error',
-    });
+    // Only set subagentStatus for actual subagent sessions (those with a parentId)
+    // Main sessions should not have their status changed to error on interrupt
+    const session = getSession(sessionId);
+    if (session?.parentId) {
+      updateSession(sessionId, {
+        subagentStatus: 'interrupted',
+      });
+    }
     
     const childSessions = getChildSessions(sessionId);
     for (const child of childSessions) {

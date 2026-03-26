@@ -215,7 +215,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       if (abortController.signal.aborted) {
         const interruptedMessage: AssistantMessage = {
           ...assistantMessage,
-          status: 'error',
+          status: 'interrupted',
           error: 'Interrupted by user',
         };
         yield { type: 'message.updated', message: interruptedMessage };
@@ -260,7 +260,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     if (abortController.signal.aborted) {
       const interruptedMessage: AssistantMessage = {
         ...assistantMessage,
-        status: 'error',
+        status: 'interrupted',
         error: 'Interrupted by user',
       };
       yield { type: 'message.updated', message: interruptedMessage };
@@ -285,6 +285,18 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
     // For retryable errors, throw to let caller handle retry
     throw classified;
+  } finally {
+    // Cleanup interrupt registration - always runs on success, error, or abort
+    interruptManager.unregisterSession(_sessionId);
+
+    // Clear runningAt and broadcast session update for main sessions
+    if (isMainSession) {
+      updateSession(_sessionId, { runningAt: null });
+      const updatedSession = getSession(_sessionId);
+      if (updatedSession) {
+        broadcastSessionUpdated(updatedSession);
+      }
+    }
   }
 
   // Finalize: get usage data FIRST, then update message with actual tokens
@@ -330,18 +342,6 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Auto-compaction: yield needs_compaction event for main sessions
   if (isMainSession && stepCtx.needsCompaction) {
     yield { type: 'needs_compaction', sessionId: _sessionId };
-  }
-
-  // Cleanup interrupt registration
-  interruptManager.unregisterSession(_sessionId);
-
-  // Clear runningAt and broadcast session update for main sessions
-  if (isMainSession) {
-    updateSession(_sessionId, { runningAt: null });
-    const updatedSession = getSession(_sessionId);
-    if (updatedSession) {
-      broadcastSessionUpdated(updatedSession);
-    }
   }
 }
 

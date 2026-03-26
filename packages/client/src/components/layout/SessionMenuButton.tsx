@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause } from 'lucide-react';
 import { useMemo } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/shared';
@@ -85,7 +85,7 @@ const SessionStatusIcon = React.memo(function SessionStatusIcon({
   isStreaming,
   runningAt,
 }: {
-  status?: 'running' | 'completed' | 'error' | null;
+  status?: 'running' | 'completed' | 'error' | 'interrupted' | null;
   isStreaming?: boolean;
   runningAt?: string | null;
 }) {
@@ -101,6 +101,11 @@ const SessionStatusIcon = React.memo(function SessionStatusIcon({
   // Show error icon when subagent errored
   if (status === 'error') {
     return <XCircle className="size-3.5 shrink-0" />;
+  }
+
+  // Show pause icon when subagent was interrupted
+  if (status === 'interrupted') {
+    return <Pause className="size-3.5 shrink-0" />;
   }
 
   // Default: show checkmark for idle/completed sessions

@@ -126,7 +126,7 @@ export type Part =
 // ===========================================
 
 export type MessageRole = 'user' | 'assistant' | 'system';
-export type AssistantStatus = 'streaming' | 'completed' | 'error';
+export type AssistantStatus = 'streaming' | 'completed' | 'error' | 'interrupted';
 
 interface MessageBase {
   id: string;
