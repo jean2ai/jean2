@@ -77,6 +77,7 @@ function AppContent() {
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState<{
@@ -161,6 +162,11 @@ function AppContent() {
   useEffect(() => {
     wsRef.current = ws;
   }, [ws]);
+
+  // Keep currentSessionIdRef in sync with currentSession
+  useEffect(() => {
+    currentSessionIdRef.current = currentSession?.id ?? null;
+  }, [currentSession]);
 
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
@@ -277,9 +283,17 @@ function AppContent() {
 
     socket.onopen = () => {
       setConnected(true);
-      setAuthError(null); // Clear auth errors on successful connection
+      setAuthError(null);
       setRetryCount(0);
       setConnectionTimedOut(false);
+
+      // Auto-resume active session after reconnect to restore streaming
+      if (currentSessionIdRef.current) {
+        socket.send(JSON.stringify({
+          type: 'session.resume',
+          sessionId: currentSessionIdRef.current,
+        }));
+      }
     };
 
     socket.onclose = (event) => {
@@ -351,6 +365,53 @@ function AppContent() {
     }
   }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount]);
 
+  // Reconnect when app returns to foreground (fixes iOS background disconnect)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const socket = wsRef.current;
+      if (!socket || !apiToken || !serverUrl) return;
+
+      if (socket.readyState === WebSocket.OPEN) {
+        // Socket claims OPEN but may be zombie (especially on iOS)
+        // Force close and reconnect to be safe
+        socket.onclose = null;
+        socket.close();
+        setConnected(false);
+        setRetryCount(0);
+        setConnectionTimedOut(false);
+        setReconnectTrigger(t => t + 1);
+      } else if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+        setConnected(false);
+        setRetryCount(0);
+        setConnectionTimedOut(false);
+        setReconnectTrigger(t => t + 1);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [apiToken, serverUrl]);
+
+  // Reconnect when network comes back online
+  useEffect(() => {
+    const handleOnline = () => {
+      if (!apiToken || !serverUrl) return;
+
+      const socket = wsRef.current;
+      if (socket && socket.readyState === WebSocket.OPEN) return;
+
+      setConnected(false);
+      setRetryCount(0);
+      setConnectionTimedOut(false);
+      setReconnectTrigger(t => t + 1);
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [apiToken, serverUrl]);
+
   // Consolidated effect for fetching sessions, preconfigs, models, and workspaces
   useEffect(() => {
     if (!apiToken || !serverUrl) return;
@@ -416,7 +477,7 @@ function AppContent() {
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState]);
+  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState, reconnectTrigger]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -502,9 +563,10 @@ function AppContent() {
           return next;
         });
 
-        // Restore streaming state if session is running
         if (msg.isRunning) {
           setStreamingSessionId(msg.session.id);
+        } else {
+          setStreamingSessionId(prev => prev === msg.session.id ? null : prev);
         }
 
         if (msg.messages) {

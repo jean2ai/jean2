@@ -71,6 +71,12 @@ export function ToolCall({
     ? pendingPermissions.find((p) => p.toolCallId === part.callId)
     : undefined;
 
+  const permissionCommandText = pendingPermission
+    ? (typeof pendingPermission.args?.command === 'string'
+        ? pendingPermission.args.command
+        : JSON.stringify(pendingPermission.args, null, 2))
+    : null;
+
   let taskSessionId: string | null = null;
   if (part.name === 'task') {
     if ('childSessionId' in state && state.childSessionId) {
@@ -232,6 +238,22 @@ export function ToolCall({
               <AlertTriangle className="size-4" />
               This operation is marked as dangerous
             </div>
+          )}
+
+          {permissionCommandText && (
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
+                  <ChevronRight className="size-3" />
+                  <span className="uppercase tracking-wide">Command</span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words overflow-wrap-break">
+                  {permissionCommandText}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
           <div className="flex justify-end gap-2 flex-wrap">

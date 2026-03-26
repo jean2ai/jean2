@@ -361,7 +361,7 @@ function createPermissionRequestHandler(sessionId: string) {
       }
     }
 
-    send(clientWs, {
+    broadcast({
       type: 'permission.request',
       sessionId: parentSessionId,
       childSessionId: sessionId !== parentSessionId ? sessionId : undefined,
@@ -630,6 +630,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         });
 
         pending.resolve({ allowed: msg.allowed, alwaysAllow: msg.alwaysAllow });
+        broadcast({ type: 'permission.granted', toolCallId: msg.toolCallId, cached: false });
       } else {
         console.warn('permission.response received for unknown toolCallId:', msg.toolCallId);
       }

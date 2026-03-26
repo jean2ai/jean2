@@ -3,6 +3,7 @@ import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo, AssistantMessage } from '@jean2/shared';
 import { isAssistantMessage } from '@jean2/shared';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -500,35 +501,52 @@ export function ChatView({
 
           {orphanedPermissions.length > 0 && (
             <div className="mt-4 flex flex-col gap-2">
-              {orphanedPermissions.map((p) => (
-                <div
-                  key={p.toolCallId}
-                  className="p-3 bg-warning/10 border border-warning/30 rounded-lg"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium">{p.toolName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {p.permissionType}
-                    </span>
+              {orphanedPermissions.map((p) => {
+                const commandText = typeof p.args?.command === 'string'
+                  ? p.args.command
+                  : JSON.stringify(p.args, null, 2);
+
+                return (
+                  <div
+                    key={p.toolCallId}
+                    className="p-3 bg-warning/10 border border-warning/30 rounded-lg flex flex-col gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{p.toolName}</span>
+                      <span className="text-xs text-muted-foreground">{p.permissionType}</span>
+                    </div>
+                    <p className="text-sm">{p.message}</p>
+                    <Collapsible>
+                      <CollapsibleTrigger asChild>
+                        <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
+                          <ChevronRight className="size-3" />
+                          <span className="uppercase tracking-wide">Command</span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words">
+                          {commandText}
+                        </pre>
+                      </CollapsibleContent>
+                    </Collapsible>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onPermissionResponse(p.toolCallId, false, false)}
+                      >
+                        Deny
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => onPermissionResponse(p.toolCallId, true, false)}
+                      >
+                        Approve
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm mb-3">{p.message}</p>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onPermissionResponse(p.toolCallId, false, false)}
-                    >
-                      Deny
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => onPermissionResponse(p.toolCallId, true, false)}
-                    >
-                      Approve
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
