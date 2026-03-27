@@ -1185,7 +1185,7 @@ function AppContent() {
 
   const sendChatMessage = useCallback((content: string) => {
     if (!currentSession || isCompacting) return;
-    if (streamingSessionId === currentSession.id) {
+    if (currentSession.runningAt || streamingSessionId === currentSession.id) {
       addToQueue(currentSession.id, content);
     } else {
       sendMessage('chat.message', { sessionId: currentSession.id, content });

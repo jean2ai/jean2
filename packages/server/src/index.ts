@@ -1183,6 +1183,14 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     return;
   }
 
+  // If session is already actively streaming (e.g., subagent running), queue the message instead
+  if (interruptManager.isSessionActive(sessionId)) {
+    const queuedMessage = addMessageToQueue(sessionId, content);
+    clients.set(ws, { sessionId });
+    send(ws, { type: 'queue.added', sessionId, message: queuedMessage });
+    return;
+  }
+
   const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;
   const workspacePath = workspace?.path;
 
