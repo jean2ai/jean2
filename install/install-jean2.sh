@@ -70,19 +70,23 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Install Jean2 server binary from GitHub Releases.
+Install or update Jean2 server binary from GitHub Releases.
 
 OPTIONS:
   --version <ver>      Install a specific version (default: latest)
   --install-dir <path>  Install to custom directory (default: ~/.jean2/bin)
-  --force              Reinstall even if binary exists
+  --force              Reinstall/update even if same version
   --no-path            Skip adding to PATH
   --help               Show this help message
+
+BEHAVIOR:
+  Fresh install: Downloads binary and configures PATH. Does not auto-start.
+  Update: Stops running daemon, replaces binary, runs migrations, restarts.
 
 EXAMPLES:
   $(basename "$0")                     # Install latest version
   $(basename "$0") --version 0.4.5     # Install specific version
-  $(basename "$0") --force             # Reinstall current version
+  $(basename "$0") --force             # Reinstall/update current version
   $(basename "$0") --no-path           # Install without modifying PATH
 
 EOF
@@ -150,8 +154,8 @@ fetch_version() {
   fi
 
   version="${version//$'\r'/}"
-  version="${version#"${version%%[![:space:]]*}"}"
-  version="${version%"${version##*[![:space:]]}"}"
+  version="${version#\"${version%%[![:space:]]*}\"}"
+  version="${version%\"${version##*[![:space:]]}\"}"
 
   if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     error "Invalid version format from VERSION file: '$version'"
@@ -161,16 +165,87 @@ fetch_version() {
 }
 
 check_existing_install() {
-  if [[ -f "$BINARY_PATH" ]]; then
-    if [[ "$FORCE" == true ]]; then
-      warn "Replacing existing installation at $BINARY_PATH"
-    else
-      local current_version
-      current_version=$("$BINARY_PATH" --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
-      success "Jean2 is already installed at $BINARY_PATH (version: $current_version)"
-      info "Use --force to reinstall"
-      exit 0
-    fi
+  local current_version
+  current_version=$("$BINARY_PATH" --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+  echo "$current_version"
+}
+
+is_jean2_running() {
+  local status_output
+  status_output=$("$BINARY_PATH" status 2>&1 || true)
+  
+  if echo "$status_output" | grep -q "Daemon is running"; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+stop_jean2() {
+  info "Stopping Jean2 daemon..."
+  
+  if ! "$BINARY_PATH" stop 2>&1; then
+    error "Failed to stop Jean2 daemon. Update aborted."
+  fi
+  
+  sleep 1
+  
+  if is_jean2_running; then
+    error "Jean2 daemon is still running after stop command. Update aborted."
+  fi
+  
+  success "Jean2 daemon stopped"
+}
+
+is_initialized() {
+  local migrate_output
+  migrate_output=$("$BINARY_PATH" migrate 2>&1 || true)
+  
+  if echo "$migrate_output" | grep -q "not initialized"; then
+    return 1
+  fi
+  return 0
+}
+
+run_migrations() {
+  local new_binary="$1"
+  
+  info "Running database migrations with new binary..."
+  
+  if ! "$new_binary" migrate 2>&1; then
+    error "Migration failed. Update aborted. Your old binary is still in place."
+  fi
+  
+  success "Migrations completed successfully"
+}
+
+start_jean2() {
+  local new_binary="$1"
+  
+  info "Starting Jean2 daemon..."
+  
+  if ! "$new_binary" start 2>&1; then
+    error "Failed to start Jean2 daemon after update."
+  fi
+  
+  sleep 1
+  
+  if is_jean2_running_with_binary "$new_binary"; then
+    success "Jean2 daemon started successfully"
+  else
+    warn "Jean2 daemon may not have started correctly"
+  fi
+}
+
+is_jean2_running_with_binary() {
+  local binary="$1"
+  local status_output
+  status_output=$("$binary" status 2>&1 || true)
+  
+  if echo "$status_output" | grep -q "Daemon is running"; then
+    return 0
+  else
+    return 1
   fi
 }
 
@@ -265,6 +340,59 @@ configure_path() {
   } >> "$shell_config" && success "Added Jean2 to PATH in $shell_config" || warn "Failed to update $shell_config"
 }
 
+update_existing_install() {
+  local was_running=false
+  local needs_migration=false
+  
+  info "Jean2 is already installed at $BINARY_PATH"
+  
+  local current_version
+  current_version=$(check_existing_install)
+  info "Current version: $current_version"
+  info "Target version: $VERSION"
+  
+  if [[ "$current_version" == "$VERSION" ]] && [[ "$FORCE" != true ]]; then
+    info "Already on version $VERSION. Use --force to update anyway."
+    exit 0
+  fi
+  
+  info "Checking if Jean2 daemon is running..."
+  if is_jean2_running; then
+    was_running=true
+    info "Jean2 daemon is running"
+    stop_jean2
+  else
+    info "Jean2 daemon is not running"
+  fi
+  
+  info "Checking if Jean2 is initialized..."
+  if is_initialized; then
+    needs_migration=true
+    info "Jean2 is initialized, will run migrations"
+  else
+    info "Jean2 is not initialized, skipping migrations"
+  fi
+  
+  local temp_file
+  temp_file=$(download_binary)
+  
+  install_binary "$temp_file"
+  
+  local new_binary="$BINARY_PATH"
+  
+  if [[ "$needs_migration" == true ]]; then
+    run_migrations "$new_binary"
+  fi
+  
+  if [[ "$was_running" == true ]]; then
+    start_jean2 "$new_binary"
+  else
+    info "Jean2 was not running before update, not starting"
+  fi
+  
+  success "Jean2 updated from v${current_version} to v${VERSION}"
+}
+
 main() {
   parse_args "$@"
 
@@ -280,38 +408,47 @@ main() {
 
   BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 
-  check_existing_install
-
-  local temp_file
-  temp_file=$(download_binary)
-
-  install_binary "$temp_file"
-
-  configure_path
-
-  echo ""
-  success "Jean2 v${VERSION} installed successfully!"
-  echo ""
-  info "Binary location: $BINARY_PATH"
-  echo ""
-
-  if [[ "$SKIP_PATH" != true ]]; then
-    echo "  Next steps:"
-    echo "    1. Restart your terminal or run:"
-    if [[ -n "${SHELL_CONFIG_FILE:-}" ]]; then
-      echo -e "       source \"${SHELL_CONFIG_FILE}\""
-    else
-      echo -e "       export PATH=\"${INSTALL_DIR}:\$PATH\""
-    fi
-    echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
-    echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+  if [[ -f "$BINARY_PATH" ]]; then
+    update_existing_install
   else
-    echo "  Next steps:"
-    echo "    1. Add to PATH: export PATH=\"$INSTALL_DIR:\$PATH\""
-    echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
-    echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    if [[ "$FORCE" == true ]]; then
+      warn "--force specified but no existing installation found, proceeding with fresh install"
+    fi
+    info "Fresh installation at $BINARY_PATH"
+    
+    local temp_file
+    temp_file=$(download_binary)
+    
+    install_binary "$temp_file"
+    
+    configure_path
+    
+    echo ""
+    success "Jean2 v${VERSION} installed successfully!"
+    echo ""
+    info "Binary location: $BINARY_PATH"
+    echo ""
+    
+    if [[ "$SKIP_PATH" != true ]]; then
+      echo "  Next steps:"
+      echo "    1. Restart your terminal or run:"
+      if [[ -n "${SHELL_CONFIG_FILE:-}" ]]; then
+        echo -e "       source \"${SHELL_CONFIG_FILE}\""
+      else
+        echo -e "       export PATH=\"${INSTALL_DIR}:\$PATH\""
+      fi
+      echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
+      echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    else
+      echo "  Next steps:"
+      echo "    1. Add to PATH: export PATH=\"$INSTALL_DIR:\$PATH\""
+      echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
+      echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    fi
+    echo ""
   fi
-  echo ""
+  
+  configure_path
 }
 
 main "$@"
