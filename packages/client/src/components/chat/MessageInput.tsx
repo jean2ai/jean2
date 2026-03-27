@@ -351,9 +351,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <Send className="size-4" />
         </Button>
       </div>
-      <div className="mt-2 text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+      <div className="mt-2 text-xs text-muted-foreground text-center hidden sm:flex items-center justify-center gap-1">
         <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">/</kbd>
         <span>prompts</span>
+        <span className="mx-2">•</span>
+        <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">@</kbd>
+        <span>files</span>
         <span className="mx-2">•</span>
         <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>
         <span>to send</span>
