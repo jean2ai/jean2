@@ -11,6 +11,7 @@ import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { ToolCall } from './ToolCall';
 import { MessageInput } from './MessageInput';
+import type { MessageInputHandle } from './MessageInput';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 interface PendingPermissionRequest {
@@ -81,6 +82,7 @@ interface ChatViewProps {
   apiToken?: string;
   selectedVariant: string | null;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
+  inputRef?: React.RefObject<MessageInputHandle | null>;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -340,6 +342,7 @@ export function ChatView({
   apiToken,
   selectedVariant,
   variants,
+  inputRef,
 }: ChatViewProps) {
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
@@ -556,6 +559,7 @@ export function ChatView({
 
       {session.status === 'active' && !session.parentId && (
         <MessageInput
+          ref={inputRef}
           onSendMessage={onSendMessage}
           disabled={isCompacting}
           workspaceId={session.workspaceId}

@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useTerminal, type TerminalStatus, type SessionInitData } from '@/hooks/useTerminal';
+
+export interface TerminalViewHandle {
+  focus: () => void;
+}
 
 interface TerminalViewProps {
   serverUrl: string;
@@ -12,7 +16,7 @@ interface TerminalViewProps {
   onTitleChange?: (title: string) => void;
 }
 
-export function TerminalView({
+export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({
   serverUrl,
   apiToken,
   cwd,
@@ -21,7 +25,7 @@ export function TerminalView({
   onExit,
   onSessionInit,
   onTitleChange,
-}: TerminalViewProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const getContainer = useCallback(() => containerRef.current, []);
   const { fit, focus, destroy: _destroy } = useTerminal(
@@ -37,6 +41,8 @@ export function TerminalView({
       onTitleChange,
     }
   );
+
+  useImperativeHandle(ref, () => ({ focus }), [focus]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -82,4 +88,4 @@ export function TerminalView({
       onFocus={focus}
     />
   );
-}
+});

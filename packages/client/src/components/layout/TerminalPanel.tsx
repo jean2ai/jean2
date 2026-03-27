@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { X, Plus, Terminal } from 'lucide-react';
-import { TerminalView } from './TerminalView';
+import { TerminalView, type TerminalViewHandle } from './TerminalView';
 import type { TerminalStatus, SessionInitData } from '@/hooks/useTerminal';
 import type { TerminalListResponse } from '@jean2/shared';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -13,6 +13,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+
+export interface TerminalPanelHandle {
+  focus: () => void;
+}
 
 interface TerminalTab {
   id: string;
@@ -38,7 +42,7 @@ const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT_RATIO = 0.7;
 
-export function TerminalPanel({
+export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(function TerminalPanel({
   workspaceId,
   workspacePath,
   workspaceName,
@@ -46,7 +50,7 @@ export function TerminalPanel({
   apiToken,
   isOpen,
   onClose,
-}: TerminalPanelProps) {
+}, ref) {
   const isMobile = useIsMobile();
   const viewport = useVisualViewport();
 
@@ -57,6 +61,7 @@ export function TerminalPanel({
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
   const fetchInProgressRef = useRef<Set<string>>(new Set());
+  const terminalViewRefs = useRef<Map<string, TerminalViewHandle>>(new Map());
 
   const currentTabs = workspaceId ? (tabsByWorkspace.get(workspaceId) ?? []) : [];
   const activeTabId = workspaceId ? activeTabIdByWorkspace.get(workspaceId) : undefined;
@@ -247,6 +252,28 @@ export function TerminalPanel({
     });
   }, [tabsByWorkspace, serverUrl, apiToken]);
 
+  useEffect(() => {
+    if (!workspaceId || !workspacePath || !isOpen) return;
+    const tabs = tabsByWorkspace.get(workspaceId) ?? [];
+    if (tabs.length === 0) {
+      addTab();
+    }
+  }, [isOpen, workspaceId, workspacePath, tabsByWorkspace, addTab]);
+
+  const focusActiveTerminal = useCallback(() => {
+    terminalViewRefs.current.get(activeTabId ?? '')?.focus();
+  }, [activeTabId]);
+
+  useImperativeHandle(ref, () => ({
+    focus: focusActiveTerminal,
+  }), [focusActiveTerminal]);
+
+  useEffect(() => {
+    if (!isOpen || currentTabs.length === 0) return;
+    const timer = setTimeout(focusActiveTerminal, 300);
+    return () => clearTimeout(timer);
+  }, [isOpen, currentTabs.length, focusActiveTerminal]);
+
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
@@ -351,15 +378,19 @@ export function TerminalPanel({
               : 'relative'
           )}
         >
-          <TerminalViewWrapper
-            key={tab.id}
-            tab={tab}
-            serverUrl={serverUrl}
-            apiToken={apiToken}
-            onStatusChange={(status) => updateTabStatus(tab.id, status)}
-            onSessionInit={(initData) => updateTabSessionInit(tab.id, initData)}
-            onTitleChange={(title) => updateTabTitle(tab.id, title)}
-          />
+            <TerminalViewWrapper
+              key={tab.id}
+              tab={tab}
+              serverUrl={serverUrl}
+              apiToken={apiToken}
+              onStatusChange={(status) => updateTabStatus(tab.id, status)}
+              onSessionInit={(initData) => updateTabSessionInit(tab.id, initData)}
+              onTitleChange={(title) => updateTabTitle(tab.id, title)}
+              onTerminalRef={(handle) => {
+                if (handle) terminalViewRefs.current.set(tab.id, handle);
+                else terminalViewRefs.current.delete(tab.id);
+              }}
+            />
         </div>
       ))}
       {currentTabs.length === 0 && (
@@ -405,7 +436,7 @@ export function TerminalPanel({
   }
 
   return (
-    <div className={cn(!isOpen && 'hidden')}>
+    <div className={cn(!isOpen && 'hidden')} data-terminal-panel="">
       <div
         className="w-full cursor-ns-resize flex items-center justify-center border-t border-border bg-background select-none shrink-0"
         style={{ height: 4 }}
@@ -432,7 +463,7 @@ export function TerminalPanel({
       </div>
     </div>
   );
-}
+});
 
 interface TerminalViewWrapperProps {
   tab: TerminalTab;
@@ -441,9 +472,10 @@ interface TerminalViewWrapperProps {
   onStatusChange: (status: TerminalStatus) => void;
   onSessionInit: (init: SessionInitData) => void;
   onTitleChange: (title: string) => void;
+  onTerminalRef: (handle: TerminalViewHandle | null) => void;
 }
 
-function TerminalViewWrapper({ tab, serverUrl, apiToken, onStatusChange, onSessionInit, onTitleChange }: TerminalViewWrapperProps) {
+function TerminalViewWrapper({ tab, serverUrl, apiToken, onStatusChange, onSessionInit, onTitleChange, onTerminalRef }: TerminalViewWrapperProps) {
   const onStatusChangeRef = useRef(onStatusChange);
   const onSessionInitRef = useRef(onSessionInit);
   const onTitleChangeRef = useRef(onTitleChange);
@@ -468,6 +500,7 @@ function TerminalViewWrapper({ tab, serverUrl, apiToken, onStatusChange, onSessi
 
   return (
     <TerminalView
+      ref={onTerminalRef}
       serverUrl={serverUrl}
       apiToken={apiToken}
       cwd={tab.workspacePath}

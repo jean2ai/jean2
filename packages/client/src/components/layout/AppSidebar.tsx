@@ -1,5 +1,5 @@
-import { Plus, Settings, Wifi, WifiOff, ChevronRight, Server } from 'lucide-react';
-import { useMemo } from 'react';
+import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server} from 'lucide-react';
+import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { ServerSwitcher } from './ServerSwitcher';
@@ -15,6 +15,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  useSidebar,
 } from '@/components/ui/sidebar';
 
 import {
@@ -59,35 +60,149 @@ interface AppSidebarProps {
   onOpenMCP: () => void;
   onOpenAddServer: () => void;
   onServerSwitch?: () => void;
+  onEscape?: () => void;
 }
 
-export function AppSidebar({
-  sessions,
-  currentSession,
-  currentSessionId,
-  streamingSessionId,
-  pendingPermissions,
-  connected,
-  workspaces,
-  activeWorkspace,
-  allSessions,
-  viewMode,
-  favoritedWorkspaceIds,
-  onCreateSession,
-  onResumeSession,
-  onCloseSession,
-  onReopenSession,
-  onDeleteSession,
-  onSelectWorkspace,
-  onCreateVirtualWorkspace,
-  onCreatePhysicalWorkspace,
-  onCreateSessionInWorkspace,
-  onOpenSettings,
-  onOpenMCP,
-  onOpenAddServer,
-  onServerSwitch,
-}: AppSidebarProps) {
+export interface AppSidebarHandle {
+  focusSessionPanel: () => void;
+}
+
+export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, ref) => {
+  const {
+    sessions,
+    currentSession,
+    currentSessionId,
+    streamingSessionId,
+    pendingPermissions,
+    connected,
+    workspaces,
+    activeWorkspace,
+    allSessions,
+    viewMode,
+    favoritedWorkspaceIds,
+    onCreateSession,
+    onResumeSession,
+    onCloseSession,
+    onReopenSession,
+    onDeleteSession,
+    onSelectWorkspace,
+    onCreateVirtualWorkspace,
+    onCreatePhysicalWorkspace,
+    onCreateSessionInWorkspace,
+    onOpenSettings,
+    onOpenMCP,
+    onOpenAddServer,
+    onServerSwitch,
+    onEscape,
+  } = props;
   const { quickConnections, addToQuickConnections, removeFromQuickConnections, activeServer } = useServerContext();
+  useSidebar(); // Keep hook call to maintain sidebar context
+
+  const sessionListRef = useRef<HTMLDivElement>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  const focusSessionPanel = useCallback(() => {
+    const container = sessionListRef.current;
+    if (!container) return;
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[data-sidebar="menu-button"]')
+    );
+
+    if (buttons.length === 0) {
+      container.focus();
+      return;
+    }
+
+    const currentButton = buttons.find(btn => {
+      return btn.getAttribute('data-session-id') === currentSessionIdRef.current;
+    });
+
+    if (currentButton) {
+      currentButton.focus();
+    } else {
+      buttons[0]?.focus();
+    }
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    focusSessionPanel,
+  }), [focusSessionPanel]);
+
+  const handleSessionListKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const container = sessionListRef.current;
+    if (!container) return;
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(
+        '[data-sidebar="menu-button"]'
+      )
+    );
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const nextIndex = currentIndex < buttons.length - 1 ? currentIndex + 1 : 0;
+        buttons[nextIndex]?.focus();
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : buttons.length - 1;
+        buttons[prevIndex]?.focus();
+        break;
+      }
+      case 'ArrowRight': {
+        const flexContainer = (document.activeElement as HTMLElement)?.parentElement;
+        if (!flexContainer) break;
+        const chevronButton = flexContainer.querySelector<HTMLButtonElement>(
+          'button[aria-label="Toggle child sessions"]'
+        );
+        if (!chevronButton) break;
+        const collapsible = flexContainer.closest<HTMLElement>('[data-state]');
+        if (collapsible?.dataset.state === 'closed') {
+          e.preventDefault();
+          chevronButton.click();
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        const flexContainer = (document.activeElement as HTMLElement)?.parentElement;
+        if (!flexContainer) break;
+        const chevronButton = flexContainer.querySelector<HTMLButtonElement>(
+          'button[aria-label="Toggle child sessions"]'
+        );
+        if (!chevronButton) break;
+        const collapsible = flexContainer.closest<HTMLElement>('[data-state]');
+        if (collapsible?.dataset.state === 'open') {
+          e.preventDefault();
+          chevronButton.click();
+        }
+        break;
+      }
+      case 'Enter': {
+        if (document.activeElement instanceof HTMLButtonElement) {
+          document.activeElement.click();
+        }
+        break;
+      }
+      case 'Escape': {
+        e.preventDefault();
+        (document.activeElement as HTMLElement)?.blur();
+        onEscape?.();
+        break;
+      }
+    }
+  }, [onEscape]);
+
+  // No auto-focus effect here. focusSessionPanel() is called explicitly from cmd+1
+  // handlers in App.tsx. Keeping it stable (no reactive deps) ensures the imperative
+  // handle reference never changes unless the sidebar DOM is remounted.
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
@@ -153,7 +268,12 @@ export function AppSidebar({
       </SidebarHeader>
 
       {/* Content: Session lists */}
-      <SidebarContent>
+      <SidebarContent
+        ref={sessionListRef}
+        tabIndex={-1}
+        onKeyDown={handleSessionListKeyDown}
+        className="outline-none"
+      >
         {viewMode === 'overview' ? (
           <WorkspaceOverview
             allSessions={allSessions}
@@ -296,4 +416,4 @@ export function AppSidebar({
       </SidebarFooter>
     </Sidebar>
   );
-}
+});

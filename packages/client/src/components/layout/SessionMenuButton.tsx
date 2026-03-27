@@ -160,6 +160,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
 
             {/* Session name (click to open) */}
             <SidebarMenuButton
+              data-session-id={session.id}
               isActive={isActive}
               onClick={() => onResumeSession(session.id)}
               className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
@@ -209,6 +210,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
 
             {/* Part 2: Session name (click to open) */}
             <SidebarMenuButton
+              data-session-id={session.id}
               isActive={isActive}
               onClick={() => onResumeSession(session.id)}
               className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}

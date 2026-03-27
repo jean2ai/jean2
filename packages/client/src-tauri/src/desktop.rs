@@ -1,5 +1,8 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::Emitter;
+
 static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 #[tauri::command]
@@ -35,6 +38,59 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Build custom accelerator menu items
+            let open_sidebar = MenuItemBuilder::with_id("open-sidebar", "Open Sidebar")
+                .accelerator("CmdOrCtrl+1")
+                .build(app)?;
+            let open_terminal = MenuItemBuilder::with_id("open-terminal", "Open Terminal")
+                .accelerator("CmdOrCtrl+T")
+                .build(app)?;
+
+            // Build a proper native menu structure with standard edit shortcuts preserved
+            // On macOS, the global menubar can only contain Submenus
+            let menu = MenuBuilder::new(app)
+                // App menu (macOS) - must be first to appear as the app menu in the menu bar
+                .item(&SubmenuBuilder::new(app, "Jean2")
+                    .about(None)
+                    .separator()
+                    .quit()
+                    .build()?)
+                // Edit submenu with native shortcuts (Cmd+C, Cmd+V, Cmd+A, etc.)
+                .item(&SubmenuBuilder::new(app, "Edit")
+                    .copy()
+                    .cut()
+                    .paste()
+                    .select_all()
+                    .build()?)
+                // Window submenu
+                .item(&SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .maximize()
+                    .fullscreen()
+                    .build()?)
+                // View submenu with custom accelerator items
+                .item(&SubmenuBuilder::new(app, "View")
+                    .item(&open_sidebar)
+                    .item(&open_terminal)
+                    .build()?)
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(move |app, event| {
+                let id = event.id().as_ref();
+                let url = if id.ends_with("open-sidebar") {
+                    "jean2://accelerator/open-sidebar"
+                } else if id.ends_with("open-terminal") {
+                    "jean2://accelerator/open-terminal"
+                } else {
+                    return;
+                };
+
+                let _ = app.emit(url, ());
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

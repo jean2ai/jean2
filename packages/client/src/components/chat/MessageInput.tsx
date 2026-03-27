@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Send, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,6 +23,10 @@ interface MessageInputProps {
   prompts?: PromptInfo[];
 }
 
+export interface MessageInputHandle {
+  focus: () => void;
+}
+
 function expandPromptContent(prompt: PromptInfo, userText: string): string {
   if (userText) {
     if (prompt.content.includes('ARG')) {
@@ -43,7 +47,7 @@ function extractPromptCommand(input: string): { command: string; rest: string } 
   return { command: trimmed.slice(1, spaceIndex), rest: trimmed.slice(spaceIndex + 1).trim() };
 }
 
-export function MessageInput({
+export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput({
   onSendMessage,
   disabled,
   isStreaming,
@@ -53,7 +57,7 @@ export function MessageInput({
   serverUrl,
   apiToken,
   prompts = [],
-}: MessageInputProps) {
+}: MessageInputProps, ref) {
   const [input, setInput] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const [autocompleteFiles, setAutocompleteFiles] = useState<FileEntry[]>([]);
@@ -61,6 +65,10 @@ export function MessageInput({
   const [acMode, setAcMode] = useState<AutocompleteMode>('none');
   const [promptQuery, setPromptQuery] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus(),
+  }), []);
 
   const {
     query,
@@ -181,6 +189,10 @@ export function MessageInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+
     if (showPromptAc && filteredPrompts.length > 0) {
       switch (e.key) {
         case 'ArrowDown':
@@ -297,6 +309,7 @@ export function MessageInput({
                   'focus-visible:ring-1'
                 )}
                 rows={1}
+                data-chat-input="true"
               />
             </PopoverAnchor>
 
@@ -350,4 +363,4 @@ export function MessageInput({
       </div>
     </form>
   );
-}
+});

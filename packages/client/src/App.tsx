@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { FolderOpen, TerminalSquare } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Session,
   Message,
@@ -17,7 +18,7 @@ import type {
   ProviderStatus,
 } from '@jean2/shared';
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
-import { AppSidebar } from '@/components/layout/AppSidebar';
+import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
 import { FilesPanel } from '@/components/layout/FilesPanel';
 import { TerminalPanel } from '@/components/layout/TerminalPanel';
 import { ChatView } from '@/components/chat/ChatView';
@@ -25,12 +26,15 @@ import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import FirstServerScreen from '@/components/FirstServerScreen';
 import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
 import { SidebarLayoutToggle } from '@/components/layout/SidebarLayoutToggle';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import type { MessageInputHandle } from '@/components/chat/MessageInput';
+import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -67,6 +71,121 @@ type ClientMessagePayload =
   | { sessionId: string; messageId: string }
   | { provider: string };
 
+function KeyboardShortcutHandler({
+  onNewSession,
+  onNewWindow,
+  onToggleViewMode,
+  onCloseTerminal,
+  focusChatInput,
+  setTerminalOpen,
+  sidebarRef,
+  terminalPanelRef,
+  onStopStreaming,
+}: {
+  onNewSession: () => void;
+  onNewWindow: () => void;
+  onToggleViewMode: () => void;
+  onCloseTerminal: () => void;
+  focusChatInput: () => void;
+  setTerminalOpen: (open: boolean) => void;
+  sidebarRef: React.RefObject<AppSidebarHandle | null>;
+  terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
+  onStopStreaming: () => void;
+}) {
+  const { setOpen } = useSidebar();
+
+  const focusSidebarSessionPanel = useCallback(() => {
+    setOpen(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sidebarRef.current?.focusSessionPanel();
+      });
+    });
+  }, [setOpen, sidebarRef]);
+
+  const focusTerminalPanel = useCallback(() => {
+    setTerminalOpen(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        terminalPanelRef.current?.focus();
+      });
+    });
+  }, [setTerminalOpen, terminalPanelRef]);
+
+  const focusSidebarSessionPanelRef = useRef(focusSidebarSessionPanel);
+  useLayoutEffect(() => {
+    focusSidebarSessionPanelRef.current = focusSidebarSessionPanel;
+  });
+  const focusTerminalPanelRef = useRef(focusTerminalPanel);
+  useLayoutEffect(() => {
+    focusTerminalPanelRef.current = focusTerminalPanel;
+  });
+
+  useKeyboardShortcuts({
+    onOpenSidebar: () => focusSidebarSessionPanelRef.current(),
+    onOpenTerminal: () => focusTerminalPanelRef.current(),
+    onNewSession,
+    onNewWindow,
+    onToggleViewMode,
+    onCloseFocusedPanel: () => {
+      const activeEl = document.activeElement;
+      if (activeEl?.closest('[data-terminal-panel]')) {
+        onCloseTerminal();
+      } else if (activeEl?.closest('[data-sidebar="sidebar"]')) {
+        setOpen(false);
+      }
+    },
+    onFocusChatInput: focusChatInput,
+    onStopStreaming,
+  });
+
+  // Listen for native Tauri accelerator events — register once, call latest handlers via refs
+  useEffect(() => {
+    const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+    if (!isTauri) return;
+
+    let disposed = false;
+    const unlistenFns: UnlistenFn[] = [];
+
+    const registerListeners = async () => {
+      try {
+        const unlistenSidebar = await listen('jean2://accelerator/open-sidebar', () => {
+          focusSidebarSessionPanelRef.current();
+        });
+        if (disposed) {
+          unlistenSidebar();
+          return;
+        }
+        unlistenFns.push(unlistenSidebar);
+      } catch (err) {
+        console.error('Failed to register open-sidebar accelerator listener:', err);
+      }
+
+      try {
+        const unlistenTerminal = await listen('jean2://accelerator/open-terminal', () => {
+          focusTerminalPanelRef.current();
+        });
+        if (disposed) {
+          unlistenTerminal();
+          return;
+        }
+        unlistenFns.push(unlistenTerminal);
+      } catch (err) {
+        console.error('Failed to register open-terminal accelerator listener:', err);
+      }
+    };
+
+    registerListeners();
+
+    return () => {
+      disposed = true;
+      unlistenFns.forEach(fn => fn());
+    };
+  }, []); // Stable registration — handlers accessed via refs
+
+  return null;
+}
+
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections } = useServerContext();
 
@@ -79,6 +198,9 @@ function AppContent() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const currentSessionIdRef = useRef<string | null>(null);
+  const chatInputRef = useRef<MessageInputHandle>(null);
+  const terminalPanelRef = useRef<TerminalPanelHandle>(null);
+  const sidebarRef = useRef<AppSidebarHandle>(null);
   const [connected, setConnected] = useState(false);
   const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState<{
@@ -966,39 +1088,7 @@ function AppContent() {
     handleServerMessageRef.current = handleServerMessage;
   }, [handleServerMessage]);
 
-  // Keyboard shortcut for new window (Cmd+N on macOS, Ctrl+N on Windows/Linux)
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      // Don't trigger if focus is in an input field
-      const target = e.target as HTMLElement;
-      const isInputElement =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable;
 
-      if (isInputElement) {
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
-        e.preventDefault();
-        setShowTerminalPanel(prev => !prev);
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault();
-        try {
-          await invoke('create_new_window');
-        } catch (err) {
-          console.error('Failed to create new window:', err);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   const sendMessage = useCallback((type: ClientMessage['type'], payload: ClientMessagePayload) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1150,6 +1240,35 @@ function AppContent() {
     sendMessage('session.create', { preconfigId: primary, workspaceId });
   }, [sendMessage, workspaces, primaryPreconfigs]);
 
+  const handleSidebarViewModeChange = useCallback((
+    mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
+  ) => {
+    setSidebarViewMode(mode);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sidebarRef.current?.focusSessionPanel();
+      });
+    });
+  }, [sidebarRef]);
+
+  const keyboardShortcutHandlers = useMemo(() => ({
+    onCloseTerminal: () => setShowTerminalPanel(false),
+    focusChatInput: () => chatInputRef.current?.focus(),
+    onNewSession: () => {
+      if (activeWorkspace) {
+        createSession(primaryPreconfigs[0]?.id);
+      }
+    },
+    onNewWindow: () => {
+      invoke('create_new_window').catch(() => {});
+    },
+    onToggleViewMode: () => handleSidebarViewModeChange(prev => prev === 'overview' ? 'default' : 'overview'),
+    setTerminalOpen: setShowTerminalPanel,
+    sidebarRef,
+    terminalPanelRef,
+    onStopStreaming: handleInterruptSession,
+  }), [activeWorkspace, createSession, primaryPreconfigs, handleSidebarViewModeChange, sidebarRef, terminalPanelRef, handleInterruptSession]);
+
   const isPrimarySession = !currentSession?.parentId;
 
   const isLoggedIn = !!(activeServer);
@@ -1221,6 +1340,7 @@ function AppContent() {
       <>
         {currentSession ? (
           <ChatView
+            inputRef={chatInputRef}
             session={currentSession}
             messagesWithParts={messagesWithParts}
             queuedMessages={queuedMessages[currentSession.id] || []}
@@ -1276,8 +1396,10 @@ function AppContent() {
 
   return (
     <SidebarProvider defaultOpen={true}>
+      <KeyboardShortcutHandler {...keyboardShortcutHandlers} />
       {isLoggedIn && (
         <AppSidebar
+          ref={sidebarRef}
           allSessions={sessions}
           viewMode={sidebarViewMode}
           favoritedWorkspaceIds={favoritedWorkspaceIds}
@@ -1301,6 +1423,11 @@ function AppContent() {
           onOpenMCP={() => setShowMCPDialog(true)}
           onOpenAddServer={() => setShowAddServer(true)}
           onServerSwitch={handleServerSwitch}
+          onEscape={() => {
+            if (currentSession) {
+              chatInputRef.current?.focus();
+            }
+          }}
           onCreateSessionInWorkspace={createSessionInWorkspace}
           pendingPermissions={pendingPermissions}
         />
@@ -1326,7 +1453,7 @@ function AppContent() {
             {isLoggedIn && (
               <SidebarLayoutToggle
                 viewMode={sidebarViewMode}
-                onViewModeChange={setSidebarViewMode}
+                onViewModeChange={handleSidebarViewModeChange}
               />
             )}
             {isLoggedIn && activeWorkspace && (
@@ -1368,7 +1495,7 @@ function AppContent() {
             {isLoggedIn && (
               <SidebarLayoutToggle
                 viewMode={sidebarViewMode}
-                onViewModeChange={setSidebarViewMode}
+                onViewModeChange={handleSidebarViewModeChange}
               />
             )}
             {isLoggedIn && activeWorkspace && (
@@ -1396,10 +1523,9 @@ function AppContent() {
 
         {renderMainContent()}
 
-        {isLoggedIn && (
-          <TerminalPanel
-            workspaceId={activeWorkspace?.id}
-            workspacePath={activeWorkspace?.path}
+        {isLoggedIn && (            <TerminalPanel
+              ref={terminalPanelRef}
+              workspaceId={activeWorkspace?.id}            workspacePath={activeWorkspace?.path}
             workspaceName={activeWorkspace?.name}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}

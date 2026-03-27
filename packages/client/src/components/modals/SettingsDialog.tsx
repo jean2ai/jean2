@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, Link2, User, Palette } from 'lucide-react';
+import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, Link2, User, Palette, Keyboard } from 'lucide-react';
 import type { ToolPermission } from '@jean2/shared';
 import {
   Dialog,
@@ -49,13 +49,31 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
-  
+
+  const isMac = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' || /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+  const mod = isMac ? '⌘' : 'Ctrl';
+
+  const shortcuts = [
+    { keys: [mod, '1'], description: 'Open session list' },
+    { keys: [mod, 'T'], description: 'Open terminal' },
+    { keys: [mod, 'O'], description: 'Toggle overview mode' },
+    { keys: [mod, 'N'], description: 'New session' },
+    { keys: [mod, 'Shift', 'N'], description: 'New window' },
+    { keys: ['Shift', 'Esc'], description: 'Close focused panel' },
+
+    { keys: ['Shift', 'Enter'], description: 'New line in input' },
+    { keys: ['Enter'], description: 'Send message' },
+    { keys: ['↑', '↓', '←', '→'], description: 'Navigate sessions' },
+    { keys: ['Esc'], description: 'Focus chat input' },
+    { keys: ['Esc', 'Esc'], description: 'Stop streaming (chat input focused)' },
+  ];
+
   const activePermissions = permissions.filter((p) => !p.revokedAt);
   const revokedPermissions = permissions.filter((p) => p.revokedAt);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh]">
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
@@ -64,7 +82,7 @@ export function SettingsDialog({
         </DialogHeader>
 
         <Tabs defaultValue="account" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="account">
               <User className="size-4 sm:size-3" data-icon="inline-start" />
               <span className="hidden sm:inline">Account</span>
@@ -85,6 +103,10 @@ export function SettingsDialog({
             <TabsTrigger value="providers">
               <Link2 className="size-4 sm:size-3" data-icon="inline-start" />
               <span className="hidden sm:inline">Providers</span>
+            </TabsTrigger>
+            <TabsTrigger value="keybinds">
+              <Keyboard className="size-4 sm:size-3" data-icon="inline-start" />
+              <span className="hidden sm:inline">Keybinds</span>
             </TabsTrigger>
           </TabsList>
 
@@ -237,6 +259,30 @@ export function SettingsDialog({
                   ))}
                 </div>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="keybinds" className="mt-4">
+            <div className="flex flex-col gap-2">
+              {shortcuts.map((shortcut, index) => (
+                <div key={index} className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-1">
+                    {shortcut.keys.map((key, keyIndex) => (
+                      <span key={keyIndex}>
+                        <kbd className="font-mono bg-muted rounded px-2 py-1 text-xs">
+                          {key}
+                        </kbd>
+                        {keyIndex < shortcut.keys.length - 1 && (
+                          <span className="mx-1 text-muted-foreground">+</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {shortcut.description}
+                  </span>
+                </div>
+              ))}
             </div>
           </TabsContent>
         </Tabs>
