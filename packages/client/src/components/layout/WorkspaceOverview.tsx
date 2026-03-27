@@ -8,6 +8,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import {
   Collapsible,
@@ -89,78 +90,77 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   }
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Overview</SidebarGroupLabel>
-      <SidebarGroupContent>
-        {favoritedWorkspaces.map((workspace) => {
-          const isActiveWorkspace = workspace.id === activeWorkspace?.id;
-          const activeSessions = workspaceSessions.get(workspace.id) || [];
+    <>
+      {favoritedWorkspaces.map((workspace) => {
+        const isActiveWorkspace = workspace.id === activeWorkspace?.id;
+        const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
+        const activeSessions = workspaceSessions.get(workspace.id) || [];
 
-          return (
-            <Collapsible
-              key={workspace.id}
-              defaultOpen={isActiveWorkspace}
-              className="group/collapsible"
-            >
-              <SidebarGroup>
-                <SidebarGroupLabel asChild>
-                  <CollapsibleTrigger className="flex items-center justify-between w-full" onClick={() => onSelectWorkspace(workspace)}>
-                    <span className="flex items-center gap-2">
-                      <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                      {workspace.isVirtual ? (
-                        <Box className="size-3.5" />
-                      ) : (
-                        <Folder className="size-3.5" />
-                      )}
-                      <span className="truncate">{workspace.name}</span>
-                    </span>
-                    <Badge variant="secondary">{activeSessions.length}</Badge>
-                  </CollapsibleTrigger>
-                </SidebarGroupLabel>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          onClick={() => onCreateSessionInWorkspace(workspace.id)}
-                          disabled={!connected}
-                          className="w-full"
-                        >
-                          <Plus className="size-4" data-icon="inline-start" />
-                          <span>New Chat</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </SidebarMenu>
-                    <SidebarMenu>
-                      {activeSessions.length === 0 ? (
-                        <div className="px-2 py-1 text-xs text-muted-foreground">
-                          (no active sessions)
-                        </div>
-                      ) : (
-                        activeSessions.map((session) => (
-                          <SessionMenuButton
-                            key={session.id}
-                            session={session}
-                            allSessions={allSessions}
-                            isActive={currentSession?.id === session.id}
-                            currentSessionId={currentSessionId}
-                            streamingSessionId={streamingSessionId}
-                            pendingPermissions={pendingPermissions}
-                            onResumeSession={onResumeSession}
-                            onCloseSession={onCloseSession}
-                            onReopenSession={onReopenSession}
-                            onDeleteSession={onDeleteSession}
-                          />
-                        ))
-                      )}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </SidebarGroup>
-            </Collapsible>
-          );
-        })}
-      </SidebarGroupContent>
-    </SidebarGroup>
+        return (
+          <Collapsible
+            key={workspace.id}
+            defaultOpen={isActiveWorkspace}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full" onClick={() => onSelectWorkspace(workspace)}>
+                  <span className="flex items-center gap-2">
+                    <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    {workspace.isVirtual ? (
+                      <Box className="size-3.5" />
+                    ) : (
+                      <Folder className="size-3.5" />
+                    )}
+                    <span className={isCurrentSessionWorkspace ? "truncate text-sidebar-foreground font-medium" : "truncate"}>{workspace.name}</span>
+                  </span>
+                  <Badge variant="secondary">{activeSessions.length}</Badge>
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        onClick={() => onCreateSessionInWorkspace(workspace.id)}
+                        disabled={!connected}
+                        className="w-full"
+                      >
+                        <Plus className="size-4" data-icon="inline-start" />
+                        <span>New Chat</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                  <SidebarSeparator />
+                  <SidebarMenu>
+                    {activeSessions.length === 0 ? (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">
+                        (no active sessions)
+                      </div>
+                    ) : (
+                      activeSessions.map((session) => (
+                        <SessionMenuButton
+                          key={session.id}
+                          session={session}
+                          allSessions={allSessions}
+                          isActive={currentSession?.id === session.id}
+                          currentSessionId={currentSessionId}
+                          streamingSessionId={streamingSessionId}
+                          pendingPermissions={pendingPermissions}
+                          onResumeSession={onResumeSession}
+                          onCloseSession={onCloseSession}
+                          onReopenSession={onReopenSession}
+                          onDeleteSession={onDeleteSession}
+                        />
+                      ))
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        );
+      })}
+    </>
   );
 });
