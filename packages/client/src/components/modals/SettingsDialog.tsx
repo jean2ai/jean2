@@ -14,11 +14,56 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import type { ThemeScheme } from '@/components/providers/ThemeProvider';
 import { PermissionListItem } from './PermissionListItem';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ProviderCard } from '@/components/providers/ProviderCard';
 import type { ProviderStatus } from '@jean2/shared';
 import LogoutButton from '@/components/LogoutButton';
+
+interface SchemeButtonProps {
+  scheme: ThemeScheme;
+  currentScheme: ThemeScheme;
+  onClick: (scheme: ThemeScheme) => void;
+}
+
+const schemeConfig: Record<ThemeScheme, { label: string; colors: string[] }> = {
+  neutral: { label: 'Neutral', colors: ['bg-zinc-400', 'bg-zinc-600', 'bg-zinc-800'] },
+  ocean: { label: 'Ocean', colors: ['bg-sky-300', 'bg-sky-500', 'bg-slate-700'] },
+  forest: { label: 'Forest', colors: ['bg-emerald-300', 'bg-emerald-500', 'bg-green-800'] },
+  sunset: { label: 'Sunset', colors: ['bg-orange-300', 'bg-amber-500', 'bg-orange-800'] },
+  amethyst: { label: 'Amethyst', colors: ['bg-violet-300', 'bg-violet-500', 'bg-purple-800'] },
+};
+
+function SchemeButton({ scheme, currentScheme, onClick }: SchemeButtonProps) {
+  const isSelected = scheme === currentScheme;
+  const config = schemeConfig[scheme];
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(scheme)}
+      className={`
+        flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-all
+        ${isSelected
+          ? 'border-primary bg-primary/5'
+          : 'border-border bg-transparent hover:bg-muted/50'
+        }
+      `}
+      title={config.label}
+    >
+      <div className="flex gap-0.5">
+        {config.colors.map((color, i) => (
+          <div
+            key={i}
+            className={`w-4 h-4 rounded-full ${color}`}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] text-muted-foreground capitalize">{scheme}</span>
+    </button>
+  );
+}
 
 interface SettingsDialogProps {
   open: boolean;
@@ -47,7 +92,7 @@ export function SettingsDialog({
   onConnectProvider,
   onDisconnectProvider,
 }: SettingsDialogProps) {
-  const { theme, setTheme } = useTheme();
+  const { mode, scheme, setMode, setScheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
 
   const isMac = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' || /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -131,35 +176,71 @@ export function SettingsDialog({
           <TabsContent value="appearance" className="mt-4">
             <div className="flex flex-col gap-4">
               <div>
-                <Label className="text-sm font-medium">Theme</Label>
+                <Label className="text-sm font-medium">Mode</Label>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Choose your preferred color scheme
+                  Choose light, dark, or system theme
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   <Button
-                    variant={theme === 'light' ? 'default' : 'outline'}
+                    variant={mode === 'light' ? 'default' : 'outline'}
                     className="justify-start"
-                    onClick={() => setTheme('light')}
+                    onClick={() => setMode('light')}
                   >
                     <Sun className="size-4" data-icon="inline-start" />
                     Light
                   </Button>
                   <Button
-                    variant={theme === 'dark' ? 'default' : 'outline'}
+                    variant={mode === 'dark' ? 'default' : 'outline'}
                     className="justify-start"
-                    onClick={() => setTheme('dark')}
+                    onClick={() => setMode('dark')}
                   >
                     <Moon className="size-4" data-icon="inline-start" />
                     Dark
                   </Button>
                   <Button
-                    variant={theme === 'system' ? 'default' : 'outline'}
+                    variant={mode === 'system' ? 'default' : 'outline'}
                     className="justify-start"
-                    onClick={() => setTheme('system')}
+                    onClick={() => setMode('system')}
                   >
                     <Monitor className="size-4" data-icon="inline-start" />
                     System
                   </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <Label className="text-sm font-medium">Color Scheme</Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Choose your preferred color palette
+                </p>
+                <div className="grid grid-cols-5 gap-2">
+                  <SchemeButton
+                    scheme="neutral"
+                    currentScheme={scheme}
+                    onClick={setScheme}
+                  />
+                  <SchemeButton
+                    scheme="ocean"
+                    currentScheme={scheme}
+                    onClick={setScheme}
+                  />
+                  <SchemeButton
+                    scheme="forest"
+                    currentScheme={scheme}
+                    onClick={setScheme}
+                  />
+                  <SchemeButton
+                    scheme="sunset"
+                    currentScheme={scheme}
+                    onClick={setScheme}
+                  />
+                  <SchemeButton
+                    scheme="amethyst"
+                    currentScheme={scheme}
+                    onClick={setScheme}
+                  />
                 </div>
               </div>
             </div>

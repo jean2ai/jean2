@@ -6,6 +6,38 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>AI Agent Client</title>
+    <script>
+      (function() {
+        var settings = null;
+        try {
+          var raw = localStorage.getItem('jean2-theme-settings');
+          if (raw) {
+            settings = JSON.parse(raw);
+          }
+        } catch (_) {}
+        if (!settings) {
+          try {
+            var legacy = localStorage.getItem('jean2-theme');
+            if (legacy) {
+              settings = JSON.parse(legacy);
+            }
+          } catch (_) {}
+        }
+        var mode = 'dark';
+        var scheme = 'neutral';
+        if (settings) {
+          mode = settings.mode || mode;
+          scheme = settings.scheme || scheme;
+          if (mode === 'system') {
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            mode = prefersDark ? 'dark' : 'light';
+          }
+        }
+        var root = document.documentElement;
+        root.classList.remove('light', 'dark', 'neutral', 'primary');
+        root.classList.add(mode, scheme);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

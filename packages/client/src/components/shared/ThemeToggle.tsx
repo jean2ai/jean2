@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { mode, setMode } = useTheme();
 
   return (
     <DropdownMenu>
@@ -21,20 +21,20 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme('light')}>
+        <DropdownMenuItem onClick={() => setMode('light')}>
           <Sun className="mr-2 h-4 w-4" />
           Light
-          {theme === 'light' && <Check className="ml-auto h-4 w-4" />}
+          {mode === 'light' && <Check className="ml-auto h-4 w-4" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('dark')}>
+        <DropdownMenuItem onClick={() => setMode('dark')}>
           <Moon className="mr-2 h-4 w-4" />
           Dark
-          {theme === 'dark' && <Check className="ml-auto h-4 w-4" />}
+          {mode === 'dark' && <Check className="ml-auto h-4 w-4" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('system')}>
+        <DropdownMenuItem onClick={() => setMode('system')}>
           <Monitor className="mr-2 h-4 w-4" />
           System
-          {theme === 'system' && <Check className="ml-auto h-4 w-4" />}
+          {mode === 'system' && <Check className="ml-auto h-4 w-4" />}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
