@@ -17,6 +17,7 @@ import {
 import { showToken, regenerateToken } from './auth/token';
 import { initJean2, type InitOptions } from './init';
 import { runMigrations } from './store';
+import { runToolsCommand, type ToolsCommandArgs } from './tools/tools-cli';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -107,7 +108,26 @@ Commands:
     --no-migrations    Skip schema migrations
     --install-preconfigs   Install default preconfigs (default)
     --no-preconfigs        Skip preconfig installation
+    --install-tools     Install recommended tools non-interactively
+    --no-tools          Skip tool installation entirely
     --force            Force re-initialization
+
+  tools                Tool management
+    list                List available and installed tools
+      --installed         Only show installed tools
+      --extensions        Show extension and env config details
+      --tag <tag>         Filter by tag
+      --json              JSON output
+    install [names...]  Install tools (interactive if no args)
+      --all               Install all tools
+      --recommended       Install recommended tools only
+      --force             Reinstall even if installed
+      --skip-runtime-check  Skip runtime check
+    update [names...]   Update installed tools to latest
+      --dry-run           Preview without installing
+    remove [names...]  Remove installed tools
+      --all               Remove all tools
+    outdated            Check for available updates
 
   migrate              Run database migrations
 
@@ -124,6 +144,11 @@ Examples:
   jean2 auth show                 Show API token
   jean2 auth regenerate           Generate new API token
   jean2 init                      Initialize Jean2
+  jean2 tools install             Interactive tool install
+  jean2 tools list                List available tools
+  jean2 tools list --extensions  Show extension details
+  jean2 tools update              Update installed tools
+  jean2 tools outdated            Check for updates
   jean2 migrate                   Run database migrations
   jean2 version                   Show version
 
@@ -270,6 +295,10 @@ Auth commands:
           initOptions.installPreconfigs = initArgs[i] === '--install-preconfigs';
         } else if (initArgs[i] === '--force' || initArgs[i] === '-f') {
           initOptions.force = true;
+        } else if (initArgs[i] === '--install-tools') {
+          initOptions.installTools = true;
+        } else if (initArgs[i] === '--no-tools') {
+          initOptions.skipTools = true;
         }
       }
 
@@ -280,6 +309,9 @@ Auth commands:
           console.log(`  Config:   ${result.configPath}`);
           console.log(`  Database: ${result.databasePath}`);
           console.log(`  Tools:    ${result.toolsPath}`);
+          if (result.toolsInstalled) {
+            console.log('  Tools installed: yes');
+          }
         } else {
           console.error('Initialization failed:', result.error);
           process.exit(1);
@@ -289,6 +321,11 @@ Auth commands:
         console.error('Error:', message);
         process.exit(1);
       }
+      break;
+    }
+
+    case 'tools': {
+      await runToolsCommandFromCLI(args.slice(1));
       break;
     }
 
@@ -328,6 +365,77 @@ Auth commands:
       console.error('Run "jean2 help" for usage information');
       process.exit(1);
     }
+  }
+}
+
+async function runToolsCommandFromCLI(args: string[]): Promise<void> {
+  const toolsArgs: ToolsCommandArgs = {
+    subCommand: undefined,
+    flags: {},
+    names: [],
+  };
+
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i];
+
+    if (!arg.startsWith('-')) {
+      if (!toolsArgs.subCommand) {
+        toolsArgs.subCommand = arg;
+      } else {
+        toolsArgs.names = toolsArgs.names || [];
+        toolsArgs.names.push(arg);
+      }
+      i++;
+      continue;
+    }
+
+    switch (arg) {
+      case '--installed':
+        toolsArgs.flags.installed = true;
+        break;
+      case '--extensions':
+        toolsArgs.flags.extensions = true;
+        break;
+      case '--json':
+        toolsArgs.flags.json = true;
+        break;
+      case '--tag':
+        toolsArgs.flags.tag = args[++i];
+        break;
+      case '--all':
+        toolsArgs.flags.all = true;
+        break;
+      case '--recommended':
+        toolsArgs.flags.recommended = true;
+        break;
+      case '--force':
+      case '-f':
+        toolsArgs.flags.force = true;
+        break;
+      case '--skip-runtime-check':
+        toolsArgs.flags.skipRuntimeCheck = true;
+        break;
+      case '--dry-run':
+        toolsArgs.flags.dryRun = true;
+        break;
+      case '--help':
+      case '-h':
+        toolsArgs.subCommand = 'help';
+        break;
+      default:
+        console.error(`Unknown option: ${arg}`);
+        process.exit(1);
+    }
+    i++;
+  }
+
+  const result = await runToolsCommand(toolsArgs);
+
+  if (result.exitCode !== undefined) {
+    process.exitCode = result.exitCode;
+  } else if (!result.success) {
+    process.exit(1);
   }
 }
 

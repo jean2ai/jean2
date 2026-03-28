@@ -18,12 +18,15 @@ import { runMigrations } from './store';
 import { initializePreconfigs } from './core/preconfig';
 import { initializeToken } from './auth/token';
 import defaultModelsJson from './config/models.json';
+import { installRecommendedTools } from './tools';
 
 export interface InitOptions {
   databasePath?: string;
   toolsPath?: string;
   runMigrations?: boolean;
   installPreconfigs?: boolean;
+  installTools?: boolean;
+  skipTools?: boolean;
   force?: boolean;
 }
 
@@ -35,6 +38,7 @@ export interface InitResult {
   toolsPath: string;
   modelsPath: string;
   preconfigsInstalled: boolean;
+  toolsInstalled: boolean;
 }
 
 interface RlInterface {
@@ -84,8 +88,14 @@ async function promptInstallPreconfigs(rl: RlInterface): Promise<boolean> {
   return trimmed === '' || trimmed === 'y' || trimmed === 'yes';
 }
 
+async function promptInstallTools(rl: RlInterface): Promise<boolean> {
+  const answer = await rl.question('Install recommended tools? [Y/n]: ');
+  const trimmed = (answer || '').trim().toLowerCase();
+  return trimmed === '' || trimmed === 'y' || trimmed === 'yes';
+}
+
 async function initJean2Internal(options: InitOptions = {}): Promise<InitResult> {
-  const { databasePath, toolsPath, runMigrations: runMigrationsOption, installPreconfigs: installPreconfigsOption, force } = options;
+  const { databasePath, toolsPath, runMigrations: runMigrationsOption, installPreconfigs: installPreconfigsOption, installTools: installToolsOption, skipTools: skipToolsOption, force } = options;
 
   if (isInitialized() && !force) {
     return {
@@ -96,6 +106,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
       toolsPath: toolsPath || getDefaultToolsPath(),
       modelsPath: getModelsConfigPath(),
       preconfigsInstalled: false,
+      toolsInstalled: false,
     };
   }
 
@@ -111,7 +122,9 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   let finalDbPath = databasePath || defaultDbPath;
   let finalToolsPath = toolsPath || defaultToolsPath;
 
-  if (!databasePath || !toolsPath || runMigrationsOption === undefined || installPreconfigsOption === undefined) {
+  let shouldInstallTools = installToolsOption ?? false;
+
+  if (!databasePath || !toolsPath || runMigrationsOption === undefined || installPreconfigsOption === undefined || (installToolsOption === undefined && skipToolsOption === undefined)) {
     const rl = createRl();
 
     try {
@@ -119,6 +132,11 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
       finalToolsPath = await promptToolsPath(rl, defaultToolsPath);
       shouldRunMigrations = await promptRunMigrations(rl);
       shouldInstallPreconfigs = await promptInstallPreconfigs(rl);
+      if (skipToolsOption) {
+        shouldInstallTools = false;
+      } else {
+        shouldInstallTools = await promptInstallTools(rl);
+      }
       console.log();
 
       rl.close();
@@ -196,6 +214,17 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
     await initializePreconfigs();
   }
 
+  // Install recommended tools if requested or if in non-interactive mode with --install-tools
+  let toolsInstalled = false;
+  if (shouldInstallTools) {
+    console.log('Installing recommended tools...');
+    const result = await installRecommendedTools();
+    toolsInstalled = result.toolsInstalled;
+    if (!result.success && result.error) {
+      console.log(`Warning: Tool installation encountered an issue: ${result.error}`);
+    }
+  }
+
   console.log('\nDone! Jean2 is ready.');
 
   return {
@@ -205,6 +234,7 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
     toolsPath: finalToolsPath,
     modelsPath: getModelsConfigPath(),
     preconfigsInstalled: shouldInstallPreconfigs,
+    toolsInstalled,
   };
 }
 
