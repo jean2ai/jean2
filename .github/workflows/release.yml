@@ -190,46 +190,58 @@ jobs:
 
           if [ "$RELEASE_TYPE" = "server" ]; then
             V=$(cat packages/server/VERSION) && TAG="server/v${V}"
-            if gh release view "$TAG" 2>/dev/null && [ "$FORCE" != "true" ]; then
-              echo "Skipping $TAG - release already exists"
-            else
-              git tag -f "$TAG"
-              git push origin "$TAG" --force
-              mkdir -p packages/server/dist
-              bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
-              bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
-              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-              gh release create "$TAG" --title "Server $V" $PRE \
-                packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
+            if gh release view "$TAG" 2>/dev/null; then
+              if [ "$FORCE" != "true" ]; then
+                echo "Skipping $TAG - release already exists"
+                continue
+              fi
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
             fi
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+            mkdir -p packages/server/dist
+            bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
+            bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
+            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Server $V" $PRE \
+              packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
 
           elif [ "$RELEASE_TYPE" = "lsp" ]; then
             V=$(cat services/lsp/VERSION) && TAG="lsp/v${V}"
-            if gh release view "$TAG" 2>/dev/null && [ "$FORCE" != "true" ]; then
-              echo "Skipping $TAG - release already exists"
-            else
-              git tag -f "$TAG"
-              git push origin "$TAG" --force
-              mkdir -p services/lsp/dist
-              bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/cli.ts
-              bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/cli.ts
-              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-              gh release create "$TAG" --title "LSP $V" $PRE \
-                services/lsp/dist/jean2-lsp-darwin services/lsp/dist/jean2-lsp-linux
+            if gh release view "$TAG" 2>/dev/null; then
+              if [ "$FORCE" != "true" ]; then
+                echo "Skipping $TAG - release already exists"
+                continue
+              fi
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
             fi
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+            mkdir -p services/lsp/dist
+            bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/cli.ts
+            bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/cli.ts
+            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "LSP $V" $PRE \
+              services/lsp/dist/jean2-lsp-darwin services/lsp/dist/jean2-lsp-linux
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
             P="tools/$TOOL_NAME"
             V=$(cat "$P/VERSION") && TAG="tool-$TOOL_NAME/v${V}"
-            if gh release view "$TAG" 2>/dev/null && [ "$FORCE" != "true" ]; then
-              echo "Skipping $TAG - release already exists"
-            else
-              git tag -f "$TAG"
-              git push origin "$TAG" --force
-              tar -czf "$TOOL_NAME.tar.gz" -C "$P" .
-              [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-              gh release create "$TAG" --title "Tool $TOOL_NAME $V" $PRE "$TOOL_NAME.tar.gz"
+            if gh release view "$TAG" 2>/dev/null; then
+              if [ "$FORCE" != "true" ]; then
+                echo "Skipping $TAG - release already exists"
+                continue
+              fi
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
             fi
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+            tar -czf "$TOOL_NAME.tar.gz" -C "$P" .
+            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
+            gh release create "$TAG" --title "Tool $TOOL_NAME $V" $PRE "$TOOL_NAME.tar.gz"
           fi
 
   prepare-client-release:
