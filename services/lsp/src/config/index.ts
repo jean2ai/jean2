@@ -20,7 +20,6 @@ export interface LspConfig {
   host: string;
   idleTimeoutMs: number;
   initializedAt: string;
-  version: string;
 }
 
 let configCache: LspConfig | null = null;
@@ -62,7 +61,6 @@ function loadConfig(): LspConfig {
       host: config.host ?? '0.0.0.0',
       idleTimeoutMs: config.idleTimeoutMs ?? 1800000,
       initializedAt: config.initializedAt ?? '',
-      version: config.version ?? '',
     };
 
     return configCache;

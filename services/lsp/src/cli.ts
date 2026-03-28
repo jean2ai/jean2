@@ -14,13 +14,11 @@ import {
   type DaemonOptions,
 } from './daemon';
 import { initLsp, type InitOptions } from './init';
+import { VERSION } from './version';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const command = args[0];
-
-// Version from package.json
-const VERSION = '1.0.0';
 
 interface ParsedServerArgs {
   port?: number;

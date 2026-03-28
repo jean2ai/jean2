@@ -83,7 +83,6 @@ export async function initLsp(options?: InitOptions): Promise<InitResult> {
     host,
     idleTimeoutMs,
     initializedAt: new Date().toISOString(),
-    version: '1.0.0',
   });
 
   return {

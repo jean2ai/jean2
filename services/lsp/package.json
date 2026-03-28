@@ -1,6 +1,6 @@
 {
   "name": "@jean2/lsp",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -13,9 +13,9 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist",
-    "build:bin": "bun build --compile --outfile=dist/bin/jean2-lsp src/cli.ts",
-    "build:bin:macos": "bun build --compile --outfile=dist/bin/jean2-lsp-macos-arm64 src/cli.ts",
-    "build:bin:linux": "bun build --compile --outfile=dist/bin/jean2-lsp-linux-x64 src/cli.ts",
+    "build:bin": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-lsp src/cli.ts",
+    "build:bin:macos": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-lsp-macos-arm64 src/cli.ts",
+    "build:bin:linux": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-lsp-linux-x64 src/cli.ts",
     "build:all": "bun run build && bun run build:bin"
   },
   "dependencies": {
