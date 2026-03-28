@@ -8,7 +8,7 @@
     "properties": {
       "operation": {
         "type": "string",
-        "enum": ["definition", "references", "hover", "symbols"],
+        "enum": ["definition", "references", "hover", "symbols", "diagnostics"],
         "description": "The LSP operation to perform"
       },
       "path": {

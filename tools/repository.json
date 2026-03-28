@@ -19,7 +19,7 @@
       "dangerous": false
     },
     "edit": {
-      "description": "String replacements in files with fuzzy matching",
+      "description": "String replacements in files with fuzzy matching and optional post-edit diagnostics for TypeScript, JavaScript, and PHP",
       "runtime": "bun",
       "requiredRuntimes": ["bun"],
       "postInstall": null,
@@ -64,11 +64,11 @@
       "dangerous": false
     },
     "multiedit": {
-      "description": "Multiple string replacements in a single file",
+      "description": "Multiple string replacements in a single file with optional post-edit diagnostics for TypeScript, JavaScript, and PHP",
       "runtime": "bun",
       "requiredRuntimes": ["bun"],
       "postInstall": null,
-      "extensions": [],
+      "extensions": ["jean2-lsp"],
       "tags": ["recommended", "core"],
       "dangerous": false
     },
@@ -131,7 +131,7 @@
   "extensions": {
     "jean2-lsp": {
       "name": "Jean2 LSP Service",
-      "description": "Code intelligence server providing go-to-definition, references, hover, and diagnostics for TypeScript, JavaScript, and PHP",
+      "description": "Code intelligence server providing go-to-definition, references, hover, symbols, and on-demand diagnostics for TypeScript, JavaScript, and PHP",
       "installUrl": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh",
       "installCommand": "curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh | bash",
       "setupSteps": [
@@ -160,9 +160,9 @@
           "example": "LSP_SERVER_URL=http://localhost:8739"
         }
       },
-      "usedBy": ["lsp", "edit"],
+      "usedBy": ["lsp", "edit", "multiedit"],
       "requiredFor": ["lsp"],
-      "optionalFor": ["edit"]
+      "optionalFor": ["edit", "multiedit"]
     }
   },
 

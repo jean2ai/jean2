@@ -12,6 +12,7 @@ inputSchema:
         - references
         - hover
         - symbols
+        - diagnostics
       description: "The LSP operation to perform"
     path:
       type: string
@@ -34,7 +35,7 @@ outputSchema:
       type: object
     error:
       type: string
-timeout: 30000
+timeout: 60000
 requireApproval: false
 dangerous: false
 hasSecurityCheck: false
@@ -47,6 +48,7 @@ Operations:
 - references: Find all references to a symbol
 - hover: Get type information and documentation for a symbol
 - symbols: List all symbols (functions, classes, variables) in a document
+- diagnostics: Get file-specific diagnostics (errors, warnings, etc.) - does not require line/character
 
 Usage:
 - operation (required): The LSP operation to perform

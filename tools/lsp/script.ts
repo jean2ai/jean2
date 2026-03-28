@@ -1,5 +1,5 @@
 interface Input {
-  operation: 'definition' | 'references' | 'hover' | 'symbols';
+  operation: 'definition' | 'references' | 'hover' | 'symbols' | 'diagnostics';
   path: string;
   line?: number;
   character?: number;
@@ -99,8 +99,8 @@ async function getSymbols(workspaceId: string, uri: string): Promise<Output> {
   return result;
 }
 
-async function openFile(workspaceId: string, uri: string, content: string): Promise<Output> {
-  const url = `${LSP_SERVER_URL}/open`;
+async function getDiagnostics(workspaceId: string, uri: string, content: string): Promise<Output> {
+  const url = `${LSP_SERVER_URL}/diagnostics/file`;
   const body = JSON.stringify({ workspaceId, uri, content });
   const result = await fetchWithError(url, {
     method: 'POST',
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { operation, path: filePath, line, character, workspacePath, _sessionId } = input;
+  const { operation, path: filePath, line, character, workspacePath } = input;
 
   if (!filePath) {
     const output: Output = { success: false, error: 'path is required' };
@@ -152,56 +152,77 @@ async function main(): Promise<void> {
     return;
   }
 
-  const needsPosition = operation !== 'symbols';
+  const needsPosition = operation !== 'symbols' && operation !== 'diagnostics';
   if (needsPosition && (line === undefined || character === undefined)) {
     const output: Output = { success: false, error: `operation '${operation}' requires line and character` };
     console.log(JSON.stringify(output));
     return;
   }
 
-  const initResult = await initializeLsp(workspacePath, workspacePath);
-  if (!initResult.success) {
-    const output: Output = { success: false, error: initResult.error || 'Failed to initialize LSP' };
-    console.log(JSON.stringify(output));
-    return;
-  }
-
   const uri = filePath.startsWith('file://') ? filePath : pathToFileURL(filePath).href;
-
-  // Open the file in LSP before querying
-  const file = Bun.file(filePath);
-  const fileExists = await file.exists();
-  if (!fileExists) {
-    const output: Output = { success: false, error: `File not found: ${filePath}` };
-    console.log(JSON.stringify(output));
-    return;
-  }
-
-  const content = await file.text();
-  const openResult = await openFile(workspacePath, uri, content);
-  if (!openResult.success) {
-    const output: Output = { success: false, error: openResult.error || 'Failed to open file in LSP' };
-    console.log(JSON.stringify(output));
-    return;
-  }
 
   let result: Output;
 
   switch (operation) {
-    case 'definition': {
-      result = await getDefinition(workspacePath, uri, line! - 1, character! - 1);
-      break;
-    }
-    case 'references': {
-      result = await getReferences(workspacePath, uri, line! - 1, character! - 1);
-      break;
-    }
-    case 'hover': {
-      result = await getHover(workspacePath, uri, line! - 1, character! - 1);
-      break;
-    }
+    case 'definition':
+    case 'references':
+    case 'hover':
     case 'symbols': {
-      result = await getSymbols(workspacePath, uri);
+      const initResult = await initializeLsp(workspacePath, workspacePath);
+      if (!initResult.success) {
+        const output: Output = { success: false, error: initResult.error || 'Failed to initialize LSP' };
+        console.log(JSON.stringify(output));
+        return;
+      }
+
+      const file = Bun.file(filePath);
+      const fileExists = await file.exists();
+      if (!fileExists) {
+        const output: Output = { success: false, error: `File not found: ${filePath}` };
+        console.log(JSON.stringify(output));
+        return;
+      }
+
+      switch (operation) {
+        case 'definition': {
+          result = await getDefinition(workspacePath, uri, line! - 1, character! - 1);
+          break;
+        }
+        case 'references': {
+          result = await getReferences(workspacePath, uri, line! - 1, character! - 1);
+          break;
+        }
+        case 'hover': {
+          result = await getHover(workspacePath, uri, line! - 1, character! - 1);
+          break;
+        }
+        case 'symbols': {
+          result = await getSymbols(workspacePath, uri);
+          break;
+        }
+        default:
+          result = { success: false, error: `Unknown operation: ${operation}` };
+      }
+      break;
+    }
+    case 'diagnostics': {
+      const initResult = await initializeLsp(workspacePath, workspacePath);
+      if (!initResult.success) {
+        const output: Output = { success: false, error: initResult.error || 'Failed to initialize LSP' };
+        console.log(JSON.stringify(output));
+        return;
+      }
+
+      const file = Bun.file(filePath);
+      const fileExists = await file.exists();
+      if (!fileExists) {
+        const output: Output = { success: false, error: `File not found: ${filePath}` };
+        console.log(JSON.stringify(output));
+        return;
+      }
+
+      const content = await file.text();
+      result = await getDiagnostics(workspacePath, uri, content);
       break;
     }
     default: {
