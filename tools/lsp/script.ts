@@ -17,7 +17,7 @@ interface Output {
   };
 }
 
-const LSP_SERVER_URL = process.env.LSP_SERVER_URL || 'http://localhost:3001';
+const LSP_SERVER_URL = process.env.LSP_SERVER_URL || 'http://localhost:8739';
 
 async function fetchWithError(url: string, options: RequestInit): Promise<Output> {
   try {

@@ -472,7 +472,7 @@ async function multiEditFile() {
     // After successful write, fetch diagnostics for supported files
     let diagnostics: Diagnostic[] | undefined;
     if (isLspSupportedFile(resolvedPath)) {
-      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:3001';
+      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:8739';
       await new Promise(resolve => setTimeout(resolve, 150));
       const diagnosticsResult = await fetchDiagnostics(workspacePath, resolvedPath, lspServerUrl);
       diagnostics = diagnosticsResult || undefined;

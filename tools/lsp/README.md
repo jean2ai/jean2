@@ -1,11 +1,11 @@
 # lsp
 
-Server tool for code intelligence via Language Server Protocol. Communicates with an external standalone LSP server over HTTP. Supports go-to-definition, find references, hover type info, and symbol listing.
+Server tool for code intelligence via Language Server Protocol. Communicates with an external standalone LSP server over HTTP. Supports go-to-definition, find references, hover type info, symbol listing, and diagnostics.
 
 ## Requirements
 
 - **Runtime**: `bun`
-- **External**: LSP server running at `LSP_SERVER_URL` (default `http://localhost:3001`)
+- **External**: LSP server running at `LSP_SERVER_URL` (default `http://localhost:8739`)
 
 ## Parameters
 

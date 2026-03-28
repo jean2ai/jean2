@@ -169,7 +169,7 @@
   "envConfig": {
     "TODOS_DB_PATH": {
       "description": "Custom path for the todos SQLite database",
-      "default": "~/.jean2/data/todos.db",
+      "default": "/Users/cherry/.jean2/data/todos.db",
       "configFile": "~/.jean2/.env",
       "example": "TODOS_DB_PATH=/Users/cherry/.jean2/data/todos.db",
       "usedBy": ["todoread", "todowrite"]

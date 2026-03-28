@@ -427,7 +427,7 @@ async function editFile() {
     // Fetch diagnostics for supported files after successful edit
     let diagnostics: Diagnostic[] | undefined;
     if (isLspSupportedFile(resolvedPath)) {
-      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:3001';
+      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:8739';
       // Small delay to let LSP process the change
       await new Promise(resolve => setTimeout(resolve, 150));
       diagnostics = await fetchDiagnostics(workspacePath, resolvedPath, lspServerUrl) || undefined;

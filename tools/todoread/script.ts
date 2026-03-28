@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
+import { homedir } from 'os';
 
 interface TodoReadInput {
   workspacePath: string;
@@ -36,10 +37,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { workspacePath, sessionId } = input;
+  const { workspacePath: _workspacePath, sessionId: _sessionId } = input;
 
   const TODOS_DB_PATH = process.env.TODOS_DB_PATH;
-  const dbPath = TODOS_DB_PATH || join(workspacePath, 'data', 'todos.db');
+  const dbPath = TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
 
   const dbDir = join(dbPath, '..');
   if (!existsSync(dbDir)) {
