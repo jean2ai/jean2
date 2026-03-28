@@ -48,8 +48,8 @@ export class DiagnosticsManager {
 
   formatDiagnostic(diagnostic: Diagnostic): string {
     const severityLabel = this.getSeverityLabel(diagnostic.severity);
-    const line = diagnostic.range.start.line + 1;
-    const column = diagnostic.range.start.character + 1;
+    const line = diagnostic.range.start.line;
+    const column = diagnostic.range.start.character;
     return `[${severityLabel}] Line ${line}, Col ${column}: ${diagnostic.message}`;
   }
 

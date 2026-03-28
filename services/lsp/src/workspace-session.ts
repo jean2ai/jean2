@@ -13,6 +13,7 @@ import type {
 } from '@/types';
 import { BaseLSPClient, createClientForLanguage } from '@/clients';
 import { DiagnosticsManager } from '@/diagnostics';
+import { getDiagnosticsTimeoutMs } from './env';
 
 export class WorkspaceSession {
   readonly workspaceId: WorkspaceId;
@@ -23,7 +24,7 @@ export class WorkspaceSession {
   private clients: Map<string, BaseLSPClient> = new Map();
   private openFiles: Map<string, OpenFileInfo> = new Map();
   private diagnostics: DiagnosticsManager;
-  private onDiagnosticsCallback: ((uri: string, diagnostics: Diagnostic[]) => void) | null = null;
+  private pendingDiagnostics: Map<string, { resolve: (diag: Diagnostic[]) => void; timeout: ReturnType<typeof setTimeout> }> = new Map();
   private clientStartPromises: Map<string, Promise<BaseLSPClient>> = new Map();
 
   constructor(workspaceId: WorkspaceId, workspaceRoot: string) {
@@ -94,6 +95,10 @@ export class WorkspaceSession {
     if (!newClient) {
       throw new Error(`Unsupported language: ${languageId}`);
     }
+
+    newClient.setDiagnosticsCallback((uri, diagnostics) => {
+      this.handleDiagnosticsFromClient(uri, diagnostics);
+    });
 
     try {
       await newClient.start(this.workspaceRoot);
@@ -277,12 +282,41 @@ export class WorkspaceSession {
     return this.diagnostics.getDiagnostics(uri);
   }
 
+  clearDiagnostics(uri: string): void {
+    this.diagnostics.clearDiagnostics(uri);
+  }
+
   getAllDiagnostics(): Map<string, Diagnostic[]> {
     return this.diagnostics.getAllDiagnostics();
   }
 
-  onDiagnostics(callback: (uri: string, diagnostics: Diagnostic[]) => void): void {
-    this.onDiagnosticsCallback = callback;
+  private handleDiagnosticsFromClient(uri: string, incomingDiagnostics: Diagnostic[]): void {
+    this.diagnostics.updateDiagnostics(uri, incomingDiagnostics);
+
+    const pending = this.pendingDiagnostics.get(uri);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      pending.resolve(incomingDiagnostics);
+      this.pendingDiagnostics.delete(uri);
+    }
+  }
+
+  async waitForFileDiagnostics(
+    uri: string,
+    timeoutMs?: number
+  ): Promise<{ diagnostics: Diagnostic[]; timedOut: boolean }> {
+    const effectiveTimeoutMs = timeoutMs ?? getDiagnosticsTimeoutMs();
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        this.pendingDiagnostics.delete(uri);
+        resolve({ diagnostics: [], timedOut: true });
+      }, effectiveTimeoutMs);
+
+      this.pendingDiagnostics.set(uri, {
+        resolve: (diagnostics) => resolve({ diagnostics, timedOut: false }),
+        timeout,
+      });
+    });
   }
 
   private getLanguageId(uri: string): string {

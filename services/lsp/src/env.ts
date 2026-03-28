@@ -52,3 +52,8 @@ export function getIdleTimeoutMs(): number {
   const parsed = parseInt(process.env.JEAN2_LSP_IDLE_TIMEOUT_MS || '180000', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 180000;
 }
+
+export function getDiagnosticsTimeoutMs(): number {
+  const parsed = parseInt(process.env.JEAN2_LSP_DIAGNOSTICS_TIMEOUT_MS || '5000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
+}

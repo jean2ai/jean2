@@ -122,31 +122,41 @@ app.post('/symbols', async (c) => {
   }
 });
 
-app.post('/diagnostics', async (c) => {
+app.post('/diagnostics/file', async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const { workspaceId, uri } = body;
+    const { workspaceId, uri, content } = body;
 
     if (!workspaceId) {
       return c.json({ success: false, error: 'workspaceId is required' }, 400);
     }
 
-    if (uri) {
-      const fileUri = uri.startsWith('file://') ? uri : pathToFileURL(uri).href;
-      const result = getLspManager().getDiagnostics(workspaceId, fileUri);
-      return c.json({ success: true, result });
+    if (!uri) {
+      return c.json({ success: false, error: 'uri is required' }, 400);
     }
 
-    const allDiagnostics = getLspManager().getAllDiagnostics(workspaceId);
-    const result: Record<string, unknown[]> = {};
-    allDiagnostics.forEach((diagnostics, fileUri) => {
-      result[fileUri] = diagnostics;
-    });
+    if (content === undefined) {
+      return c.json({ success: false, error: 'content is required' }, 400);
+    }
 
-    return c.json({ success: true, result });
+    const requestTimestamp = Date.now();
+    const { diagnostics, timedOut } = await getLspManager().getFileDiagnostics(
+      workspaceId,
+      uri,
+      content
+    );
+    const responseTimestamp = Date.now();
+
+    return c.json({
+      success: true,
+      result: diagnostics,
+      timedOut,
+      timestamp: responseTimestamp,
+      requestDurationMs: responseTimestamp - requestTimestamp,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('LSP diagnostics error:', message);
+    console.error('LSP diagnostics/file error:', message);
     return c.json({ success: false, error: message });
   }
 });

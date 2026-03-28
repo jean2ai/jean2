@@ -10,6 +10,7 @@ import type {
   HoverResult,
   DocumentSymbolResult,
   LSPClientInfo,
+  Diagnostic,
 } from '@/types';
 import { LSPClientStatus } from '@/types';
 
@@ -32,6 +33,7 @@ export abstract class BaseLSPClient {
   protected buffer = '';
   protected capabilities: Record<string, unknown> | undefined;
   private exitResolve: (() => void) | null = null;
+  protected onDiagnosticsCallback: ((uri: string, diagnostics: Diagnostic[]) => void) | null = null;
 
   abstract getInitializeOptions(): Record<string, unknown>;
 
@@ -486,8 +488,63 @@ export abstract class BaseLSPClient {
     const method = notification.method as string;
 
     if (method === 'textDocument/publishDiagnostics') {
-      // diagnostics handling not implemented yet
+      this.handlePublishDiagnostics(notification.params as Record<string, unknown>);
     }
+  }
+
+  protected handlePublishDiagnostics(params: Record<string, unknown>): void {
+    const uri = params.uri as string;
+    const rawDiagnostics = params.diagnostics as Record<string, unknown>[] | undefined;
+
+    if (!uri || this.onDiagnosticsCallback === null) {
+      return;
+    }
+
+    const diagnostics: Diagnostic[] = [];
+
+    if (Array.isArray(rawDiagnostics)) {
+      for (const raw of rawDiagnostics) {
+        const diagnostic = this.parseDiagnostic(raw);
+        if (diagnostic) {
+          diagnostics.push(diagnostic);
+        }
+      }
+    }
+
+    this.onDiagnosticsCallback(uri, diagnostics);
+  }
+
+  private parseDiagnostic(raw: Record<string, unknown>): Diagnostic | null {
+    const range = raw.range as Record<string, unknown> | undefined;
+    const severity = raw.severity as number | undefined;
+    const message = raw.message as string | undefined;
+
+    if (!range || message === undefined) {
+      return null;
+    }
+
+    const parsedRange = this.parseRange(range);
+
+    return {
+      range: parsedRange,
+      severity: severity ?? 1,
+      code: raw.code as number | string | undefined,
+      source: raw.source as string | undefined,
+      message,
+    };
+  }
+
+  private parseRange(range: Record<string, unknown>): Range {
+    const start = range.start as Position;
+    const end = range.end as Position;
+    return {
+      start: { line: start.line + 1, character: start.character + 1 },
+      end: { line: end.line + 1, character: end.character + 1 },
+    };
+  }
+
+  setDiagnosticsCallback(callback: (uri: string, diagnostics: Diagnostic[]) => void): void {
+    this.onDiagnosticsCallback = callback;
   }
 
   protected async initialize(workspaceRoot: string): Promise<void> {

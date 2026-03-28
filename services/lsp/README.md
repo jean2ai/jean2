@@ -101,6 +101,7 @@ Loaded from `~/.jean2/services/lsp/.env` (created on init). Also settable as pro
 | `JEAN2_LSP_PORT` | `8739` | HTTP server port |
 | `JEAN2_LSP_HOST` | `0.0.0.0` | HTTP server bind address |
 | `JEAN2_LSP_IDLE_TIMEOUT_MS` | `1800000` (30 min) | Idle workspace cleanup threshold |
+| `JEAN2_LSP_DIAGNOSTICS_TIMEOUT_MS` | `5000` (5 sec) | Per-file diagnostics wait timeout (especially for PHP cold starts) |
 
 ### Config Directory
 
@@ -224,30 +225,46 @@ POST /symbols
 
 Returns `SymbolInformation[]` — all symbols (functions, classes, methods, variables) in the document.
 
-### Get Diagnostics
+### Get On-Demand Diagnostics
 
 ```
-POST /diagnostics
+POST /diagnostics/file
 ```
 
-Single file:
+Computes fresh diagnostics on-demand for a specific file.
+Requires `content` to analyze. Returns `Diagnostic[]` with timeout/freshness metadata.
 
 ```json
 {
   "workspaceId": "my-project",
-  "uri": "/path/to/file.ts"
+  "uri": "/path/to/file.ts",
+  "content": "file contents..."
 }
 ```
 
-All files (omit `uri`):
+Returns:
 
 ```json
 {
-  "workspaceId": "my-project"
+  "success": true,
+  "result": Diagnostic[],
+  "timedOut": false,
+  "timestamp": 1699900000000,
+  "requestDurationMs": 150
 }
 ```
 
-Returns `Diagnostic[]` or `{ [uri: string]: Diagnostic[] }`.
+**Response fields:**
+- `result`: Array of diagnostics, or empty array if no errors
+- `timedOut`: `true` if LSP server didn't respond within the timeout period (default 5s, configurable via `JEAN2_LSP_DIAGNOSTICS_TIMEOUT_MS`); empty result should not be treated as "no errors"
+- `timestamp`: Unix timestamp (ms) when diagnostics were computed
+- `requestDurationMs`: Time taken to process the request
+
+**Empty result distinction:**
+- `{ result: [], timedOut: false }` = File is valid, no errors
+- `{ result: [], timedOut: true }` = LSP server timed out, diagnostics unavailable
+
+**Note:** The `/diagnostics/file` endpoint automatically initializes the workspace session and opens/updates the file before requesting diagnostics. This ensures proper handling of cold starts, especially for PHP files which require intelephense to initialize.
 
 ### Open / Close Files
 

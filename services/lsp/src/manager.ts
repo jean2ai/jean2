@@ -159,9 +159,24 @@ export class LSPManager {
     return session.getAllDiagnostics();
   }
 
-  onDiagnostics(workspaceId: WorkspaceId, callback: (uri: string, diagnostics: Diagnostic[]) => void): void {
+  async getFileDiagnostics(
+    workspaceId: WorkspaceId,
+    uri: string,
+    content: string
+  ): Promise<{ diagnostics: Diagnostic[]; timedOut: boolean }> {
     const session = this.getWorkspace(workspaceId);
-    session.onDiagnostics(callback);
+    const fileUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+
+    session.clearDiagnostics(fileUri);
+
+    const existingFile = session.getClientForFile(fileUri);
+    if (existingFile) {
+      await session.updateFile(fileUri, content);
+    } else {
+      await session.openFile(fileUri, content);
+    }
+
+    return session.waitForFileDiagnostics(fileUri);
   }
 }
 
