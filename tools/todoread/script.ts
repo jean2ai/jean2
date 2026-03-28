@@ -37,7 +37,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { workspacePath: _workspacePath, sessionId: _sessionId } = input;
+  const { workspacePath: _workspacePath, sessionId: sessionId } = input;
 
   const TODOS_DB_PATH = process.env.TODOS_DB_PATH;
   const dbPath = TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');

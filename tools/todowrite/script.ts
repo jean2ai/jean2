@@ -82,7 +82,7 @@ async function main() {
     outputError('invalid JSON input');
   }
 
-  const { todos, workspacePath: _workspacePath, sessionId: _sessionId } = validateInput(input);
+  const { todos, workspacePath: _workspacePath, sessionId: sessionId } = validateInput(input);
 
   const dbPath = process.env.TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
   const dbDir = dbPath.substring(0, dbPath.lastIndexOf('/'));
