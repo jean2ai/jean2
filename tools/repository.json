@@ -1,5 +1,4 @@
 {
-  "$schema": "repository.schema.json",
   "version": 1,
 
   "registry": {
@@ -168,10 +167,10 @@
 
   "envConfig": {
     "TODOS_DB_PATH": {
-      "description": "Custom path for the todos SQLite database",
-      "default": "/Users/cherry/.jean2/data/todos.db",
+      "description": "Custom path for the todos SQLite database. Must be an absolute path (e.g. /home/user/.jean2/data/todos.db) — tilde (~) is not expanded.",
+      "default": "~/.jean2/data/todos.db",
       "configFile": "~/.jean2/.env",
-      "example": "TODOS_DB_PATH=/Users/cherry/.jean2/data/todos.db",
+      "example": "TODOS_DB_PATH=~/.jean2/data/todos.db",
       "usedBy": ["todoread", "todowrite"]
     }
   }
