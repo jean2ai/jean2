@@ -1,10 +1,7 @@
 import { spawn } from 'child_process';
-import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { pipeline } from 'stream/promises';
-import { get } from 'https';
-import { get as getHttp } from 'http';
 
 import { resolveToolsPath, getDefaultToolsPath } from '../config';
 import { clearCache as clearToolsCache } from './registry';
@@ -83,37 +80,18 @@ function ensureToolsDir(): string {
 }
 
 async function downloadFile(url: string, destPath: string): Promise<void> {
-  const file = createWriteStream(destPath);
-
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? get : getHttp;
-
-    const request = protocol(url, (response) => {
-      if (response.statusCode === 302 || response.statusCode === 301) {
-        const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          file.close();
-          downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
-          return;
-        }
-      }
-
-      if (response.statusCode !== 200) {
-        file.close();
-        reject(new Error(`Download failed: HTTP ${response.statusCode}`));
-        return;
-      }
-
-      pipeline(response, file)
-        .then(resolve)
-        .catch(reject);
-    });
-
-    request.on('error', (err) => {
-      file.close();
-      reject(err);
-    });
+  const response = await fetch(url, {
+    redirect: 'follow',
+    headers: {
+      'User-Agent': 'jean2-tool-installer',
+    },
   });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  await Bun.write(destPath, response);
 }
 
 async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
@@ -222,7 +200,7 @@ export async function installTool(
       success: false,
       toolName: tool.name,
       version: tool.version,
-      error: `Download failed: ${message}`,
+      error: message,
     };
   }
 

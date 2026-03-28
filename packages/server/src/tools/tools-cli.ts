@@ -512,12 +512,12 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
           results.push({ status: 'ok', value: msg });
         }
       } else {
-        toolSpinner.stop(`✗ ${tool.name} failed`);
+        toolSpinner.stop(`✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
         results.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {
-      toolSpinner.stop(`✗ ${tool.name} failed`);
       const message = err instanceof Error ? err.message : String(err);
+      toolSpinner.stop(`✗ ${tool.name} failed: ${message}`);
       results.push({ status: 'error', reason: message });
     }
   }
@@ -528,7 +528,12 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   log.step('');
   log.step(`  ${successCount} ${pluralize(successCount, 'tool')} installed to ${getToolsBaseDir()}/`);
   if (errorCount > 0) {
-    log.error(`${errorCount} ${pluralize(errorCount, 'tool')} failed`);
+    log.error(`${errorCount} ${pluralize(errorCount, 'tool')} failed:`);
+    for (const r of results) {
+      if (r.status === 'error' && r.reason) {
+        log.error(`  • ${r.reason}`);
+      }
+    }
   }
 
   // Show extension tips for installed tools
@@ -654,12 +659,12 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
         toolSpinner.stop(msg);
         updateResults.push({ status: 'ok', value: tool.name });
       } else {
-        toolSpinner.stop(`✗ ${tool.name} failed`);
+        toolSpinner.stop(`✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
         updateResults.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {
-      toolSpinner.stop(`✗ ${tool.name} failed`);
       const message = err instanceof Error ? err.message : String(err);
+      toolSpinner.stop(`✗ ${tool.name} failed: ${message}`);
       updateResults.push({ status: 'error', reason: message });
     }
   }
@@ -670,7 +675,12 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   log.step('');
   log.step(`  ${updatedCount} ${pluralize(updatedCount, 'tool')} updated, ${upToDate.length} already up-to-date`);
   if (updateErrorCount > 0) {
-    log.error(`${updateErrorCount} ${pluralize(updateErrorCount, 'tool')} failed`);
+    log.error(`${updateErrorCount} ${pluralize(updateErrorCount, 'tool')} failed:`);
+    for (const r of updateResults) {
+      if (r.status === 'error' && r.reason) {
+        log.error(`  • ${r.reason}`);
+      }
+    }
   }
 
   // Show extension tips after updates

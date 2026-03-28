@@ -162,9 +162,9 @@ export function resolveDownloadUrl(
   version: string,
 ): string {
   return registry.urlTemplate
-    .replace('{baseUrl}', registry.baseUrl)
-    .replace('{name}', name)
-    .replace('{version}', version);
+    .replaceAll('{baseUrl}', registry.baseUrl)
+    .replaceAll('{name}', name)
+    .replaceAll('{version}', version);
 }
 
 export function getRecommendedToolNames(repo: ToolRepository): string[] {
