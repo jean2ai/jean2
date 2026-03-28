@@ -70,19 +70,23 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Install Jean2 LSP service binary from GitHub Releases.
+Install or update Jean2 LSP service binary from GitHub Releases.
 
 OPTIONS:
   --version <ver>      Install a specific version (default: latest)
   --install-dir <path>  Install to custom directory (default: ~/.jean2/bin)
-  --force              Reinstall even if binary exists
+  --force              Reinstall/update even if same version
   --no-path            Skip adding to PATH
   --help               Show this help message
+
+BEHAVIOR:
+  Fresh install: Downloads binary and configures PATH.
+  Update: Replaces binary if a newer version is available.
 
 EXAMPLES:
   $(basename "$0")                     # Install latest version
   $(basename "$0") --version 0.2.2     # Install specific version
-  $(basename "$0") --force             # Reinstall current version
+  $(basename "$0") --force             # Reinstall/update current version
   $(basename "$0") --no-path           # Install without modifying PATH
 
 EOF
@@ -161,17 +165,30 @@ fetch_version() {
 }
 
 check_existing_install() {
-  if [[ -f "$BINARY_PATH" ]]; then
-    if [[ "$FORCE" == true ]]; then
-      warn "Replacing existing installation at $BINARY_PATH"
-    else
-      local current_version
-      current_version=$("$BINARY_PATH" version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
-      success "Jean2 LSP is already installed at $BINARY_PATH (version: $current_version)"
-      info "Use --force to reinstall"
-      exit 0
-    fi
+  local current_version
+  current_version=$("$BINARY_PATH" version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+  echo "$current_version"
+}
+
+update_existing_install() {
+  info "Jean2 LSP is already installed at $BINARY_PATH"
+  
+  local current_version
+  current_version=$(check_existing_install)
+  info "Current version: $current_version"
+  info "Target version: $VERSION"
+  
+  if [[ "$current_version" == "$VERSION" ]] && [[ "$FORCE" != true ]]; then
+    info "Already on version $VERSION. Use --force to update anyway."
+    exit 0
   fi
+  
+  local temp_file
+  temp_file=$(download_binary)
+  
+  install_binary "$temp_file"
+  
+  success "Jean2 LSP updated from v${current_version} to v${VERSION}"
 }
 
 download_binary() {
@@ -280,38 +297,45 @@ main() {
 
   BINARY_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 
-  check_existing_install
-
-  local temp_file
-  temp_file=$(download_binary)
-
-  install_binary "$temp_file"
-
-  configure_path
-
-  echo ""
-  success "Jean2 LSP v${VERSION} installed successfully!"
-  echo ""
-  info "Binary location: $BINARY_PATH"
-  echo ""
-
-  if [[ "$SKIP_PATH" != true ]]; then
-    echo "  Next steps:"
-    echo "    1. Restart your terminal or run:"
-    if [[ -n "${SHELL_CONFIG_FILE:-}" ]]; then
-      echo -e "       source \"${SHELL_CONFIG_FILE}\""
-    else
-      echo -e "       export PATH=\"${INSTALL_DIR}:\$PATH\""
-    fi
-    echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
-    echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+  if [[ -f "$BINARY_PATH" ]]; then
+    update_existing_install
   else
-    echo "  Next steps:"
-    echo "    1. Add to PATH: export PATH=\"$INSTALL_DIR:\$PATH\""
-    echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
-    echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    if [[ "$FORCE" == true ]]; then
+      warn "--force specified but no existing installation found, proceeding with fresh install"
+    fi
+    info "Fresh installation at $BINARY_PATH"
+    
+    local temp_file
+    temp_file=$(download_binary)
+    
+    install_binary "$temp_file"
+    
+    configure_path
+    
+    echo ""
+    success "Jean2 LSP v${VERSION} installed successfully!"
+    echo ""
+    info "Binary location: $BINARY_PATH"
+    echo ""
+    
+    if [[ "$SKIP_PATH" != true ]]; then
+      echo "  Next steps:"
+      echo "    1. Restart your terminal or run:"
+      if [[ -n "${SHELL_CONFIG_FILE:-}" ]]; then
+        echo -e "       source \"${SHELL_CONFIG_FILE}\""
+      else
+        echo -e "       export PATH=\"${INSTALL_DIR}:\$PATH\""
+      fi
+      echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
+      echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    else
+      echo "  Next steps:"
+      echo "    1. Add to PATH: export PATH=\"$INSTALL_DIR:\$PATH\""
+      echo -e "    2. Initialize: ${CYAN}${BINARY_PATH} init${NC}"
+      echo -e "    3. Start:      ${CYAN}${BINARY_PATH} start${NC}"
+    fi
+    echo ""
   fi
-  echo ""
 }
 
 main "$@"
