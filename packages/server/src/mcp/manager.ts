@@ -13,6 +13,7 @@ import type { Tool } from 'ai';
 import { convertMcpTool } from './converter';
 import { McpOAuthProvider } from './oauth-provider';
 import { getMcpServers } from './config';
+import { VERSION } from '../version';
 
 const DEFAULT_TIMEOUT = 30_000;
 
@@ -134,7 +135,7 @@ async function connectLocalServer(
   });
 
   const client = new Client(
-    { name, version: '1.0.0' },
+    { name, version: VERSION },
     {
       capabilities: {},
     },
@@ -182,7 +183,7 @@ async function connectRemoteServer(
   });
 
   let client = new Client(
-    { name, version: '1.0.0' },
+    { name, version: VERSION },
     {
       capabilities: {},
     },
@@ -226,7 +227,7 @@ async function connectRemoteServer(
       });
 
       client = new Client(
-        { name, version: '1.0.0' },
+        { name, version: VERSION },
         {
           capabilities: {},
         },

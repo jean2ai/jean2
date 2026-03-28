@@ -310,7 +310,6 @@ export interface Jean2Config {
   port: number;
   host: string;
   initializedAt: string;
-  version: string;
 }
 
 // Save the config (creates directory if needed)

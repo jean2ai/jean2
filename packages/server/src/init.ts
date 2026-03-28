@@ -195,7 +195,6 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
     port: 8742,
     host: '0.0.0.0',
     initializedAt: new Date().toISOString(),
-    version: '1.0.0',
   });
 
   // Initialize auth token

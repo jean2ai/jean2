@@ -18,13 +18,11 @@ import { showToken, regenerateToken } from './auth/token';
 import { initJean2, type InitOptions } from './init';
 import { runMigrations } from './store';
 import { runToolsCommand, type ToolsCommandArgs } from './tools/tools-cli';
+import { VERSION } from './version';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
 const command = args[0];
-
-// Version from package.json
-const VERSION = '1.0.0';
 
 interface ParsedServerArgs {
   port?: number;

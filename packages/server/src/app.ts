@@ -68,6 +68,7 @@ import { initializeToken } from './auth/token';
 
 // Import provider operations
 import * as providers from './providers';
+import { VERSION } from './version';
 
 // Helper function to expand ~ to user's home directory
 function expandPath(path: string): string {
@@ -110,7 +111,7 @@ export function createApp() {
     return c.json({
       status: 'ok',
       message: 'AI Agent Server is running',
-      version: '1.0.0',
+      version: VERSION,
       timestamp: new Date().toISOString()
     });
   });
@@ -123,7 +124,7 @@ export function createApp() {
   app.get('/api/info', (c) => {
     return c.json({
       name: 'AI Agent Server',
-      version: '1.0.0',
+      version: VERSION,
       runtime: 'bun',
       features: {
         websocket: true,
@@ -830,7 +831,7 @@ export function createApp() {
     return c.json({
       message: 'WebSocket endpoint - requires WebSocket upgrade support',
       protocol: 'ai-agent-ws',
-      version: '1.0.0',
+      version: VERSION,
       sessionId
     });
   });
