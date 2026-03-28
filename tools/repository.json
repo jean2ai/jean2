@@ -1,0 +1,178 @@
+{
+  "$schema": "repository.schema.json",
+  "version": 1,
+
+  "registry": {
+    "baseUrl": "https://github.com/rabbyte-tech/jean2/releases/download",
+    "urlTemplate": "{baseUrl}/tool-{name}%2Fv{version}/{name}.tar.gz",
+    "versionUrlTemplate": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/tools/{name}/VERSION"
+  },
+
+  "tools": {
+    "apply-patch": {
+      "description": "Apply unified diff patches to files atomically",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "edit": {
+      "description": "String replacements in files with fuzzy matching",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": ["jean2-lsp"],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "glob": {
+      "description": "Find files matching glob patterns",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "grep": {
+      "description": "Search file contents using regular expressions",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "ls": {
+      "description": "List directory contents with tree formatting",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "lsp": {
+      "description": "Code intelligence via Language Server Protocol",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": ["jean2-lsp"],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
+    "multiedit": {
+      "description": "Multiple string replacements in a single file",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "read-file": {
+      "description": "Read files or list directories",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "shell": {
+      "description": "Execute arbitrary shell commands",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": true
+    },
+    "todoread": {
+      "description": "Read the task list for the current session",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
+    "todowrite": {
+      "description": "Write/replace the entire task list",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
+    "webfetch": {
+      "description": "Fetch content from a URL and convert to readable format",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": "bun install",
+      "extensions": [],
+      "tags": ["recommended", "web"],
+      "dangerous": false
+    },
+    "write-file": {
+      "description": "Write content to a file",
+      "runtime": "bun",
+      "requiredRuntimes": ["bun"],
+      "postInstall": null,
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    }
+  },
+
+  "extensions": {
+    "jean2-lsp": {
+      "name": "Jean2 LSP Service",
+      "description": "Code intelligence server providing go-to-definition, references, hover, and diagnostics for TypeScript, JavaScript, and PHP",
+      "installUrl": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh",
+      "installCommand": "curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh | bash",
+      "setupSteps": [
+        "jean2-lsp init",
+        "jean2-lsp start"
+      ],
+      "languageServers": [
+        {
+          "name": "typescript-language-server",
+          "languages": ["TypeScript", "JavaScript", "TSX", "JSX"],
+          "installCommand": "npm install -g typescript-language-server typescript",
+          "optional": true
+        },
+        {
+          "name": "intelephense",
+          "languages": ["PHP"],
+          "installCommand": "npm install -g intelephense",
+          "optional": true
+        }
+      ],
+      "envConfig": {
+        "LSP_SERVER_URL": {
+          "description": "URL of the LSP HTTP server",
+          "default": "http://localhost:8739",
+          "configFile": "~/.jean2/.env",
+          "example": "LSP_SERVER_URL=http://localhost:8739"
+        }
+      },
+      "usedBy": ["lsp", "edit"],
+      "requiredFor": ["lsp"],
+      "optionalFor": ["edit"]
+    }
+  },
+
+  "envConfig": {
+    "TODOS_DB_PATH": {
+      "description": "Custom path for the todos SQLite database",
+      "default": "~/.jean2/data/todos.db",
+      "configFile": "~/.jean2/.env",
+      "example": "TODOS_DB_PATH=/Users/cherry/.jean2/data/todos.db",
+      "usedBy": ["todoread", "todowrite"]
+    }
+  }
+}
