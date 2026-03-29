@@ -3,6 +3,7 @@ import { ChevronLeft, Folder, Loader2, Check, Search } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { useApi } from '@/hooks/useApi';
 import { useServerContext } from '@/contexts/ServerContext';
+import { join } from '@/lib/path';
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,20 @@ export function FolderPickerDialog({
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Derive selected folder from index
+  const selectedFolder = filteredFiles[selectedIndex] ?? null;
+
+  // Helper: compute full path for a folder entry
+  // file.path from browse API is just the entry name, not a full path
+  const getFullPath = useCallback((folder: FileEntry): string => {
+    return join(currentPath, folder.name);
+  }, [currentPath]);
+
+  // Compute the path to display/use for selection and navigation
+  const targetPath = selectedFolder ? getFullPath(selectedFolder) : currentPath;
+
+  const isUsingCurrentFolder = !selectedFolder;
+
   const handleNavigateUp = () => {
     const parent = dirname(currentPath);
     if (parent && parent !== currentPath) {
@@ -96,14 +111,14 @@ export function FolderPickerDialog({
   };
 
   const handleSelectCurrent = () => {
-    if (currentPath) {
-      onSelect(currentPath);
+    if (targetPath) {
+      onSelect(targetPath);
       onOpenChange(false);
     }
   };
 
   const handleNavigateInto = (folder: FileEntry) => {
-    const newPath = currentPath ? `${currentPath}/${folder.name}` : folder.name;
+    const newPath = getFullPath(folder);
     loadDirectory(newPath);
   };
 
@@ -115,15 +130,19 @@ export function FolderPickerDialog({
         e.preventDefault();
         setSelectedIndex(i => Math.min(i + 1, filteredFiles.length - 1));
         break;
+      case 'ArrowRight':
+        if (filteredFiles[selectedIndex]) {
+          e.preventDefault();
+          handleNavigateInto(filteredFiles[selectedIndex]);
+        }
+        break;
       case 'ArrowUp':
         e.preventDefault();
         setSelectedIndex(i => Math.max(i - 1, 0));
         break;
       case 'Enter':
         e.preventDefault();
-        if (filteredFiles[selectedIndex]) {
-          handleNavigateInto(filteredFiles[selectedIndex]);
-        }
+        handleSelectCurrent();
         break;
       case 'Escape':
         if (searchQuery) {
@@ -178,8 +197,14 @@ export function FolderPickerDialog({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="flex-1 text-sm font-mono truncate" title={currentPath}>
-              {truncatePath(currentPath) || 'Home'}
+            <span className="flex-1 text-sm font-mono truncate" title={targetPath}>
+              {selectedFolder ? (
+                <span className="text-primary">
+                  {truncatePath(getFullPath(selectedFolder), 45)}
+                </span>
+              ) : (
+                truncatePath(currentPath) || 'Home'
+              )}
             </span>
           </div>
           
@@ -224,9 +249,7 @@ export function FolderPickerDialog({
                 {filteredFiles.map((file, index) => (
                   <button
                     key={file.path}
-                    onClick={() => {
-                      setSelectedIndex(index);
-                    }}
+                    onClick={() => setSelectedIndex(index)}
                     onDoubleClick={() => handleNavigateInto(file)}
                     className={cn(
                       'flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-left',
@@ -254,8 +277,8 @@ export function FolderPickerDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSelectCurrent} disabled={!currentPath || loading}>
-            Use This Folder
+          <Button onClick={handleSelectCurrent} disabled={!targetPath || loading}>
+            {isUsingCurrentFolder ? 'Use This Folder' : 'Add Selected Folder'}
           </Button>
         </DialogFooter>
       </DialogContent>
