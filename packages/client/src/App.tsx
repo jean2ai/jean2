@@ -1346,6 +1346,8 @@ function AppContent() {
 
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
+  const headerTitle = currentSession ? (activeWorkspace?.name ?? 'Jean2') : 'Jean2';
+
   // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
 
@@ -1558,7 +1560,7 @@ function AppContent() {
         <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10">
           <div className="flex items-center gap-2">
             {isLoggedIn && <SidebarTrigger />}
-            <span className="font-semibold">Jean2</span>
+            <span className="font-semibold">{headerTitle}</span>
           </div>
           <div className="flex items-center gap-1">
             {isLoggedIn && (
@@ -1600,7 +1602,7 @@ function AppContent() {
         <header className="hidden md:flex items-center justify-between p-3 border-b border-border">
           <div className="flex items-center gap-2">
             {isLoggedIn && <SidebarTrigger />}
-            <span className="font-semibold">Jean2</span>
+            <span className="font-semibold">{headerTitle}</span>
           </div>
           <div className="flex items-center gap-2">
             {isLoggedIn && (
