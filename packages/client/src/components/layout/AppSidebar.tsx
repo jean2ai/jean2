@@ -48,6 +48,7 @@ interface AppSidebarProps {
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string, title: string) => void;
 
   onSelectWorkspace: (workspace: Workspace) => void;
   onCreateVirtualWorkspace: () => void;
@@ -85,6 +86,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onCloseSession,
     onReopenSession,
     onDeleteSession,
+    onRenameSession,
     onSelectWorkspace,
     onCreateVirtualWorkspace,
     onCreatePhysicalWorkspace,
@@ -137,6 +139,17 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
   const handleSessionListKeyDown = useCallback((e: React.KeyboardEvent) => {
     const container = sessionListRef.current;
     if (!container) return;
+
+    // Don't intercept keyboard navigation when an inline rename input is focused.
+    // This prevents the sidebar's arrow-key nav from stealing focus from the edit field.
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      (active instanceof HTMLElement && active.contentEditable === 'true')
+    ) {
+      return;
+    }
 
     const buttons = Array.from(
       container.querySelectorAll<HTMLButtonElement>(
@@ -290,6 +303,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
             onCloseSession={onCloseSession}
             onReopenSession={onReopenSession}
             onDeleteSession={onDeleteSession}
+            onRenameSession={onRenameSession}
             onCreateSessionInWorkspace={onCreateSessionInWorkspace}
             connected={connected}
             pendingPermissions={pendingPermissions}
@@ -325,6 +339,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}
                             onDeleteSession={onDeleteSession}
+                            onRename={onRenameSession}
                           />
                         ))}
                       </SidebarMenu>
@@ -363,6 +378,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}
                             onDeleteSession={onDeleteSession}
+                            onRename={onRenameSession}
                           />
                         ))}
                       </SidebarMenu>

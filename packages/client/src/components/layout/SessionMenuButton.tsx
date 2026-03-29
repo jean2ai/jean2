@@ -1,5 +1,5 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle } from 'lucide-react';
-import { useMemo } from 'react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil } from 'lucide-react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/shared';
 import {
@@ -34,20 +34,27 @@ interface SessionMenuButtonProps {
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onRename: (sessionId: string, title: string) => void;
 }
 
 // Helper: Actions dropdown
 const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   isClosed,
+  isEditing,
+  onRename,
   onReopen,
   onClose,
   onDelete,
 }: {
   isClosed: boolean;
+  isEditing: boolean;
+  onRename: () => void;
   onReopen: () => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
+  if (isEditing) return <div className="shrink-0 size-7" />;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,6 +64,10 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
         </SidebarMenuAction>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRename}>
+          <Pencil className="size-4" />
+          Rename
+        </DropdownMenuItem>
         {isClosed ? (
           <>
             <DropdownMenuItem onClick={onReopen}>
@@ -130,13 +141,70 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   onCloseSession,
   onReopenSession,
   onDeleteSession,
+  onRename,
 }: SessionMenuButtonProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(session.title || '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const childSessions = useMemo(
     () => allSessions.filter(s => s.parentId === session.id),
     [allSessions, session.id]
   );
   const hasChildren = childSessions.length > 0;
   const isClosed = session.status === 'closed';
+
+  // Track whether we've already performed the initial focus/select for the current edit session.
+  // This prevents focus/select from resetting on unrelated re-renders while already editing.
+  const hasFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      if (!hasFocusedRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+        hasFocusedRef.current = true;
+      }
+    } else {
+      hasFocusedRef.current = false;
+    }
+  }, [isEditing]);
+
+  // Keep edit value in sync with session.title when not editing.
+  // This catches server-side renames applied while the row is not in edit mode.
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(session.title || '');
+    }
+  }, [isEditing, session.title]);
+
+  const handleRenameStart = () => {
+    setEditValue(session.title || '');
+    setIsEditing(true);
+  };
+
+  const handleRenameCommit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== session.title) {
+      onRename(session.id, trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleRenameCancel = () => {
+    setIsEditing(false);
+    setEditValue(session.title || '');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleRenameCommit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleRenameCancel();
+    }
+  };
 
   const hasActiveChild = useMemo(
     () => childSessions.some(c => c.id === currentSessionId),
@@ -158,30 +226,45 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             {/* Spacer - same size as chevron button for alignment */}
             <div className="shrink-0 size-7 p-1" />
 
-            {/* Session name (click to open) */}
-            <SidebarMenuButton
-              data-session-id={session.id}
-              isActive={isActive}
-              onClick={() => onResumeSession(session.id)}
-              className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
-            >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="truncate flex items-center gap-2">
-                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
-                    {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+            {/* Session name (click to open or inline edit) */}
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleRenameCommit}
+                aria-label={`Rename session: ${session.title || 'Untitled'}`}
+                className="flex-1 min-w-0 h-8 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            ) : (
+              <SidebarMenuButton
+                data-session-id={session.id}
+                isActive={isActive}
+                onClick={() => onResumeSession(session.id)}
+                className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="truncate flex items-center gap-2">
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
+                      {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+                      {session.title || 'Untitled'}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
                     {session.title || 'Untitled'}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs">
-                  {session.title || 'Untitled'}
-                </TooltipContent>
-              </Tooltip>
-            </SidebarMenuButton>
+                  </TooltipContent>
+                </Tooltip>
+              </SidebarMenuButton>
+            )}
 
             {/* Actions menu */}
             <SessionActionsDropdown
               isClosed={isClosed}
+              isEditing={isEditing}
+              onRename={handleRenameStart}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
@@ -208,30 +291,45 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               </button>
             </CollapsibleTrigger>
 
-            {/* Part 2: Session name (click to open) */}
-            <SidebarMenuButton
-              data-session-id={session.id}
-              isActive={isActive}
-              onClick={() => onResumeSession(session.id)}
-              className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
-            >
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="truncate flex items-center gap-2">
-                    <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
-                    {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+            {/* Part 2: Session name (click to open or inline edit) */}
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleRenameCommit}
+                aria-label={`Rename session: ${session.title || 'Untitled'}`}
+                className="flex-1 min-w-0 h-8 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            ) : (
+              <SidebarMenuButton
+                data-session-id={session.id}
+                isActive={isActive}
+                onClick={() => onResumeSession(session.id)}
+                className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="truncate flex items-center gap-2">
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
+                      {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+                      {session.title || 'Untitled'}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
                     {session.title || 'Untitled'}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs">
-                  {session.title || 'Untitled'}
-                </TooltipContent>
-              </Tooltip>
-            </SidebarMenuButton>
+                  </TooltipContent>
+                </Tooltip>
+              </SidebarMenuButton>
+            )}
 
             {/* Part 3: Actions menu (3 dots) */}
             <SessionActionsDropdown
               isClosed={isClosed}
+              isEditing={isEditing}
+              onRename={handleRenameStart}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
@@ -254,6 +352,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   onCloseSession={onCloseSession}
                   onReopenSession={onReopenSession}
                   onDeleteSession={onDeleteSession}
+                  onRename={onRename}
                 />
               ))}
             </SidebarMenuSub>

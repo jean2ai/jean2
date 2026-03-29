@@ -1531,6 +1531,7 @@ function AppContent() {
           onCloseSession={closeSession}
           onReopenSession={reopenSession}
           onDeleteSession={permanentlyDeleteSession}
+          onRenameSession={handleRenameSession}
           onSelectWorkspace={selectWorkspace}
           onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
           onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
