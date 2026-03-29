@@ -112,8 +112,8 @@ export function ChatHeader({
   return (
     <header className="flex flex-col border-b border-border bg-card">
       {/* Top row: Navigation and Title */}
-      <div className="flex items-center justify-start px-4 py-2">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-start px-4 py-2 overflow-hidden">
+        <div className="flex items-center gap-3 min-w-0">
           {session.parentId && onNavigateBack && (
             <Button
               variant="ghost"
@@ -139,7 +139,7 @@ export function ChatHeader({
             />
           ) : (
             <h2
-              className="text-lg font-semibold cursor-pointer px-2 py-0.5 -mx-2 rounded hover:bg-accent transition-colors"
+              className="text-lg font-semibold cursor-pointer px-2 py-0.5 -mx-2 rounded hover:bg-accent transition-colors truncate min-w-0"
               onDoubleClick={handleTitleDoubleClick}
             >
               {session.title || 'Untitled Session'}
