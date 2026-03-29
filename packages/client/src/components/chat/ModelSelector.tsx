@@ -25,6 +25,7 @@ interface ModelSelectorProps {
   selectedModelId: string | null | undefined;
   onChangeModel: (modelId: string, providerId: string) => void;
   disabled?: boolean;
+  compact?: boolean;
   iconOnly?: boolean;
   connectedProviderIds?: Set<string>;
   connectableProviderIds?: Set<string>;
@@ -44,6 +45,7 @@ export function ModelSelector({
   selectedModelId,
   onChangeModel,
   disabled,
+  compact = false,
   iconOnly = false,
   connectedProviderIds,
   connectableProviderIds,
@@ -63,23 +65,24 @@ export function ModelSelector({
     }
   };
 
+  const showCompactIcon = compact && !iconOnly;
+
   return (
     <div className="flex items-center gap-2">
-      {!iconOnly && <Label className="text-xs text-muted-foreground">Model:</Label>}
+      {!iconOnly && <Label className="text-xs text-muted-foreground">{showCompactIcon ? <Cpu className="size-3.5" /> : 'Model:'}</Label>}
       <Select
         value={selectedModelId || ''}
         onValueChange={handleValueChange}
         disabled={disabled}
       >
         <SelectTrigger className={iconOnly ? 'w-9 h-9 px-0 justify-center gap-0 [&>svg:last-child]:hidden [&_[data-slot=select-value]]:hidden' : 'w-[180px] h-8 text-sm'}>
-          {iconOnly ? (
+          {iconOnly && (
             <>
               <Cpu className="size-4" />
               <SelectValue className="sr-only" />
             </>
-          ) : (
-            <SelectValue placeholder="Select model" />
           )}
+          {!iconOnly && <SelectValue placeholder="Select model" />}
         </SelectTrigger>
         <SelectContent>
           {Object.entries(groupedModels).map(([providerName, providerModels]) => (

@@ -31,7 +31,7 @@ function getUsageStatus(percentage: number): 'normal' | 'warning' | 'critical' {
 
 export function TokenMeter({
   totalTokens = 0,
-  contextWindow = 0,
+  contextWindow = 0, // eslint-disable-next-line @typescript-eslint/no-unused-vars
   modelName = '',
   compact = false,
 }: TokenMeterProps) {
@@ -54,7 +54,6 @@ export function TokenMeter({
               <Info className="size-3 text-muted-foreground cursor-help" />
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">Model: {modelName}</p>
               <p className="text-xs">{percentage}% of context window used</p>
             </TooltipContent>
           </Tooltip>
@@ -87,16 +86,6 @@ export function TokenMeter({
           </span>
         </div>
       </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Info className="size-3.5 text-muted-foreground cursor-help" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p className="text-xs">Model: {modelName}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
     </div>
   );
 }

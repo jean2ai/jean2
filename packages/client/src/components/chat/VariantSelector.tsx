@@ -17,6 +17,7 @@ interface VariantSelectorProps {
   selectedVariant: string | null;
   onChangeVariant: (variant: string | null) => void;
   disabled?: boolean;
+  compact?: boolean;
   iconOnly?: boolean;
 }
 
@@ -38,8 +39,10 @@ export function VariantSelector({
   selectedVariant,
   onChangeVariant,
   disabled,
+  compact = false,
   iconOnly = false,
 }: VariantSelectorProps) {
+  const showCompactIcon = compact && !iconOnly;
   if (!variants || Object.keys(variants).length === 0) {
     return null;
   }
@@ -52,21 +55,20 @@ export function VariantSelector({
 
   return (
     <div className="flex items-center gap-2">
-      {!iconOnly && <Label className="text-xs text-muted-foreground">Thinking:</Label>}
+      {!iconOnly && <Label className="text-xs text-muted-foreground">{showCompactIcon ? <Brain className="size-3.5" /> : 'Thinking:'}</Label>}
       <Select
         value={selectedVariant || '__none__'}
         onValueChange={handleValueChange}
         disabled={disabled}
       >
         <SelectTrigger className={iconOnly ? 'w-9 h-9 px-0 justify-center gap-0 [&>svg:last-child]:hidden [&_[data-slot=select-value]]:hidden' : 'w-[120px] h-8 text-sm'}>
-          {iconOnly ? (
+          {iconOnly && (
             <>
               <Brain className="size-4" />
               <SelectValue className="sr-only" />
             </>
-          ) : (
-            <SelectValue placeholder="Default" />
           )}
+          {!iconOnly && <SelectValue placeholder="Default" />}
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">Default</SelectItem>

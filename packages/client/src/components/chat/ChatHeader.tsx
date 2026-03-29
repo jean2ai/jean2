@@ -179,6 +179,7 @@ export function ChatHeader({
           selectedModelId={selectedModel}
           onChangeModel={onChangeModel}
           disabled={session.status === 'closed' || !!session.parentId}
+          compact={isCompact}
           iconOnly={isMobile}
           connectedProviderIds={connectedProviderIds}
           connectableProviderIds={connectableProviderIds}
@@ -189,6 +190,7 @@ export function ChatHeader({
           selectedVariant={selectedVariant}
           onChangeVariant={onChangeVariant}
           disabled={session.status === 'closed' || !!session.parentId}
+          compact={isCompact}
           iconOnly={isMobile}
         />
 
@@ -197,6 +199,7 @@ export function ChatHeader({
           selectedPreconfigId={session.preconfigId}
           onChangePreconfig={onChangePreconfig}
           disabled={session.status === 'closed' || !!session.parentId}
+          compact={isCompact}
           iconOnly={isMobile}
         />
 
