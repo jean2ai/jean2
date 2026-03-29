@@ -9,27 +9,6 @@ import { DEFAULT_PREAMBLES } from './defaults';
 
 const PRECONFIGS_DIR = getPreconfigsPath();
 
-// Common section to append to all system prompts about handling tool rejection errors
-// This is appended at runtime to keep markdown defaults clean
-export const TOOL_REJECTION_HANDLING = `
-
-## Tool Rejection Handling
-When a tool call returns an error with "USER_REJECTION", this means the user explicitly denied permission to execute that action. Do NOT retry the same or similar tool calls. Instead:
-1. Acknowledge that you cannot perform that action
-2. Ask the user how they would like to proceed
-3. Suggest alternative approaches if appropriate`;
-
-export const SUBAGENT_GUIDANCE = `
-
-## Guidelines for Subagents
-When you are a subagent (called via the Task tool):
-1. Focus only on completing the assigned task
-2. Do not use the Task tool yourself (subagents should not spawn subagents)
-3. Return your findings in a clear, structured format in your FINAL MESSAGE ONLY
-4. Your final message will be the ONLY output returned to the calling agent
-5. The calling agent will NOT see your intermediate tool calls or reasoning - only your final text response
-6. If you cannot complete the task, explain why clearly in your final message`;
-
 async function ensureDir(): Promise<void> {
   if (existsSync(PRECONFIGS_DIR)) {
     return;

@@ -1,9 +1,6 @@
 /**
  * Embedded default preconfig definitions as markdown.
  * Using template literals ensures binary-safe embedding (no runtime file reads needed).
- *
- * The common TOOL_REJECTION_HANDLING and subagent guidance sections are
- * appended at runtime in agent.ts to keep these markdown files clean.
  */
 
 /**
@@ -13,7 +10,10 @@
 export const generalMd = `---
 id: general
 name: General
-description: General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.
+description: >
+  General-purpose agent for researching complex questions and executing
+  multi-step tasks. Use this agent to execute multiple units of work in
+  parallel.
 tools:
   - read-file
   - glob
@@ -52,7 +52,9 @@ Complete the task assigned to you and return your findings in a clear, structure
 export const codeMd = `---
 id: code
 name: Code
-description: Full-featured agent for writing and modifying code. Use this agent when you need to create, edit, or debug code files.
+description: >
+  Full-featured agent for writing and modifying code. Use this agent when
+  you need to create, edit, or debug code files.
 tools:
   - read-file
   - write-file
@@ -90,7 +92,10 @@ Guidelines:
 export const codePlanningMd = `---
 id: code-planning
 name: Code Planning
-description: Agent specialized for planning code changes and architectural decisions. Use this agent when you need to plan refactoring, design patterns, or complex feature implementations.
+description: >
+  Agent specialized for planning code changes and architectural decisions.
+  Use this agent when you need to plan refactoring, design patterns, or
+  complex feature implementations.
 tools:
   - read-file
   - write-file
@@ -135,7 +140,13 @@ When planning:
 export const exploreMd = `---
 id: explore
 name: Explore
-description: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/components/**/*.tsx"), search code for keywords (e.g. "API endpoints"), or answer questions about the codebase (e.g. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.
+description: >
+  Fast agent specialized for exploring codebases. Use this when you need to quickly
+  find files by patterns (e.g. "src/components/**/*.tsx"), search code for keywords
+  (e.g. "API endpoints"), or answer questions about the codebase (e.g. "how do API
+  endpoints work?"). When calling this agent, specify the desired thoroughness level:
+  "quick" for basic searches, "medium" for moderate exploration, or "very thorough"
+  for comprehensive analysis across multiple locations and naming conventions.
 tools:
   - read-file
   - glob
