@@ -21,6 +21,7 @@ import {
   getCompactionAutoReserveCapTokens,
   getCompactionAutoSafetyMarginTokens,
 } from '../env';
+import { TOOL_REJECTION_HANDLING, SUBAGENT_GUIDANCE } from './preconfig';
 import { classifyApiError } from '@/utils/errors';
 import { createErrorEvent, type ErrorEvent } from './error-handling';
 import type { CompactionPolicy } from './compaction';
@@ -77,7 +78,17 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents, preconfig.skills);
 
   // Build system message with workspace context
+  // Append common sections at runtime to keep markdown defaults clean
   let systemMessage = preconfig.systemPrompt || '';
+
+  // Add tool rejection handling to all preconfigs
+  systemMessage += TOOL_REJECTION_HANDLING;
+
+  // Add subagent guidance for actual subagent-mode preconfigs (not spawn-capable primary agents)
+  const mode = preconfig.mode ?? 'primary';
+  if (mode === 'subagent' || mode === 'both') {
+    systemMessage += SUBAGENT_GUIDANCE;
+  }
 
   // Add instructions (global first, then project)
   const instructions = await loadInstructions(workspacePath);

@@ -5,17 +5,21 @@ import { randomUUID } from 'crypto';
 import matter from 'gray-matter';
 import type { Preconfig, PreconfigMode } from '@jean2/shared';
 import { getPreconfigsPath } from '../env';
+import { DEFAULT_PREAMBLES } from './defaults';
 
 const PRECONFIGS_DIR = getPreconfigsPath();
 
 // Common section to append to all system prompts about handling tool rejection errors
-const TOOL_REJECTION_HANDLING = `
+// This is appended at runtime to keep markdown defaults clean
+export const TOOL_REJECTION_HANDLING = `
 
 ## Tool Rejection Handling
 When a tool call returns an error with "USER_REJECTION", this means the user explicitly denied permission to execute that action. Do NOT retry the same or similar tool calls. Instead:
 1. Acknowledge that you cannot perform that action
 2. Ask the user how they would like to proceed
-3. Suggest alternative approaches if appropriate
+3. Suggest alternative approaches if appropriate`;
+
+export const SUBAGENT_GUIDANCE = `
 
 ## Guidelines for Subagents
 When you are a subagent (called via the Task tool):
@@ -25,106 +29,6 @@ When you are a subagent (called via the Task tool):
 4. Your final message will be the ONLY output returned to the calling agent
 5. The calling agent will NOT see your intermediate tool calls or reasoning - only your final text response
 6. If you cannot complete the task, explain why clearly in your final message`;
-
-// Default preconfigs
-const DEFAULT_PRECONFIGS: Preconfig[] = [
-  {
-    id: 'reader',
-    name: 'Reader',
-    description: 'Read-only agent for exploring codebases and documents',
-    systemPrompt: 'You are a helpful assistant focused on reading and understanding files. You have access to tools for reading files, searching content, and exploring directory structures. Be thorough and precise in your analysis.' + TOOL_REJECTION_HANDLING,
-    tools: ['read-file', 'glob', 'grep', 'webfetch'],
-    model: null,
-    provider: null,
-    settings: { temperature: 0.5 },
-    isDefault: false,
-    mode: 'both',
-    canSpawnSubagents: true,
-  },
-  {
-    id: 'coder',
-    name: 'Coder',
-    description: 'Full-featured agent for writing and modifying code',
-    systemPrompt: 'You are a skilled software developer assistant. You can read, write, and modify files, and execute shell commands. Write clean, well-documented code. Test your changes when appropriate.' + TOOL_REJECTION_HANDLING,
-    tools: ['read-file', 'write-file', 'shell', 'glob', 'grep', 'webfetch'],
-    model: null,
-    provider: null,
-    settings: { temperature: 0.3 },
-    isDefault: true,
-    mode: 'primary',
-    canSpawnSubagents: true,
-  },
-  {
-    id: 'writer',
-    name: 'Writer',
-    description: 'Agent for writing documentation and content',
-    systemPrompt: 'You are a helpful writing assistant. You can read and write files to help create documentation, articles, and other text content. Write clearly and concisely.' + TOOL_REJECTION_HANDLING,
-    tools: ['read-file', 'write-file'],
-    model: null,
-    provider: null,
-    settings: { temperature: 0.7 },
-    isDefault: false,
-    mode: 'both',
-    canSpawnSubagents: true,
-  },
-  {
-    id: 'explore',
-    name: 'Explore',
-    description: 'Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/components/**/*.tsx"), search code for keywords (e.g. "API endpoints"), or answer questions about the codebase (e.g. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.',
-    systemPrompt: `You are a file search specialist. You excel at thoroughly navigating and exploring codebases.
-
-Your strengths:
-- Rapidly finding files using glob patterns
-- Searching code and text with powerful regex patterns
-- Reading and analyzing file contents
-
-Guidelines:
-- Use glob for broad file pattern matching
-- Use grep for searching file contents with regex
-- Use read-file when you know the specific file path you need to read
-- Adapt your search approach based on the thoroughness level specified by the caller
-- Return file paths as absolute paths in your final response
-- For clear communication, avoid using emojis
-- Do not create any files, or run bash commands that modify the user's system state in any way
-
-Complete the user's search request efficiently and report your findings clearly.` + TOOL_REJECTION_HANDLING,
-    tools: ['read-file', 'glob', 'grep', 'webfetch'],
-    model: null,
-    provider: null,
-    settings: { temperature: 0.3 },
-    isDefault: false,
-    mode: 'subagent',
-    canSpawnSubagents: false,
-  },
-  {
-    id: 'general',
-    name: 'General',
-    description: 'General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.',
-    systemPrompt: `You are a general-purpose AI assistant capable of handling complex, multi-step tasks.
-
-When working on tasks:
-1. Break down complex tasks into smaller, manageable steps
-2. Execute steps in a logical order
-3. Verify your work at each step
-4. Report your findings clearly and concisely
-
-Guidelines:
-- Be thorough but efficient
-- When searching for information, start broad then narrow down
-- Always verify your findings
-- Return a comprehensive summary of your work
-- If you encounter errors, try alternative approaches before giving up
-
-Complete the task assigned to you and return your findings in a clear, structured format.` + TOOL_REJECTION_HANDLING,
-    tools: ['read-file', 'write-file', 'shell', 'glob', 'grep', 'webfetch'],
-    model: null,
-    provider: null,
-    settings: { temperature: 0.5 },
-    isDefault: false,
-    mode: 'subagent',
-    canSpawnSubagents: true,
-  },
-];
 
 async function ensureDir(): Promise<void> {
   if (existsSync(PRECONFIGS_DIR)) {
@@ -178,18 +82,33 @@ function serializePreconfigMd(preconfig: Preconfig): string {
   return matter.stringify(systemPrompt || '', frontmatter);
 }
 
+function getDefaultPreamble(id: string): string | null {
+  return DEFAULT_PREAMBLES[id] || null;
+}
+
 export async function initializePreconfigs(): Promise<void> {
   await ensureDir();
 
-  const files = await readdir(PRECONFIGS_DIR).catch(() => []);
-  const preconfigFiles = files.filter(f => f.endsWith('.json') || f.endsWith('.md'));
+  let installed = 0;
 
-  if (preconfigFiles.length === 0) {
-    // Create default preconfigs
-    for (const preconfig of DEFAULT_PRECONFIGS) {
-      await createPreconfig(preconfig);
+  // Check and install each default preconfig individually
+  for (const defaultId of Object.keys(DEFAULT_PREAMBLES)) {
+    const { md, json } = await preconfigExists(defaultId);
+
+    if (!md && !json) {
+      const preamble = getDefaultPreamble(defaultId);
+      if (preamble) {
+        const mdPath = getPreconfigMdPath(defaultId);
+        await writeFile(mdPath, preamble);
+        installed++;
+      }
     }
-    console.log(`Initialized ${DEFAULT_PRECONFIGS.length} default preconfigs`);
+  }
+
+
+
+  if (installed > 0) {
+    console.log(`Installed ${installed} default preconfig(s)`);
   }
 }
 
