@@ -534,7 +534,7 @@ export function ChatView({
                         </pre>
                       </CollapsibleContent>
                     </Collapsible>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 flex-wrap">
                       <Button
                         variant="outline"
                         size="sm"
@@ -543,10 +543,17 @@ export function ChatView({
                         Deny
                       </Button>
                       <Button
+                        variant="secondary"
                         size="sm"
                         onClick={() => onPermissionResponse(p.toolCallId, true, false)}
                       >
                         Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => onPermissionResponse(p.toolCallId, true, true)}
+                      >
+                        Always Allow
                       </Button>
                     </div>
                   </div>
