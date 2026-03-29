@@ -33,6 +33,7 @@ import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
 import { SidebarLayoutToggle } from '@/components/layout/SidebarLayoutToggle';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useNotificationSound } from '@/hooks/useNotificationSound';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 
@@ -202,6 +203,7 @@ function AppContent() {
   const terminalPanelRef = useRef<TerminalPanelHandle>(null);
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const [connected, setConnected] = useState(false);
+  const sessionsRef = useRef<Session[]>([]);
   const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
   const [sessionUsage, setSessionUsage] = useState<{
     promptTokens: number;
@@ -239,6 +241,16 @@ function AppContent() {
     return (localStorage.getItem('jean2_sidebar_view') as 'default' | 'overview') || 'default';
   });
 
+  // Notification sound settings
+  const [chatFinishSoundEnabled, setChatFinishSoundEnabled] = useState<boolean>(() => {
+    const stored = localStorage.getItem('jean2_sound_chat_finish_enabled');
+    return stored !== null ? stored === 'true' : true;
+  });
+  const [permissionSoundEnabled, setPermissionSoundEnabled] = useState<boolean>(() => {
+    const stored = localStorage.getItem('jean2_sound_permission_enabled');
+    return stored !== null ? stored === 'true' : true;
+  });
+
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
@@ -261,9 +273,41 @@ function AppContent() {
   // Track sessions that have been interrupted (to prevent stale events from reactivating streaming)
   const [interruptedSessions, setInterruptedSessions] = useState<Set<string>>(new Set());
 
+  // Track toolCallIds that have already triggered the permission sound notification
+  const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
+
+  // Notification sound for chat completion - only on natural completion (non-null -> null transition)
+  const { playChatFinishSound, playPermissionSound } = useNotificationSound();
+  const hasInitializedRef = useRef(false);
+  const prevStreamingRef = useRef<string | null>(null);
+  const skipFinishSoundRef = useRef(false);
+
+  useEffect(() => {
+    // Detect non-null -> null transition
+    if (hasInitializedRef.current && prevStreamingRef.current !== null && streamingSessionId === null) {
+      if (!skipFinishSoundRef.current) {
+        const prevSession = sessions.find(s => s.id === prevStreamingRef.current);
+        if (prevSession?.parentId === null && chatFinishSoundEnabled) {
+          playChatFinishSound();
+        }
+      }
+    }
+    prevStreamingRef.current = streamingSessionId;
+    skipFinishSoundRef.current = false; // Reset after each check
+    hasInitializedRef.current = true;
+  }, [streamingSessionId, playChatFinishSound, sessions, chatFinishSoundEnabled]);
+
   useEffect(() => {
     localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
   }, [sidebarViewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('jean2_sound_chat_finish_enabled', String(chatFinishSoundEnabled));
+  }, [chatFinishSoundEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('jean2_sound_permission_enabled', String(permissionSoundEnabled));
+  }, [permissionSoundEnabled]);
 
   // Connection timeout constants
   const CONNECTION_TIMEOUT = 10000; // 10 seconds
@@ -338,6 +382,7 @@ function AppContent() {
     setNextRetryIn(0);
 
     // Clear all session and message state
+    skipFinishSoundRef.current = true; // Suppress sound on server switch
     setSessions([]);
     setPreconfigs([]);
     setCurrentSession(null);
@@ -713,6 +758,8 @@ function AppContent() {
         if (msg.isRunning) {
           setStreamingSessionId(msg.session.id);
         } else {
+          // Resume after reconnection - suppress finish sound
+          skipFinishSoundRef.current = true;
           setStreamingSessionId(prev => prev === msg.session.id ? null : prev);
         }
 
@@ -982,6 +1029,14 @@ function AppContent() {
           subagentName: msg.subagentName,
         };
         setPendingPermissions(prev => [...prev, request]);
+
+        // Play permission sound only for main sessions (parentId === null)
+        // Only play if this approval has not already triggered a sound (prevents replay on session resume)
+        const session = sessionsRef.current.find(s => s.id === msg.sessionId);
+        if (session?.parentId === null && permissionSoundEnabled && !notifiedToolCallIdsRef.current.has(msg.toolCallId)) {
+          playPermissionSound();
+          notifiedToolCallIdsRef.current.add(msg.toolCallId);
+        }
         break;
       }
 
@@ -993,6 +1048,7 @@ function AppContent() {
         // Track interrupted session to prevent stale events from reactivating streaming
         setInterruptedSessions(prev => new Set(prev).add(msg.sessionId));
         if (streamingSessionId === msg.sessionId) {
+          skipFinishSoundRef.current = true; // Suppress sound on interruption
           setStreamingSessionId(null);
         }
         if (msg.result.cascadedTo.length > 0) {
@@ -1072,6 +1128,7 @@ function AppContent() {
           return newParts;
         });
         if (streamingSessionId === msg.sessionId) {
+          skipFinishSoundRef.current = true; // Suppress sound on state sync
           setStreamingSessionId(null);
         }
         break;
@@ -1099,7 +1156,12 @@ function AppContent() {
         );
         break;
     }
-  }, [currentSession, defaultModel, streamingSessionId, models, interruptedSessions]);
+  }, [currentSession, defaultModel, streamingSessionId, models, interruptedSessions, playPermissionSound, permissionSoundEnabled]);
+
+  // Keep sessionsRef in sync with latest sessions state
+  useLayoutEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
@@ -1120,6 +1182,7 @@ function AppContent() {
 
   const resumeSession = useCallback((sessionId: string) => {
     setPendingPermissions(prev => prev.filter(p => p.sessionId !== sessionId));
+    skipFinishSoundRef.current = true; // Suppress sound on resume
     setStreamingSessionId(null);
     setCompactionSuccess(false);
     const session = sessions.find(s => s.id === sessionId);
@@ -1578,6 +1641,10 @@ function AppContent() {
             providerStatuses={providerStatuses}
             onConnectProvider={connectProvider}
             onDisconnectProvider={disconnectProvider}
+            chatFinishSoundEnabled={chatFinishSoundEnabled}
+            onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
+            permissionSoundEnabled={permissionSoundEnabled}
+            onPermissionSoundEnabledChange={setPermissionSoundEnabled}
           />
 
           <MCPManagementDialog

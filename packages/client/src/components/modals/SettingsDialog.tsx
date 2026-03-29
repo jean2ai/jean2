@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, Link2, User, Palette, Keyboard } from 'lucide-react';
+import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, Link2, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
 import type { ToolPermission } from '@jean2/shared';
 import {
   Dialog,
@@ -77,6 +77,10 @@ interface SettingsDialogProps {
   providerStatuses: ProviderStatus[];
   onConnectProvider: (provider: string) => void;
   onDisconnectProvider: (provider: string) => void;
+  chatFinishSoundEnabled: boolean;
+  onChatFinishSoundEnabledChange: (enabled: boolean) => void;
+  permissionSoundEnabled: boolean;
+  onPermissionSoundEnabledChange: (enabled: boolean) => void;
 }
 
 export function SettingsDialog({
@@ -91,6 +95,10 @@ export function SettingsDialog({
   providerStatuses,
   onConnectProvider,
   onDisconnectProvider,
+  chatFinishSoundEnabled,
+  onChatFinishSoundEnabledChange,
+  permissionSoundEnabled,
+  onPermissionSoundEnabledChange,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
@@ -205,6 +213,44 @@ export function SettingsDialog({
                     <Monitor className="size-4" data-icon="inline-start" />
                     System
                   </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Notification Sounds</Label>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="size-4 text-muted-foreground" />
+                      <span className="text-sm">Chat completion</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onChatFinishSoundEnabledChange(!chatFinishSoundEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatFinishSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <VolumeX className="size-4 text-muted-foreground" />
+                      <span className="text-sm">Permission requests</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onPermissionSoundEnabledChange(!permissionSoundEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${permissionSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
