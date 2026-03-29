@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,7 @@ interface DiffLineProps {
   language: string;
 }
 
-function DiffLine({ type, content, lineNumber, newLineNumber, language }: DiffLineProps) {
+const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumber, language }: DiffLineProps) {
   const tintClass = cn(
     'flex font-mono text-xs',
     type === 'added' && 'bg-green-500/20',
@@ -90,9 +90,9 @@ function DiffLine({ type, content, lineNumber, newLineNumber, language }: DiffLi
       </span>
     </div>
   );
-}
+});
 
-export function DiffViewer({ hunks, path, language: propLanguage, additions, deletions }: DiffViewerProps) {
+export const DiffViewer = memo(function DiffViewer({ hunks, path, language: propLanguage, additions, deletions }: DiffViewerProps) {
   const [expanded, setExpanded] = useState(true);
   const language = propLanguage || detectLanguage(path);
 
@@ -131,4 +131,4 @@ export function DiffViewer({ hunks, path, language: propLanguage, additions, del
       </div>
     </div>
   );
-}
+});

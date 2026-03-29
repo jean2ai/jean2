@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { AnyVisualization } from '@jean2/shared';
 import { DiffViewer } from './DiffViewer';
 import { CodeBlock } from './CodeBlock';
@@ -10,7 +11,7 @@ interface VisualizationRendererProps {
   visualization?: AnyVisualization;
 }
 
-export function VisualizationRenderer({ visualization }: VisualizationRendererProps) {
+export const VisualizationRenderer = memo(function VisualizationRenderer({ visualization }: VisualizationRendererProps) {
   if (!visualization) {
     return null;
   }
@@ -104,4 +105,4 @@ export function VisualizationRenderer({ visualization }: VisualizationRendererPr
     default:
       return null;
   }
-}
+});

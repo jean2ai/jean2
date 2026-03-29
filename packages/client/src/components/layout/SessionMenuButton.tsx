@@ -28,7 +28,7 @@ interface SessionMenuButtonProps {
   allSessions: Session[];
   isActive: boolean;
   currentSessionId: string | null;
-  streamingSessionId: string | null;
+  streamingSessionIds: Set<string>;
   pendingPermissions: { sessionId: string }[];
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -135,7 +135,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   allSessions,
   isActive,
   currentSessionId,
-  streamingSessionId,
+  streamingSessionIds,
   pendingPermissions,
   onResumeSession,
   onCloseSession,
@@ -211,7 +211,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     [childSessions, currentSessionId]
   );
 
-  const isStreaming = session.id === streamingSessionId;
+  const isStreaming = streamingSessionIds.has(session.id);
   const hasPendingPermission = pendingPermissions.some(p => p.sessionId === session.id);
 
   const isRunning = isStreaming || session.subagentStatus === 'running' || !!session.runningAt;
@@ -346,7 +346,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   allSessions={allSessions}
                   isActive={currentSessionId === child.id}
                   currentSessionId={currentSessionId}
-                  streamingSessionId={streamingSessionId}
+                  streamingSessionIds={streamingSessionIds}
                   pendingPermissions={pendingPermissions}
                   onResumeSession={onResumeSession}
                   onCloseSession={onCloseSession}

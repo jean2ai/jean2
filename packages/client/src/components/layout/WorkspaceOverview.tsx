@@ -22,7 +22,7 @@ interface WorkspaceOverviewProps {
   allSessions: Session[];
   currentSession: Session | null;
   currentSessionId: string | null;
-  streamingSessionId: string | null;
+  streamingSessionIds: Set<string>;
   pendingPermissions: { sessionId: string }[];
   favoritedWorkspaceIds: string[];
   workspaces: Workspace[];
@@ -41,7 +41,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   allSessions,
   currentSession,
   currentSessionId,
-  streamingSessionId,
+  streamingSessionIds,
   pendingPermissions,
   favoritedWorkspaceIds,
   workspaces,
@@ -147,7 +147,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
                           allSessions={allSessions}
                           isActive={currentSession?.id === session.id}
                           currentSessionId={currentSessionId}
-                          streamingSessionId={streamingSessionId}
+                          streamingSessionIds={streamingSessionIds}
                           pendingPermissions={pendingPermissions}
                           onResumeSession={onResumeSession}
                           onCloseSession={onCloseSession}

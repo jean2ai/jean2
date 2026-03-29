@@ -1,5 +1,4 @@
-import type { FC } from 'react';
-import { useState } from 'react';
+import { type FC, memo, useState, useMemo } from 'react';
 import { Check, FileText, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Highlight, themes } from 'prism-react-renderer';
 
@@ -11,6 +10,8 @@ interface CodeBlockProps {
   highlightLines?: number[];
   showOverwriteIndicator?: boolean;
 }
+
+const PREVIEW_LINE_COUNT = 20;
 
 function detectLanguage(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase();
@@ -33,22 +34,22 @@ function detectLanguage(path: string): string {
   return langMap[ext || ''] || ext || 'text';
 }
 
-export const CodeBlock: FC<CodeBlockProps> = ({
+export const CodeBlock: FC<CodeBlockProps> = memo(({
   content,
   path,
   language,
   created,
   highlightLines = [],
 }) => {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const detectedLanguage = language || detectLanguage(path);
-  const highlightSet = new Set(highlightLines);
+  const highlightSet = useMemo(() => new Set(highlightLines), [highlightLines]);
+  const lineCount = useMemo(() => content.split('\n').length, [content]);
 
   return (
     <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
       <div>
         <div className="flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
-          {/* Clickable toggle button - just chevron */}
           <button
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-2 px-2 py-1 hover:bg-muted"
@@ -56,11 +57,15 @@ export const CodeBlock: FC<CodeBlockProps> = ({
             {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
           </button>
 
-          {/* Filename - OUTSIDE button, will be link in future */}
           <FileText className="size-3" />
           <span className="font-mono pr-2">{path}</span>
 
-          {/* Status - push to right */}
+          {!expanded && (
+            <span className="text-xs text-muted-foreground/70">
+              {lineCount} lines
+            </span>
+          )}
+
           {created === false ? (
             <span className="flex items-center gap-1 text-warning ml-auto mr-2">
               <AlertCircle className="size-3" />
@@ -74,12 +79,14 @@ export const CodeBlock: FC<CodeBlockProps> = ({
           )}
         </div>
 
-        {expanded && (
-          <div style={{ backgroundColor: '#282c34' }}>
-            <Highlight theme={themes.oneDark} code={content} language={detectedLanguage}>
-              {({ tokens, getTokenProps }) => (
+        <div style={{ backgroundColor: '#282c34' }}>
+          <Highlight theme={themes.oneDark} code={content} language={detectedLanguage}>
+            {({ tokens, getTokenProps }) => {
+              const displayedTokens = expanded ? tokens : tokens.slice(0, PREVIEW_LINE_COUNT);
+
+              return (
                 <>
-                  {tokens.map((line, lineKey) => (
+                  {displayedTokens.map((line, lineKey) => (
                     <div
                       key={lineKey}
                       className={`flex font-mono text-xs ${
@@ -97,11 +104,11 @@ export const CodeBlock: FC<CodeBlockProps> = ({
                     </div>
                   ))}
                 </>
-              )}
-            </Highlight>
-          </div>
-        )}
+              );
+            }}
+          </Highlight>
+        </div>
       </div>
     </div>
   );
-};
+});

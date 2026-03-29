@@ -204,7 +204,7 @@ function AppContent() {
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
-  const [streamingSessionId, setStreamingSessionId] = useState<string | null>(null);
+  const [streamingSessionIds, setStreamingSessionIds] = useState<Set<string>>(() => new Set());
   const [sessionUsage, setSessionUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
@@ -279,23 +279,36 @@ function AppContent() {
   // Notification sound for chat completion - only on natural completion (non-null -> null transition)
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
   const hasInitializedRef = useRef(false);
-  const prevStreamingRef = useRef<string | null>(null);
-  const skipFinishSoundRef = useRef(false);
+  const prevStreamingSessionIdsRef = useRef<Set<string>>(new Set());
+  const skipFinishSoundSessionIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Detect non-null -> null transition
-    if (hasInitializedRef.current && prevStreamingRef.current !== null && streamingSessionId === null) {
-      if (!skipFinishSoundRef.current) {
-        const prevSession = sessions.find(s => s.id === prevStreamingRef.current);
-        if (prevSession?.parentId === null && chatFinishSoundEnabled) {
-          playChatFinishSound();
-        }
+    if (!hasInitializedRef.current) {
+      prevStreamingSessionIdsRef.current = new Set(streamingSessionIds);
+      hasInitializedRef.current = true;
+      return;
+    }
+
+    const prev = prevStreamingSessionIdsRef.current;
+    const completedSessionIds = [...prev].filter(id => !streamingSessionIds.has(id));
+
+    for (const sessionId of completedSessionIds) {
+      if (skipFinishSoundSessionIdsRef.current.has(sessionId)) {
+        continue;
+      }
+      const session = sessions.find(s => s.id === sessionId);
+      if (session?.parentId === null && chatFinishSoundEnabled) {
+        playChatFinishSound();
+        break;
       }
     }
-    prevStreamingRef.current = streamingSessionId;
-    skipFinishSoundRef.current = false; // Reset after each check
-    hasInitializedRef.current = true;
-  }, [streamingSessionId, playChatFinishSound, sessions, chatFinishSoundEnabled]);
+
+    prevStreamingSessionIdsRef.current = new Set(streamingSessionIds);
+
+    for (const sessionId of completedSessionIds) {
+      skipFinishSoundSessionIdsRef.current.delete(sessionId);
+    }
+  }, [streamingSessionIds, playChatFinishSound, sessions, chatFinishSoundEnabled]);
 
   useEffect(() => {
     localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
@@ -382,13 +395,15 @@ function AppContent() {
     setNextRetryIn(0);
 
     // Clear all session and message state
-    skipFinishSoundRef.current = true; // Suppress sound on server switch
     setSessions([]);
     setPreconfigs([]);
     setCurrentSession(null);
     setMessagesBySession({});
     setPartsBySession({});
-    setStreamingSessionId(null);
+    setStreamingSessionIds(prev => {
+      skipFinishSoundSessionIdsRef.current = new Set(prev);
+      return new Set();
+    });
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
     setCurrentModel('gpt-4o');
     setModels([]);
@@ -792,11 +807,21 @@ function AppContent() {
         });
 
         if (msg.isRunning) {
-          setStreamingSessionId(msg.session.id);
+          setStreamingSessionIds(prev => {
+            const next = new Set(prev);
+            next.add(msg.session.id);
+            return next;
+          });
         } else {
-          // Resume after reconnection - suppress finish sound
-          skipFinishSoundRef.current = true;
-          setStreamingSessionId(prev => prev === msg.session.id ? null : prev);
+          setStreamingSessionIds(prev => {
+            if (prev.has(msg.session.id)) {
+              skipFinishSoundSessionIdsRef.current.add(msg.session.id);
+              const next = new Set(prev);
+              next.delete(msg.session.id);
+              return next;
+            }
+            return prev;
+          });
         }
 
         if (msg.messages) {
@@ -842,7 +867,11 @@ function AppContent() {
         }));
         // Track streaming state and clear interrupted status for this session
         if ('status' in msg.message && msg.message.status === 'streaming') {
-          setStreamingSessionId(msg.message.sessionId);
+          setStreamingSessionIds(prev => {
+            const next = new Set(prev);
+            next.add(msg.message.sessionId);
+            return next;
+          });
           setInterruptedSessions(prev => {
             const next = new Set(prev);
             next.delete(msg.message.sessionId);
@@ -860,7 +889,14 @@ function AppContent() {
         }));
         // Clear streaming state if message is no longer streaming
         if ('status' in msg.message && msg.message.status !== 'streaming') {
-          setStreamingSessionId(prev => prev === msg.message.sessionId ? null : prev);
+          setStreamingSessionIds(prev => {
+            if (prev.has(msg.message.sessionId)) {
+              const next = new Set(prev);
+              next.delete(msg.message.sessionId);
+              return next;
+            }
+            return prev;
+          });
         }
         break;
 
@@ -893,9 +929,15 @@ function AppContent() {
         break;
 
       case 'part.append':
-        // Skip setting streaming state if session was interrupted (prevents stale events)
         if (!interruptedSessions.has(msg.sessionId)) {
-          setStreamingSessionId(msg.sessionId);
+          setStreamingSessionIds(prev => {
+            if (!prev.has(msg.sessionId)) {
+              const next = new Set(prev);
+              next.add(msg.sessionId);
+              return next;
+            }
+            return prev;
+          });
         }
         setPartsBySession(prev => {
           const sessionParts = prev[msg.sessionId] || {};
@@ -1081,12 +1123,16 @@ function AppContent() {
         break;
 
       case 'session.interrupted':
-        // Track interrupted session to prevent stale events from reactivating streaming
         setInterruptedSessions(prev => new Set(prev).add(msg.sessionId));
-        if (streamingSessionId === msg.sessionId) {
-          skipFinishSoundRef.current = true; // Suppress sound on interruption
-          setStreamingSessionId(null);
-        }
+        skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
+        setStreamingSessionIds(prev => {
+          if (prev.has(msg.sessionId)) {
+            const next = new Set(prev);
+            next.delete(msg.sessionId);
+            return next;
+          }
+          return prev;
+        });
         if (msg.result.cascadedTo.length > 0) {
           console.log(`Session ${msg.sessionId} interrupted. Cascaded to:`, msg.result.cascadedTo);
         }
@@ -1163,10 +1209,15 @@ function AppContent() {
           }
           return newParts;
         });
-        if (streamingSessionId === msg.sessionId) {
-          skipFinishSoundRef.current = true; // Suppress sound on state sync
-          setStreamingSessionId(null);
-        }
+        skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
+        setStreamingSessionIds(prev => {
+          if (prev.has(msg.sessionId)) {
+            const next = new Set(prev);
+            next.delete(msg.sessionId);
+            return next;
+          }
+          return prev;
+        });
         break;
 
       case 'provider.status': {
@@ -1192,7 +1243,7 @@ function AppContent() {
         );
         break;
     }
-  }, [currentSession, defaultModel, streamingSessionId, models, interruptedSessions, playPermissionSound, permissionSoundEnabled]);
+  }, [currentSession, defaultModel, models, interruptedSessions, playPermissionSound, permissionSoundEnabled]);
 
   // Keep sessionsRef in sync with latest sessions state
   useLayoutEffect(() => {
@@ -1218,8 +1269,14 @@ function AppContent() {
 
   const resumeSession = useCallback((sessionId: string) => {
     setPendingPermissions(prev => prev.filter(p => p.sessionId !== sessionId));
-    skipFinishSoundRef.current = true; // Suppress sound on resume
-    setStreamingSessionId(null);
+    setStreamingSessionIds(prev => {
+      if (prev.size > 0) {
+        for (const id of prev) {
+          skipFinishSoundSessionIdsRef.current.add(id);
+        }
+      }
+      return new Set();
+    });
     setCompactionSuccess(false);
     const session = sessions.find(s => s.id === sessionId);
     if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
@@ -1301,12 +1358,12 @@ function AppContent() {
 
   const sendChatMessage = useCallback((content: string) => {
     if (!currentSession || isCompacting) return;
-    if (currentSession.runningAt || streamingSessionId === currentSession.id) {
+    if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
       addToQueue(currentSession.id, content);
     } else {
       sendMessage('chat.message', { sessionId: currentSession.id, content });
     }
-  }, [currentSession, streamingSessionId, isCompacting, sendMessage, addToQueue]);
+  }, [currentSession, streamingSessionIds, isCompacting, sendMessage, addToQueue]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
@@ -1482,7 +1539,7 @@ function AppContent() {
             modelName={currentModel}
             onNavigateToSubagent={resumeSession}
             onNavigateBack={handleNavigateBack}
-            isStreaming={streamingSessionId === currentSession.id || !!currentSession.runningAt}
+            isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
             onInterrupt={handleInterruptSession}
             onRevert={revertSession}
             onFork={forkSession}
@@ -1524,7 +1581,7 @@ function AppContent() {
           sessions={workspaceSessions}
           currentSession={currentSession}
           currentSessionId={currentSession?.id ?? null}
-          streamingSessionId={streamingSessionId}
+          streamingSessionIds={streamingSessionIds}
           connected={connected}
           workspaces={workspaces}
           activeWorkspace={activeWorkspace}

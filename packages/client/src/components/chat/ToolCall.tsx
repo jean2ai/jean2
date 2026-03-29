@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle, Pause } from 'lucide-react';
 import type { ToolPart, AnyVisualization } from '@jean2/shared';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +51,23 @@ function extractVisualization(output: unknown): AnyVisualization | undefined {
   return undefined;
 }
 
-export function ToolCall({
+const areToolCallPropsEqual = (
+  prev: ToolCallProps,
+  next: ToolCallProps
+): boolean => {
+  if (prev.part !== next.part) return false;
+  if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
+
+  const status = prev.part.state.status;
+  if (status !== 'pending') return true;
+
+  const prevPerm = prev.pendingPermissions.find(p => p.toolCallId === prev.part.callId);
+  const nextPerm = next.pendingPermissions.find(p => p.toolCallId === next.part.callId);
+
+  return prevPerm === nextPerm;
+};
+
+export const ToolCall = memo(function ToolCall({
   part,
   pendingPermissions,
   onPermissionResponse,
@@ -290,4 +306,4 @@ export function ToolCall({
       )}
     </div>
   );
-}
+}, areToolCallPropsEqual);

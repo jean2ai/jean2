@@ -33,7 +33,7 @@ interface AppSidebarProps {
   sessions: Session[];
   currentSession: Session | null;
   currentSessionId: string | null;
-  streamingSessionId: string | null;
+  streamingSessionIds: Set<string>;
   pendingPermissions: { sessionId: string }[];
   connected: boolean;
   workspaces: Workspace[];
@@ -73,7 +73,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     sessions,
     currentSession,
     currentSessionId,
-    streamingSessionId,
+    streamingSessionIds,
     pendingPermissions,
     connected,
     workspaces,
@@ -294,7 +294,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
             allSessions={allSessions}
             currentSession={currentSession}
             currentSessionId={currentSessionId}
-            streamingSessionId={streamingSessionId}
+            streamingSessionIds={streamingSessionIds}
             favoritedWorkspaceIds={favoritedWorkspaceIds}
             workspaces={workspaces}
             activeWorkspace={activeWorkspace}
@@ -333,7 +333,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                             allSessions={sessions}
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
-                            streamingSessionId={streamingSessionId}
+                            streamingSessionIds={streamingSessionIds}
                             pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}
@@ -372,7 +372,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                             allSessions={sessions}
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
-                            streamingSessionId={streamingSessionId}
+                            streamingSessionIds={streamingSessionIds}
                             pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}

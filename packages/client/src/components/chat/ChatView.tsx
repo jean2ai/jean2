@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo, memo } from 'react';
 import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo, AssistantMessage } from '@jean2/shared';
 import { isAssistantMessage } from '@jean2/shared';
@@ -231,11 +231,7 @@ function CompactionDivider({ part }: { part: CompactionPart }) {
   );
 }
 
-/**
- * Renders message parts in CHRONOLOGICAL ORDER (by createdAt).
- * Text blocks and tool calls are interleaved as they were created.
- */
-function MessageParts({
+const MessageParts = memo(function MessageParts({
   parts,
   pendingPermissions,
   onPermissionResponse,
@@ -306,7 +302,33 @@ function MessageParts({
       })}
     </>
   );
-}
+}, (prev, next) => {
+  if (prev.parts !== next.parts) return false;
+  if (prev.inverted !== next.inverted) return false;
+  if (prev.onPermissionResponse !== next.onPermissionResponse) return false;
+  if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
+
+  const hasPendingTool = prev.parts.some(
+    p => p.type === 'tool' && (p as ToolPart).state.status === 'pending'
+  );
+  if (!hasPendingTool) return true;
+
+  const prevToolCallIds = new Set(
+    prev.parts
+      .filter((p): p is ToolPart => p.type === 'tool')
+      .map(p => p.callId)
+  );
+
+  const prevRelevantPerms = prev.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
+  const nextRelevantPerms = next.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
+
+  if (prevRelevantPerms.length !== nextRelevantPerms.length) return false;
+  for (let i = 0; i < prevRelevantPerms.length; i++) {
+    if (prevRelevantPerms[i].toolCallId !== nextRelevantPerms[i].toolCallId) return false;
+  }
+
+  return true;
+});
 
 export function ChatView({
   session,
@@ -360,7 +382,10 @@ export function ChatView({
   const [isNearBottom, setIsNearBottom] = useState(true);
   const SCROLL_THRESHOLD = 150;
 
-  const displayItems = mergeMessagesWithQueue(messagesWithParts, queuedMessages);
+  const displayItems = useMemo(
+    () => mergeMessagesWithQueue(messagesWithParts, queuedMessages),
+    [messagesWithParts, queuedMessages]
+  );
 
   // Scroll to bottom on initial session load and reset near-bottom state
   useEffect(() => {
@@ -392,15 +417,17 @@ export function ChatView({
     return () => viewport.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Find orphaned permissions (not tied to a visible tool part)
-  const orphanedPermissions = pendingPermissions.filter((p) => {
-    if (p.sessionId !== session.id) return false;
-    return !messagesWithParts.some((mwp) =>
-      mwp.parts.some(
-        (part) => part.type === 'tool' && (part as ToolPart).callId === p.toolCallId
-      )
-    );
-  });
+  const orphanedPermissions = useMemo(() =>
+    pendingPermissions.filter((p) => {
+      if (p.sessionId !== session.id) return false;
+      return !messagesWithParts.some((mwp) =>
+        mwp.parts.some(
+          (part) => part.type === 'tool' && (part as ToolPart).callId === p.toolCallId
+        )
+      );
+    }),
+    [pendingPermissions, session.id, messagesWithParts]
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
