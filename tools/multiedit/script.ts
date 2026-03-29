@@ -234,7 +234,7 @@ function pathToFileURL(filePath: string): URL {
   if (!normalizedPath.startsWith('/')) {
     normalizedPath = '/' + normalizedPath;
   }
-  return new URL('file://' + normalizedPath);
+  return new URL('file:' + normalizedPath);
 }
 
 function resolvePath(p: string, ws: string): string {

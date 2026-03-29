@@ -237,7 +237,7 @@ function pathToFileURL(filePath: string): URL {
   if (!normalizedPath.startsWith('/')) {
     normalizedPath = '/' + normalizedPath;
   }
-  return new URL('file://' + normalizedPath);
+  return new URL('file:' + normalizedPath);
 }
 
 function exactMatch(content: string, search: string): MatchResult[] {
