@@ -88,6 +88,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onSelectWorkspace,
     onCreateVirtualWorkspace,
     onCreatePhysicalWorkspace,
+    onDeleteWorkspace,
     onCreateSessionInWorkspace,
     onOpenSettings,
     onOpenMCP,
@@ -248,6 +249,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
               onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
               isWorkspaceFavorited={isWorkspaceFavorited}
               onToggleFavorite={handleToggleWorkspaceFavorite}
+              onDeleteWorkspace={onDeleteWorkspace}
             />
           )}
         </div>

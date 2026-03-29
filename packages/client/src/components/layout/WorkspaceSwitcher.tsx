@@ -1,8 +1,15 @@
 import { useState } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus, Star } from 'lucide-react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Workspace } from '@jean2/shared';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Command,
   CommandEmpty,
@@ -27,6 +34,7 @@ interface WorkspaceSwitcherProps {
   onCreatePhysicalWorkspace: (path: string) => void;
   isWorkspaceFavorited: (workspaceId: string) => boolean;
   onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
+  onDeleteWorkspace: (id: string) => void;
 }
 
 export function WorkspaceSwitcher({
@@ -37,9 +45,11 @@ export function WorkspaceSwitcher({
   onCreatePhysicalWorkspace,
   isWorkspaceFavorited,
   onToggleFavorite,
+  onDeleteWorkspace,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
 
   return (
     <>
@@ -74,21 +84,21 @@ export function WorkspaceSwitcher({
               {workspaces.map((workspace) => (
                 <CommandItem
                   key={workspace.id}
+                  showCheck={false}
                   onSelect={() => {
                     onSelectWorkspace(workspace);
                     setOpen(false);
                   }}
-                  className="justify-between"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
                     {workspace.isVirtual ? (
-                      <Box className="size-4 text-muted-foreground" />
+                      <Box className="size-4 flex-shrink-0 text-muted-foreground" />
                     ) : (
-                      <Folder className="size-4 text-muted-foreground" />
+                      <Folder className="size-4 flex-shrink-0 text-muted-foreground" />
                     )}
-                    <span>{workspace.name}</span>
+                    <span className="truncate">{workspace.name}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="ml-auto flex items-center gap-1">
                     <button
                       className="p-1 rounded hover:bg-secondary transition-colors"
                       onClick={(e) => {
@@ -111,6 +121,29 @@ export function WorkspaceSwitcher({
                           : 'opacity-0'
                       )}
                     />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="p-1 rounded hover:bg-secondary transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="size-4" />
+                          <span className="sr-only">Workspace actions</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setWorkspaceToDelete(workspace);
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Delete workspace
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CommandItem>
               ))}
@@ -148,6 +181,24 @@ export function WorkspaceSwitcher({
         setShowFolderPicker(false);
       }}
       title="Select Workspace Folder"
+    />
+    <ConfirmationDialog
+      open={workspaceToDelete !== null}
+      onOpenChange={(open) => !open && setWorkspaceToDelete(null)}
+      title="Delete Workspace"
+      description={
+        workspaceToDelete
+          ? `Are you sure you want to delete "${workspaceToDelete.name}"? This will permanently remove the workspace and all associated Jean data, including sessions, messages, and temporary files. The actual files in "${workspaceToDelete.name}" on disk will not be deleted.`
+          : ''
+      }
+      confirmLabel="Delete"
+      variant="destructive"
+      onConfirm={() => {
+        if (workspaceToDelete) {
+          onDeleteWorkspace(workspaceToDelete.id);
+          setWorkspaceToDelete(null);
+        }
+      }}
     />
     </>
   );

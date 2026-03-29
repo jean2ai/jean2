@@ -225,6 +225,9 @@ export * from './permissions';
 export * from './queued-messages';
 export * from './terminal-sessions';
 
+// Re-export session cleanup functions for workspace deletion
+export { cleanupSessionOutputDir, cleanupSessionsOutputDirs, cleanupWorkspaceSessionsOutputDirs, deleteSessionsByWorkspace } from './sessions';
+
 // Re-export for recovery functions
 export { findOrphanedCompactionTriggers } from './messages';
 export { reconcileSessionCompaction, reconcileAllSessionsCompaction } from './compaction-recovery';

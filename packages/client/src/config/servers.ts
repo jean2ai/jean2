@@ -212,6 +212,26 @@ export function removeQuickConnection(id: string): void {
 }
 
 /**
+ * Remove all quick connections for a specific workspace
+ * Used when deleting a workspace
+ */
+export function removeQuickConnectionForWorkspace(workspaceId: string): void {
+  try {
+    const connections = getQuickConnections();
+    const filtered = connections.filter((conn) => conn.workspaceId !== workspaceId);
+    localStorage.setItem(
+      STORAGE_KEYS.QUICK_CONNECTIONS,
+      JSON.stringify(filtered),
+    );
+  } catch (error) {
+    console.error(
+      'Error removing quick connections for workspace from localStorage:',
+      error,
+    );
+  }
+}
+
+/**
  * Update an existing quick connection
  */
 export function updateQuickConnection(

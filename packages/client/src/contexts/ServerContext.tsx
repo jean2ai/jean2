@@ -18,6 +18,7 @@ import {
   getQuickConnections,
   addQuickConnection,
   removeQuickConnection,
+  removeQuickConnectionForWorkspace,
   reorderQuickConnections,
 } from '@/config/servers';
 import type { SavedServer, QuickConnection } from '@jean2/shared';
@@ -49,6 +50,7 @@ interface ServerContextValue {
     workspaceName?: string,
   ) => void;
   removeFromQuickConnections: (id: string) => void;
+  removeFromQuickConnectionsByWorkspace: (workspaceId: string) => void;
   reorderQuick: (ids: string[]) => void;
 }
 
@@ -201,6 +203,11 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setQuickConnections(getQuickConnections());
   };
 
+  const removeFromQuickConnectionsByWorkspace = (workspaceId: string): void => {
+    removeQuickConnectionForWorkspace(workspaceId);
+    setQuickConnections(getQuickConnections());
+  };
+
   const reorderQuick = (ids: string[]): void => {
     reorderQuickConnections(ids);
     setQuickConnections(getQuickConnections());
@@ -219,6 +226,7 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     clearSwitchingState,
     addToQuickConnections,
     removeFromQuickConnections,
+    removeFromQuickConnectionsByWorkspace,
     reorderQuick,
   };
 

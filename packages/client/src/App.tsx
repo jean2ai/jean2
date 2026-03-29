@@ -188,7 +188,7 @@ function KeyboardShortcutHandler({
 }
 
 function AppContent() {
-  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd } = useServerContext();
+  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
@@ -705,11 +705,47 @@ function AppContent() {
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
 
-    await fetchWithAuth(`${apiUrl}/workspaces/${id}`, { method: 'DELETE' });
-    setWorkspaces(prev => prev.filter(w => w.id !== id));
-    if (activeWorkspace?.id === id) {
-      setActiveWorkspace(workspaces[0] || null);
+    const response = await fetchWithAuth(`${apiUrl}/workspaces/${id}`, { method: 'DELETE' });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to delete workspace' }));
+      console.error('Failed to delete workspace:', error.message);
+      return;
     }
+
+    // Parse server response for the list of deleted session IDs
+    const { deletedSessions }: { deletedSessions: string[] } = await response.json();
+
+    // Remove quick connections referencing this workspace via context API
+    // This updates both storage and reactive state
+    removeFromQuickConnectionsByWorkspace(id);
+
+    // Clear current session if it belonged to the deleted workspace
+    if (currentSession && (currentSession.workspaceId === id || deletedSessions.includes(currentSession.id))) {
+      setCurrentSession(null);
+    }
+
+    // Clean up sessions, messages, and parts for deleted sessions using server's response
+    setSessions(prev => prev.filter(s => !deletedSessions.includes(s.id)));
+
+    setMessagesBySession(prev => {
+      const next = { ...prev };
+      deletedSessions.forEach(sessionId => delete next[sessionId]);
+      return next;
+    });
+    setPartsBySession(prev => {
+      const next = { ...prev };
+      deletedSessions.forEach(sessionId => delete next[sessionId]);
+      return next;
+    });
+
+    setWorkspaces(prev => {
+      const next = prev.filter(w => w.id !== id);
+      if (activeWorkspace?.id === id) {
+        setActiveWorkspace(next[0] || null);
+      }
+      return next;
+    });
   };
 
   const handleCreateVirtualWorkspace = async () => {

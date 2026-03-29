@@ -53,6 +53,9 @@ import { listTools, getTool } from './tools';
 // Import MCP operations
 import * as mcp from './mcp';
 
+// Import cleanup functions
+import { cleanupSessionsOutputDirs } from '@/store';
+
 // Import prompt operations
 import { listPrompts, ensurePromptsDir } from './prompts/registry';
 
@@ -340,17 +343,33 @@ export function createApp() {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
-    // Import getTerminalManager dynamically to avoid circular dependency
+    // 1. Gather all session IDs for the workspace before deleting
+    const sessions = listSessionsByWorkspace(id);
+    const sessionIds = sessions.map(s => s.id);
+
+    // 2. Shutdown MCP workspace runtime state for that workspace
+    try {
+      await mcp.shutdownWorkspace(workspace.path);
+    } catch (err) {
+      console.warn(`[workspace cleanup] Failed to shutdown MCP workspace ${workspace.path}:`, err);
+    }
+
+    // 3. Destroy terminal sessions for that workspace
     const { getTerminalManager } = await import('./services/terminal');
     getTerminalManager().destroySessionsForWorkspace(workspace.path);
 
+    // 4. Delete the workspace DB row (cascades to sessions, messages, etc.)
     const deleted = deleteWorkspace(id);
 
     if (!deleted) {
       return c.json({ error: 'Internal Server Error', message: 'Failed to delete workspace' }, 500);
     }
 
-    return c.json({ success: true });
+    // 5. Delete session-related temp/output directories for the workspace's sessions
+    // Use pre-collected session IDs since the DB cascade delete has already removed the sessions
+    cleanupSessionsOutputDirs(sessionIds);
+
+    return c.json({ success: true, deletedSessions: sessionIds });
   });
 
   // ============================================================================

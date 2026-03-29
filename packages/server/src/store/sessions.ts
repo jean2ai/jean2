@@ -166,7 +166,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
 
 const OUTPUT_DIR_PREFIX = '/tmp/jean2/';
 
-function cleanupSessionOutputDir(sessionId: string): void {
+export function cleanupSessionOutputDir(sessionId: string): void {
   const dir = `${OUTPUT_DIR_PREFIX}${sessionId}`;
   if (existsSync(dir)) {
     try {
@@ -174,6 +174,24 @@ function cleanupSessionOutputDir(sessionId: string): void {
     } catch (err) {
       console.warn(`[cleanup] Failed to remove output dir ${dir}:`, err);
     }
+  }
+}
+
+export function cleanupWorkspaceSessionsOutputDirs(workspaceId: string): void {
+  const sessions = listSessionsByWorkspace(workspaceId);
+  for (const session of sessions) {
+    cleanupSessionOutputDir(session.id);
+  }
+}
+
+/**
+ * Cleanup session output directories for a list of session IDs.
+ * Used when deleting a workspace - the sessions may already be removed from DB,
+ * so we clean up based on pre-collected session IDs.
+ */
+export function cleanupSessionsOutputDirs(sessionIds: string[]): void {
+  for (const sessionId of sessionIds) {
+    cleanupSessionOutputDir(sessionId);
   }
 }
 
@@ -186,6 +204,15 @@ export function deleteSession(id: string): boolean {
   }
 
   return result.changes > 0;
+}
+
+export function deleteSessionsByWorkspace(workspaceId: string): void {
+  const sessions = listSessionsByWorkspace(workspaceId);
+  const db = getDatabase();
+  db.run('DELETE FROM sessions WHERE workspace_id = ?', [workspaceId]);
+  for (const session of sessions) {
+    cleanupSessionOutputDir(session.id);
+  }
 }
 
 export function listSessionsByWorkspace(workspaceId: string): Session[] {
