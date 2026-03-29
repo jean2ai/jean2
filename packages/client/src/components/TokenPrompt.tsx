@@ -8,7 +8,7 @@ interface TokenPromptProps {
   defaultServerUrl?: string;
 }
 
-export default function TokenPrompt({ onSubmit, error, defaultServerUrl = 'localhost:3000' }: TokenPromptProps) {
+export default function TokenPrompt({ onSubmit, error, defaultServerUrl = 'localhost:8742' }: TokenPromptProps) {
   const [serverUrl, setServerUrl] = useState(defaultServerUrl);
   const [token, setToken] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -67,7 +67,7 @@ export default function TokenPrompt({ onSubmit, error, defaultServerUrl = 'local
                   setServerUrl(e.target.value);
                   setLocalError(null);
                 }}
-                placeholder="localhost:3000"
+                placeholder="localhost:8742"
                 className="w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors"
               />
             </div>

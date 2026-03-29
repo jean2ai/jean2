@@ -26,7 +26,7 @@ export function AddServerDialog({
   onOpenChange,
   editServer,
 }: AddServerDialogProps) {
-  const { addServer, editServer: updateServer } = useServerContext();
+  const { prepareForServerAdd, addServer, editServer: updateServer } = useServerContext();
 
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
@@ -43,7 +43,7 @@ export function AddServerDialog({
       setToken(editServer.token);
     } else {
       setName('');
-      setUrl('');
+      setUrl('localhost:8742');
       setToken('');
     }
     setError(null);
@@ -87,6 +87,7 @@ export function AddServerDialog({
         token: trimmedToken,
       });
     } else {
+      prepareForServerAdd();
       addServer(trimmedName, normalizedUrl, trimmedToken);
     }
 
@@ -125,7 +126,7 @@ export function AddServerDialog({
                 id="server-url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="localhost:3000"
+                placeholder="localhost:8742"
               />
             </div>
 

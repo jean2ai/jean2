@@ -187,7 +187,7 @@ function KeyboardShortcutHandler({
 }
 
 function AppContent() {
-  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections } = useServerContext();
+  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd } = useServerContext();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
@@ -274,6 +274,10 @@ function AppContent() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingWorkspaceIdRef = useRef<string | null>(null);
 
+  // Track if activeServer change was triggered by addServer (for state clearing)
+  // Now managed by ServerContext via isAddingServerRef
+  const prevActiveServerIdRef = useRef<string | null>(null);
+
   // Loading state for server data fetching
   const [_isLoadingServerData, setIsLoadingServerData] = useState(false);
 
@@ -295,9 +299,10 @@ function AppContent() {
   const pendingSessionCreateRef = useRef(false);
 
   const handleFirstServerAdded = useCallback((server: SavedServer) => {
-    // The addServer function from context handles setting active server
+    // Setting flag before addServer so the effect can detect it
+    prepareForServerAdd();
     addServer(server.name, server.url, server.token);
-  }, [addServer]);
+  }, [addServer, prepareForServerAdd]);
 
   const handleLogout = useCallback(() => {
     if (activeServer) {
@@ -355,6 +360,15 @@ function AppContent() {
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
   }, []);
+
+  // Effect to handle state clearing when activeServer changes from addServer
+  useEffect(() => {
+    if (activeServer?.id !== prevActiveServerIdRef.current && isAddingServerRef.current) {
+      isAddingServerRef.current = false;
+      prevActiveServerIdRef.current = activeServer?.id ?? null;
+      handleServerSwitch();
+    }
+  }, [activeServer, handleServerSwitch, isAddingServerRef]);
 
   const fetchWithAuth = useCallback(async (
     url: string,
@@ -625,8 +639,11 @@ function AppContent() {
       body: JSON.stringify({ name, path, isVirtual }),
     });
     const data = await res.json();
-    setWorkspaces(prev => [...prev, data.workspace]);
-    return data.workspace;
+    const workspace = data.workspace;
+    setWorkspaces(prev => [...prev, workspace]);
+    setActiveWorkspace(workspace);
+    setCurrentSession(null);
+    return workspace;
   };
 
   const selectWorkspace = (workspace: Workspace) => {

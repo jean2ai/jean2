@@ -8,7 +8,7 @@ import { TokenMeter } from './TokenMeter';
 import { ModelSelector } from './ModelSelector';
 import { VariantSelector } from './VariantSelector';
 import { PreconfigSelector } from './PreconfigSelector';
-import { useIsMobile } from '@/hooks/use-mobile';
+import {useIsCompact, useIsMobile} from '@/hooks/use-mobile';
 
 interface Model {
   id: string;
@@ -71,6 +71,7 @@ export function ChatHeader({
   const [editTitle, setEditTitle] = useState(session.title || '');
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  const isCompact = useIsCompact();
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -205,13 +206,13 @@ export function ChatHeader({
           <>
             <Button
               variant="outline"
-              size={isMobile ? 'icon' : 'sm'}
+              size={isCompact ? 'icon' : 'sm'}
               onClick={onCompact}
               disabled={isStreaming || isCompacting || !canCompact}
               title={isCompacting ? 'Compacting...' : 'Compact older messages'}
             >
               <Minimize2 className="size-4" />
-              {!isMobile && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
+              {!isCompact && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
             </Button>
             <Separator orientation="vertical" className="hidden sm:block" />
           </>
@@ -220,14 +221,14 @@ export function ChatHeader({
 
         <Button
           variant={isStreaming ? 'destructive' : 'outline'}
-          size={isMobile ? 'icon' : 'sm'}
+          size={isCompact ? 'icon' : 'sm'}
           onClick={onInterrupt}
           disabled={!onInterrupt}
           className={!isStreaming ? 'opacity-60 hover:opacity-100' : ''}
           title={isStreaming ? 'Interrupt operation' : 'Interrupt (no active operation)'}
         >
           <Square className="size-4" />
-          {!isMobile && <span className="ml-1">Stop</span>}
+          {!isCompact && <span className="ml-1">Stop</span>}
         </Button>
       </div>
     </header>

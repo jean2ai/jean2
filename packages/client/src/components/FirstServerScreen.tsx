@@ -10,7 +10,7 @@ interface FirstServerScreenProps {
 
 export default function FirstServerScreen({ onServerAdded, error }: FirstServerScreenProps) {
   const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState('localhost:8742');
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export default function FirstServerScreen({ onServerAdded, error }: FirstServerS
                   setUrl(e.target.value);
                   setLocalError(null);
                 }}
-                placeholder="localhost:3000"
+                placeholder="localhost:8742"
                 className="w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors"
               />
             </div>

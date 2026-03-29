@@ -28,8 +28,10 @@ interface ServerContextValue {
   activeServer: SavedServer | null;
   quickConnections: QuickConnection[];
   isSwitching: boolean;
+  isAddingServerRef: React.MutableRefObject<boolean>;
 
   // Server actions
+  prepareForServerAdd: () => void;
   addServer: (name: string, url: string, token: string) => SavedServer;
   editServer: (
     id: string,
@@ -64,6 +66,7 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
   );
   const [isSwitching, setIsSwitching] = useState(false);
   const switchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isAddingServerRef = useRef(false);
 
   useEffect(() => {
     const loadedServers = getSavedServers();
@@ -74,6 +77,12 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setActiveServer(loadedActiveServer);
     setQuickConnections(loadedQuickConnections);
   }, []);
+
+  // Called before addServer to mark that a server is being added
+  // so App.tsx can trigger reset logic when activeServer changes
+  const prepareForServerAdd = (): void => {
+    isAddingServerRef.current = true;
+  };
 
   const addServer = (name: string, url: string, token: string): SavedServer => {
     const normalizedUrl = normalizeServerUrl(url);
@@ -89,11 +98,9 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     saveServer(newServer);
     setServers(getSavedServers());
 
-    // If this is the first server, set it as active
-    if (servers.length === 0) {
-      setActiveServerId(newServer.id);
-      setActiveServer(newServer);
-    }
+    // Always set the newly added server as active
+    setActiveServerId(newServer.id);
+    setActiveServer(newServer);
 
     return newServer;
   };
@@ -198,12 +205,13 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     reorderQuickConnections(ids);
     setQuickConnections(getQuickConnections());
   };
-
-  const value: ServerContextValue = {
+    const value: ServerContextValue = {
     servers,
     activeServer,
     quickConnections,
     isSwitching,
+    isAddingServerRef,
+    prepareForServerAdd,
     addServer,
     editServer,
     removeServer,
