@@ -37,13 +37,6 @@ List directory contents with tree formatting.
 mkdir -p ~/.jean2/tools/ls && curl -L https://github.com/rabbyte-tech/jean2/releases/download/tool-ls%2Fv0.3.0/ls.tar.gz | tar -xz -C ~/.jean2/tools/ls --strip-components=1
 ```
 
-## [lsp](../tools/lsp/README.md) v0.2.1
-Code intelligence via Language Server Protocol.
-
-```bash
-mkdir -p ~/.jean2/tools/lsp && curl -L https://github.com/rabbyte-tech/jean2/releases/download/tool-lsp%2Fv0.2.1/lsp.tar.gz | tar -xz -C ~/.jean2/tools/lsp --strip-components=1
-```
-
 ## [multiedit](../tools/multiedit/README.md) v0.2.1
 Multiple string replacements in a single file.
 

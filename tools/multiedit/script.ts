@@ -135,17 +135,6 @@ interface MatchInfo {
   matchCount: number;
 }
 
-interface Diagnostic {
-  range: {
-    start: { line: number; character: number };
-    end: { line: number; character: number };
-  };
-  severity?: 'Error' | 'Warning' | 'Information' | 'Hint';
-  message: string;
-  code?: string | number;
-  source?: string;
-}
-
 interface _Edit {
   oldString: string;
   newString: string;
@@ -154,88 +143,6 @@ interface _Edit {
 
 const input = JSON.parse(await Bun.stdin.text());
 const { path: inputPath, edits, workspacePath } = input;
-
-function isLspSupportedFile(filePath: string): boolean {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  return ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts', 'php', 'phtml'].includes(ext || '');
-}
-
-async function ensureWorkspaceInitialized(
-  workspaceId: string,
-  workspaceRoot: string,
-  lspServerUrl: string
-): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const response = await fetch(`${lspServerUrl}/initialize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, workspaceRoot }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) return false;
-
-    const data = await response.json() as { success: boolean };
-    return data.success;
-  } catch {
-    return false;
-  }
-}
-
-// Fetches on-demand diagnostics from the standalone LSP server
-async function fetchDiagnostics(
-  workspaceId: string,
-  workspaceRoot: string,
-  uri: string,
-  content: string,
-  lspServerUrl: string
-): Promise<Diagnostic[] | null> {
-  try {
-    // Ensure workspace is initialized before requesting diagnostics
-    // This is critical for cold starts, especially PHP
-    await ensureWorkspaceInitialized(workspaceId, workspaceRoot, lspServerUrl);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    const response = await fetch(`${lspServerUrl}/diagnostics/file`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId, uri, content }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) return null;
-
-    const data = (await response.json()) as {
-      success: boolean;
-      result?: Diagnostic[];
-      timedOut?: boolean;
-      timestamp?: number;
-    };
-
-    // If server indicates timeout, return null (no stale diagnostics)
-    if (data.timedOut) return null;
-    return data.success && data.result ? data.result : null;
-  } catch {
-    return null;
-  }
-}
-
-function pathToFileURL(filePath: string): URL {
-  let normalizedPath = filePath.replace(/\\/g, '/');
-  if (!normalizedPath.startsWith('/')) {
-    normalizedPath = '/' + normalizedPath;
-  }
-  return new URL('file:' + normalizedPath);
-}
 
 function resolvePath(p: string, ws: string): string {
   if (p === '~' || p.startsWith('~/')) {
@@ -524,17 +431,6 @@ async function multiEditFile() {
     
     await Bun.write(resolvedPath, content);
 
-    // Fetch on-demand diagnostics for supported files after successful write
-    // The /diagnostics/file endpoint handles open/update and waits for fresh diagnostics
-    let diagnostics: Diagnostic[] | undefined;
-    if (isLspSupportedFile(resolvedPath)) {
-      const lspServerUrl = process.env.LSP_SERVER_URL || 'http://localhost:8739';
-      const uri = pathToFileURL(resolvedPath).href;
-      // Initialize workspace before fetching diagnostics to handle cold starts (especially PHP)
-      const diagnosticsResult = await fetchDiagnostics(workspacePath, workspacePath, uri, content, lspServerUrl);
-      diagnostics = diagnosticsResult || undefined;
-    }
-
     // Build diff visualizations for each edit
     const diffItems = editRecords.map((record) =>
       buildDiffVisualization(
@@ -551,20 +447,14 @@ async function multiEditFile() {
     const response: {
       success: boolean;
       results: { matchInfo: MatchInfo }[];
-      diagnostics?: Diagnostic[];
       _visualization?: { type: 'diffs'; items: ReturnType<typeof buildDiffVisualization>[] };
     } = {
       success: true,
       results,
-    };
-
-    if (diagnostics && diagnostics.length > 0) {
-      response.diagnostics = diagnostics;
-    }
-
-    response._visualization = {
-      type: 'diffs',
-      items: diffItems,
+      _visualization: {
+        type: 'diffs',
+        items: diffItems,
+      },
     };
 
     console.log(JSON.stringify(response));

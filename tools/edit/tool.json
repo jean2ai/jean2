@@ -33,7 +33,7 @@
       "error": { "type": "string" }
     }
   },
-  "timeout": 30000,
+  "timeout": 180000,
   "requireApproval": false,
   "dangerous": false,
   "hasSecurityCheck": true

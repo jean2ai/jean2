@@ -1,5 +1,6 @@
 import type { Tool } from 'ai';
 import type { ToolDefinition } from '@jean2/shared';
+import { pathToFileURL } from 'url';
 import { getSkill, getAvailableSkills, formatSkillsList } from './registry';
 
 /**
@@ -113,7 +114,7 @@ export async function executeSkillTool(
     '',
     skill.content,
     '',
-    `Base directory for this skill: file://${skillDir}`,
+    `Base directory for this skill: ${pathToFileURL(skillDir).href}`,
     'Relative paths in this skill (e.g., scripts/, references/) are relative to this base directory.',
     '</skill_content>',
   ].join('\n');

@@ -9,15 +9,6 @@
 curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2.sh | bash
 ```
 
-## LSP Service
-
-- Install the Jean2 LSP service binary. See the [LSP README](../services/lsp/README.md) for details.
-- Don't forget to install the actual [language servers](../services/lsp/README.md#prerequisites) you need (e.g. `typescript-language-server`, `intelephense`).
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh | bash
-```
-
 ## Client
 
 - Desktop apps (macOS, Windows) are available as unsigned releases on [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases?q=client&expanded=true). Signed releases and mobile apps are coming soon.

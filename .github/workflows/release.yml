@@ -13,11 +13,6 @@ on:
         required: false
         default: false
         type: boolean
-      release_lsp:
-        description: 'Release LSP'
-        required: false
-        default: false
-        type: boolean
       tool_apply_patch:
         description: 'Release apply-patch tool'
         required: false
@@ -40,11 +35,6 @@ on:
         type: boolean
       tool_ls:
         description: 'Release ls tool'
-        required: false
-        default: false
-        type: boolean
-      tool_lsp:
-        description: 'Release lsp tool'
         required: false
         default: false
         type: boolean
@@ -111,11 +101,6 @@ jobs:
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "server"}]')
           fi
           
-          # LSP
-          if [ "${{ inputs.release_lsp }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "lsp"}]')
-          fi
-          
           # Tools - explicit checks for each
           if [ "${{ inputs.tool_apply_patch }}" = "true" ]; then
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "apply-patch"}]')
@@ -131,9 +116,6 @@ jobs:
           fi
           if [ "${{ inputs.tool_ls }}" = "true" ]; then
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "ls"}]')
-          fi
-          if [ "${{ inputs.tool_lsp }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "lsp"}]')
           fi
           if [ "${{ inputs.tool_multiedit }}" = "true" ]; then
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "name": "multiedit"}]')
@@ -206,25 +188,6 @@ jobs:
             [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Server $V" $PRE \
               packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
-
-          elif [ "$RELEASE_TYPE" = "lsp" ]; then
-            V=$(cat services/lsp/VERSION) && TAG="lsp/v${V}"
-            if gh release view "$TAG" 2>/dev/null; then
-              if [ "$FORCE" != "true" ]; then
-                echo "Skipping $TAG - release already exists"
-                continue
-              fi
-              echo "Deleting existing release $TAG for force recreation..."
-              gh release delete "$TAG" --yes || true
-            fi
-            git tag -f "$TAG"
-            git push origin "$TAG" --force
-            mkdir -p services/lsp/dist
-            bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-darwin services/lsp/src/cli.ts
-            bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=services/lsp/dist/jean2-lsp-linux services/lsp/src/cli.ts
-            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-            gh release create "$TAG" --title "LSP $V" $PRE \
-              services/lsp/dist/jean2-lsp-darwin services/lsp/dist/jean2-lsp-linux
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
             P="tools/$TOOL_NAME"

@@ -22,7 +22,7 @@ Every AI agent tool tells you what to do — what prompts to use, what tools you
 
 ## Install
 
-See [INSTALL.md](install/INSTALL.md) for full installation instructions — server, LSP service, client, and tools.
+See [INSTALL.md](install/INSTALL.md) for full installation instructions — server, client, and tools.
 
 > **Quick start:** Download the server binary from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases) and run:
 >
@@ -83,10 +83,6 @@ Skills are discoverable instruction sets stored as `SKILL.md` files in `.agents/
 - **Interrupt** — Cancel running generation with automatic cascade to subagents
 - **Queue** — Queue messages while the agent is busy
 
-### LSP Code Intelligence
-
-A standalone HTTP→LSP bridge (`@jean2/lsp`) provides go-to-definition, find-references, hover info, document symbols, and diagnostics. Supports TypeScript and PHP with an extensible language client architecture.
-
 ### Remote Terminal
 
 Full remote terminal with PTY support. Connect to a shell in any workspace with multi-tab terminals, session reconnection with scrollback, and configurable shell. Uses xterm.js on the client and Bun's PTY support on the server.
@@ -145,16 +141,7 @@ Features streaming chat with real-time deltas, file tree browser, tool permissio
 │               └────────────────────────┘                        │
 │                                                                  │
 │              Workspaces → directories on your machine            │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-┌──────────────────────────┴──────────────────────────────────────┐
-│                     Services Layer                               │
-│   ┌──────────────────────────────────────────────────┐         │
-│   │ LSP Service (@jean2/lsp)                         │         │
-│   │ TypeScript · PHP — definitions, references,      │         │
-│   │ hover, symbols, diagnostics                      │         │
-│   └──────────────────────────────────────────────────┘         │
-└─────────────────────────────────────────────────────────────────┘
+└──────────────────────────┴──────────────────────────────────────┘
 ```
 
 ### Packages
@@ -164,7 +151,6 @@ Features streaming chat with real-time deltas, file tree browser, tool permissio
 | [`@jean2/server`](packages/server/README.md) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
 | [`@jean2/client`](packages/client/README.md) | React 19 + Tauri 2 UI — chat, file browser, permissions, multi-server |
 | [`@jean2/shared`](packages/shared/README.md) | Shared TypeScript types and WebSocket protocol definitions |
-| [`@jean2/lsp`](services/lsp/README.md) | Standalone LSP HTTP bridge — code intelligence service |
 
 ### Tech Stack
 

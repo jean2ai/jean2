@@ -54,7 +54,7 @@ outputSchema:
             type: string
           replacements:
             type: number
-timeout: 60000
+timeout: 180000
 requireApproval: false
 dangerous: false
 hasSecurityCheck: true
@@ -63,9 +63,6 @@ hasSecurityCheck: true
 Performs multiple string replacements in a single file atomically.
 
 All edits are applied in sequence - either all succeed or none are applied. Use this instead of multiple edit calls for efficiency and atomicity.
-
-**Post-edit Diagnostics:**
-When the `jean2-lsp` service is running and the file is a supported language, the tool automatically fetches fresh diagnostics after successful edits. Supported file types: TypeScript (.ts, .tsx, .mts, .cts), JavaScript (.js, .jsx, .mjs, .cjs), and PHP (.php, .phtml).
 
 Parameters:
 - path (required): Absolute path to the file to edit

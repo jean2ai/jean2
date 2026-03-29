@@ -19,7 +19,7 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
@@ -61,7 +61,7 @@
     },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "0.6.0",
+      "version": "0.6.3",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -90,22 +90,6 @@
     "packages/shared": {
       "name": "@jean2/shared",
       "version": "0.1.0",
-    },
-    "services/lsp": {
-      "name": "@jean2/lsp",
-      "version": "0.2.2",
-      "bin": {
-        "jean2-lsp": "./dist/bin/jean2-lsp",
-      },
-      "dependencies": {
-        "hono": "^4.0.0",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.1.0",
-        "@types/node": "^22.10.1",
-        "bun-types": "^1.3.9",
-        "typescript": "^5.7.2",
-      },
     },
   },
   "packages": {
@@ -290,8 +274,6 @@
     "@inquirer/type": ["@inquirer/type@3.0.10", "", { "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-BvziSRxfz5Ov8ch0z/n3oijRSEcEsHnhggm4xFZe93DHcUCTlutlq9Ox4SVENAfcRD22UQq7T/atg9Wr3k09eA=="],
 
     "@jean2/client": ["@jean2/client@workspace:packages/client"],
-
-    "@jean2/lsp": ["@jean2/lsp@workspace:services/lsp"],
 
     "@jean2/server": ["@jean2/server@workspace:packages/server"],
 

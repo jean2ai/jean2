@@ -18,11 +18,11 @@
       "dangerous": false
     },
     "edit": {
-      "description": "String replacements in files with fuzzy matching and optional post-edit diagnostics for TypeScript, JavaScript, and PHP",
+      "description": "String replacements in files with fuzzy matching support",
       "runtime": "bun",
       "requiredRuntimes": ["bun"],
       "postInstall": null,
-      "extensions": ["jean2-lsp"],
+      "extensions": [],
       "tags": ["recommended", "core"],
       "dangerous": false
     },
@@ -53,21 +53,12 @@
       "tags": ["recommended", "core"],
       "dangerous": false
     },
-    "lsp": {
-      "description": "Code intelligence via Language Server Protocol",
-      "runtime": "bun",
-      "requiredRuntimes": ["bun"],
-      "postInstall": null,
-      "extensions": ["jean2-lsp"],
-      "tags": ["recommended"],
-      "dangerous": false
-    },
     "multiedit": {
-      "description": "Multiple string replacements in a single file with optional post-edit diagnostics for TypeScript, JavaScript, and PHP",
+      "description": "Multiple string replacements in a single file with fuzzy matching support",
       "runtime": "bun",
       "requiredRuntimes": ["bun"],
       "postInstall": null,
-      "extensions": ["jean2-lsp"],
+      "extensions": [],
       "tags": ["recommended", "core"],
       "dangerous": false
     },
@@ -127,43 +118,7 @@
     }
   },
 
-  "extensions": {
-    "jean2-lsp": {
-      "name": "Jean2 LSP Service",
-      "description": "Code intelligence server providing go-to-definition, references, hover, symbols, and on-demand diagnostics for TypeScript, JavaScript, and PHP",
-      "installUrl": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh",
-      "installCommand": "curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2-lsp.sh | bash",
-      "setupSteps": [
-        "jean2-lsp init",
-        "jean2-lsp start"
-      ],
-      "languageServers": [
-        {
-          "name": "typescript-language-server",
-          "languages": ["TypeScript", "JavaScript", "TSX", "JSX"],
-          "installCommand": "npm install -g typescript-language-server typescript",
-          "optional": true
-        },
-        {
-          "name": "intelephense",
-          "languages": ["PHP"],
-          "installCommand": "npm install -g intelephense",
-          "optional": true
-        }
-      ],
-      "envConfig": {
-        "LSP_SERVER_URL": {
-          "description": "URL of the LSP HTTP server",
-          "default": "http://localhost:8739",
-          "configFile": "~/.jean2/.env",
-          "example": "LSP_SERVER_URL=http://localhost:8739"
-        }
-      },
-      "usedBy": ["lsp", "edit", "multiedit"],
-      "requiredFor": ["lsp"],
-      "optionalFor": ["edit", "multiedit"]
-    }
-  },
+  "extensions": {},
 
   "envConfig": {
     "TODOS_DB_PATH": {

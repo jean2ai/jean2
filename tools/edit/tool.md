@@ -34,7 +34,7 @@ outputSchema:
       type: boolean
     error:
       type: string
-timeout: 30000
+timeout: 180000
 requireApproval: false
 dangerous: false
 hasSecurityCheck: true
@@ -43,9 +43,6 @@ hasSecurityCheck: true
 Performs string replacements in files with fuzzy matching support.
 
 This tool finds and replaces text in files using multiple matching strategies. When an exact match is not found, it tries fuzzy strategies automatically.
-
-**Post-edit Diagnostics:**
-When the `jean2-lsp` service is running and the file is a supported language, the tool automatically fetches fresh diagnostics after a successful edit. Supported file types: TypeScript (.ts, .tsx, .mts, .cts), JavaScript (.js, .jsx, .mjs, .cjs), and PHP (.php, .phtml).
 
 Parameters:
 - path (required): Absolute path to the file to edit
