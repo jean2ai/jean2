@@ -1,5 +1,5 @@
-import { readdir, stat } from 'fs/promises';
-import { join, extname, resolve } from 'path';
+import { readdir } from 'fs/promises';
+import { extname, resolve } from 'path';
 import fg from 'fast-glob';
 import type { FileEntry } from '@jean2/shared';
 
@@ -35,48 +35,47 @@ export async function searchFiles(
   rootPath: string,
   query: string,
   limit = 20,
-  showHidden = false
+  showHidden = false,
+  signal?: AbortSignal
 ): Promise<FileEntry[]> {
   if (!query || query.length < 2) return [];
-  
+  if (signal?.aborted) return [];
+
   const pattern = `**/*${query}*`;
-  
-  // Build ignore patterns based on showHidden
+
   const ignorePatterns = showHidden 
     ? IGNORE_PATTERNS.filter(p => p.startsWith('.git'))
     : IGNORE_PATTERNS;
-  
-  const stream = fg.stream([pattern, ...ignorePatterns.map(p => `!${p}`)], {
+
+  const entries = await fg([pattern, ...ignorePatterns.map(p => `!${p}`)], {
     cwd: rootPath,
     onlyFiles: false,
     suppressErrors: true,
     caseSensitiveMatch: false,
     dot: showHidden,
+    markDirectories: true,
   });
-  
+
+  if (signal?.aborted) return [];
+
   const results: FileEntry[] = [];
-  
-  for await (const entry of stream) {
+
+  for (const entryPath of entries) {
+    if (signal?.aborted) break;
     if (results.length >= limit) break;
-    
-    const entryPath = entry as string;
-    const fullPath = join(rootPath, entryPath);
-    
-    try {
-      const stats = await stat(fullPath);
-      const name = entryPath.split('/').pop()!;
-      
-      results.push({
-        name,
-        type: stats.isDirectory() ? 'directory' as const : 'file' as const,
-        path: entryPath,
-        extension: stats.isFile() ? extname(entryPath) : undefined,
-      });
-    } catch {
-      // Skip if file disappeared
-    }
+
+    const isDir = entryPath.endsWith('/');
+    const cleanPath = isDir ? entryPath.slice(0, -1) : entryPath;
+    const name = cleanPath.split('/').pop()!;
+
+    results.push({
+      name,
+      type: isDir ? 'directory' as const : 'file' as const,
+      path: cleanPath,
+      extension: isDir ? undefined : extname(cleanPath),
+    });
   }
-  
+
   return results;
 }
 

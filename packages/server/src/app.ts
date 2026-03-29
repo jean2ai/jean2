@@ -424,7 +424,8 @@ export function createApp() {
 
     try {
       if (search) {
-        const files = await searchFiles(workspace.path, search, limit, showHidden);
+        const files = await searchFiles(workspace.path, search, limit, showHidden, c.req.raw.signal);
+        if (c.req.raw.signal.aborted) return new Response(null, { status: 499 });
         return c.json({ files, currentPath: '', mode: 'search' });
       }
 

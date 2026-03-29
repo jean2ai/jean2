@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { File, Folder, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { cn } from '@/lib/utils';
@@ -29,12 +29,13 @@ export function FileAutocomplete({
   const [loading, setLoading] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
   const { fetchWithAuth } = useApi();
+  const queryIdRef = useRef(0);
 
   // Debounce the search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
-    }, 150);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -47,6 +48,7 @@ export function FileAutocomplete({
       return;
     }
 
+    const queryId = ++queryIdRef.current;
     setLoading(true);
 
     const controller = new AbortController();
@@ -58,6 +60,7 @@ export function FileAutocomplete({
     )
       .then(res => res.json())
       .then(data => {
+        if (queryId !== queryIdRef.current) return;
         const newFiles = data.files || [];
         setFiles(newFiles);
         onFilesChange(newFiles);
@@ -67,7 +70,9 @@ export function FileAutocomplete({
           console.error('File search failed:', err);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (queryId === queryIdRef.current) setLoading(false);
+      });
 
     return () => controller.abort();
   }, [workspaceId, debouncedQuery, onFilesChange, showHidden, fetchWithAuth, serverUrl, apiToken]);
