@@ -91,6 +91,7 @@ export async function buildAiSdkTools(
               toolCallId,
               onPermissionRequest,
               abortSignal: toolAbortController.signal,
+              timeout: definition.timeout,
             });
 
             if (!result.success) {
@@ -127,6 +128,7 @@ export async function buildAiSdkTools(
             sessionId,
             toolCallId,
             abortSignal: toolAbortController.signal,
+            timeout: definition.timeout,
           });
 
           if (!execResult.success) {
