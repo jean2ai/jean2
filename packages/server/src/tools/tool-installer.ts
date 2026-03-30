@@ -120,7 +120,26 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
 
 async function runPostInstall(toolDir: string, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('sh', ['-c', command], {
+    let shell: string;
+    let shellArgs: string[];
+
+    if (process.platform === 'win32') {
+      if (Bun.which('pwsh')) {
+        shell = 'pwsh';
+        shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
+      } else if (Bun.which('powershell')) {
+        shell = 'powershell';
+        shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
+      } else {
+        shell = 'cmd.exe';
+        shellArgs = ['/c', command];
+      }
+    } else {
+      shell = 'sh';
+      shellArgs = ['-c', command];
+    }
+
+    const child = spawn(shell, shellArgs, {
       cwd: toolDir,
       stdio: 'pipe',
       env: { ...process.env, HOME: homedir() },
