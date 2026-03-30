@@ -1,5 +1,7 @@
 import { existsSync, statSync } from 'fs';
 import type { ServerWebSocket } from 'bun';
+import type { IPty, IExitEvent } from 'bun-pty';
+import { spawn } from 'bun-pty';
 import { encodeFrame, OPCODES } from './frames';
 import {
   createTerminalSession,
@@ -8,8 +10,6 @@ import {
 } from '@/store/terminal-sessions';
 import type { TerminalSessionInfo } from '@jean2/shared';
 
-type BunSubprocess = ReturnType<typeof Bun.spawn>;
-
 interface OutputChunk {
   data: Uint8Array;
   timestamp: number;
@@ -17,7 +17,7 @@ interface OutputChunk {
 
 interface TerminalSession {
   id: string;
-  proc: BunSubprocess;
+  pty: IPty;
   cwd: string;
   shell: string;
   title: string;
@@ -33,21 +33,17 @@ interface TerminalSession {
   bufferBytes: number;
 }
 
-interface BunTerminal {
-  write(data: string): void;
-  resize(cols: number, rows: number): void;
-  close(): void;
-}
-
-function getTerminal(proc: BunSubprocess): BunTerminal {
-  return (proc as unknown as { terminal: BunTerminal }).terminal;
+function getDefaultShell(): string {
+  if (process.platform === 'win32') {
+    return process.env.COMSPEC || 'cmd.exe';
+  }
+  return process.env.SHELL || '/bin/bash';
 }
 
 export class TerminalManager {
   private sessions = new Map<string, TerminalSession>();
   private wsToSessionId = new WeakMap<ServerWebSocket, string>();
 
-  // Keep up to 5 minutes of scrollback for reconnect/refresh
   private static readonly MAX_BUFFER_AGE_MS = 5 * 60 * 1000;
   private static readonly MAX_BUFFER_BYTES = 5 * 1024 * 1024;
   private static readonly MAX_SESSIONS_PER_WORKSPACE = 5;
@@ -68,7 +64,7 @@ export class TerminalManager {
     }
   ): string {
     const { cwd, workspaceId, cols = 80, rows = 24 } = options;
-    const shell = options.shell || process.env.SHELL || '/bin/bash';
+    const shell = options.shell || getDefaultShell();
 
     if (!cwd || !existsSync(cwd)) {
       const errorPayload = new TextEncoder().encode(JSON.stringify({ message: 'Invalid or missing working directory' }));
@@ -99,50 +95,44 @@ export class TerminalManager {
     const now = Date.now();
 
     try {
-      const proc = Bun.spawn([shell], {
+      const pty = spawn(shell, [], {
+        name: 'xterm-256color',
+        cols,
+        rows,
         cwd,
         env: { ...process.env, TERM: 'xterm-256color' } as Record<string, string>,
-        stdout: 'pipe',
-        stderr: 'pipe',
-        stdin: 'pipe',
-        terminal: {
-          cols,
-          rows,
-          data: (_terminal: unknown, data: Uint8Array) => {
-            const session = this.sessions.get(sessionId);
-            if (!session || session.status !== 'running') return;
+      });
 
-            session.lastActivityAt = Date.now();
+      pty.onData((data: string) => {
+        const session = this.sessions.get(sessionId);
+        if (!session || session.status !== 'running') return;
 
-            const text = new TextDecoder().decode(data);
-            const payload = new TextEncoder().encode(text);
+        session.lastActivityAt = Date.now();
 
-            // Always buffer for scrollback on reconnect
-            this.bufferOutput(session, data);
+        const payload = new TextEncoder().encode(data);
 
-            // Send to all connected clients
-            if (session.clients.size > 0) {
-              const frame = encodeFrame(OPCODES.OUTPUT, payload);
-              const deadClients: ServerWebSocket[] = [];
-              for (const client of session.clients) {
-                try {
-                  client.send(frame);
-                } catch {
-                  deadClients.push(client);
-                }
-              }
-              for (const dead of deadClients) {
-                session.clients.delete(dead);
-                this.wsToSessionId.delete(dead);
-              }
+        this.bufferOutput(session, payload);
+
+        if (session.clients.size > 0) {
+          const frame = encodeFrame(OPCODES.OUTPUT, payload);
+          const deadClients: ServerWebSocket[] = [];
+          for (const client of session.clients) {
+            try {
+              client.send(frame);
+            } catch {
+              deadClients.push(client);
             }
-          },
-        },
-      } as Parameters<typeof Bun.spawn>[1]);
+          }
+          for (const dead of deadClients) {
+            session.clients.delete(dead);
+            this.wsToSessionId.delete(dead);
+          }
+        }
+      });
 
       const session: TerminalSession = {
         id: sessionId,
-        proc,
+        pty,
         cwd,
         shell,
         title: 'main',
@@ -166,20 +156,20 @@ export class TerminalManager {
         workspaceId,
         cwd,
         shell,
-        pid: proc.pid,
+        pid: pty.pid,
         cols,
         rows,
       });
 
-      proc.exited.then((exitCode: number) => {
+      pty.onExit((event: IExitEvent) => {
         const s = this.sessions.get(sessionId);
         if (s) {
           s.status = 'exited';
-          s.exitCode = exitCode;
-          markTerminalSessionExited(sessionId, exitCode);
+          s.exitCode = event.exitCode;
+          markTerminalSessionExited(sessionId, event.exitCode);
 
           if (s.clients.size > 0) {
-            const payload = new TextEncoder().encode(JSON.stringify({ exitCode }));
+            const payload = new TextEncoder().encode(JSON.stringify({ exitCode: event.exitCode }));
             const frame = encodeFrame(OPCODES.EXIT, payload);
             for (const client of s.clients) {
               try {
@@ -189,12 +179,6 @@ export class TerminalManager {
               }
             }
           }
-        }
-      }).catch(() => {
-        const s = this.sessions.get(sessionId);
-        if (s) {
-          s.status = 'exited';
-          s.exitCode = -1;
         }
       });
 
@@ -252,7 +236,7 @@ export class TerminalManager {
     const session = this.sessions.get(sessionId);
     if (!session || session.status !== 'running') return;
     try {
-      getTerminal(session.proc).write(data);
+      session.pty.write(data);
     } catch {
       // PTY might be closed
     }
@@ -264,7 +248,7 @@ export class TerminalManager {
     const session = this.sessions.get(sessionId);
     if (!session || session.status !== 'running') return;
     try {
-      getTerminal(session.proc).resize(cols, rows);
+      session.pty.resize(cols, rows);
       session.cols = cols;
       session.rows = rows;
     } catch {
@@ -282,7 +266,7 @@ export class TerminalManager {
       try {
         client.send(frame);
       } catch {
-        // WS might be closed
+        // WS might already be closed
       }
     }
   }
@@ -298,8 +282,7 @@ export class TerminalManager {
     if (!session) return;
 
     try {
-      session.proc.kill();
-      getTerminal(session.proc).close();
+      session.pty.kill();
     } catch {
       // Process might already be dead
     }
@@ -337,7 +320,7 @@ export class TerminalManager {
     if (!session) return null;
     return {
       id: session.id,
-      pid: session.proc.pid,
+      pid: session.pty.pid,
       shell: session.shell,
       cwd: session.cwd,
       cols: session.cols,
@@ -357,7 +340,7 @@ export class TerminalManager {
       if (session.cwd === workspacePath) {
         result.push({
           id: session.id,
-          pid: session.proc.pid,
+          pid: session.pty.pid,
           shell: session.shell,
           cwd: session.cwd,
           cols: session.cols,
@@ -413,16 +396,12 @@ export class TerminalManager {
       console.log(`[TerminalManager] flushBuffer sessionId=${session.id} chunks=${session.buffer.length} bytes=${session.bufferBytes}`);
     }
     for (const chunk of session.buffer) {
-      const text = new TextDecoder().decode(chunk.data);
-      const payload = new TextEncoder().encode(text);
       try {
-        ws.send(encodeFrame(OPCODES.OUTPUT, payload));
+        ws.send(encodeFrame(OPCODES.OUTPUT, chunk.data));
       } catch {
         break;
       }
     }
-    // Don't clear the buffer — it serves as persistent scrollback for reconnect/refresh.
-    // Buffer is naturally pruned by TTL (5 min) and size (5 MB) limits in bufferOutput.
   }
 
   private pruneBuffer(session: TerminalSession): void {
