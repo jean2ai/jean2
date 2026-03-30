@@ -43,6 +43,7 @@ export async function runSecurityCheck(
       cwd: toolPath, // Run from tool directory
       env: { ...getToolEnv() },
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
     });
 
     // Set timeout (shorter for security checks)

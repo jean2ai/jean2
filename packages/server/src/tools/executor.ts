@@ -84,6 +84,7 @@ export async function executeTool(
       cwd,
       env: { ...getToolEnv() },
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
     });
     
     // Set timeout

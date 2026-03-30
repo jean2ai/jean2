@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 
 interface SecurityInput {
@@ -47,8 +48,11 @@ function extractPathArguments(cmd: string): string[] {
   for (const part of parts) {
     if (part.startsWith('-')) continue;
 
-    if (part.startsWith('/') || part.startsWith('~') ||
-        part.startsWith('./') || part.startsWith('../')) {
+    const isUnixPath = part.startsWith('/') || part.startsWith('~') ||
+      part.startsWith('./') || part.startsWith('../');
+    const isWindowsPath = /^[A-Za-z]:[\\/]/.test(part) || /^\\\\/.test(part);
+
+    if (isUnixPath || isWindowsPath) {
       paths.push(part);
     }
   }
@@ -114,7 +118,7 @@ function getDangerReason(cmd: string, workspacePath: string): string | null {
 
 function normalizePath(pathToNormalize: string): string {
   if (pathToNormalize === '~' || pathToNormalize.startsWith('~/')) {
-    return pathToNormalize.replace('~', process.env.HOME || '~');
+    return pathToNormalize.replace('~', os.homedir());
   }
   return pathToNormalize;
 }
@@ -123,7 +127,7 @@ function resolvePath(inputPath: string, workspacePath: string): string {
   const normalized = normalizePath(inputPath);
   const normalizedWorkspace = normalizePath(workspacePath);
 
-  if (normalized.startsWith('/')) {
+  if (path.isAbsolute(normalized)) {
     return path.resolve(normalized);
   }
 
