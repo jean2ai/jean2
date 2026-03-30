@@ -1,11 +1,11 @@
 # grep
 
-Server tool for searching file contents using regular expressions. Shells out to `ripgrep` (`rg`) and parses its `--json` output. Returns matches as file paths and line numbers with content.
+Pure JavaScript file search tool using regular expressions. Cross-platform — no external system dependencies required.
 
 ## Requirements
 
 - **Runtime**: `bun`
-- **System**: `rg` (ripgrep) must be installed
+- **Dependencies**: `ignore` (for .gitignore support)
 
 ## Parameters
 
@@ -16,10 +16,18 @@ Server tool for searching file contents using regular expressions. Shells out to
 ## Output
 
 Each match contains:
-- `file`: Absolute path to the file
+- `file`: Relative path from the search root
 - `line`: Line number (1-indexed)
 - `content`: Full line content (not just the matched substring)
 
 If the output exceeds 50,000 characters, results are persisted to a temp file and a truncated set (first 50 matches) is returned with `_persisted: true`.
 
-If ripgrep encounters an error (invalid regex, permission denied, etc.), an `error` field is included in the output.
+If the regex is invalid, an `error` field is included in the output.
+
+## Features
+
+- Respects `.gitignore` via the `ignore` package
+- Skips binary files (by extension and null-byte detection)
+- Skips common non-source directories (node_modules, .git, dist, build, etc.)
+- Supports glob include filters with brace expansion (`*.{ts,tsx}`)
+- Cross-platform temp directory via `os.tmpdir()`

@@ -1,0 +1,8 @@
+{
+  "name": "tool-grep",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "ignore": "^7.0.3"
+  }
+}
