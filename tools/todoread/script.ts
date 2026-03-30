@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
 
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   const TODOS_DB_PATH = process.env.TODOS_DB_PATH;
   const dbPath = TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
 
-  const dbDir = join(dbPath, '..');
+  const dbDir = dirname(dbPath);
   if (!existsSync(dbDir)) {
     mkdirSync(dbDir, { recursive: true });
   }

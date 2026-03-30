@@ -2,6 +2,8 @@ import { getDatabase } from './index';
 import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
 import { getWorkspace } from './workspaces';
 import { rmSync, existsSync } from 'fs';
+import os from 'node:os';
+import path from 'node:path';
 
 // Interface for raw database row from sessions table
 interface SessionRow {
@@ -164,7 +166,7 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   return getSession(id);
 }
 
-const OUTPUT_DIR_PREFIX = '/tmp/jean2/';
+const OUTPUT_DIR_PREFIX = path.join(os.tmpdir(), 'jean2', '');
 
 export function cleanupSessionOutputDir(sessionId: string): void {
   const dir = `${OUTPUT_DIR_PREFIX}${sessionId}`;

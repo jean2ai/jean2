@@ -1,4 +1,6 @@
 import TurndownService from "turndown";
+import os from 'node:os';
+import path from 'node:path';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 interface Input {
@@ -28,7 +30,7 @@ const MAX_TIMEOUT = 120; // 2 minutes
 
 const PERSIST_THRESHOLD = 50_000;
 const PREVIEW_CHARS = 10_000;
-const JEAN2_TEMP_PREFIX = '/tmp/jean2/';
+const JEAN2_TEMP_PREFIX = path.join(os.tmpdir(), 'jean2', '');
 
 const input: Input = JSON.parse(await Bun.stdin.text());
 const { url, format = "markdown", timeout, sessionId } = input;

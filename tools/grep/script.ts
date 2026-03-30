@@ -64,7 +64,7 @@ function globToRegex(pattern: string): RegExp | null {
   const regexParts = patterns.map(p => {
     p = p.replace(/^\.\//, '');
 
-    const segments = p.split('/');
+    const segments = p.split(/[\\/]/);
     const regexSegments = segments.map(seg => {
       if (seg === '**') return '**';
       if (seg === '*') return '[^/]*';

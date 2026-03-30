@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { homedir } from 'os';
 
 interface TodoWriteInput {
@@ -85,7 +85,7 @@ async function main() {
   const { todos, workspacePath: _workspacePath, sessionId: sessionId } = validateInput(input);
 
   const dbPath = process.env.TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
-  const dbDir = dbPath.substring(0, dbPath.lastIndexOf('/'));
+  const dbDir = dirname(dbPath);
 
   mkdirSync(dbDir, { recursive: true });
 
