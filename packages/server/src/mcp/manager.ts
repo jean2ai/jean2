@@ -1,5 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StdioTransport } from './stdio-transport';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -127,7 +127,7 @@ async function connectLocalServer(
   name: string,
   config: McpLocalServerConfig,
 ): Promise<ConnectResult> {
-  const transport = new StdioClientTransport({
+  const transport = new StdioTransport({
     command: config.command[0],
     args: config.command.slice(1),
     env: config.env,
