@@ -2,11 +2,16 @@
 
 ## Server
 
-- Install the Jean2 server binary from GitHub Releases. Available for Linux (amd64) and macOS (darwin). 
-- If you're on Windows, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) to run the server.
+- Install the Jean2 server binary from GitHub Releases. Available for Linux (amd64), macOS (darwin), and Windows (x64).
 
+**macOS / Linux:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2.sh | bash
+```
+
+**Windows:**
+```powershell
+irm https://raw.githubusercontent.com/rabbyte-tech/jean2/main/install/install-jean2.ps1 | iex
 ```
 
 ## Client
