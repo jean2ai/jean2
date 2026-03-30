@@ -185,9 +185,10 @@ jobs:
             mkdir -p packages/server/dist
             bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
             bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
+            bun build --compile --target=bun-windows-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-windows.exe packages/server/src/cli.ts
             [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
             gh release create "$TAG" --title "Server $V" $PRE \
-              packages/server/dist/jean2-darwin packages/server/dist/jean2-linux
+              packages/server/dist/jean2-darwin packages/server/dist/jean2-linux packages/server/dist/jean2-windows.exe
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
             P="tools/$TOOL_NAME"
