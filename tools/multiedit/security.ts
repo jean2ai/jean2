@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 
 interface MultiEditSecurityInput {
@@ -49,7 +50,7 @@ const MAX_EDITS_WITHOUT_APPROVAL = 10;
 
 function normalizePath(pathToNormalize: string): string {
   if (pathToNormalize === '~' || pathToNormalize.startsWith('~/')) {
-    return pathToNormalize.replace('~', process.env.HOME || '~');
+    return pathToNormalize.replace('~', os.homedir());
   }
   return pathToNormalize;
 }

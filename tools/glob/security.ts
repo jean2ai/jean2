@@ -33,7 +33,7 @@ const BLOCKED_PATHS: string[] = [
 
 function normalizePath(pathToNormalize: string): string {
   if (pathToNormalize === '~' || pathToNormalize.startsWith('~/')) {
-    return pathToNormalize.replace('~', process.env.HOME || '~');
+    return pathToNormalize.replace('~', os.homedir());
   }
   return pathToNormalize;
 }

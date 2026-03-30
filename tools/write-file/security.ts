@@ -2,6 +2,7 @@
 // Receives: { args, workspacePath, sessionId }
 // Outputs: { allowed, requiresApproval, permissionType, permissionKey, message, details? }
 
+import os from 'node:os';
 import path from 'node:path';
 
 interface WriteFileSecurityInput {
@@ -54,7 +55,7 @@ const BLOCKED_PATHS = [
 function normalizePath(pathToNormalize: string): string {
   // Expand ~ to home directory
   if (pathToNormalize === '~' || pathToNormalize.startsWith('~/')) {
-    return pathToNormalize.replace('~', process.env.HOME || '~');
+    return pathToNormalize.replace('~', os.homedir());
   }
   return pathToNormalize;
 }

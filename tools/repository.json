@@ -39,7 +39,7 @@
       "description": "Search file contents using regular expressions",
       "runtime": "bun",
       "requiredRuntimes": ["bun"],
-      "postInstall": null,
+      "postInstall": "bun install",
       "extensions": [],
       "tags": ["recommended", "core"],
       "dangerous": false
@@ -122,7 +122,7 @@
 
   "envConfig": {
     "TODOS_DB_PATH": {
-      "description": "Custom path for the todos SQLite database. Must be an absolute path (e.g. /home/user/.jean2/data/todos.db) — tilde (~) is not expanded.",
+      "description": "Custom path for the todos SQLite database. Must be an absolute path — tilde (~) is not expanded.",
       "default": "~/.jean2/data/todos.db",
       "configFile": "~/.jean2/.env",
       "example": "TODOS_DB_PATH=~/.jean2/data/todos.db",
