@@ -19,6 +19,7 @@
     "build:bin": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2 src/cli.ts",
     "build:bin:macos": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-macos-arm64 src/cli.ts",
     "build:bin:linux": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-linux-x64 src/cli.ts",
+    "build:bin:windows": "VERSION=$(cat VERSION) && bun build --compile --define=JEAN2_VERSION=\"'${VERSION}'\" --outfile=dist/bin/jean2-windows-x64.exe src/cli.ts",
     "build:all": "bun run build && bun run build:bin"
   },
   "dependencies": {
