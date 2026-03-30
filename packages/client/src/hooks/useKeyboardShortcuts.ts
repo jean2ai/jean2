@@ -16,6 +16,8 @@ export interface KeyboardShortcutsConfig {
 // Check if running in Tauri environment (v1/v2 compatible)
 const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
 
+const isMac = typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC') === true;
+
 function isModalDialogOpen(): boolean {
   // Check Radix/shadcn dialogs via data-slot and open state
   const openDialogSelectors = [
@@ -144,10 +146,11 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
         return;
       }
 
-      // In Tauri, native accelerators handle cmd+1 (sidebar) and cmd+t (terminal)
-      // Skip these shortcuts to prevent duplicate handling
+      // In Tauri on macOS, native accelerators handle cmd+1 (sidebar) and cmd+t (terminal)
+      // via the system menu bar. Skip to prevent duplicate handling.
+      // On Windows/Linux the menu bar is not visible, so JS must handle these.
       // Use e.code for layout-independent physical key matching
-      if (!isTauri) {
+      if (!isTauri || !isMac) {
         if (modifierPressed && e.code === 'Digit1') {
           e.preventDefault();
           onOpenSidebar();
