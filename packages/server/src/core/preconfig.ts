@@ -36,6 +36,7 @@ export async function preconfigExists(id: string): Promise<{ md: boolean; json: 
 
 function parsePreconfigMd(content: string): Preconfig {
   const { data, content: body } = matter(content);
+
   return {
     id: data.id || '',
     name: data.name || '',
@@ -51,6 +52,44 @@ function parsePreconfigMd(content: string): Preconfig {
     canSpawnSubagents: data.canSpawnSubagents,
     skills: data.skills ?? null,
   };
+}
+
+/**
+ * Validate canSpawnSubagents arrays against known subagent IDs.
+ * This is a post-processing step to avoid circular dependencies.
+ */
+async function validatePreconfigs(preconfigs: Preconfig[]): Promise<Preconfig[]> {
+  // Build a set of known subagent IDs from the preconfigs list
+  const knownSubagentIds = new Set(
+    preconfigs
+      .filter(p => {
+        const mode = p.mode ?? 'primary';
+        return mode === 'subagent' || mode === 'both';
+      })
+      .map(p => p.id)
+  );
+
+  // Validate each preconfig's canSpawnSubagents array
+  for (const preconfig of preconfigs) {
+    if (Array.isArray(preconfig.canSpawnSubagents)) {
+      const validIds = preconfig.canSpawnSubagents.filter(id => {
+        if (!knownSubagentIds.has(id)) {
+          console.warn(`[preconfig] Unknown subagent ID "${id}" in canSpawnSubagents for "${preconfig.id}"`);
+          return false;
+        }
+        return true;
+      });
+
+      if (validIds.length === 0) {
+        console.warn(`[preconfig] canSpawnSubagents for "${preconfig.id}" has no valid IDs, disabling subagent spawning`);
+        preconfig.canSpawnSubagents = false;
+      } else if (validIds.length !== preconfig.canSpawnSubagents.length) {
+        preconfig.canSpawnSubagents = validIds;
+      }
+    }
+  }
+
+  return preconfigs;
 }
 
 function serializePreconfigMd(preconfig: Preconfig): string {
@@ -129,7 +168,10 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
     }
   }
 
-  return preconfigs.sort((a, b) => {
+  // Validate canSpawnSubagents arrays against known subagent IDs
+  const validated = await validatePreconfigs(preconfigs);
+
+  return validated.sort((a, b) => {
     if (a.isDefault) return -1;
     if (b.isDefault) return 1;
     return a.name.localeCompare(b.name);

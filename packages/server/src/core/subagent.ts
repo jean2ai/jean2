@@ -55,6 +55,7 @@ export interface SubagentInput {
   workspacePath?: string;
   abortSignal?: AbortSignal;
   onSessionCreated?: (childSessionId: string) => void;
+  allowedSubagentIds?: string[];
 }
 
 export interface SubagentOutput {
@@ -63,12 +64,21 @@ export interface SubagentOutput {
   error?: string;
 }
 
-export async function getSubagentToolDefinition(): Promise<ToolDefinition> {
-  const subagents = await listSubagentPreconfigs();
+export async function getSubagentToolDefinition(allowedSubagentIds?: string[]): Promise<ToolDefinition> {
+  let subagents = await listSubagentPreconfigs();
+
+  if (allowedSubagentIds && allowedSubagentIds.length > 0) {
+    const allowedSet = new Set(allowedSubagentIds);
+    subagents = subagents.filter(s => allowedSet.has(s.id));
+  }
 
   const agentList = subagents
     .map((a) => `- ${a.id}: ${a.description ?? 'This subagent should only be called manually by the user.'}`)
     .join('\n');
+
+  const subagentTypeEnum = subagents.length > 0
+    ? subagents.map(s => s.id)
+    : [];
 
   return {
     name: 'task',
@@ -107,6 +117,7 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
         subagent_type: {
           type: 'string',
           description: 'The type of specialized agent to use for this agent',
+          ...(subagentTypeEnum.length > 0 && { enum: subagentTypeEnum }),
         },
         task_id: {
           type: 'string',
@@ -128,7 +139,7 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
 }
 
 export async function executeSubagent(input: SubagentInput): Promise<SubagentOutput> {
-  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, abortSignal, onSessionCreated } = input;
+  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, abortSignal, onSessionCreated, allowedSubagentIds } = input;
 
   // Check if already aborted before starting
   if (abortSignal?.aborted) {
@@ -163,6 +174,15 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       task_id: '',
       result: '',
       error: `Maximum subagent depth (${MAX_SUBAGENT_DEPTH}) reached. Cannot spawn more subagents.`,
+    };
+  }
+
+  // Validate subagent_type against allowed list
+  if (allowedSubagentIds && allowedSubagentIds.length > 0 && !allowedSubagentIds.includes(subagent_type)) {
+    return {
+      task_id: '',
+      result: '',
+      error: `Subagent type "${subagent_type}" is not allowed for this agent. Allowed types: ${allowedSubagentIds.join(', ')}`,
     };
   }
 

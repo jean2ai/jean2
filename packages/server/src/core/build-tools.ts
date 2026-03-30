@@ -14,17 +14,24 @@ export async function buildAiSdkTools(
   workspaceId: string | undefined,
   sessionId: string,
   onPermissionRequest?: PermissionRequestCallback,
-  canSpawnSubagents?: boolean,
+  canSpawnSubagents?: boolean | string[] | null,
   allowedSkills?: string[] | null
 ): Promise<Record<string, Tool>> {
   const tools: Record<string, Tool> = {};
 
-  const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && (canSpawnSubagents !== false);
+  // Determine if task tool should be included at all
+  const canSpawn = canSpawnSubagents === true
+    || (Array.isArray(canSpawnSubagents) && canSpawnSubagents.length > 0);
+  const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && canSpawn;
+
+  // Resolve the allowed subagent IDs for filtering
+  const allowedSubagentIds = Array.isArray(canSpawnSubagents) ? canSpawnSubagents : undefined;
+
   const effectiveToolNames = shouldIncludeTask ? [...toolNames, 'task'] : toolNames;
 
   for (const name of effectiveToolNames) {
     if (name === 'task') {
-      const subagentDefinition = await getSubagentToolDefinition();
+      const subagentDefinition = await getSubagentToolDefinition(allowedSubagentIds);
 
       tools[name] = tool({
         description: subagentDefinition.description,
@@ -45,6 +52,7 @@ export async function buildAiSdkTools(
               onSessionCreated: (childSessionId: string) => {
                 transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
               },
+              allowedSubagentIds,
             };
 
             const result = await executeSubagent(subagentInput);

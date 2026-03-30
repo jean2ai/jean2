@@ -12,7 +12,15 @@ export interface Preconfig {
   settings: Record<string, unknown> | null;
   isDefault: boolean;
   mode?: PreconfigMode; // Default: 'primary'
-  canSpawnSubagents?: boolean; // Default: true (except for read-only agents)
+  /**
+   * Controls which subagents this preconfig can spawn via the Task tool.
+   * - undefined: All available subagents (default for backward compatibility)
+   * - true: All available subagents
+   * - false or null: Cannot spawn any subagents
+   * - []: Cannot spawn any subagents
+   * - ["explore", "code-planning"]: Can only spawn these specific subagent IDs
+   */
+  canSpawnSubagents?: boolean | string[] | null;
   /**
    * Controls which skills this preconfig can access.
    * - undefined or null: All available skills (default for backward compatibility)
