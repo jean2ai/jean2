@@ -285,19 +285,7 @@ function AppContent() {
   type PartIndexEntry = { sessionId: string; messageId: string; index: number };
   const partIdIndexRef = useRef<Map<string, PartIndexEntry>>(new Map());
 
-  // Batching refs for part.append streaming deltas
-  const pendingDeltasRef = useRef<Map<string, { sessionId: string; partId: string; delta: string }>>(new Map());
-  const flushScheduledRef = useRef(false);
 
-  // Cleanup effect for batching - clear pending deltas on unmount
-  useEffect(() => {
-    const pending = pendingDeltasRef;
-    const flush = flushScheduledRef;
-    return () => {
-      pending.current.clear();
-      flush.current = false;
-    };
-  }, []);
 
   // Notification sound for chat completion - only on natural completion (non-null -> null transition)
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
@@ -482,10 +470,8 @@ function AppContent() {
     // Clear any open popovers/sheets by forcing a re-render
     // (the callback will be called after state is cleared)
 
-    // Clear part index and pending deltas on server switch
+    // Clear part index on server switch
     partIdIndexRef.current.clear();
-    pendingDeltasRef.current.clear();
-    flushScheduledRef.current = false;
 
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
@@ -1068,71 +1054,33 @@ function AppContent() {
             return prev;
           });
         }
-        // Queue the delta for batching
-        pendingDeltasRef.current.set(msg.partId, {
-          sessionId: msg.sessionId,
-          partId: msg.partId,
-          delta: msg.delta,
+        setPartsBySession(prev => {
+          const location = partIdIndexRef.current.get(msg.partId);
+          if (!location) return prev;
+
+          const sessionParts = prev[location.sessionId];
+          if (!sessionParts) return prev;
+
+          const messageParts = sessionParts[location.messageId];
+          if (!messageParts) return prev;
+
+          const part = messageParts[location.index];
+          if (!part || (part.type !== 'text' && part.type !== 'reasoning')) return prev;
+
+          const updatedMessageParts = [...messageParts];
+          updatedMessageParts[location.index] = {
+            ...part,
+            text: part.text + msg.delta,
+          };
+
+          return {
+            ...prev,
+            [location.sessionId]: {
+              ...sessionParts,
+              [location.messageId]: updatedMessageParts,
+            },
+          };
         });
-        if (!flushScheduledRef.current) {
-          flushScheduledRef.current = true;
-          requestAnimationFrame(() => {
-            flushScheduledRef.current = false;
-            const pending = pendingDeltasRef.current;
-            if (pending.size === 0) return;
-
-            // Group deltas by partId
-            const deltasByPartId = new Map<string, { sessionId: string; deltas: string[] }>();
-            for (const [, delta] of pending) {
-              const existing = deltasByPartId.get(delta.partId);
-              if (existing) {
-                existing.deltas.push(delta.delta);
-              } else {
-                deltasByPartId.set(delta.partId, { sessionId: delta.sessionId, deltas: [delta.delta] });
-              }
-            }
-            pending.clear();
-
-            setPartsBySession(prev => {
-              let changed = false;
-              const next = { ...prev };
-
-              for (const [partId, { deltas }] of deltasByPartId) {
-                const location = partIdIndexRef.current.get(partId);
-                if (!location) continue;
-
-                const sessionParts = next[location.sessionId];
-                if (!sessionParts) continue;
-
-                const messageParts = sessionParts[location.messageId];
-                if (!messageParts) continue;
-
-                const part = messageParts[location.index];
-                if (!part || (part.type !== 'text' && part.type !== 'reasoning')) continue;
-
-                const combinedDelta = deltas.join('');
-                if (!combinedDelta) continue;
-
-                if (!changed) {
-                  changed = true;
-                }
-
-                const updatedMessageParts = [...messageParts];
-                updatedMessageParts[location.index] = {
-                  ...part,
-                  text: part.text + combinedDelta,
-                };
-
-                next[location.sessionId] = {
-                  ...sessionParts,
-                  [location.messageId]: updatedMessageParts,
-                };
-              }
-
-              return changed ? next : prev;
-            });
-          });
-        }
         break;
       }
 
