@@ -196,6 +196,11 @@ function AppContent() {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
+
+  // LRU cache eviction for session data
+  const SESSION_CACHE_MAX = 10;
+  const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
+  const prevSessionKeyCountRef = useRef(0);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const currentSessionIdRef = useRef<string | null>(null);
@@ -276,6 +281,24 @@ function AppContent() {
   // Track toolCallIds that have already triggered the permission sound notification
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
 
+  // Index for O(1) part lookup: partId -> { sessionId, messageId, index }
+  type PartIndexEntry = { sessionId: string; messageId: string; index: number };
+  const partIdIndexRef = useRef<Map<string, PartIndexEntry>>(new Map());
+
+  // Batching refs for part.append streaming deltas
+  const pendingDeltasRef = useRef<Map<string, { sessionId: string; partId: string; delta: string }>>(new Map());
+  const flushScheduledRef = useRef(false);
+
+  // Cleanup effect for batching - clear pending deltas on unmount
+  useEffect(() => {
+    const pending = pendingDeltasRef;
+    const flush = flushScheduledRef;
+    return () => {
+      pending.current.clear();
+      flush.current = false;
+    };
+  }, []);
+
   // Notification sound for chat completion - only on natural completion (non-null -> null transition)
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
   const hasInitializedRef = useRef(false);
@@ -321,6 +344,47 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem('jean2_sound_permission_enabled', String(permissionSoundEnabled));
   }, [permissionSoundEnabled]);
+
+  // LRU eviction for session data - runs when session count increases beyond limit
+  useLayoutEffect(() => {
+    const currentCount = Object.keys(messagesBySession).length;
+    if (currentCount <= prevSessionKeyCountRef.current) {
+      prevSessionKeyCountRef.current = currentCount;
+      return;
+    }
+    prevSessionKeyCountRef.current = currentCount;
+
+    if (currentCount <= SESSION_CACHE_MAX) return;
+
+    const keys = Object.keys(messagesBySession);
+    while (keys.length > SESSION_CACHE_MAX) {
+      let oldestKey: string | null = null;
+      let oldestTime = Infinity;
+      for (const key of keys) {
+        if (key === currentSession?.id) continue;
+        const time = sessionAccessTimesRef.current.get(key);
+        if (time !== undefined && time < oldestTime) {
+          oldestTime = time;
+          oldestKey = key;
+        }
+      }
+      if (!oldestKey) break;
+      sessionAccessTimesRef.current.delete(oldestKey);
+      keys.splice(keys.indexOf(oldestKey), 1);
+      setMessagesBySession(prev => {
+        if (!(oldestKey! in prev)) return prev;
+        const next = { ...prev };
+        delete next[oldestKey!];
+        return next;
+      });
+      setPartsBySession(prev => {
+        if (!(oldestKey! in prev)) return prev;
+        const next = { ...prev };
+        delete next[oldestKey!];
+        return next;
+      });
+    }
+  }, [messagesBySession, currentSession]);
 
   // Connection timeout constants
   const CONNECTION_TIMEOUT = 10000; // 10 seconds
@@ -400,6 +464,8 @@ function AppContent() {
     setCurrentSession(null);
     setMessagesBySession({});
     setPartsBySession({});
+    sessionAccessTimesRef.current.clear();
+    prevSessionKeyCountRef.current = 0;
     setStreamingSessionIds(prev => {
       skipFinishSoundSessionIdsRef.current = new Set(prev);
       return new Set();
@@ -415,6 +481,11 @@ function AppContent() {
 
     // Clear any open popovers/sheets by forcing a re-render
     // (the callback will be called after state is cleared)
+
+    // Clear part index and pending deltas on server switch
+    partIdIndexRef.current.clear();
+    pendingDeltasRef.current.clear();
+    flushScheduledRef.current = false;
 
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
@@ -753,6 +824,14 @@ function AppContent() {
       deletedSessions.forEach(sessionId => delete next[sessionId]);
       return next;
     });
+    deletedSessions.forEach(sessionId => sessionAccessTimesRef.current.delete(sessionId));
+
+    // Clean up part index entries for deleted sessions
+    for (const [partId, entry] of partIdIndexRef.current) {
+      if (deletedSessions.includes(entry.sessionId)) {
+        partIdIndexRef.current.delete(partId);
+      }
+    }
 
     setWorkspaces(prev => {
       const next = prev.filter(w => w.id !== id);
@@ -794,6 +873,7 @@ function AppContent() {
           setSelectedVariant(msg.session.selectedVariant ?? null);
           pendingSessionCreateRef.current = false;
         }
+        sessionAccessTimesRef.current.set(msg.session.id, Date.now());
         break;
 
       case 'session.resumed':
@@ -837,6 +917,17 @@ function AppContent() {
             }
             return newParts;
           });
+          // Rebuild part index from resumed session
+          partIdIndexRef.current.clear();
+          for (const mwp of msg.messages) {
+            for (let i = 0; i < mwp.parts.length; i++) {
+              partIdIndexRef.current.set(mwp.parts[i].id, {
+                sessionId: msg.session.id,
+                messageId: mwp.message.id,
+                index: i,
+              });
+            }
+          }
         }
 
         setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
@@ -851,6 +942,7 @@ function AppContent() {
             setSelectedVariant(null);
           }
         }
+        sessionAccessTimesRef.current.set(msg.session.id, Date.now());
         break;
 
       case 'message.created':
@@ -900,7 +992,7 @@ function AppContent() {
         }
         break;
 
-      case 'part.created':
+      case 'part.created': {
         setPartsBySession(prev => {
           const sessionParts = prev[msg.sessionId] || {};
           const messageParts = sessionParts[msg.part.messageId] || [];
@@ -912,23 +1004,51 @@ function AppContent() {
             }
           };
         });
-        break;
-
-      case 'part.updated':
-        setPartsBySession(prev => {
-          const sessionParts = prev[msg.sessionId] || {};
-          const messageParts = sessionParts[msg.part.messageId] || [];
-          return {
-            ...prev,
-            [msg.sessionId]: {
-              ...sessionParts,
-              [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
-            }
-          };
+        // Index the new part for O(1) lookup
+        partIdIndexRef.current.set(msg.part.id, {
+          sessionId: msg.sessionId,
+          messageId: msg.part.messageId,
+          index: 0, // Will be correct after state updates since it's appended
         });
         break;
+      }
 
-      case 'part.append':
+      case 'part.updated': {
+        const partLocation = partIdIndexRef.current.get(msg.part.id);
+        if (partLocation) {
+          setPartsBySession(prev => {
+            const sessionParts = prev[partLocation.sessionId];
+            if (!sessionParts) return prev;
+            const messageParts = sessionParts[partLocation.messageId];
+            if (!messageParts) return prev;
+            const updatedMessageParts = [...messageParts];
+            updatedMessageParts[partLocation.index] = msg.part;
+            return {
+              ...prev,
+              [partLocation.sessionId]: {
+                ...sessionParts,
+                [partLocation.messageId]: updatedMessageParts
+              }
+            };
+          });
+        } else {
+          // Fallback: search all parts (should rarely happen)
+          setPartsBySession(prev => {
+            const sessionParts = prev[msg.sessionId] || {};
+            const messageParts = sessionParts[msg.part.messageId] || [];
+            return {
+              ...prev,
+              [msg.sessionId]: {
+                ...sessionParts,
+                [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
+              }
+            };
+          });
+        }
+        break;
+      }
+
+      case 'part.append': {
         if (!interruptedSessions.has(msg.sessionId)) {
           setStreamingSessionIds(prev => {
             if (!prev.has(msg.sessionId)) {
@@ -939,33 +1059,73 @@ function AppContent() {
             return prev;
           });
         }
-        setPartsBySession(prev => {
-          const sessionParts = prev[msg.sessionId] || {};
+        // Queue the delta for batching
+        pendingDeltasRef.current.set(msg.partId, {
+          sessionId: msg.sessionId,
+          partId: msg.partId,
+          delta: msg.delta,
+        });
+        if (!flushScheduledRef.current) {
+          flushScheduledRef.current = true;
+          requestAnimationFrame(() => {
+            flushScheduledRef.current = false;
+            const pending = pendingDeltasRef.current;
+            if (pending.size === 0) return;
 
-          for (const messageId of Object.keys(sessionParts)) {
-            const parts = sessionParts[messageId];
-            const partIndex = parts.findIndex(p => p.id === msg.partId);
-            if (partIndex !== -1) {
-              const existingPart = parts[partIndex];
-              if (existingPart.type === 'text' || existingPart.type === 'reasoning') {
-                const updatedParts = [...parts];
-                updatedParts[partIndex] = {
-                  ...existingPart,
-                  text: existingPart.text + msg.delta
-                };
-                return {
-                  ...prev,
-                  [msg.sessionId]: {
-                    ...sessionParts,
-                    [messageId]: updatedParts
-                  }
-                };
+            // Group deltas by partId
+            const deltasByPartId = new Map<string, { sessionId: string; deltas: string[] }>();
+            for (const [, delta] of pending) {
+              const existing = deltasByPartId.get(delta.partId);
+              if (existing) {
+                existing.deltas.push(delta.delta);
+              } else {
+                deltasByPartId.set(delta.partId, { sessionId: delta.sessionId, deltas: [delta.delta] });
               }
             }
-          }
-          return prev;
-        });
+            pending.clear();
+
+            setPartsBySession(prev => {
+              let changed = false;
+              const next = { ...prev };
+
+              for (const [partId, { deltas }] of deltasByPartId) {
+                const location = partIdIndexRef.current.get(partId);
+                if (!location) continue;
+
+                const sessionParts = next[location.sessionId];
+                if (!sessionParts) continue;
+
+                const messageParts = sessionParts[location.messageId];
+                if (!messageParts) continue;
+
+                const part = messageParts[location.index];
+                if (!part || (part.type !== 'text' && part.type !== 'reasoning')) continue;
+
+                const combinedDelta = deltas.join('');
+                if (!combinedDelta) continue;
+
+                if (!changed) {
+                  changed = true;
+                }
+
+                const updatedMessageParts = [...messageParts];
+                updatedMessageParts[location.index] = {
+                  ...part,
+                  text: part.text + combinedDelta,
+                };
+
+                next[location.sessionId] = {
+                  ...sessionParts,
+                  [location.messageId]: updatedMessageParts,
+                };
+              }
+
+              return changed ? next : prev;
+            });
+          });
+        }
         break;
+      }
 
       case 'chat.usage':
         if (msg.sessionId !== currentSession?.id) return;
@@ -995,6 +1155,13 @@ function AppContent() {
           delete newMap[msg.sessionId];
           return newMap;
         });
+        // Clean up part index for closed session
+        for (const [partId, entry] of partIdIndexRef.current) {
+          if (entry.sessionId === msg.sessionId) {
+            partIdIndexRef.current.delete(partId);
+          }
+        }
+        sessionAccessTimesRef.current.delete(msg.sessionId);
         if (currentSession?.id === msg.sessionId) {
           setCurrentSession(null);
         }
@@ -1027,6 +1194,13 @@ function AppContent() {
           next.delete(msg.sessionId);
           return next;
         });
+        // Clean up part index for deleted session
+        for (const [partId, entry] of partIdIndexRef.current) {
+          if (entry.sessionId === msg.sessionId) {
+            partIdIndexRef.current.delete(partId);
+          }
+        }
+        sessionAccessTimesRef.current.delete(msg.sessionId);
         if (currentSession?.id === msg.sessionId) {
           setCurrentSession(null);
         }
@@ -1191,8 +1365,19 @@ function AppContent() {
           }
           return newParts;
         });
+        // Rebuild part index for forked session
+        for (const mwp of forkedMessages) {
+          for (let i = 0; i < mwp.parts.length; i++) {
+            partIdIndexRef.current.set(mwp.parts[i].id, {
+              sessionId: forkedSession.id,
+              messageId: mwp.message.id,
+              index: i,
+            });
+          }
+        }
         setCurrentSession(forkedSession);
         setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+        sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
         break;
       }
 
@@ -1209,6 +1394,21 @@ function AppContent() {
           }
           return newParts;
         });
+        // Rebuild part index from session state
+        for (const [partId, entry] of partIdIndexRef.current) {
+          if (entry.sessionId === msg.sessionId) {
+            partIdIndexRef.current.delete(partId);
+          }
+        }
+        for (const mwp of msg.messages) {
+          for (let i = 0; i < mwp.parts.length; i++) {
+            partIdIndexRef.current.set(mwp.parts[i].id, {
+              sessionId: msg.sessionId,
+              messageId: mwp.message.id,
+              index: i,
+            });
+          }
+        }
         skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
         setStreamingSessionIds(prev => {
           if (prev.has(msg.sessionId)) {
@@ -1218,6 +1418,7 @@ function AppContent() {
           }
           return prev;
         });
+        sessionAccessTimesRef.current.set(msg.sessionId, Date.now());
         break;
 
       case 'provider.status': {
@@ -1278,6 +1479,7 @@ function AppContent() {
       return new Set();
     });
     setCompactionSuccess(false);
+    sessionAccessTimesRef.current.set(sessionId, Date.now());
     const session = sessions.find(s => s.id === sessionId);
     if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
       const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
