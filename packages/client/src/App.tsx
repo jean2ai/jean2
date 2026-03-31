@@ -917,8 +917,12 @@ function AppContent() {
             }
             return newParts;
           });
-          // Rebuild part index from resumed session
-          partIdIndexRef.current.clear();
+          // Rebuild part index for resumed session only
+          for (const [partId, entry] of partIdIndexRef.current) {
+            if (entry.sessionId === msg.session.id) {
+              partIdIndexRef.current.delete(partId);
+            }
+          }
           for (const mwp of msg.messages) {
             for (let i = 0; i < mwp.parts.length; i++) {
               partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -1004,11 +1008,16 @@ function AppContent() {
             }
           };
         });
-        // Index the new part for O(1) lookup
+        let newIndex = 0;
+        for (const entry of partIdIndexRef.current.values()) {
+          if (entry.sessionId === msg.sessionId && entry.messageId === msg.part.messageId) {
+            newIndex = Math.max(newIndex, entry.index + 1);
+          }
+        }
         partIdIndexRef.current.set(msg.part.id, {
           sessionId: msg.sessionId,
           messageId: msg.part.messageId,
-          index: 0, // Will be correct after state updates since it's appended
+          index: newIndex,
         });
         break;
       }
