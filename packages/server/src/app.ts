@@ -9,9 +9,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { mkdirSync } from 'fs';
+import { mkdirSync, accessSync, constants } from 'fs';
 import { homedir } from 'os';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 
 // Import types from shared
 import type {
@@ -464,25 +464,48 @@ export function createApp() {
 
   app.get('/api/fs/browse', async (c) => {
     const path = c.req.query('path') || homedir();
+    const resolvedPath = resolve(path.startsWith('~') ? expandPath(path) : path);
+    const isRoot = resolvedPath === dirname(resolvedPath);
 
     try {
-      const files = await listDirectory(path);
-      return c.json({ files, currentPath: path, mode: 'browse' });
+      const files = await listDirectory(resolvedPath);
+      return c.json({ files, currentPath: resolvedPath, mode: 'browse', isRoot });
     } catch (_err: unknown) {
       return c.json({ error: 'Bad Request', message: 'Cannot access path' }, 400);
     }
   });
 
   app.get('/api/fs/parent', async (c) => {
-    const path = c.req.query('path') || homedir();
-    const parent = dirname(path);
+    const inputPath = c.req.query('path') || homedir();
+    const resolvedPath = resolve(inputPath);
+    const parent = dirname(resolvedPath);
+    const isRoot = resolvedPath === parent;
 
     try {
       const files = await listDirectory(parent);
-      return c.json({ files, currentPath: parent, mode: 'browse' });
+      return c.json({ files, currentPath: resolve(parent), mode: 'browse', isRoot });
     } catch (_err: unknown) {
       return c.json({ error: 'Bad Request', message: 'Cannot access path' }, 400);
     }
+  });
+
+  app.get('/api/fs/drives', async (c) => {
+    const platform = process.platform;
+
+    if (platform === 'win32') {
+      const drives: string[] = [];
+      for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+        try {
+          accessSync(`${letter}:\\`, constants.R_OK);
+          drives.push(`${letter}:\\`);
+        } catch {
+          // Drive not available, skip
+        }
+      }
+      return c.json({ drives });
+    }
+
+    return c.json({ drives: ['/'] });
   });
 
   // ============================================================================

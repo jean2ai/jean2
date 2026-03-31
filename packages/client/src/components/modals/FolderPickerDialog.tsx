@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronLeft, Folder, Loader2, Check, Search } from 'lucide-react';
+import { ChevronLeft, Folder, Loader2, Check, Search, HardDrive } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
 import { useApi } from '@/hooks/useApi';
 import { useServerContext } from '@/contexts/ServerContext';
@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { dirname } from '@/lib/path';
 
 interface FolderPickerDialogProps {
   open: boolean;
@@ -38,6 +37,9 @@ export function FolderPickerDialog({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRoot, setIsRoot] = useState(false);
+  const [drives, setDrives] = useState<string[]>([]);
+  const [showDrives, setShowDrives] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { fetchWithAuth } = useApi();
@@ -48,6 +50,7 @@ export function FolderPickerDialog({
     setError(null);
     setSelectedIndex(0);
     setSearchQuery('');
+    setShowDrives(false);
     
     try {
       const res = await fetchWithAuth(
@@ -65,6 +68,7 @@ export function FolderPickerDialog({
       const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
       setFiles(directories);
       setCurrentPath(data.currentPath);
+      setIsRoot(data.isRoot ?? false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load directory');
       setFiles([]);
@@ -73,11 +77,26 @@ export function FolderPickerDialog({
     }
   }, [fetchWithAuth, activeServer]);
 
+  const loadDrives = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth(
+        '/api/fs/drives',
+        {},
+        { serverUrl: activeServer?.url, token: activeServer?.token }
+      );
+      const data = await res.json();
+      setDrives(data.drives || []);
+    } catch {
+      // Silently fail — drives are optional UI
+    }
+  }, [fetchWithAuth, activeServer]);
+
   useEffect(() => {
     if (open) {
       loadDirectory(initialPath || '');
+      loadDrives();
     }
-  }, [open, initialPath, loadDirectory]);
+  }, [open, initialPath, loadDirectory, loadDrives]);
 
   // Reset selection when search changes
   useEffect(() => {
@@ -103,10 +122,29 @@ export function FolderPickerDialog({
 
   const isUsingCurrentFolder = !selectedFolder;
 
-  const handleNavigateUp = () => {
-    const parent = dirname(currentPath);
-    if (parent && parent !== currentPath) {
-      loadDirectory(parent);
+  const handleNavigateUp = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(
+        `/api/fs/parent?path=${encodeURIComponent(currentPath)}`,
+        {},
+        { serverUrl: activeServer?.url, token: activeServer?.token }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to navigate up');
+      }
+      const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
+      setFiles(directories);
+      setCurrentPath(data.currentPath);
+      setIsRoot(data.isRoot ?? false);
+      setSelectedIndex(0);
+      setSearchQuery('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to navigate up');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -170,10 +208,14 @@ export function FolderPickerDialog({
     }
   }, [open]);
 
+  useEffect(() => {
+    setShowDrives(false);
+  }, [currentPath]);
+
   // Truncate path for display
   const truncatePath = (path: string, maxLength: number = 50) => {
     if (path.length <= maxLength) return path;
-    const parts = path.split('/');
+    const parts = path.split(/[/\\]/);
     if (parts.length <= 2) return path;
     return '.../' + parts.slice(-2).join('/');
   };
@@ -193,10 +235,43 @@ export function FolderPickerDialog({
               size="icon"
               className="h-7 w-7 flex-shrink-0"
               onClick={handleNavigateUp}
-              disabled={loading || !currentPath}
+              disabled={loading || !currentPath || isRoot}
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
+            {drives.length > 1 && (
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={() => setShowDrives(prev => !prev)}
+                  disabled={loading}
+                >
+                  <HardDrive className="w-4 h-4" />
+                </Button>
+                {showDrives && (
+                  <div className="absolute top-full left-0 mt-1 bg-popover border rounded-md shadow-md z-50 min-w-[120px]">
+                    {drives.map(drive => (
+                      <button
+                        key={drive}
+                        onClick={() => {
+                          loadDirectory(drive);
+                          setShowDrives(false);
+                        }}
+                        className={cn(
+                          'flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-muted',
+                          currentPath === drive && 'bg-primary/20 text-primary font-medium'
+                        )}
+                      >
+                        <Folder className="w-3.5 h-3.5 text-amber-500" />
+                        {drive}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <span className="flex-1 text-sm font-mono truncate" title={targetPath}>
               {selectedFolder ? (
                 <span className="text-primary">
