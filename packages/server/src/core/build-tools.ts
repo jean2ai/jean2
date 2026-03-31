@@ -161,7 +161,7 @@ export async function buildAiSdkTools(
 
   if (workspacePath) {
     try {
-      const mcpTools = await mcp.getTools(workspacePath);
+      const mcpTools = await mcp.getTools(workspacePath, sessionId);
       Object.assign(tools, mcpTools);
     } catch (err) {
       console.error('Failed to load MCP tools:', err);

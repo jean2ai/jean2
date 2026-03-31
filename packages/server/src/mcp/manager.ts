@@ -313,7 +313,7 @@ export async function getAllServerStatus(workspacePath: string): Promise<Record<
   return statusMap;
 }
 
-export async function getTools(workspacePath: string): Promise<Record<string, Tool>> {
+export async function getTools(workspacePath: string, sessionId?: string): Promise<Record<string, Tool>> {
   const clients = workspaceClients.get(workspacePath);
   if (!clients) {
     return {};
@@ -335,7 +335,7 @@ export async function getTools(workspacePath: string): Promise<Record<string, To
         const sanitizedServerName = serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
         const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, '_');
         const toolKey = `${sanitizedServerName}_${sanitizedToolName}`;
-        const tool = await convertMcpTool(mcpTool, state.client, serverName, DEFAULT_TIMEOUT);
+        const tool = await convertMcpTool(mcpTool, state.client, serverName, DEFAULT_TIMEOUT, sessionId);
         tools[toolKey] = tool;
       }
     } catch (err) {
