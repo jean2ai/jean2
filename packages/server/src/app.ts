@@ -390,6 +390,28 @@ export function createApp() {
     return c.json({ sessions });
   });
 
+  // POST /api/workspaces/:id/terminals - Create a new terminal session
+  app.post('/api/workspaces/:id/terminals', async (c) => {
+    const workspaceId = c.req.param('id');
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    const { getTerminalManager } = await import('./services/terminal');
+    const sessionId = getTerminalManager().createSessionDetached({
+      cwd: workspace.path,
+      workspaceId,
+    });
+
+    if (!sessionId) {
+      return c.json({ error: 'Limit Reached', message: 'Maximum terminal sessions reached for this workspace' }, 429);
+    }
+
+    const session = getTerminalManager().getSession(sessionId);
+    return c.json({ session });
+  });
+
   // GET /api/workspaces/:id/terminals/:sessionId - Get single session info
   app.get('/api/workspaces/:id/terminals/:sessionId', async (c) => {
     const sessionId = c.req.param('sessionId');

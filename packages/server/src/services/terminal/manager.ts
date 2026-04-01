@@ -9,6 +9,7 @@ import {
   markTerminalSessionDestroyed,
 } from '@/store/terminal-sessions';
 import type { TerminalSessionInfo } from '@jean2/shared';
+import type { TerminalEventManager } from './event-manager';
 
 interface OutputChunk {
   data: Uint8Array;
@@ -31,6 +32,7 @@ interface TerminalSession {
   exitCode: number | null;
   buffer: OutputChunk[];
   bufferBytes: number;
+  inAlternateScreen: boolean;
 }
 
 function getDefaultShell(): string {
@@ -43,14 +45,29 @@ function getDefaultShell(): string {
 export class TerminalManager {
   private sessions = new Map<string, TerminalSession>();
   private wsToSessionId = new WeakMap<ServerWebSocket, string>();
+  private _eventManager: TerminalEventManager | null = null;
+  private _getEventManager: (() => TerminalEventManager) | null = null;
 
-  private static readonly MAX_BUFFER_AGE_MS = 5 * 60 * 1000;
-  private static readonly MAX_BUFFER_BYTES = 5 * 1024 * 1024;
-  private static readonly MAX_SESSIONS_PER_WORKSPACE = 5;
-  private static readonly IDLE_CLEANUP_MS = 30 * 60 * 1000;
+  private static readonly MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+  private readonly maxSessionsPerWorkspace: number;
 
   constructor() {
-    this.startIdleCleanup();
+    this.maxSessionsPerWorkspace = parseInt(process.env.JEAN2_TERMINAL_MAX_SESSIONS || '10', 10);
+    this.startExitedSessionCleanup();
+  }
+
+  setEventManagerGetter(getter: () => TerminalEventManager): void {
+    this._getEventManager = getter;
+  }
+
+  private get eventManager(): TerminalEventManager {
+    if (!this._eventManager) {
+      if (!this._getEventManager) {
+        throw new Error('TerminalManager: event manager getter not set');
+      }
+      this._eventManager = this._getEventManager();
+    }
+    return this._eventManager;
   }
 
   createSession(
@@ -82,7 +99,7 @@ export class TerminalManager {
     }
 
     const count = this.getActiveSessionCount(cwd);
-    if (count >= TerminalManager.MAX_SESSIONS_PER_WORKSPACE) {
+    if (count >= this.maxSessionsPerWorkspace) {
       const errorPayload = new TextEncoder().encode(JSON.stringify({
         message: 'Maximum terminal sessions reached for this workspace',
       }));
@@ -90,6 +107,53 @@ export class TerminalManager {
       ws.close();
       return '';
     }
+
+    const result = this.spawnSession({ shell, cwd, workspaceId, cols, rows, initialClient: ws });
+    if (!result) {
+      const errorPayload = new TextEncoder().encode(JSON.stringify({ message: 'Failed to create terminal session' }));
+      ws.send(encodeFrame(OPCODES.ERROR, errorPayload));
+      ws.close();
+      return '';
+    }
+
+    return result.sessionId;
+  }
+
+  createSessionDetached(options: {
+    shell?: string;
+    cwd: string;
+    workspaceId: string;
+    cols?: number;
+    rows?: number;
+  }): string | null {
+    const { cwd } = options;
+    if (!cwd || !existsSync(cwd)) return null;
+    const stat = statSync(cwd);
+    if (!stat.isDirectory()) return null;
+    const result = this.spawnSession(options);
+    return result?.sessionId ?? null;
+  }
+
+  private spawnSession(
+    options: {
+      shell?: string;
+      cwd: string;
+      workspaceId: string;
+      cols?: number;
+      rows?: number;
+      initialClient?: ServerWebSocket;
+    }
+  ): { sessionId: string; session: TerminalSession } | null {
+    const { cwd, workspaceId, cols = 80, rows = 24, initialClient } = options;
+    const shell = options.shell || getDefaultShell();
+
+    if (!cwd || !existsSync(cwd)) return null;
+
+    const stat = statSync(cwd);
+    if (!stat.isDirectory()) return null;
+
+    const count = this.getActiveSessionCount(cwd);
+    if (count >= this.maxSessionsPerWorkspace) return null;
 
     const sessionId = crypto.randomUUID();
     const now = Date.now();
@@ -109,8 +173,16 @@ export class TerminalManager {
 
         session.lastActivityAt = Date.now();
 
-        const payload = new TextEncoder().encode(data);
+        if (data.includes('\x1b[?1049h') || data.includes('\x1b[?47h')) {
+          session.inAlternateScreen = true;
+          this.eventManager.broadcastSessionInfo(workspaceId, this.getSessionInfo(session), 'status_changed');
+        }
+        if (data.includes('\x1b[?1049l') || data.includes('\x1b[?47l')) {
+          session.inAlternateScreen = false;
+          this.eventManager.broadcastSessionInfo(workspaceId, this.getSessionInfo(session), 'status_changed');
+        }
 
+        const payload = new TextEncoder().encode(data);
         this.bufferOutput(session, payload);
 
         if (session.clients.size > 0) {
@@ -137,7 +209,7 @@ export class TerminalManager {
         shell,
         title: 'main',
         workspaceId,
-        clients: new Set([ws]),
+        clients: initialClient ? new Set([initialClient]) : new Set(),
         cols,
         rows,
         createdAt: now,
@@ -146,10 +218,14 @@ export class TerminalManager {
         exitCode: null,
         buffer: [],
         bufferBytes: 0,
+        inAlternateScreen: false,
       };
 
       this.sessions.set(sessionId, session);
-      this.wsToSessionId.set(ws, sessionId);
+      if (initialClient) {
+        this.wsToSessionId.set(initialClient, sessionId);
+      }
+      this.eventManager.broadcastSessionInfo(workspaceId, this.getSessionInfo(session), 'created');
 
       createTerminalSession({
         id: sessionId,
@@ -167,6 +243,7 @@ export class TerminalManager {
           s.status = 'exited';
           s.exitCode = event.exitCode;
           markTerminalSessionExited(sessionId, event.exitCode);
+          this.eventManager.broadcastSessionInfo(s.workspaceId, this.getSessionInfo(s), 'exited');
 
           if (s.clients.size > 0) {
             const payload = new TextEncoder().encode(JSON.stringify({ exitCode: event.exitCode }));
@@ -182,12 +259,10 @@ export class TerminalManager {
         }
       });
 
-      return sessionId;
+      return { sessionId, session };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      const errorPayload = new TextEncoder().encode(JSON.stringify({ message }));
-      ws.send(encodeFrame(OPCODES.ERROR, errorPayload));
-      return '';
+      console.error('[TerminalManager] spawnSession failed:', err);
+      return null;
     }
   }
 
@@ -260,6 +335,7 @@ export class TerminalManager {
     const session = this.sessions.get(sessionId);
     if (!session) return;
     session.title = title;
+    this.eventManager.broadcastSessionInfo(session.workspaceId, this.getSessionInfo(session), 'title_changed');
     const payload = new TextEncoder().encode(JSON.stringify({ title }));
     const frame = encodeFrame(OPCODES.TITLE, payload);
     for (const client of session.clients) {
@@ -280,6 +356,8 @@ export class TerminalManager {
   destroySessionById(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
+
+    this.eventManager.broadcastDestroyed(session.workspaceId, sessionId);
 
     try {
       session.pty.kill();
@@ -308,16 +386,21 @@ export class TerminalManager {
   }
 
   destroySessionsForWorkspace(workspacePath: string): void {
-    for (const [id, session] of this.sessions) {
-      if (session.cwd === workspacePath) {
-        this.destroySessionById(id);
-      }
+    const ids = [...this.sessions.entries()]
+      .filter(([, s]) => s.cwd === workspacePath)
+      .map(([id]) => id);
+    for (const id of ids) {
+      this.destroySessionById(id);
     }
   }
 
   getSession(sessionId: string): TerminalSessionInfo | null {
     const session = this.sessions.get(sessionId);
     if (!session) return null;
+    return this.getSessionInfo(session);
+  }
+
+  private getSessionInfo(session: TerminalSession): TerminalSessionInfo {
     return {
       id: session.id,
       pid: session.pty.pid,
@@ -331,6 +414,7 @@ export class TerminalManager {
       createdAt: session.createdAt,
       lastActivityAt: session.lastActivityAt,
       activeClientCount: session.clients.size,
+      inAlternateScreen: session.inAlternateScreen,
     };
   }
 
@@ -351,7 +435,18 @@ export class TerminalManager {
           createdAt: session.createdAt,
           lastActivityAt: session.lastActivityAt,
           activeClientCount: session.clients.size,
+          inAlternateScreen: session.inAlternateScreen,
         });
+      }
+    }
+    return result;
+  }
+
+  listSessionsByWorkspaceId(workspaceId: string): TerminalSessionInfo[] {
+    const result: TerminalSessionInfo[] = [];
+    for (const session of this.sessions.values()) {
+      if (session.workspaceId === workspaceId) {
+        result.push(this.getSessionInfo(session));
       }
     }
     return result;
@@ -375,16 +470,18 @@ export class TerminalManager {
   private bufferOutput(session: TerminalSession, data: Uint8Array): void {
     const now = Date.now();
 
-    this.pruneBuffer(session);
+    if (data.length > TerminalManager.MAX_BUFFER_BYTES) {
+      session.buffer = [{ data, timestamp: now }];
+      session.bufferBytes = data.length;
+      return;
+    }
 
-    if (session.bufferBytes + data.length > TerminalManager.MAX_BUFFER_BYTES) {
-      while (
-        session.buffer.length > 0 &&
-        session.bufferBytes + data.length > TerminalManager.MAX_BUFFER_BYTES
-      ) {
-        const removed = session.buffer.shift()!;
-        session.bufferBytes -= removed.data.length;
-      }
+    while (
+      session.buffer.length > 0 &&
+      session.bufferBytes + data.length > TerminalManager.MAX_BUFFER_BYTES
+    ) {
+      const removed = session.buffer.shift()!;
+      session.bufferBytes -= removed.data.length;
     }
 
     session.buffer.push({ data, timestamp: now });
@@ -404,26 +501,19 @@ export class TerminalManager {
     }
   }
 
-  private pruneBuffer(session: TerminalSession): void {
-    const cutoff = Date.now() - TerminalManager.MAX_BUFFER_AGE_MS;
-    while (session.buffer.length > 0 && session.buffer[0].timestamp < cutoff) {
-      const removed = session.buffer.shift()!;
-      session.bufferBytes -= removed.data.length;
-    }
-  }
-
-  private startIdleCleanup(): void {
+  private startExitedSessionCleanup(): void {
+    const EXPIRED_MS = 24 * 60 * 60 * 1000;
     setInterval(() => {
       const now = Date.now();
       for (const [id, session] of this.sessions) {
-        const hasNoClients = session.clients.size === 0;
-        const isIdle = hasNoClients && session.status === 'running';
-        const isStale = session.status === 'exited' && hasNoClients;
-
-        if ((isIdle || isStale) && now - session.lastActivityAt > TerminalManager.IDLE_CLEANUP_MS) {
+        if (
+          session.status === 'exited' &&
+          session.clients.size === 0 &&
+          now - session.lastActivityAt > EXPIRED_MS
+        ) {
           this.destroySessionById(id);
         }
       }
-    }, 60 * 1000);
+    }, 5 * 60 * 1000);
   }
 }

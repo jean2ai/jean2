@@ -1,8 +1,16 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { X, Plus, Terminal } from 'lucide-react';
-import { TerminalView, type TerminalViewHandle } from './TerminalView';
-import type { TerminalStatus, SessionInitData } from '@/hooks/useTerminal';
-import type { TerminalListResponse } from '@jean2/shared';
+import { TerminalView } from './TerminalView';
+import {
+  useTerminalConnection,
+  createTerminalInstance,
+  createTerminalCache,
+  type CachedTerminal,
+  type TerminalStatus,
+  type SessionInitData,
+  type TerminalCache,
+} from '@/hooks/useTerminal';
+import type { TerminalEvent } from '@jean2/shared';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { Button } from '@/components/ui/button';
@@ -19,12 +27,11 @@ export interface TerminalPanelHandle {
 }
 
 interface TerminalTab {
-  id: string;
-  serverSessionId: string | null;
-  workspaceId: string;
-  workspacePath: string;
+  serverSessionId: string;
   title: string;
   status: TerminalStatus;
+  cwd: string;
+  shell: string;
 }
 
 interface TerminalPanelProps {
@@ -37,7 +44,6 @@ interface TerminalPanelProps {
   onClose: () => void;
 }
 
-const MAX_TABS_PER_WORKSPACE = 5;
 const DEFAULT_HEIGHT = 300;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT_RATIO = 0.7;
@@ -54,225 +60,372 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const isMobile = useIsMobile();
   const viewport = useVisualViewport();
 
-  const [tabsByWorkspace, setTabsByWorkspace] = useState<Map<string, TerminalTab[]>>(new Map());
-  const [activeTabIdByWorkspace, setActiveTabIdByWorkspace] = useState<Map<string, string>>(new Map());
+  const [tabs, setTabs] = useState<TerminalTab[]>([]);
+  const [activeTabServerId, setActiveTabServerId] = useState<string | null>(null);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
-  const fetchInProgressRef = useRef<Set<string>>(new Set());
-  const terminalViewRefs = useRef<Map<string, TerminalViewHandle>>(new Map());
 
-  const currentTabs = workspaceId ? (tabsByWorkspace.get(workspaceId) ?? []) : [];
-  const activeTabId = workspaceId ? activeTabIdByWorkspace.get(workspaceId) : undefined;
-
-  const tabCountForWorkspace = workspaceId ? (tabsByWorkspace.get(workspaceId)?.length ?? 0) : 0;
-  const canAddTab = tabCountForWorkspace < MAX_TABS_PER_WORKSPACE;
-
-  const fetchExistingSessions = useCallback(async (wsId: string) => {
-    if (!serverUrl || !apiToken || fetchInProgressRef.current.has(wsId)) return;
-    fetchInProgressRef.current.add(wsId);
-    try {
-      const response = await fetch(
-        `http://${serverUrl}/api/workspaces/${wsId}/terminals`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-          },
-        }
-      );
-      if (!response.ok) return;
-      const data = await response.json() as TerminalListResponse;
-      if (!data.sessions || data.sessions.length === 0) return;
-
-      const newTabs: TerminalTab[] = data.sessions.map(session => ({
-        id: crypto.randomUUID(),
-        serverSessionId: session.id,
-        workspaceId: wsId,
-        workspacePath: session.cwd,
-        title: session.title,
-        status: 'disconnected' as const,
-      }));
-
-      setTabsByWorkspace(prev => {
-        const currentTabs = prev.get(wsId) ?? [];
-        const existingServerIds = new Set(
-          currentTabs.map(t => t.serverSessionId).filter(Boolean)
-        );
-        const toAdd = newTabs.filter(s => !existingServerIds.has(s.serverSessionId));
-        if (toAdd.length === 0) return prev;
-
-        // If we already have tabs for this workspace, any unmatched server sessions
-        // are orphans from StrictMode duplicate connections. Destroy them on the
-        // server instead of creating tabs for them.
-        if (currentTabs.length > 0) {
-          for (const orphan of toAdd) {
-            fetch(`http://${serverUrl}/api/workspaces/${wsId}/terminals/${orphan.serverSessionId}`, {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${apiToken}`,
-              },
-            }).catch(() => {
-              // Ignore errors
-            });
-          }
-          return prev;
-        }
-
-        const next = new Map(prev);
-        next.set(wsId, [...currentTabs, ...toAdd]);
-        return next;
-      });
-
-      setActiveTabIdByWorkspace(prev => {
-        const next = new Map(prev);
-        if (!next.has(wsId)) {
-          next.set(wsId, newTabs[0].id);
-        }
-        return next;
-      });
-    } catch (error) {
-      console.log(`[TerminalPanel] fetchExistingSessions FAILED`, error);
-    } finally {
-      fetchInProgressRef.current.delete(wsId);
-    }
-  }, [serverUrl, apiToken]);
+  const terminalCacheRef = useRef<TerminalCache>(createTerminalCache());
+  const activeConnectionRef = useRef<{
+    serverSessionId: string;
+    disconnect: () => void;
+    destroy: () => void;
+  } | null>(null);
+  const eventWsRef = useRef<WebSocket | null>(null);
+  const tabsRef = useRef<TerminalTab[]>([]);
+  const handleTerminalEventRef = useRef<(event: TerminalEvent) => void>(() => {});
+  const autoCreateRef = useRef(false);
+  const autoCreateResetRef = useRef<string | undefined>(undefined);
+  const previousTabIdsRef = useRef<Set<string>>(new Set());
+  const addTabRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    if (!workspaceId || !isOpen) return;
-    fetchExistingSessions(workspaceId);
-  }, [workspaceId, isOpen, fetchExistingSessions]);
+    tabsRef.current = tabs;
+  }, [tabs]);
 
-  const updateTabStatus = useCallback((tabId: string, status: TerminalStatus) => {
-    setTabsByWorkspace(prev => {
-      const next = new Map(prev);
-      for (const [wsId, tabs] of next.entries()) {
-        const updated = tabs.map(t => t.id === tabId ? { ...t, status } : t);
-        if (updated.some(t => t.id === tabId)) {
-          next.set(wsId, updated);
+  const handleTerminalEvent = useCallback((event: TerminalEvent) => {
+    switch (event.type) {
+      case 'snapshot': {
+        const previousIds = previousTabIdsRef.current;
+
+        setTabs(event.sessions.map(s => ({
+          serverSessionId: s.id,
+          title: s.title,
+          status: s.status === 'exited' ? 'exited' : 'disconnected',
+          cwd: s.cwd,
+          shell: s.shell,
+        })));
+
+        if (event.sessions.length > 0) {
+          setActiveTabServerId(prev => {
+            if (prev && event.sessions.some(s => s.id === prev)) return prev;
+            return event.sessions[0].id;
+          });
+        } else {
+          setActiveTabServerId(null);
+          if (!autoCreateRef.current) {
+            autoCreateRef.current = true;
+            addTabRef.current();
+          }
         }
+
+        if (previousIds.size > 0) {
+          const snapshotIds = new Set(event.sessions.map(s => s.id));
+          const lostIds = [...previousIds].filter(id => !snapshotIds.has(id));
+          for (const _lostId of lostIds) {
+            addTabRef.current();
+          }
+        }
+        break;
       }
-      return next;
-    });
+      case 'created': {
+        setTabs(prev => {
+          if (prev.some(t => t.serverSessionId === event.session.id)) {
+            return prev;
+          }
+          return [...prev, {
+            serverSessionId: event.session.id,
+            title: event.session.title,
+            status: 'disconnected',
+            cwd: event.session.cwd,
+            shell: event.session.shell,
+          }];
+        });
+        setActiveTabServerId(event.session.id);
+        break;
+      }
+      case 'destroyed': {
+        setTabs(prev => prev.filter(t => t.serverSessionId !== event.sessionId));
+        terminalCacheRef.current.dispose(event.sessionId);
+        setActiveTabServerId(prev => {
+          if (prev !== event.sessionId) return prev;
+          const remaining = tabsRef.current.filter(t => t.serverSessionId !== event.sessionId);
+          return remaining.length > 0 ? remaining[0].serverSessionId : null;
+        });
+        break;
+      }
+      case 'exited': {
+        setTabs(prev => prev.map(t =>
+          t.serverSessionId === event.sessionId
+            ? { ...t, status: 'exited' }
+            : t
+        ));
+        break;
+      }
+      case 'title_changed': {
+        setTabs(prev => prev.map(t =>
+          t.serverSessionId === event.sessionId
+            ? { ...t, title: event.title }
+            : t
+        ));
+        break;
+      }
+      case 'status_changed': {
+        setTabs(prev => prev.map(t =>
+          t.serverSessionId === event.sessionId
+            ? { ...t, status: event.status === 'exited' ? 'exited' : 'connected' }
+            : t
+        ));
+        break;
+      }
+    }
   }, []);
 
-  const updateTabSessionInit = useCallback((tabId: string, initData: SessionInitData) => {
-    setTabsByWorkspace(prev => {
-      const next = new Map(prev);
-      for (const [wsId, tabs] of next.entries()) {
-        const updated = tabs.map(t => t.id === tabId ? {
-          ...t,
-          serverSessionId: initData.sessionId,
-          title: initData.title || t.title,
-        } : t);
-        if (updated.some(t => t.id === tabId)) {
-          next.set(wsId, updated);
-        }
+  useEffect(() => {
+    handleTerminalEventRef.current = handleTerminalEvent;
+  }, [handleTerminalEvent]);
+
+  useEffect(() => {
+    if (!workspaceId || !isOpen || !serverUrl || !apiToken) {
+      setTabs([]);
+      setActiveTabServerId(null);
+      previousTabIdsRef.current = new Set();
+      autoCreateRef.current = false;
+
+      if (activeConnectionRef.current) {
+        activeConnectionRef.current.disconnect();
+        activeConnectionRef.current = null;
       }
-      return next;
-    });
-  }, []);
+      setConnectionTarget(null);
+      terminalCacheRef.current.disposeAll();
 
-  const updateTabTitle = useCallback((tabId: string, title: string) => {
-    setTabsByWorkspace(prev => {
-      const next = new Map(prev);
-      for (const [wsId, tabs] of next.entries()) {
-        const updated = tabs.map(t => t.id === tabId ? { ...t, title } : t);
-        if (updated.some(t => t.id === tabId)) {
-          next.set(wsId, updated);
-        }
+      const ws = eventWsRef.current;
+      if (ws) {
+        ws.onopen = null;
+        ws.onclose = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.close();
+        eventWsRef.current = null;
       }
-      return next;
-    });
-  }, []);
+      return;
+    }
 
-  const addTab = useCallback(() => {
-    if (!workspaceId || !workspacePath || !canAddTab) return;
+    // Clean up previous workspace's terminals before setting up new workspace
+    if (activeConnectionRef.current) {
+      activeConnectionRef.current.disconnect();
+      activeConnectionRef.current = null;
+    }
+    setConnectionTarget(null);
+    terminalCacheRef.current.disposeAll();
 
-    const newTab: TerminalTab = {
-      id: crypto.randomUUID(),
-      serverSessionId: null,
-      workspaceId,
-      workspacePath,
-      title: 'main',
-      status: 'connecting',
+    previousTabIdsRef.current = new Set(tabsRef.current.map(t => t.serverSessionId));
+
+    const wsUrl = `ws://${serverUrl}/ws/terminal/events?token=${apiToken}&workspaceId=${encodeURIComponent(workspaceId)}`;
+    const ws = new WebSocket(wsUrl);
+    eventWsRef.current = ws;
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as TerminalEvent;
+        handleTerminalEventRef.current(data);
+      } catch (err) {
+        console.error('[TerminalPanel] Failed to parse event:', err);
+      }
     };
 
-    setTabsByWorkspace(prev => {
-      const next = new Map(prev);
-      const existing = next.get(workspaceId) ?? [];
-      next.set(workspaceId, [...existing, newTab]);
-      return next;
-    });
+    return () => {
+      const currentWs = eventWsRef.current;
+      if (currentWs) {
+        currentWs.onopen = null;
+        currentWs.onclose = null;
+        currentWs.onmessage = null;
+        currentWs.onerror = null;
+        currentWs.close();
+        eventWsRef.current = null;
+      }
+    };
+  }, [workspaceId, isOpen, serverUrl, apiToken]);
 
-    setActiveTabIdByWorkspace(prev => {
-      const next = new Map(prev);
-      next.set(workspaceId, newTab.id);
-      return next;
-    });
-  }, [workspaceId, workspacePath, canAddTab]);
+  const onOutput = useCallback((serverSessionId: string) => (data: string) => {
+    const cached = terminalCacheRef.current.get(serverSessionId);
+    cached?.terminal.write(data);
+  }, []);
 
-  const closeTab = useCallback((tabId: string) => {
-    const tab = [...tabsByWorkspace.values()].flat().find(t => t.id === tabId);
-    if (tab?.serverSessionId && serverUrl && apiToken) {
-      fetch(`http://${serverUrl}/api/workspaces/${tab.workspaceId}/terminals/${tab.serverSessionId}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-        },
-      }).catch(() => {
-        // Ignore errors
-      });
+  const onStatusChange = useCallback((serverSessionId: string) => (status: TerminalStatus) => {
+    setTabs(prev => prev.map(t =>
+      t.serverSessionId === serverSessionId
+        ? { ...t, status }
+        : t
+    ));
+  }, []);
+
+  const onSessionInit = useCallback((serverSessionId: string) => (init: SessionInitData) => {
+    const cached = terminalCacheRef.current.get(serverSessionId);
+    if (cached) {
+      cached.serverSessionId = init.sessionId;
     }
+    setTabs(prev => prev.map(t =>
+      t.serverSessionId === serverSessionId
+        ? { ...t, title: init.title || t.title }
+        : t
+    ));
+  }, []);
 
-    setTabsByWorkspace(prev => {
-      const next = new Map(prev);
-      for (const [wsId, tabs] of next.entries()) {
-        const filtered = tabs.filter(t => t.id !== tabId);
-        if (filtered.length < tabs.length) {
-          next.set(wsId, filtered);
-        }
-      }
-      return next;
-    });
+  const onTitleChange = useCallback((serverSessionId: string) => (title: string) => {
+    setTabs(prev => prev.map(t =>
+      t.serverSessionId === serverSessionId
+        ? { ...t, title }
+        : t
+    ));
+  }, []);
 
-    setActiveTabIdByWorkspace(prev => {
-      const next = new Map(prev);
-      for (const [wsId, tabId_] of next.entries()) {
-        if (tabId_ === tabId) {
-          const remaining = tabsByWorkspace.get(wsId)?.filter(t => t.id !== tabId) ?? [];
-          if (remaining.length > 0) {
-            next.set(wsId, remaining[remaining.length - 1].id);
-          } else {
-            next.delete(wsId);
-          }
-        }
-      }
-      return next;
-    });
-  }, [tabsByWorkspace, serverUrl, apiToken]);
+  const [connectionTarget, setConnectionTarget] = useState<CachedTerminal | null>(null);
+
+  const { connect, disconnect, destroy } = useTerminalConnection(
+    connectionTarget?.terminal ?? null,
+    connectionTarget && serverUrl && apiToken && workspacePath && connectionTarget.serverSessionId ? {
+      terminal: connectionTarget.terminal,
+      serverUrl,
+      apiToken,
+      cwd: tabs.find(t => t.serverSessionId === connectionTarget.serverSessionId)?.cwd ?? workspacePath,
+      serverSessionId: connectionTarget.serverSessionId,
+      onOutput: onOutput(connectionTarget.serverSessionId),
+      onStatusChange: onStatusChange(connectionTarget.serverSessionId),
+      onSessionInit: onSessionInit(connectionTarget.serverSessionId),
+      onTitleChange: onTitleChange(connectionTarget.serverSessionId),
+    } : {
+      terminal: null,
+      serverUrl: '',
+      apiToken: '',
+      cwd: '',
+      onOutput: () => {},
+      onStatusChange: () => {},
+    }
+  );
 
   useEffect(() => {
-    if (!workspaceId || !workspacePath || !isOpen) return;
-    const tabs = tabsByWorkspace.get(workspaceId) ?? [];
-    if (tabs.length === 0) {
-      addTab();
+    if (connectionTarget && connectionTarget.serverSessionId) {
+      activeConnectionRef.current = {
+        serverSessionId: connectionTarget.serverSessionId,
+        disconnect,
+        destroy,
+      };
+      connect(connectionTarget.serverSessionId);
     }
-  }, [isOpen, workspaceId, workspacePath, tabsByWorkspace, addTab]);
+  }, [connectionTarget, connect, disconnect, destroy]);
+
+  const attachActiveTerminal = useCallback(() => {
+    if (!activeTabServerId || !serverUrl || !apiToken || !workspacePath) return;
+
+    const cached = terminalCacheRef.current.get(activeTabServerId);
+
+    let terminalEntry: CachedTerminal;
+    if (cached) {
+      terminalEntry = cached;
+    } else {
+      const { terminal, fitAddon } = createTerminalInstance();
+      terminalEntry = {
+        terminal,
+        fitAddon,
+        serverSessionId: activeTabServerId,
+        status: 'connecting',
+        isOpened: false,
+      };
+      terminalCacheRef.current.set(activeTabServerId, terminalEntry);
+    }
+
+    if (activeConnectionRef.current) {
+      activeConnectionRef.current.disconnect();
+      activeConnectionRef.current = null;
+    }
+
+    setConnectionTarget(terminalEntry);
+  }, [activeTabServerId, serverUrl, apiToken, workspacePath]);
+
+  useEffect(() => {
+    if (!isOpen || !activeTabServerId) return;
+    attachActiveTerminal();
+  }, [isOpen, activeTabServerId, attachActiveTerminal]);
+
+  const addTab = useCallback(async () => {
+    if (!workspaceId || !workspacePath || !serverUrl || !apiToken) return;
+
+    try {
+      const response = await fetch(
+        `http://${serverUrl}/api/workspaces/${workspaceId}/terminals`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiToken}`,
+          },
+          body: JSON.stringify({ cwd: workspacePath }),
+        }
+      );
+      if (!response.ok) {
+        console.error('[TerminalPanel] Failed to create terminal:', response.statusText);
+      }
+    } catch (err) {
+      console.error('[TerminalPanel] Failed to create terminal:', err);
+    }
+  }, [workspaceId, workspacePath, serverUrl, apiToken]);
+
+  useEffect(() => {
+    addTabRef.current = addTab;
+  }, [addTab]);
+
+  const closeTab = useCallback(async (serverSessionId: string) => {
+    if (!workspaceId || !serverUrl || !apiToken) return;
+
+    if (activeConnectionRef.current?.serverSessionId === serverSessionId) {
+      activeConnectionRef.current.destroy();
+      activeConnectionRef.current = null;
+      setConnectionTarget(null);
+    }
+
+    terminalCacheRef.current.dispose(serverSessionId);
+
+    try {
+      await fetch(
+        `http://${serverUrl}/api/workspaces/${workspaceId}/terminals/${serverSessionId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${apiToken}` },
+        }
+      );
+    } catch (err) {
+      console.error('[TerminalPanel] Failed to destroy terminal:', err);
+    }
+  }, [workspaceId, serverUrl, apiToken]);
+
+  useEffect(() => {
+    if (autoCreateResetRef.current !== workspaceId) {
+      autoCreateResetRef.current = workspaceId;
+      autoCreateRef.current = false;
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    previousTabIdsRef.current = new Set();
+  }, [workspaceId]);
+
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const cache = terminalCacheRef.current;
+      cache.disposeAll();
+    };
+  }, []);
 
   const focusActiveTerminal = useCallback(() => {
-    terminalViewRefs.current.get(activeTabId ?? '')?.focus();
-  }, [activeTabId]);
+    if (activeTabServerId) {
+      const cached = terminalCacheRef.current.get(activeTabServerId);
+      cached?.terminal.focus();
+    }
+  }, [activeTabServerId]);
 
   useImperativeHandle(ref, () => ({
     focus: focusActiveTerminal,
   }), [focusActiveTerminal]);
 
   useEffect(() => {
-    if (!isOpen || currentTabs.length === 0) return;
+    if (!isOpen || !activeTabServerId) return;
     const timer = setTimeout(focusActiveTerminal, 300);
     return () => clearTimeout(timer);
-  }, [isOpen, currentTabs.length, focusActiveTerminal]);
+  }, [isOpen, activeTabServerId, focusActiveTerminal]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -314,7 +467,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   }
 
   const shortName = workspaceName || workspacePath.split('/').pop() || 'ws';
-  const tabTitlePrefix = `[${shortName}]`;
+  const activeTab = tabs.find(t => t.serverSessionId === activeTabServerId);
+   
+  const activeCached = activeTabServerId ? terminalCacheRef.current.get(activeTabServerId) : null;
 
   const statusIndicator = (status: TerminalStatus) => {
     switch (status) {
@@ -327,73 +482,47 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
   const renderTabs = () => (
     <div className="flex items-center gap-0.5 overflow-x-auto px-1 min-h-[32px]">
-      {currentTabs.map(tab => (
+      {tabs.map(tab => (
         <div
-          key={tab.id}
+          key={tab.serverSessionId}
           className={cn(
             'group flex items-center gap-1.5 px-2 py-1 text-xs cursor-pointer rounded-sm whitespace-nowrap border border-transparent',
-            tab.id === activeTabId
+            tab.serverSessionId === activeTabServerId
               ? 'bg-accent text-accent-foreground border-border'
               : 'text-muted-foreground hover:bg-muted'
           )}
-          onClick={() => setActiveTabIdByWorkspace(prev => {
-            const next = new Map(prev);
-            next.set(workspaceId, tab.id);
-            return next;
-          })}
+          onClick={() => setActiveTabServerId(tab.serverSessionId)}
         >
           <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusIndicator(tab.status))} />
-          <span>{tabTitlePrefix} {tab.title}</span>
+          <span>{shortName} {tab.title}</span>
           <button
             className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity ml-0.5"
-            onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+            onClick={(e) => { e.stopPropagation(); closeTab(tab.serverSessionId); }}
           >
             <X className="w-3 h-3" />
           </button>
         </div>
       ))}
-      {canAddTab && (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0"
-          onClick={addTab}
-          title="New terminal tab"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="shrink-0"
+        onClick={addTab}
+        title="New terminal tab"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </Button>
     </div>
   );
 
   const renderTerminalContent = () => (
     <div className="flex-1 min-h-0 overflow-hidden relative">
-      {currentTabs.map(tab => (
-        <div
-          key={tab.id}
-          className={cn(
-            'w-full h-full',
-            tab.id !== activeTabId
-              ? 'invisible absolute inset-0 pointer-events-none'
-              : 'relative'
-          )}
-        >
-            <TerminalViewWrapper
-              key={tab.id}
-              tab={tab}
-              serverUrl={serverUrl}
-              apiToken={apiToken}
-              onStatusChange={(status) => updateTabStatus(tab.id, status)}
-              onSessionInit={(initData) => updateTabSessionInit(tab.id, initData)}
-              onTitleChange={(title) => updateTabTitle(tab.id, title)}
-              onTerminalRef={(handle) => {
-                if (handle) terminalViewRefs.current.set(tab.id, handle);
-                else terminalViewRefs.current.delete(tab.id);
-              }}
-            />
-        </div>
-      ))}
-      {currentTabs.length === 0 && (
+      {activeCached && activeTab ? (
+        <TerminalView
+          key={activeTabServerId}
+          cachedTerminal={activeCached}
+        />
+      ) : (
         <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
           No terminal sessions
         </div>
@@ -464,52 +593,3 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     </div>
   );
 });
-
-interface TerminalViewWrapperProps {
-  tab: TerminalTab;
-  serverUrl: string;
-  apiToken: string;
-  onStatusChange: (status: TerminalStatus) => void;
-  onSessionInit: (init: SessionInitData) => void;
-  onTitleChange: (title: string) => void;
-  onTerminalRef: (handle: TerminalViewHandle | null) => void;
-}
-
-function TerminalViewWrapper({ tab, serverUrl, apiToken, onStatusChange, onSessionInit, onTitleChange, onTerminalRef }: TerminalViewWrapperProps) {
-  const onStatusChangeRef = useRef(onStatusChange);
-  const onSessionInitRef = useRef(onSessionInit);
-  const onTitleChangeRef = useRef(onTitleChange);
-
-  useEffect(() => {
-    onStatusChangeRef.current = onStatusChange;
-    onSessionInitRef.current = onSessionInit;
-    onTitleChangeRef.current = onTitleChange;
-  });
-
-  const stableOnStatusChange = useCallback((status: TerminalStatus) => {
-    onStatusChangeRef.current(status);
-  }, []);
-
-  const stableOnSessionInit = useCallback((init: SessionInitData) => {
-    onSessionInitRef.current(init);
-  }, []);
-
-  const stableOnTitleChange = useCallback((title: string) => {
-    onTitleChangeRef.current(title);
-  }, []);
-
-  return (
-    <TerminalView
-      ref={onTerminalRef}
-      serverUrl={serverUrl}
-      apiToken={apiToken}
-      cwd={tab.workspacePath}
-      serverSessionId={tab.serverSessionId}
-      onStatusChange={stableOnStatusChange}
-      onSessionInit={stableOnSessionInit}
-      onTitleChange={stableOnTitleChange}
-    />
-  );
-}
-
-export type { TerminalTab };

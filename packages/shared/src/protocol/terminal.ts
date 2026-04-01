@@ -11,6 +11,7 @@ export interface TerminalSessionInfo {
   createdAt: number;
   lastActivityAt: number;
   activeClientCount: number;
+  inAlternateScreen: boolean;
 }
 
 export interface TerminalSessionInit {
@@ -25,8 +26,17 @@ export interface TerminalSessionInit {
   isReconnect: boolean;
   title: string;
   createdAt: number;
+  inAlternateScreen?: boolean;
 }
 
 export interface TerminalListResponse {
   sessions: TerminalSessionInfo[];
 }
+
+export type TerminalEvent =
+  | { type: 'snapshot'; sessions: TerminalSessionInfo[] }
+  | { type: 'created'; session: TerminalSessionInfo }
+  | { type: 'destroyed'; sessionId: string }
+  | { type: 'exited'; sessionId: string; exitCode: number }
+  | { type: 'title_changed'; sessionId: string; title: string }
+  | { type: 'status_changed'; sessionId: string; status: 'running' | 'exited' };

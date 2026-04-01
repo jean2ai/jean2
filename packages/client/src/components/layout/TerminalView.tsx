@@ -1,91 +1,70 @@
-import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { useTerminal, type TerminalStatus, type SessionInitData } from '@/hooks/useTerminal';
-
-export interface TerminalViewHandle {
-  focus: () => void;
-}
+import { useEffect, useRef } from 'react';
+import type { CachedTerminal } from '@/hooks/useTerminal';
 
 interface TerminalViewProps {
-  serverUrl: string;
-  apiToken: string;
-  cwd: string;
-  serverSessionId?: string | null;
-  onStatusChange?: (status: TerminalStatus) => void;
-  onExit?: (exitCode: number) => void;
-  onSessionInit?: (init: SessionInitData) => void;
-  onTitleChange?: (title: string) => void;
+  cachedTerminal: CachedTerminal;
 }
 
-export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(function TerminalView({
-  serverUrl,
-  apiToken,
-  cwd,
-  serverSessionId,
-  onStatusChange,
-  onExit,
-  onSessionInit,
-  onTitleChange,
-}, ref) {
+export function TerminalView({ cachedTerminal }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const getContainer = useCallback(() => containerRef.current, []);
-  const { fit, focus, destroy: _destroy } = useTerminal(
-    getContainer,
-    {
-      serverUrl,
-      apiToken,
-      cwd,
-      serverSessionId,
-      onStatusChange,
-      onExit,
-      onSessionInit,
-      onTitleChange,
-    }
-  );
-
-  useImperativeHandle(ref, () => ({ focus }), [focus]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    const { terminal, fitAddon } = cachedTerminal;
+    if (!cachedTerminal.isOpened) {
+      terminal.open(container);
+      // eslint-disable-next-line react-hooks/immutability
+      cachedTerminal.isOpened = true;
+    } else if (terminal.element) {
+      container.appendChild(terminal.element);
+    }
+
+    requestAnimationFrame(() => {
+      try {
+        fitAddon.fit();
+      } catch {
+        // Container might not be visible yet
+      }
+
+      if (terminal.cols <= 1 || terminal.rows <= 1) {
+        const waitForDimensions = () => {
+          try {
+            fitAddon.fit();
+            if (terminal.cols > 1 && terminal.rows > 1) return;
+          } catch {
+            // Container might not be ready
+          }
+          requestAnimationFrame(waitForDimensions);
+        };
+        requestAnimationFrame(waitForDimensions);
+      }
+    });
+
+    terminal.focus();
+
     const observer = new ResizeObserver(() => {
-      requestAnimationFrame(() => fit());
+      requestAnimationFrame(() => {
+        try {
+          fitAddon.fit();
+        } catch {
+          // Container might not be visible
+        }
+      });
     });
     observer.observe(container);
 
     return () => {
       observer.disconnect();
     };
-  }, [fit]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let attempts = 0;
-    const maxAttempts = 10;
-    const interval = setInterval(() => {
-      attempts++;
-      if (attempts > maxAttempts) {
-        clearInterval(interval);
-        return;
-      }
-      if (container.offsetParent !== null) {
-        clearInterval(interval);
-        requestAnimationFrame(() => fit());
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [fit]);
+  }, [cachedTerminal]);
 
   return (
     <div
       ref={containerRef}
       className="w-full h-full"
-      onFocus={focus}
+      onFocus={() => cachedTerminal.terminal.focus()}
     />
   );
-});
+}

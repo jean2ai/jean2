@@ -29,17 +29,7 @@ export interface SessionInitData {
   isReconnect: boolean;
   title: string;
   createdAt: number;
-}
-
-interface UseTerminalOptions {
-  serverUrl: string;
-  apiToken: string;
-  cwd: string;
-  serverSessionId?: string | null;
-  onStatusChange?: (status: TerminalStatus) => void;
-  onExit?: (exitCode: number) => void;
-  onSessionInit?: (init: SessionInitData) => void;
-  onTitleChange?: (title: string) => void;
+  inAlternateScreen?: boolean;
 }
 
 function encodeFrame(opcode: number, payload: Uint8Array): Uint8Array {
@@ -49,57 +39,147 @@ function encodeFrame(opcode: number, payload: Uint8Array): Uint8Array {
   return frame;
 }
 
-export function useTerminal(
-  getContainer: () => HTMLDivElement | null,
-  options: UseTerminalOptions
+export interface CachedTerminal {
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  serverSessionId: string | null;
+  status: TerminalStatus;
+  isOpened: boolean;
+}
+
+export interface TerminalCache {
+  get(id: string): CachedTerminal | undefined;
+  set(id: string, cached: CachedTerminal): void;
+  delete(id: string): void;
+  has(id: string): boolean;
+  clear(): void;
+  dispose(id: string): void;
+  disposeAll(): void;
+}
+
+export function createTerminalCache(): TerminalCache {
+  const cache = new Map<string, CachedTerminal>();
+
+  return {
+    get(id) { return cache.get(id); },
+    set(id, cached) { cache.set(id, cached); },
+    delete(id) { cache.delete(id); },
+    has(id) { return cache.has(id); },
+    clear() { cache.clear(); },
+    dispose(id) {
+      const entry = cache.get(id);
+      if (entry) {
+        entry.terminal.dispose();
+        cache.delete(id);
+      }
+    },
+    disposeAll() {
+      for (const entry of cache.values()) {
+        entry.terminal.dispose();
+      }
+      cache.clear();
+    },
+  };
+}
+
+export interface CreateTerminalOptions {
+  scrollback?: number;
+  fontSize?: number;
+  theme?: {
+    background: string;
+    foreground: string;
+    cursor: string;
+    selectionBackground: string;
+  };
+}
+
+export function createTerminalInstance(options?: CreateTerminalOptions): { terminal: Terminal; fitAddon: FitAddon } {
+  const terminal = new Terminal({
+    cursorBlink: true,
+    cursorStyle: 'bar',
+    fontSize: options?.fontSize ?? 13,
+    fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+    scrollback: options?.scrollback ?? 5000,
+    allowProposedApi: true,
+    theme: options?.theme ?? {
+      background: 'var(--background)',
+      foreground: 'var(--foreground)',
+      cursor: 'var(--foreground)',
+      selectionBackground: 'var(--accent)',
+    },
+  });
+
+  const fitAddon = new FitAddon();
+  const webLinksAddon = new WebLinksAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.loadAddon(webLinksAddon);
+
+  return { terminal, fitAddon };
+}
+
+export interface UseTerminalConnectionOptions {
+  terminal: Terminal | null;
+  serverUrl: string;
+  apiToken: string;
+  cwd: string;
+  serverSessionId?: string | null;
+  onOutput: (data: string) => void;
+  onStatusChange: (status: TerminalStatus) => void;
+  onExit?: (exitCode: number) => void;
+  onSessionInit?: (init: SessionInitData) => void;
+  onTitleChange?: (title: string) => void;
+}
+
+export function useTerminalConnection(
+  terminal: Terminal | null,
+  options: UseTerminalConnectionOptions
 ): {
-  fit: () => void;
-  focus: () => void;
+  connect: (sessionId: string | null | undefined) => void;
+  disconnect: () => void;
   destroy: () => void;
 } {
   const { serverUrl, apiToken, cwd } = options;
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const statusRef = useRef<TerminalStatus>('disconnected');
   const disposedRef = useRef(false);
   const wsGenerationRef = useRef(0);
 
+  const onOutputRef = useRef(options.onOutput);
   const onStatusChangeRef = useRef(options.onStatusChange);
   const onExitRef = useRef(options.onExit);
   const onSessionInitRef = useRef(options.onSessionInit);
   const onTitleChangeRef = useRef(options.onTitleChange);
 
+  const serverUrlRef = useRef(serverUrl);
+  const apiTokenRef = useRef(apiToken);
+  const cwdRef = useRef(cwd);
+  const serverSessionIdRef = useRef(options.serverSessionId);
+  const terminalRef = useRef(options.terminal);
+
   useEffect(() => {
+    onOutputRef.current = options.onOutput;
     onStatusChangeRef.current = options.onStatusChange;
     onExitRef.current = options.onExit;
     onSessionInitRef.current = options.onSessionInit;
     onTitleChangeRef.current = options.onTitleChange;
   });
 
-  const serverUrlRef = useRef(serverUrl);
-  const apiTokenRef = useRef(apiToken);
-  const cwdRef = useRef(cwd);
-  const serverSessionIdRef = useRef(options.serverSessionId);
-
   useEffect(() => {
     serverUrlRef.current = serverUrl;
     apiTokenRef.current = apiToken;
     cwdRef.current = cwd;
     serverSessionIdRef.current = options.serverSessionId;
-  });
+    terminalRef.current = options.terminal;
+  }, [serverUrl, apiToken, cwd, options.serverSessionId, options.terminal]);
 
   const setStatus = useCallback((status: TerminalStatus) => {
     statusRef.current = status;
     onStatusChangeRef.current?.(status);
   }, []);
 
-  const connect = useCallback(() => {
-    if (disposedRef.current) return;
-
+  const connect = useCallback((sessionId: string | null | undefined) => {
     const generation = ++wsGenerationRef.current;
 
-    // Close any existing WebSocket and null its handlers to prevent stale callbacks
     const existingWs = wsRef.current;
     if (existingWs) {
       existingWs.onopen = null;
@@ -110,13 +190,16 @@ export function useTerminal(
       wsRef.current = null;
     }
 
+    // Clear terminal on reconnect — server will flush the buffer which duplicates existing content
+    if (sessionId && terminalRef.current) {
+      terminalRef.current.clear();
+    }
+
     setStatus('connecting');
 
-    const sessionId = serverSessionIdRef.current;
     const wsUrl = sessionId
       ? `ws://${serverUrlRef.current}/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}&sessionId=${sessionId}`
       : `ws://${serverUrlRef.current}/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}`;
-
 
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
@@ -127,14 +210,6 @@ export function useTerminal(
         return;
       }
       wsRef.current = ws;
-
-      if (terminalRef.current && fitAddonRef.current) {
-        try {
-          fitAddonRef.current.fit();
-        } catch {
-          // Container might not be visible yet
-        }
-      }
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -149,22 +224,20 @@ export function useTerminal(
 
       switch (opcode) {
         case OPCODES.OUTPUT: {
-          const text = new TextDecoder().decode(payload);
-          terminalRef.current?.write(text);
+          onOutputRef.current?.(new TextDecoder().decode(payload));
           break;
         }
         case OPCODES.EXIT: {
           const { exitCode } = JSON.parse(new TextDecoder().decode(payload)) as { exitCode: number };
           setStatus('exited');
-          terminalRef.current?.writeln(`\r\n[Process exited with code ${exitCode}]`);
           onExitRef.current?.(exitCode);
           ws.close();
           break;
         }
         case OPCODES.ERROR: {
           const { message } = JSON.parse(new TextDecoder().decode(payload)) as { message: string };
+          console.error('[useTerminal] Server error:', message);
           setStatus('disconnected');
-          terminalRef.current?.writeln(`\r\n[Error: ${message}]`);
           break;
         }
         case OPCODES.INIT_ACK: {
@@ -173,8 +246,10 @@ export function useTerminal(
 
           if (initData.isReconnect && initData.status === 'exited') {
             setStatus('exited');
-            terminalRef.current?.writeln(`\r\n[Process exited with code ${initData.exitCode} while disconnected]`);
             onExitRef.current?.(initData.exitCode!);
+          } else if (initData.isReconnect && initData.inAlternateScreen) {
+            setStatus('connected');
+            onOutputRef.current?.('\r\n\x1b[33m[Reconnected — a full-screen application is running. Press Ctrl+C to exit it.]\x1b[0m\r\n');
           } else {
             setStatus('connected');
           }
@@ -193,7 +268,6 @@ export function useTerminal(
       wsRef.current = null;
       if (statusRef.current === 'connecting') {
         setStatus('disconnected');
-        terminalRef.current?.writeln('\r\n[Connection failed]');
       } else if (statusRef.current === 'connected') {
         setStatus('disconnected');
       }
@@ -205,88 +279,26 @@ export function useTerminal(
   }, [setStatus]);
 
   useEffect(() => {
-    const container = getContainer();
-    if (!container) {
-      console.log(`[useTerminal] MAIN EFFECT: no container, returning early`);
-      return;
-    }
-
-    // Reset so PROP CHANGE effect skips on StrictMode remount
-    isInitialMount.current = true;
+    if (!terminal) return;
     disposedRef.current = false;
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'bar',
-      fontSize: 13,
-      fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-      scrollback: 1000,
-      allowProposedApi: true,
-      theme: {
-        background: 'var(--background)',
-        foreground: 'var(--foreground)',
-        cursor: 'var(--foreground)',
-        selectionBackground: 'var(--accent)',
-      },
-    });
-
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-
-    let cancelled = false;
-    const rafId = requestAnimationFrame(() => {
-      if (cancelled || !container.isConnected) return;
-      terminal.open(container);
-
-      // Verify the terminal has valid dimensions after opening.
-      // If the container was hidden/zero-dim, xterm initializes with
-      // invalid state (0 cols/rows). Set up a retry loop to fit once
-      // the container becomes visible.
-      if (terminal.cols <= 1 || terminal.rows <= 1) {
-        const waitForDimensions = () => {
-          if (cancelled) return;
-          try {
-            fitAddon.fit();
-            if (terminal.cols > 1 && terminal.rows > 1) return;
-          } catch {
-            // Container might not be ready yet
-          }
-          requestAnimationFrame(waitForDimensions);
-        };
-        requestAnimationFrame(waitForDimensions);
-      } else {
-        try {
-          fitAddon.fit();
-        } catch {
-          // ignore
-        }
-      }
-    });
-
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    terminal.onData((data: string) => {
+    const onDataDisposable = terminal.onData((data: string) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const payload = new TextEncoder().encode(data);
       ws.send(encodeFrame(OPCODES.INPUT, payload));
     });
 
-    terminal.onResize(({ cols, rows }: { cols: number; rows: number }) => {
+    const onResizeDisposable = terminal.onResize(({ cols, rows }: { cols: number; rows: number }) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const payload = new TextEncoder().encode(JSON.stringify({ cols, rows }));
       ws.send(encodeFrame(OPCODES.RESIZE, payload));
     });
 
-    connect();
-
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(rafId);
+      onDataDisposable.dispose();
+      onResizeDisposable.dispose();
       disposedRef.current = true;
       const ws = wsRef.current;
       if (ws) {
@@ -294,53 +306,27 @@ export function useTerminal(
         ws.onclose = null;
         ws.onmessage = null;
         ws.onerror = null;
-        // Do NOT send CLOSE frame — just close the WS (detach)
-        // CLOSE frame means "kill the PTY", which we don't want on panel toggle
         ws.close();
         wsRef.current = null;
       }
-      terminal.dispose();
-      terminalRef.current = null;
-      fitAddonRef.current = null;
     };
-  }, [getContainer, connect]);
+  }, [terminal]);
 
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      // eslint-disable-next-line react-hooks/immutability
-      isInitialMount.current = false;
-      return;
-    }
-
+  const disconnect = useCallback(() => {
     const ws = wsRef.current;
     if (ws) {
-      // Do NOT send CLOSE on prop changes — just detach and reconnect
+      ws.onopen = null;
+      ws.onclose = null;
+      ws.onmessage = null;
+      ws.onerror = null;
       ws.close();
       wsRef.current = null;
     }
-
-    if (!disposedRef.current && terminalRef.current) {
-      connect();
-    }
-  }, [serverUrl, apiToken, cwd, connect]);
-
-  const fit = useCallback(() => {
-    try {
-      fitAddonRef.current?.fit();
-    } catch {
-      // Container might not be visible
-    }
-  }, []);
-
-  const focus = useCallback(() => {
-    terminalRef.current?.focus();
   }, []);
 
   const destroy = useCallback(() => {
     const ws = wsRef.current;
     if (ws) {
-      // DO send CLOSE frame — this tells the server to kill the PTY
       try {
         ws.send(encodeFrame(OPCODES.CLOSE, new Uint8Array(0)));
       } catch {
@@ -349,11 +335,8 @@ export function useTerminal(
       ws.close();
       wsRef.current = null;
     }
-    terminalRef.current?.dispose();
-    terminalRef.current = null;
-    fitAddonRef.current = null;
     disposedRef.current = true;
   }, []);
 
-  return { fit, focus, destroy };
+  return { connect, disconnect, destroy };
 }

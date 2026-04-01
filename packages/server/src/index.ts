@@ -6,7 +6,7 @@ import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './cor
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
-import { getTerminalManager, encodeFrame, OPCODES } from '@/services/terminal';
+import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import type { PermissionType } from '@jean2/shared';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
@@ -126,6 +126,35 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     async fetch(req: Request): Promise<Response | undefined> {
       const url = new URL(req.url);
 
+      if (url.pathname === '/ws/terminal/events') {
+        if (isAuthEnabled()) {
+          const token = url.searchParams.get('token');
+          if (!token || !validateToken(token)) {
+            return new Response(
+              JSON.stringify({ error: 'Unauthorized', message: 'Invalid or missing API token' }),
+              { status: 401, headers: { 'Content-Type': 'application/json' } }
+            );
+          }
+          updateLastUsed();
+        }
+
+        const workspaceId = url.searchParams.get('workspaceId') || '';
+        if (!workspaceId) {
+          return new Response(
+            JSON.stringify({ error: 'bad_request', message: 'Missing required parameter: workspaceId' }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const upgraded = server.upgrade(req, {
+          data: { path: '/ws/terminal/events', params: { workspaceId } } as unknown as undefined,
+        });
+        if (!upgraded) {
+          return new Response('WebSocket upgrade failed', { status: 400 });
+        }
+        return undefined;
+      }
+
       if (url.pathname === '/ws/terminal') {
         if (isAuthEnabled()) {
           const token = url.searchParams.get('token');
@@ -203,6 +232,13 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     websocket: {
       open(ws) {
         const wsData = ws.data as WsData | undefined;
+        if (wsData?.path === '/ws/terminal/events') {
+          const workspaceId = wsData.params?.workspaceId || '';
+          const sessions = getTerminalManager().listSessionsByWorkspaceId(workspaceId);
+          getTerminalEventManager().subscribe(workspaceId, ws as unknown as ServerWebSocket);
+          ws.send(JSON.stringify({ type: 'snapshot', sessions }));
+          return;
+        }
         if (wsData?.path === '/ws/terminal') {
           const sessionId = wsData.params?.sessionId;
           if (sessionId) {
@@ -227,6 +263,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
                 exitCode: session.exitCode,
                 isReconnect: true,
                 title: session.title,
+                inAlternateScreen: session.inAlternateScreen,
               }));
               ws.send(encodeFrame(OPCODES.INIT_ACK, initPayload));
             }
@@ -234,7 +271,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
             const createdId = getTerminalManager().createSession(ws as unknown as ServerWebSocket, {
               shell: wsData.params?.shell,
               cwd: wsData.params?.cwd || '',
-              workspaceId: '',
+              workspaceId: wsData.params?.workspaceId || '',
               cols: 80,
               rows: 24,
             });
@@ -253,6 +290,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
                   exitCode: session.exitCode,
                   isReconnect: false,
                   title: session.title,
+                  inAlternateScreen: session.inAlternateScreen,
                 }));
                 ws.send(encodeFrame(OPCODES.INIT_ACK, initPayload));
               }
@@ -265,6 +303,11 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
       close(ws) {
         const wsData = ws.data as WsData | undefined;
+        if (wsData?.path === '/ws/terminal/events') {
+          const workspaceId = wsData.params?.workspaceId || '';
+          getTerminalEventManager().unsubscribe(workspaceId, ws as unknown as ServerWebSocket);
+          return;
+        }
         if (wsData?.path === '/ws/terminal') {
           getTerminalManager().removeClient(ws as unknown as ServerWebSocket);
           return;
