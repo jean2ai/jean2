@@ -148,7 +148,7 @@ if (!sessionId || !workspacePath) {
   console.log(JSON.stringify({
     error: 'Missing required sessionId or workspacePath',
   }));
-  return;
+  process.exit(0);
 }
 
 function resolvePath(p: string, ws: string): string {

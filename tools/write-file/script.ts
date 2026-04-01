@@ -11,8 +11,6 @@ if (!sessionId || !workspacePath) {
   process.exit(0);
 }
 
-function resolvePath
-
 function resolvePath(p: string, ws: string): string {
   // Expand home directory
   if (p === '~' || p.startsWith('~/')) {

@@ -8,6 +8,7 @@ interface Input {
   ignore?: string[];
   showHidden?: boolean;
   workspacePath: string;
+  sessionId: string;
 }
 
 interface Output {
