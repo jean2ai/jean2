@@ -10,6 +10,7 @@ export interface ToolDefinition {
   timeout: number;
   requireApproval: boolean;
   dangerous: boolean;
+  env?: string[];
   hasSecurityCheck?: boolean;
   securityScript?: string;
   securityTimeout?: number;

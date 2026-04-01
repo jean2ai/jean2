@@ -2,7 +2,16 @@ import path from 'node:path';
 import os from 'node:os';
 
 const input = JSON.parse(await Bun.stdin.text());
-const { path: inputPath, content, workspacePath } = input;
+const { path: inputPath, content, workspacePath, sessionId } = input;
+
+if (!sessionId || !workspacePath) {
+  console.log(JSON.stringify({
+    error: 'Missing required sessionId or workspacePath',
+  }));
+  process.exit(0);
+}
+
+function resolvePath
 
 function resolvePath(p: string, ws: string): string {
   // Expand home directory

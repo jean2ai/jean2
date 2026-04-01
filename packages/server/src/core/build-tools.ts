@@ -7,6 +7,7 @@ import { interruptManager } from './interrupt';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { createSkillTool } from '@/skills';
+import { truncateToolResult } from '@/utils/truncate-tool-result';
 
 export async function buildAiSdkTools(
   toolNames: string[],
@@ -118,7 +119,7 @@ export async function buildAiSdkTools(
               return { error: result.error };
             }
 
-            return result.result;
+            return truncateToolResult(result.result, sessionId, name);
           }
 
           const execResult = await executeTool({
@@ -144,7 +145,7 @@ export async function buildAiSdkTools(
             return { error: execResult.error };
           }
 
-          return execResult.result;
+          return truncateToolResult(execResult.result, sessionId, name);
         } finally {
           interruptManager.unregisterToolExecution(sessionId, toolCallId);
         }
@@ -153,7 +154,7 @@ export async function buildAiSdkTools(
   }
 
   if (workspacePath) {
-    const skillTool = await createSkillTool(workspacePath, allowedSkills);
+    const skillTool = await createSkillTool(workspacePath, allowedSkills, sessionId);
     if (skillTool) {
       tools[skillTool.name] = skillTool.tool;
     }

@@ -136,7 +136,14 @@ function buildDiffVisualization(
 }
 
 const input = JSON.parse(await Bun.stdin.text());
-const { path: inputPath, oldString, newString, strategy, workspacePath } = input;
+const { path: inputPath, oldString, newString, strategy, workspacePath, sessionId } = input;
+
+if (!sessionId || !workspacePath) {
+  console.log(JSON.stringify({
+    error: 'Missing required sessionId or workspacePath',
+  }));
+  process.exit(0);
+}
 
 function resolvePath(p: string, ws: string): string {
   if (p === '~' || p.startsWith('~/')) {

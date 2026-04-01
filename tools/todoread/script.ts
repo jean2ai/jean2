@@ -39,6 +39,14 @@ async function main(): Promise<void> {
 
   const { workspacePath: _workspacePath, sessionId: sessionId } = input;
 
+  if (!sessionId || !_workspacePath) {
+    console.log(JSON.stringify({
+      todos: [],
+      error: 'Missing required sessionId or workspacePath',
+    }));
+    return;
+  }
+
   const TODOS_DB_PATH = process.env.TODOS_DB_PATH;
   const dbPath = TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
 

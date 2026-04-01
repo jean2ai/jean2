@@ -1,14 +1,10 @@
 import path, { relative, join, dirname } from 'node:path';
 import os from 'node:os';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { mkdirSync, writeFileSync } from 'node:fs';
 import ignore from 'ignore';
 
 const input = JSON.parse(await Bun.stdin.text());
 const { pattern, path: inputPath, include, workspacePath, sessionId } = input;
-
-const MAX_OUTPUT_CHARS = 50_000;
-const JEAN2_TEMP_PREFIX = path.join(os.tmpdir(), 'jean2', '');
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -104,7 +100,7 @@ async function searchInFile(
     if (fileStat.size > MAX_FILE_SIZE) {
       return matches;
     }
-  } catch {}
+  } catch { /* empty */ }
 
   try {
     const content = await readFile(filePath, 'utf-8');
@@ -124,7 +120,7 @@ async function searchInFile(
         });
       }
     }
-  } catch {}
+  } catch { /* empty */ }
 
   return matches;
 }
@@ -187,19 +183,31 @@ async function walkDirectory(
 async function main(): Promise<void> {
   const searchPath = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;
 
+  if (!sessionId || !workspacePath) {
+    console.log(JSON.stringify({
+      matches: [],
+      error: 'Missing required sessionId or workspacePath',
+      _visualization: {
+        type: 'none',
+        content: 'Grep error: Missing required sessionId or workspacePath',
+      },
+    }));
+    return;
+  }
+
   let isDirectory = true;
   try {
     const s = await stat(searchPath);
     isDirectory = s.isDirectory();
-  } catch {}
+  } catch { /* empty */ }
 
-  let gitignoreDir = isDirectory ? searchPath : dirname(searchPath);
+  const gitignoreDir = isDirectory ? searchPath : dirname(searchPath);
 
   const ig = ignore();
   try {
     const gitignoreContent = await readFile(join(gitignoreDir, '.gitignore'), 'utf-8');
     ig.add(gitignoreContent);
-  } catch {}
+  } catch { /* empty */ }
 
   let regex: RegExp;
   try {
@@ -238,43 +246,18 @@ async function main(): Promise<void> {
     await walkDirectory(searchPath, searchPath, ig, includeRegex, regex, matches);
   }
 
-  const fullOutput = JSON.stringify({ matches });
   const truncated = matches.length >= MAX_MATCHES;
+  const content = truncated
+    ? `Grep: "${pattern}" (${matches.length} matches, truncated to ${MAX_MATCHES})`
+    : `Grep: "${pattern}" (${matches.length} matches)`;
 
-  if (fullOutput.length > MAX_OUTPUT_CHARS && sessionId) {
-    const dir = `${JEAN2_TEMP_PREFIX}${sessionId}`;
-    mkdirSync(dir, { recursive: true });
-    const filePath = `${dir}/grep-${Date.now()}.json`;
-    writeFileSync(filePath, fullOutput);
-
-    const persistedContent = truncated
-      ? `Grep: "${pattern}" (${matches.length} matches, truncated to ${MAX_MATCHES}, persisted)`
-      : `Grep: "${pattern}" (${matches.length} matches, persisted)`;
-
-    console.log(JSON.stringify({
-      matches: matches.slice(0, 50),
-      totalMatches: matches.length,
-      _persisted: true,
-      _filePath: filePath,
-      _originalSize: fullOutput.length,
-      _visualization: {
-        type: 'none',
-        content: persistedContent,
-      },
-    }));
-  } else {
-    const content = truncated
-      ? `Grep: "${pattern}" (${matches.length} matches, truncated to ${MAX_MATCHES})`
-      : `Grep: "${pattern}" (${matches.length} matches)`;
-
-    console.log(JSON.stringify({
-      matches,
-      _visualization: {
-        type: 'none',
-        content,
-      },
-    }));
-  }
+  console.log(JSON.stringify({
+    matches,
+    _visualization: {
+      type: 'none',
+      content,
+    },
+  }));
 }
 
 main();

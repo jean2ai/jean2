@@ -212,7 +212,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { path: inputPath, ignore, showHidden = false, workspacePath } = input;
+  const { path: inputPath, ignore, showHidden = false, workspacePath, sessionId } = input;
+
+  if (!sessionId || !workspacePath) {
+    const output: Output = { content: '', error: 'Missing required sessionId or workspacePath' };
+    console.log(JSON.stringify(output));
+    return;
+  }
 
   try {
     const cwd = inputPath ? resolvePath(inputPath, workspacePath) : workspacePath;

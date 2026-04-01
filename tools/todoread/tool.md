@@ -23,6 +23,8 @@ timeout: 5000
 requireApproval: false
 dangerous: false
 hasSecurityCheck: false
+env:
+  - TODOS_DB_PATH
 ---
 
 Read the current task list for the session. Use this to check your progress on multi-step tasks.

@@ -8,7 +8,8 @@ import { getSkill, getAvailableSkills, formatSkillsList } from './registry';
  */
 export async function buildSkillToolDefinition(
   workspacePath: string,
-  allowedSkills: string[] | null | undefined
+  allowedSkills: string[] | null | undefined,
+  sessionId: string,
 ): Promise<ToolDefinition | null> {
   const skills = await getAvailableSkills(workspacePath, allowedSkills);
   
@@ -70,7 +71,8 @@ export async function buildSkillToolDefinition(
 export async function executeSkillTool(
   skillName: string,
   workspacePath: string,
-  allowedSkills: string[] | null | undefined
+  allowedSkills: string[] | null | undefined,
+  sessionId: string,
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
   // Check if skills are allowed
   const availableSkills = await getAvailableSkills(workspacePath, allowedSkills);
@@ -134,9 +136,10 @@ export async function executeSkillTool(
  */
 export async function createSkillTool(
   workspacePath: string,
-  allowedSkills: string[] | null | undefined
+  allowedSkills: string[] | null | undefined,
+  sessionId: string,
 ): Promise<{ name: string; tool: Tool } | null> {
-  const definition = await buildSkillToolDefinition(workspacePath, allowedSkills);
+  const definition = await buildSkillToolDefinition(workspacePath, allowedSkills, sessionId);
   
   if (!definition) {
     return null;
@@ -152,7 +155,7 @@ export async function createSkillTool(
       inputSchema: jsonSchema(definition.inputSchema),
       execute: async (args: Record<string, unknown>) => {
         const skillName = args.name as string;
-        return executeSkillTool(skillName, workspacePath, allowedSkills);
+        return executeSkillTool(skillName, workspacePath, allowedSkills, sessionId);
       },
     }),
   };

@@ -30,7 +30,7 @@ export interface ExecuteToolOptions {
   tool: DiscoveredTool;
   args: Record<string, unknown>;
   workspacePath?: string;
-  sessionId?: string;
+  sessionId: string;
   toolCallId?: string;
   abortSignal?: AbortSignal;
   timeout?: number;
@@ -82,7 +82,7 @@ export async function executeTool(
     
     const proc = spawn(command[0], command.slice(1), {
       cwd,
-      env: { ...getToolEnv() },
+      env: { ...getToolEnv(definition.env) },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     });
@@ -107,7 +107,7 @@ export async function executeTool(
     const scriptInput = {
       ...args,
       workspacePath: workspacePath || process.cwd(),
-      sessionId: sessionId || '',
+      sessionId,
     };
 
     // Send input via stdin

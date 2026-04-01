@@ -84,6 +84,10 @@ async function main() {
 
   const { todos, workspacePath: _workspacePath, sessionId: sessionId } = validateInput(input);
 
+  if (!sessionId || !_workspacePath) {
+    outputError('Missing required sessionId or workspacePath');
+  }
+
   const dbPath = process.env.TODOS_DB_PATH || join(homedir(), '.jean2', 'data', 'todos.db');
   const dbDir = dirname(dbPath);
 

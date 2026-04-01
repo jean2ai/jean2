@@ -9,7 +9,14 @@ const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`;
 const MAX_BYTES = 50 * 1024;
 
 const input = JSON.parse(await Bun.stdin.text());
-const { path: inputPath, workspacePath, offset, limit } = input;
+const { path: inputPath, workspacePath, offset, limit, sessionId } = input;
+
+if (!sessionId || !workspacePath) {
+  console.log(JSON.stringify({
+    error: 'Missing required sessionId or workspacePath',
+  }));
+  process.exit(0);
+}
 
 function resolvePath(p: string, ws: string): string {
   if (p === '~' || p.startsWith('~/')) {

@@ -214,20 +214,35 @@ export function getCompactionMaxPrunedToolCount(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 50;
 }
 
-export function getToolEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
+const TOOL_SAFE_ENV_BASE: string[] = [
+  'PATH',
+  'HOME',
+  'USER',
+  'SHELL',
+  'TMPDIR',
+  'TEMP',
+  'TMP',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'TERM',
+  'NODE_ENV',
+];
 
-  const sensitivePatterns = [
-    /_API_KEY$/i,
-    /_SECRET$/i,
-    /_TOKEN$/i,
-    /_PASSWORD$/i,
-    /^JEAN2_DATABASE_PATH$/i,
-  ];
+export function getToolEnv(allowedEnv?: string[]): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
 
-  for (const key of Object.keys(env)) {
-    if (sensitivePatterns.some(pattern => pattern.test(key))) {
-      delete env[key];
+  for (const key of TOOL_SAFE_ENV_BASE) {
+    if (process.env[key] !== undefined) {
+      env[key] = process.env[key];
+    }
+  }
+
+  if (allowedEnv) {
+    for (const key of allowedEnv) {
+      if (process.env[key] !== undefined) {
+        env[key] = process.env[key];
+      }
     }
   }
 

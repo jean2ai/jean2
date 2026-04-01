@@ -41,7 +41,7 @@ export async function runSecurityCheck(
 
     const proc = spawn(command[0], command.slice(1), {
       cwd: toolPath, // Run from tool directory
-      env: { ...getToolEnv() },
+      env: { ...getToolEnv(tool.definition.env) },
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
     });

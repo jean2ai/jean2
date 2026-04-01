@@ -30,6 +30,7 @@ function parseToolMd(content: string): ToolDefinition {
     timeout: data.timeout ?? 30000,
     requireApproval: data.requireApproval ?? false,
     dangerous: data.dangerous ?? false,
+    ...(data.env !== undefined && { env: data.env }),
     ...(data.hasSecurityCheck !== undefined && { hasSecurityCheck: data.hasSecurityCheck }),
     ...(data.securityScript !== undefined && { securityScript: data.securityScript }),
     ...(data.securityTimeout !== undefined && { securityTimeout: data.securityTimeout }),

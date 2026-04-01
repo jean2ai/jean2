@@ -142,7 +142,14 @@ interface _Edit {
 }
 
 const input = JSON.parse(await Bun.stdin.text());
-const { path: inputPath, edits, workspacePath } = input;
+const { path: inputPath, edits, workspacePath, sessionId } = input;
+
+if (!sessionId || !workspacePath) {
+  console.log(JSON.stringify({
+    error: 'Missing required sessionId or workspacePath',
+  }));
+  return;
+}
 
 function resolvePath(p: string, ws: string): string {
   if (p === '~' || p.startsWith('~/')) {

@@ -313,7 +313,7 @@ export async function getAllServerStatus(workspacePath: string): Promise<Record<
   return statusMap;
 }
 
-export async function getTools(workspacePath: string, sessionId?: string): Promise<Record<string, Tool>> {
+export async function getTools(workspacePath: string, sessionId: string): Promise<Record<string, Tool>> {
   const clients = workspaceClients.get(workspacePath);
   if (!clients) {
     return {};

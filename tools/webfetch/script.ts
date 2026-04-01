@@ -1,13 +1,11 @@
 import TurndownService from "turndown";
-import os from 'node:os';
-import path from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
 
 interface Input {
   url: string;
   format?: "markdown" | "text" | "html";
   timeout?: number;
   sessionId?: string;
+  workspacePath: string;
 }
 
 interface Output {
@@ -15,9 +13,6 @@ interface Output {
   title?: string;
   contentType?: string;
   error?: string;
-  _persisted?: boolean;
-  _filePath?: string;
-  _originalSize?: number;
   _visualization?: {
     type: "none";
     message: string;
@@ -28,14 +23,17 @@ const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 const DEFAULT_TIMEOUT = 30; // 30 seconds
 const MAX_TIMEOUT = 120; // 2 minutes
 
-const PERSIST_THRESHOLD = 50_000;
-const PREVIEW_CHARS = 10_000;
-const JEAN2_TEMP_PREFIX = path.join(os.tmpdir(), 'jean2', '');
+
 
 const input: Input = JSON.parse(await Bun.stdin.text());
-const { url, format = "markdown", timeout, sessionId } = input;
+const { url, format = "markdown", timeout, sessionId, workspacePath } = input;
 
-// Validate URL
+if (!sessionId || !workspacePath) {
+  const output: Output = { error: 'Missing required sessionId or workspacePath' };
+  console.log(JSON.stringify(output));
+  process.exit(0);
+}
+
 if (!url.startsWith("http://") && !url.startsWith("https://")) {
   const output: Output = { error: "URL must start with http:// or https://" };
   console.log(JSON.stringify(output));
@@ -125,47 +123,18 @@ try {
     outputContent = content;
   }
 
-  if (outputContent.length > PERSIST_THRESHOLD && sessionId) {
-    const dir = `${JEAN2_TEMP_PREFIX}${sessionId}`;
-    mkdirSync(dir, { recursive: true });
+  const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
 
-    const safeName = url
-      .replace(/^https?:\/\//, '')
-      .replace(/[^a-zA-Z0-9._-]/g, '_')
-      .slice(0, 100);
-    const filePath = `${dir}/webfetch-${safeName}-${Date.now()}.md`;
-    writeFileSync(filePath, outputContent);
-
-    const preview = outputContent.slice(0, PREVIEW_CHARS);
-    const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
-
-    const output: Output = {
-      content: preview + `\n\n---\n[Content truncated: ${outputContent.length} chars total. Full content saved to ${filePath}. Use read-file tool to read more.]`,
-      title,
-      contentType,
-      _persisted: true,
-      _filePath: filePath,
-      _originalSize: outputContent.length,
-      _visualization: {
-        type: "none",
-        message: `Fetched: ${displayUrl} (${outputContent.length} chars, persisted)`,
-      },
-    };
-    console.log(JSON.stringify(output));
-  } else {
-    const displayUrl = url.length > 80 ? url.substring(0, 77) + '...' : url;
-
-    const output: Output = {
-      content: outputContent,
-      title,
-      contentType,
-      _visualization: {
-        type: "none",
-        message: `Fetched: ${displayUrl}`,
-      },
-    };
-    console.log(JSON.stringify(output));
-  }
+  const output: Output = {
+    content: outputContent,
+    title,
+    contentType,
+    _visualization: {
+      type: "none",
+      message: `Fetched: ${displayUrl}`,
+    },
+  };
+  console.log(JSON.stringify(output));
 } catch (e) {
   clearTimeout(timeoutId);
   const errorMessage = e instanceof Error ? e.message : "Unknown error occurred";

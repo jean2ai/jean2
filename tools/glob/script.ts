@@ -7,6 +7,7 @@ interface Input {
   pattern: string;
   path?: string;
   workspacePath: string;
+  sessionId?: string;
 }
 
 interface Output {
@@ -187,7 +188,13 @@ async function main() {
     return;
   }
 
-  const { pattern, path: inputPath, workspacePath } = input;
+  const { pattern, path: inputPath, workspacePath, sessionId } = input;
+
+  if (!sessionId || !workspacePath) {
+    const output: Output = { files: [], error: 'Missing required sessionId or workspacePath' };
+    console.log(JSON.stringify(output));
+    return;
+  }
 
   if (!pattern) {
     const output: Output = { files: [], error: "Pattern is required" };

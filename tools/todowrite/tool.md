@@ -45,6 +45,8 @@ timeout: 5000
 requireApproval: false
 dangerous: false
 hasSecurityCheck: false
+env:
+  - TODOS_DB_PATH
 ---
 
 Update the task list for the current session. Use this to track progress on complex multi-step tasks. Set status to 'in_progress' for the task you're currently working on, 'completed' when done.
