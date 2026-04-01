@@ -20,6 +20,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ProviderCard } from '@/components/providers/ProviderCard';
 import type { ProviderStatus } from '@jean2/shared';
 import LogoutButton from '@/components/LogoutButton';
+import { VersionInfo } from '@/components/VersionInfo';
 
 interface SchemeButtonProps {
   scheme: ThemeScheme;
@@ -81,6 +82,7 @@ interface SettingsDialogProps {
   onChatFinishSoundEnabledChange: (enabled: boolean) => void;
   permissionSoundEnabled: boolean;
   onPermissionSoundEnabledChange: (enabled: boolean) => void;
+  serverUrl: string | null;
 }
 
 export function SettingsDialog({
@@ -99,6 +101,7 @@ export function SettingsDialog({
   onChatFinishSoundEnabledChange,
   permissionSoundEnabled,
   onPermissionSoundEnabledChange,
+  serverUrl,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
@@ -178,6 +181,10 @@ export function SettingsDialog({
                   </p>
                 )}
               </div>
+
+              <Separator />
+
+              <VersionInfo serverUrl={serverUrl} enabled={open} />
             </div>
           </TabsContent>
 

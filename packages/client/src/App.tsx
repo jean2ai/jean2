@@ -1900,6 +1900,7 @@ function AppContent() {
             onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
             permissionSoundEnabled={permissionSoundEnabled}
             onPermissionSoundEnabledChange={setPermissionSoundEnabled}
+            serverUrl={serverUrl}
           />
 
           <MCPManagementDialog
