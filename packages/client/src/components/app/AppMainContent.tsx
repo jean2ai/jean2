@@ -51,9 +51,9 @@ export interface AppMainContentProps {
   onLogout: () => void;
   onSendMessage: (content: string) => void;
   onRemoveFromQueue: (queueItemId: string) => void;
-  onChangePreconfig: (sessionId: string, preconfigId: string) => void;
-  onChangeModel: (sessionId: string, modelId: string, providerId: string) => void;
-  onChangeVariant: (sessionId: string, variant: string | null) => void;
+  onChangePreconfig: (preconfigId: string) => void;
+  onChangeModel: (modelId: string, providerId: string) => void;
+  onChangeVariant: (variant: string | null) => void;
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
@@ -125,31 +125,15 @@ export function AppMainContent({
   const isLoggedIn = !!(activeServer);
 
   const handleChangePreconfig = (preconfigId: string) => {
-    if (currentSession) {
-      onChangePreconfig(currentSession.id, preconfigId);
-    }
+    onChangePreconfig(preconfigId);
   };
 
   const handleChangeVariant = (variant: string | null) => {
-    if (currentSession) {
-      onChangeVariant(currentSession.id, variant);
-    }
+    onChangeVariant(variant);
   };
 
   const handleInterrupt = () => {
     onInterrupt();
-  };
-
-  const handleRevert = (messageId: string) => {
-    if (currentSession) {
-      onRevert(currentSession.id, messageId);
-    }
-  };
-
-  const handleFork = (messageId: string) => {
-    if (currentSession) {
-      onFork(currentSession.id, messageId);
-    }
   };
 
   if (servers.length === 0) {
@@ -240,11 +224,7 @@ export function AppMainContent({
       onSendMessage={onSendMessage}
       onRemoveFromQueue={onRemoveFromQueue}
       onChangePreconfig={handleChangePreconfig}
-      onChangeModel={(modelId, providerId) => {
-        if (currentSession) {
-          onChangeModel(currentSession.id, modelId, providerId);
-        }
-      }}
+      onChangeModel={onChangeModel}
       onChangeVariant={handleChangeVariant}
       selectedVariant={selectedVariant}
       variants={currentModelInfo?.variants}
@@ -257,8 +237,8 @@ export function AppMainContent({
       onNavigateBack={onNavigateBack}
       isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
       onInterrupt={handleInterrupt}
-      onRevert={handleRevert}
-      onFork={handleFork}
+      onRevert={onRevert}
+      onFork={onFork}
       onCompact={canCompact ? () => onCompact(currentSession.id) : undefined}
       isCompacting={isCompacting}
       compactionSuccess={compactionSuccess}

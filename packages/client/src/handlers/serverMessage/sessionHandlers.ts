@@ -224,7 +224,7 @@ export function handleSessionUpdated(
   ctx: SessionHandlersContext,
 ): void {
   const { session } = msg;
-  const { setSessions, setCurrentSession, setSelectedVariant, currentSessionIdRef } = ctx;
+  const { setSessions, setCurrentSession, setSelectedVariant, setCurrentModel, currentSessionIdRef } = ctx;
 
   setSessions(prev => prev.map(s =>
     s.id === session.id ? session : s
@@ -233,6 +233,9 @@ export function handleSessionUpdated(
     setCurrentSession(session);
     if (session.selectedVariant !== undefined) {
       setSelectedVariant(session.selectedVariant);
+    }
+    if (session.selectedModel) {
+      setCurrentModel(session.selectedModel);
     }
   }
 }
