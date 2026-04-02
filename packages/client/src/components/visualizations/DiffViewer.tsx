@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import { memo, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
+
+const CODE_THEME = themes.oneDark;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
 
@@ -74,7 +76,7 @@ const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumb
           {type === 'removed' && '-'}
           {type === 'context' && ' '}
         </span>
-        <Highlight theme={themes.oneDark} code={content} language={language}>
+        <Highlight theme={CODE_THEME} code={content} language={language}>
           {({ tokens, getTokenProps }) => (
             <>
               {tokens.map((line, lineKey) => (

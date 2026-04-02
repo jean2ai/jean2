@@ -4,6 +4,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { Highlight, themes } from 'prism-react-renderer';
+
+const CODE_THEME_DEFAULT = themes.oneDark;
+const CODE_THEME_INVERTED = themes.nightOwl;
 import { cn } from '@/lib/utils';
 
 export interface MarkdownRendererProps {
@@ -28,7 +31,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
       if (!isInline && language) {
         return (
           <div className="w-full max-w-full overflow-x-auto my-2 min-w-0">
-            <Highlight theme={inverted ? themes.nightOwl : themes.oneDark} code={codeString.trim()} language={language}>
+            <Highlight theme={inverted ? CODE_THEME_INVERTED : CODE_THEME_DEFAULT} code={codeString.trim()} language={language}>
               {({ className: hlClassName, style, tokens, getLineProps, getTokenProps }) => (
                 <pre className={cn('rounded-lg text-sm p-3', hlClassName)} style={style}>
                   {tokens.map((line, i) => (

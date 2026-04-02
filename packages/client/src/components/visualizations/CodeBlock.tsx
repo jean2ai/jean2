@@ -2,6 +2,8 @@ import { type FC, memo, useState, useMemo } from 'react';
 import { Check, FileText, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Highlight, themes } from 'prism-react-renderer';
 
+const CODE_THEME = themes.oneDark;
+
 interface CodeBlockProps {
   content: string;
   path: string;
@@ -80,7 +82,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
         </div>
 
         <div style={{ backgroundColor: '#282c34' }}>
-          <Highlight theme={themes.oneDark} code={content} language={detectedLanguage}>
+          <Highlight theme={CODE_THEME} code={content} language={detectedLanguage}>
             {({ tokens, getTokenProps }) => {
               const displayedTokens = expanded ? tokens : tokens.slice(0, PREVIEW_LINE_COUNT);
 
