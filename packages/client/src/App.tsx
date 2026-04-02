@@ -1,6 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '@/stores/uiStore';
+import { useSessionMetaStore } from '@/stores/sessionMetaStore';
+import { useStreamStateStore } from '@/stores/streamStateStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
@@ -14,7 +17,6 @@ import type {
   PromptInfo,
   Workspace,
   ToolPermission,
-  QueuedMessage,
   SavedServer,
   ProviderStatus,
 } from '@jean2/shared';
@@ -34,20 +36,7 @@ import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { AppHeader, AppPanels } from '@/components/app';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-
-interface PendingPermissionRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: string;
-  permissionKey?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-  childSessionId?: string;
-  subagentName?: string;
-}
+import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 
 const getWsUrl = (token: string | null, url: string | null) =>
   (token && url) ? `ws://${url}/ws?token=${token}` : null;
@@ -188,10 +177,11 @@ function KeyboardShortcutHandler({
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
 
-  const [sessions, setSessions] = useState<Session[]>([]);
+  // Session state managed by Zustand store
+  const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore();
+
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-  const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
   const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
 
@@ -207,7 +197,17 @@ function AppContent() {
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
-  const [streamingSessionIds, setStreamingSessionIds] = useState<Set<string>>(() => new Set());
+
+  const {
+    streamingSessionIds,
+    interruptedSessions,
+    clearStreamingSessions,
+    clearInterruptedSessions,
+    addStreamingSession,
+    removeStreamingSession,
+    addInterruptedSession,
+    removeInterruptedSession,
+  } = useStreamStateStore();
   const [sessionUsage, setSessionUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
@@ -269,9 +269,21 @@ function AppContent() {
   });
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
-  const [pendingPermissions, setPendingPermissions] = useState<PendingPermissionRequest[]>([]);
-  const [queuedMessages, setQueuedMessages] = useState<Record<string, QueuedMessage[]>>({});
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
+
+  const {
+    pendingPermissions,
+    queuedMessages,
+    clearPendingPermissions,
+    clearQueuedMessages,
+    mergePendingPermissions,
+    addPendingPermission,
+    removePendingPermissionByToolCallId,
+    removePendingPermissionsBySessionId,
+    setQueuedMessagesForSession,
+    addQueuedMessage,
+    removeQueuedMessageById,
+  } = useSessionMetaStore();
 
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -282,9 +294,6 @@ function AppContent() {
   const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isCompacting = currentSession?.compacting ?? false;
   const [compactionSuccess, setCompactionSuccess] = useState(false);
-  
-  // Track sessions that have been interrupted (to prevent stale events from reactivating streaming)
-  const [interruptedSessions, setInterruptedSessions] = useState<Set<string>>(new Set());
 
   // Track toolCallIds that have already triggered the permission sound notification
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
@@ -408,6 +417,11 @@ function AppContent() {
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession]);
 
+  // Keep sessionsRef in sync with session store
+  useLayoutEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
 
@@ -451,25 +465,23 @@ function AppContent() {
     setNextRetryIn(0);
 
     // Clear all session and message state
-    setSessions([]);
+    clearSessionState();
     setPreconfigs([]);
-    setCurrentSession(null);
     setMessagesBySession({});
     setPartsBySession({});
     sessionAccessTimesRef.current.clear();
     prevSessionKeyCountRef.current = 0;
-    setStreamingSessionIds(prev => {
-      skipFinishSoundSessionIdsRef.current = new Set(prev);
-      return new Set();
-    });
+    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    clearStreamingSessions();
+    clearInterruptedSessions();
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
     setCurrentModel('gpt-4o');
     setModels([]);
     setWorkspaces([]);
     setActiveWorkspace(null);
     setPermissions([]);
-    setPendingPermissions([]);
-    setQueuedMessages({});
+    clearPendingPermissions();
+    clearQueuedMessages();
 
     // Clear any open popovers/sheets by forcing a re-render
     // (the callback will be called after state is cleared)
@@ -480,6 +492,7 @@ function AppContent() {
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Effect to handle state clearing when activeServer changes from addServer
@@ -547,7 +560,7 @@ function AppContent() {
 
       // Clear pending permissions — session.resume will re-send current session's,
       // and permissions.sync will fetch all other sessions' pending approvals
-      setPendingPermissions([]);
+      clearPendingPermissions();
 
       // Auto-resume active session after reconnect to restore streaming
       if (currentSessionIdRef.current) {
@@ -583,6 +596,7 @@ function AppContent() {
     setWs(socket);
 
     return () => socket.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
 
   // Connection timeout detection
@@ -742,7 +756,7 @@ function AppContent() {
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState, reconnectTrigger]);
+  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState, reconnectTrigger, setSessions]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -869,29 +883,13 @@ function AppContent() {
       case 'session.resumed':
         setCurrentSession(msg.session);
 
-        // Clear interrupted status since session is being resumed
-        setInterruptedSessions(prev => {
-          const next = new Set(prev);
-          next.delete(msg.session.id);
-          return next;
-        });
+        removeInterruptedSession(msg.session.id);
 
         if (msg.isRunning) {
-          setStreamingSessionIds(prev => {
-            const next = new Set(prev);
-            next.add(msg.session.id);
-            return next;
-          });
+          addStreamingSession(msg.session.id);
         } else {
-          setStreamingSessionIds(prev => {
-            if (prev.has(msg.session.id)) {
-              skipFinishSoundSessionIdsRef.current.add(msg.session.id);
-              const next = new Set(prev);
-              next.delete(msg.session.id);
-              return next;
-            }
-            return prev;
-          });
+          removeStreamingSession(msg.session.id);
+          skipFinishSoundSessionIdsRef.current.add(msg.session.id);
         }
 
         if (msg.messages) {
@@ -953,16 +951,8 @@ function AppContent() {
         }));
         // Track streaming state and clear interrupted status for this session
         if ('status' in msg.message && msg.message.status === 'streaming') {
-          setStreamingSessionIds(prev => {
-            const next = new Set(prev);
-            next.add(msg.message.sessionId);
-            return next;
-          });
-          setInterruptedSessions(prev => {
-            const next = new Set(prev);
-            next.delete(msg.message.sessionId);
-            return next;
-          });
+          addStreamingSession(msg.message.sessionId);
+          removeInterruptedSession(msg.message.sessionId);
         }
         break;
 
@@ -975,14 +965,7 @@ function AppContent() {
         }));
         // Clear streaming state if message is no longer streaming
         if ('status' in msg.message && msg.message.status !== 'streaming') {
-          setStreamingSessionIds(prev => {
-            if (prev.has(msg.message.sessionId)) {
-              const next = new Set(prev);
-              next.delete(msg.message.sessionId);
-              return next;
-            }
-            return prev;
-          });
+          removeStreamingSession(msg.message.sessionId);
         }
         break;
 
@@ -1049,14 +1032,7 @@ function AppContent() {
 
       case 'part.append': {
         if (!interruptedSessions.has(msg.sessionId)) {
-          setStreamingSessionIds(prev => {
-            if (!prev.has(msg.sessionId)) {
-              const next = new Set(prev);
-              next.add(msg.sessionId);
-              return next;
-            }
-            return prev;
-          });
+          addStreamingSession(msg.sessionId);
         }
         setPartsBySession(prev => {
           const location = partIdIndexRef.current.get(msg.partId);
@@ -1149,12 +1125,7 @@ function AppContent() {
           delete newMap[msg.sessionId];
           return newMap;
         });
-        // Clean up interrupted status for deleted session
-        setInterruptedSessions(prev => {
-          const next = new Set(prev);
-          next.delete(msg.sessionId);
-          return next;
-        });
+        removeInterruptedSession(msg.sessionId);
         // Clean up part index for deleted session
         for (const [partId, entry] of partIdIndexRef.current) {
           if (entry.sessionId === msg.sessionId) {
@@ -1193,25 +1164,21 @@ function AppContent() {
         break;
 
       case 'permissions.sync':
-        setPendingPermissions(prev => {
-          const existingIds = new Set(prev.map(p => p.toolCallId));
-          const newPermissions = msg.approvals
-            .filter(a => !existingIds.has(a.toolCallId))
-            .map(a => ({
-              toolCallId: a.toolCallId,
-              sessionId: a.sessionId,
-              toolName: a.toolName,
-              args: a.args,
-              permissionType: a.permissionType,
-              permissionKey: a.permissionKey,
-              message: a.message,
-              details: a.details,
-              dangerous: a.dangerous,
-              childSessionId: a.childSessionId,
-              subagentName: a.subagentName,
-            }));
-          return [...prev, ...newPermissions];
-        });
+        mergePendingPermissions(
+          msg.approvals.map((a) => ({
+            toolCallId: a.toolCallId,
+            sessionId: a.sessionId,
+            toolName: a.toolName,
+            args: a.args,
+            permissionType: a.permissionType,
+            permissionKey: a.permissionKey,
+            message: a.message,
+            details: a.details,
+            dangerous: a.dangerous,
+            childSessionId: a.childSessionId,
+            subagentName: a.subagentName,
+          }))
+        );
         break;
 
       case 'permission.revoked':
@@ -1241,7 +1208,7 @@ function AppContent() {
           childSessionId: msg.childSessionId,
           subagentName: msg.subagentName,
         };
-        setPendingPermissions(prev => [...prev, request]);
+        addPendingPermission(request);
 
         // Play permission sound only for main sessions (parentId === null)
         // Only play if this approval has not already triggered a sound (prevents replay on session resume)
@@ -1254,51 +1221,32 @@ function AppContent() {
       }
 
       case 'permission.granted':
-        setPendingPermissions(prev => prev.filter(p => p.toolCallId !== msg.toolCallId));
+        removePendingPermissionByToolCallId(msg.toolCallId);
         break;
 
       case 'session.interrupted':
-        setInterruptedSessions(prev => new Set(prev).add(msg.sessionId));
+        addInterruptedSession(msg.sessionId);
         skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
-        setStreamingSessionIds(prev => {
-          if (prev.has(msg.sessionId)) {
-            const next = new Set(prev);
-            next.delete(msg.sessionId);
-            return next;
-          }
-          return prev;
-        });
+        removeStreamingSession(msg.sessionId);
         if (msg.result.cascadedTo.length > 0) {
           console.log(`Session ${msg.sessionId} interrupted. Cascaded to:`, msg.result.cascadedTo);
         }
         break;
 
       case 'queue.list':
-        setQueuedMessages(prev => ({
-          ...prev,
-          [msg.sessionId]: msg.messages,
-        }));
+        setQueuedMessagesForSession(msg.sessionId, msg.messages);
         break;
 
       case 'queue.added':
-        setQueuedMessages(prev => ({
-          ...prev,
-          [msg.sessionId]: [...(prev[msg.sessionId] || []), msg.message],
-        }));
+        addQueuedMessage(msg.sessionId, msg.message);
         break;
 
       case 'queue.removed':
-        setQueuedMessages(prev => ({
-          ...prev,
-          [msg.sessionId]: (prev[msg.sessionId] || []).filter(q => q.id !== msg.queueId),
-        }));
+        removeQueuedMessageById(msg.sessionId, msg.queueId);
         break;
 
       case 'queue.sending':
-        setQueuedMessages(prev => ({
-          ...prev,
-          [msg.sessionId]: (prev[msg.sessionId] || []).filter(q => q.id !== msg.queueId),
-        }));
+        removeQueuedMessageById(msg.sessionId, msg.queueId);
         break;
 
       case 'session.reverted':
@@ -1371,14 +1319,7 @@ function AppContent() {
           }
         }
         skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
-        setStreamingSessionIds(prev => {
-          if (prev.has(msg.sessionId)) {
-            const next = new Set(prev);
-            next.delete(msg.sessionId);
-            return next;
-          }
-          return prev;
-        });
+        removeStreamingSession(msg.sessionId);
         sessionAccessTimesRef.current.set(msg.sessionId, Date.now());
         break;
 
@@ -1405,12 +1346,8 @@ function AppContent() {
         );
         break;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession, defaultModel, models, interruptedSessions, playPermissionSound, permissionSoundEnabled]);
-
-  // Keep sessionsRef in sync with latest sessions state
-  useLayoutEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
 
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
@@ -1430,15 +1367,9 @@ function AppContent() {
   }, [sendMessage, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string) => {
-    setPendingPermissions(prev => prev.filter(p => p.sessionId !== sessionId));
-    setStreamingSessionIds(prev => {
-      if (prev.size > 0) {
-        for (const id of prev) {
-          skipFinishSoundSessionIdsRef.current.add(id);
-        }
-      }
-      return new Set();
-    });
+    removePendingPermissionsBySessionId(sessionId);
+    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    clearStreamingSessions();
     setCompactionSuccess(false);
     sessionAccessTimesRef.current.set(sessionId, Date.now());
     const session = sessions.find(s => s.id === sessionId);
@@ -1449,6 +1380,7 @@ function AppContent() {
       }
     }
     sendMessage('session.resume', { sessionId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sendMessage, sessions, workspaces, activeWorkspace]);
 
   const closeSession = useCallback((sessionId: string) => {
@@ -1529,13 +1461,14 @@ function AppContent() {
   }, [currentSession, streamingSessionIds, isCompacting, sendMessage, addToQueue]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
-    setPendingPermissions(prev => prev.filter(p => p.toolCallId !== toolCallId));
+    removePendingPermissionByToolCallId(toolCallId);
 
     sendMessage('permission.response', {
       toolCallId,
       allowed,
       alwaysAllow,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sendMessage]);
 
   const handleInterruptSession = useCallback(() => {
