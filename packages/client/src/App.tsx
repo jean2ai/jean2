@@ -10,9 +10,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Session,
   Part,
+  Message,
   MessageWithParts,
   ServerMessage,
-  ClientMessage,
   Preconfig,
   PromptInfo,
   Workspace,
@@ -33,31 +33,15 @@ import FirstServerScreen from '@/components/FirstServerScreen';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
+import { useServerDataLoader } from '@/hooks/useServerDataLoader';
+import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppHeader, AppPanels } from '@/components/app';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 
-const getWsUrl = (token: string | null, url: string | null) =>
-  (token && url) ? `ws://${url}/ws?token=${token}` : null;
-
 const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
-
-type ClientMessagePayload =
-  | { preconfigId?: string; title?: string; workspaceId?: string }
-  | { sessionId: string }
-  | { sessionId: string; content: string }
-  | { toolCallId: string; approved: boolean }
-  | { sessionId: string; preconfigId?: string }
-  | { sessionId: string; modelId: string; providerId: string; variant?: string | null }
-  | { toolCallId: string; allowed: boolean; alwaysAllow: boolean }
-  | { workspaceId: string; includeRevoked?: boolean }
-  | { permissionId: string }
-  | { workspaceId: string }
-  | { sessionId: string; reason?: string }
-  | { queueId: string }
-  | { sessionId: string; messageId: string }
-  | { provider: string };
 
 function KeyboardShortcutHandler({
   onNewSession,
@@ -192,15 +176,28 @@ function AppContent() {
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
 
   // Session content stored in Zustand for cross-component access
-  const { messagesBySession, partsBySession, setMessagesBySession, setPartsBySession } =
+  const { setMessagesBySession, setPartsBySession } =
     useSessionContentStore(
       useShallow((state) => ({
-        messagesBySession: state.messagesBySession,
-        partsBySession: state.partsBySession,
         setMessagesBySession: state.setMessagesBySession,
         setPartsBySession: state.setPartsBySession,
       })),
     );
+
+  // Derived state for active session only (prevents full-map subscription in render path)
+  const activeSessionId = currentSession?.id;
+  const activeSessionMessages = useSessionContentStore(
+    useShallow((state) => activeSessionId ? state.messagesBySession[activeSessionId] || [] : [])
+  );
+  const activeSessionPartsMap = useSessionContentStore(
+    useShallow((state) => activeSessionId ? state.partsBySession[activeSessionId] || {} : {})
+  );
+
+  // Ref for LRU eviction to access full store without render-path subscription
+  const messagesBySessionRef = useRef<Record<string, Message[]>>({});
+  useLayoutEffect(() => {
+    messagesBySessionRef.current = useSessionContentStore.getState().messagesBySession;
+  });
 
   // LRU cache eviction for session data
   // Intentional tiny cache: keep only current + most recent session to minimize memory
@@ -348,6 +345,52 @@ function AppContent() {
   type PartIndexEntry = { sessionId: string; messageId: string; index: number };
   const partIdIndexRef = useRef<Map<string, PartIndexEntry>>(new Map());
 
+  // Batching refs for part.append updates to reduce UI thrash
+  const pendingPartAppendsRef = useRef<Map<string, string>>(new Map());
+  const partAppendRafRef = useRef<number | null>(null);
+
+  // Flush all pending part appends in a single update
+  const flushPendingPartAppends = useCallback(() => {
+    if (pendingPartAppendsRef.current.size === 0) return;
+
+    const pending = new Map(pendingPartAppendsRef.current);
+    pendingPartAppendsRef.current.clear();
+    partAppendRafRef.current = null;
+
+    setPartsBySession(prev => {
+      const newState = { ...prev };
+      let hasChanges = false;
+
+      for (const [partId, delta] of pending) {
+        const location = partIdIndexRef.current.get(partId);
+        if (!location) continue;
+
+        const sessionParts = newState[location.sessionId];
+        if (!sessionParts) continue;
+
+        const messageParts = sessionParts[location.messageId];
+        if (!messageParts) continue;
+
+        const part = messageParts[location.index];
+        if (!part || (part.type !== 'text' && part.type !== 'reasoning')) continue;
+
+        hasChanges = true;
+        const updatedMessageParts = [...messageParts];
+        updatedMessageParts[location.index] = {
+          ...part,
+          text: part.text + delta,
+        };
+
+        newState[location.sessionId] = {
+          ...sessionParts,
+          [location.messageId]: updatedMessageParts,
+        };
+      }
+
+      return hasChanges ? newState : prev;
+    });
+  }, [setPartsBySession]);
+
 
 
   // Notification sound for chat completion - only on natural completion (non-null -> null transition)
@@ -355,6 +398,7 @@ function AppContent() {
   const hasInitializedRef = useRef(false);
   const prevStreamingSessionIdsRef = useRef<Set<string>>(new Set());
   const skipFinishSoundSessionIdsRef = useRef<Set<string>>(new Set());
+  const pendingWorkspaceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!hasInitializedRef.current) {
@@ -393,8 +437,9 @@ function AppContent() {
   }, [permissionSoundEnabled]);
 
   // LRU eviction for session data - runs when session count increases beyond limit
+  // Uses ref-based access to avoid full-content subscription in render path
   useLayoutEffect(() => {
-    const currentCount = Object.keys(messagesBySession).length;
+    const currentCount = useSessionContentStore.getState().getMessagesBySessionKeysCount();
     if (currentCount <= prevSessionKeyCountRef.current) {
       prevSessionKeyCountRef.current = currentCount;
       return;
@@ -403,6 +448,7 @@ function AppContent() {
 
     if (currentCount <= SESSION_CACHE_MAX) return;
 
+    const messagesBySession = messagesBySessionRef.current;
     const keys = Object.keys(messagesBySession);
     while (keys.length > SESSION_CACHE_MAX) {
       let oldestKey: string | null = null;
@@ -431,23 +477,18 @@ function AppContent() {
         return next;
       });
     }
-  }, [messagesBySession, currentSession]);
+  }, [currentSession, setMessagesBySession, setPartsBySession]);
 
-  // Connection timeout constants
-  const CONNECTION_TIMEOUT = 10000; // 10 seconds
-  const MAX_RETRY_DELAY = 30000; // 30 seconds max backoff
-  const INITIAL_RETRY_DELAY = 1000; // 1 second initial
+  // Connection timeout constants (moved to useConnectionLifecycle hook)
 
-  // Refs for abort controller and deferred workspace selection
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const pendingWorkspaceIdRef = useRef<string | null>(null);
+  // Refs for abort controller (now handled in useServerDataLoader hook) and deferred workspace selection
 
   // Track if activeServer change was triggered by addServer (for state clearing)
   // Now managed by ServerContext via isAddingServerRef
   const prevActiveServerIdRef = useRef<string | null>(null);
 
-  // Loading state for server data fetching
-  const [_isLoadingServerData, setIsLoadingServerData] = useState(false);
+  // Loading state for server data fetching (unused locally, passed to hook)
+  const [, setIsLoadingServerData] = useState(false);
 
   // Derive connection info from activeServer
   const apiToken = activeServer?.token ?? null;
@@ -470,6 +511,11 @@ function AppContent() {
 
   const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
+
+  // Stable callback for handleServerMessage to pass to hook
+  const handleServerMessageCallback = useCallback((msg: ServerMessage) => {
+    handleServerMessageRef.current?.(msg);
+  }, []);
 
   const handleFirstServerAdded = useCallback((server: SavedServer) => {
     // Setting flag before addServer so the effect can detect it
@@ -539,6 +585,13 @@ function AppContent() {
     // Clear part index on server switch
     partIdIndexRef.current.clear();
 
+    // Cancel pending RAF and clear pending appends on server switch
+    if (partAppendRafRef.current !== null) {
+      cancelAnimationFrame(partAppendRafRef.current);
+      partAppendRafRef.current = null;
+    }
+    pendingPartAppendsRef.current.clear();
+
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
@@ -582,271 +635,58 @@ function AppContent() {
   }, [apiToken, handleLogout]);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
-    const messages = messagesBySession[sessionId] || [];
-    const partsMap = partsBySession[sessionId] || {};
-
-    return messages.map(message => ({
+    if (sessionId !== activeSessionId) {
+      return [];
+    }
+    return activeSessionMessages.map(message => ({
       message,
-      parts: (partsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
+      parts: (activeSessionPartsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
     }));
-  }, [messagesBySession, partsBySession]);
+  }, [activeSessionId, activeSessionMessages, activeSessionPartsMap]);
 
-  useEffect(() => {
-    // Don't connect if no token or server URL
-    if (!apiToken || !serverUrl) {
-      return;
-    }
+  useConnectionLifecycle({
+    apiToken,
+    serverUrl,
+    wsRef,
+    serverEpochRef,
+    currentSessionIdRef,
+    clearPendingPermissions,
+    handleLogout,
+    setWs,
+    setConnected,
+    setAuthError,
+    setConnectionTimedOut,
+    setRetryCount,
+    setNextRetryIn,
+    setReconnectTrigger,
+    reconnectTrigger,
+    connected,
+    connectionTimedOut,
+    retryCount,
+    onMessage: handleServerMessageCallback,
+  });
 
-    const wsUrl = getWsUrl(apiToken, serverUrl);
-    if (!wsUrl) return;
-
-    const socket = new WebSocket(wsUrl);
-
-    // Capture local epoch at effect start to detect stale events from previous connections
-    const localEpoch = serverEpochRef.current;
-
-    socket.onopen = () => {
-      // Ignore stale events from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-      setConnected(true);
-      setAuthError(null);
-      setRetryCount(0);
-      setConnectionTimedOut(false);
-
-      // Clear pending permissions — session.resume will re-send current session's,
-      // and permissions.sync will fetch all other sessions' pending approvals
-      clearPendingPermissions();
-
-      // Auto-resume active session after reconnect to restore streaming
-      if (currentSessionIdRef.current) {
-        socket.send(JSON.stringify({
-          type: 'session.resume',
-          sessionId: currentSessionIdRef.current,
-        }));
-      }
-
-      // Request all pending approvals across all sessions for sidebar indicators
-      socket.send(JSON.stringify({ type: 'permissions.sync' }));
-    };
-
-    socket.onclose = (event) => {
-      // Ignore stale events from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-      setConnected(false);
-
-      // Check if closed due to auth error
-      if (event.code === 1008 || event.code === 401) {
-        setAuthError('Authentication failed. Please check your token.');
-        handleLogout();
-      }
-    };
-
-    socket.onerror = (error) => {
-      // Ignore stale events from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-      console.error('WebSocket error:', error);
-    };
-
-    socket.onmessage = (event) => {
-      // Ignore stale events from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-      const msg: ServerMessage = JSON.parse(event.data);
-      handleServerMessageRef.current?.(msg);
-    };
-
-    setWs(socket);
-
-    return () => socket.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
-
-  // Connection timeout detection
-  useEffect(() => {
-    if (apiToken && serverUrl && !connected && !connectionTimedOut) {
-      const timeoutId = setTimeout(() => {
-        if (!connected) {
-          setConnectionTimedOut(true);
-        }
-      }, CONNECTION_TIMEOUT);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [apiToken, serverUrl, connected, connectionTimedOut]);
-
-  // Auto-reconnect with exponential backoff
-  useEffect(() => {
-    // Capture local epoch to detect stale callbacks
-    const localEpoch = serverEpochRef.current;
-
-    if (connectionTimedOut && !connected && apiToken && serverUrl) {
-      // Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
-      const delay = Math.min(
-        INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
-        MAX_RETRY_DELAY
-      );
-      
-      let countdown = Math.floor(delay / 1000);
-      setNextRetryIn(countdown);
-      
-      // Countdown interval
-      const countdownInterval = setInterval(() => {
-        countdown -= 1;
-        setNextRetryIn(Math.max(0, countdown));
-      }, 1000);
-      
-      // Retry timeout
-      const retryTimeout = setTimeout(() => {
-        // Check epoch before mutating state - stale retries should be ignored
-        if (serverEpochRef.current !== localEpoch) return;
-        setRetryCount(c => c + 1);
-        // Trigger reconnection by incrementing the trigger counter
-        setReconnectTrigger(t => t + 1);
-      }, delay);
-      
-      return () => {
-        clearInterval(countdownInterval);
-        clearTimeout(retryTimeout);
-      };
-    }
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef]);
-
-  // Reconnect when app returns to foreground (fixes iOS background disconnect)
-  useEffect(() => {
-    // Capture local epoch to detect stale callbacks
-    const localEpoch = serverEpochRef.current;
-
-    const handleVisibilityChange = () => {
-      // Ignore stale callbacks from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-
-      if (document.visibilityState !== 'visible') return;
-
-      const socket = wsRef.current;
-      if (!socket || !apiToken || !serverUrl) return;
-
-      if (socket.readyState === WebSocket.OPEN) {
-        // Socket claims OPEN but may be zombie (especially on iOS)
-        // Force close and reconnect to be safe
-        socket.onclose = null;
-        socket.close();
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
-      } else if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl, serverEpochRef]);
-
-  // Reconnect when network comes back online
-  useEffect(() => {
-    // Capture local epoch to detect stale callbacks
-    const localEpoch = serverEpochRef.current;
-
-    const handleOnline = () => {
-      // Ignore stale callbacks from previous connection epochs
-      if (serverEpochRef.current !== localEpoch) return;
-
-      if (!apiToken || !serverUrl) return;
-
-      const socket = wsRef.current;
-      if (socket && socket.readyState === WebSocket.OPEN) return;
-
-      setConnected(false);
-      setRetryCount(0);
-      setConnectionTimedOut(false);
-      setReconnectTrigger(t => t + 1);
-    };
-
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl, serverEpochRef]);
-
-  // Consolidated effect for fetching sessions, preconfigs, models, and workspaces
-  useEffect(() => {
-    if (!apiToken || !serverUrl) return;
-
-    // Abort previous requests
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-
-    const apiUrl = getApiUrl(serverUrl);
-    if (!apiUrl) return;
-
-    // Capture local epoch to detect stale fetch results
-    const localEpoch = serverEpochRef.current;
-
-    // Show loading state
-    setIsLoadingServerData(true);
-
-    Promise.all([
-      fetchWithAuth(`${apiUrl}/sessions`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/preconfigs`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/prompts`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/models`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/workspaces`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/providers`, { signal }).then(r => r.json()),
-    ])
-      .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData, providersData]) => {
-        // Ignore stale results from previous connection epochs
-        if (serverEpochRef.current !== localEpoch) return;
-
-        setSessions(sessionsData.sessions || []);
-        setPreconfigs(preconfigsData.preconfigs || []);
-        setPrompts(promptsData.prompts || []);
-        setModels(modelsData.models || []);
-        setDefaultModel(modelsData.defaultModel || 'gpt-4o');
-        setProviderStatuses(providersData.providers || []);
-
-        // Handle workspace selection
-        const workspaces = workspacesData.workspaces || [];
-        setWorkspaces(workspaces);
-
-        // Apply pending workspace selection if any
-        if (pendingWorkspaceIdRef.current) {
-          const saved = workspaces.find((w: Workspace) => w.id === pendingWorkspaceIdRef.current);
-          if (saved) setActiveWorkspace(saved);
-          pendingWorkspaceIdRef.current = null;
-        } else {
-          const savedId = localStorage.getItem('activeWorkspaceId');
-          const saved = workspaces.find((w: Workspace) => w.id === savedId);
-          setActiveWorkspace(saved || workspaces[0]);
-        }
-
-        // Clear switching state
-        clearSwitchingState();
-        setIsLoadingServerData(false);
-      })
-      .catch(err => {
-        if (err.name === 'AbortError') {
-          console.log('Fetch aborted due to server switch');
-          return;
-        }
-        console.error('Failed to load server data:', err);
-        setIsLoadingServerData(false);
-        if (!err.message?.includes('Unauthorized')) {
-          setAuthError('Failed to connect to server');
-        }
-      });
-
-    return () => {
-      abortControllerRef.current?.abort();
-    };
-  }, [apiToken, serverUrl, fetchWithAuth, clearSwitchingState, reconnectTrigger, setSessions]);
-
-  useEffect(() => {
-    if (activeWorkspace) {
-      localStorage.setItem('activeWorkspaceId', activeWorkspace.id);
-    }
-  }, [activeWorkspace]);
+  // Server data loading hook (handles fetch, abort, epoch guard, workspace persistence)
+  useServerDataLoader({
+    apiToken,
+    serverUrl,
+    reconnectTrigger,
+    serverEpochRef,
+    fetchWithAuth,
+    clearSwitchingState,
+    setSessions,
+    setPreconfigs,
+    setPrompts,
+    setModels,
+    setDefaultModel,
+    setProviderStatuses,
+    setWorkspaces,
+    setActiveWorkspace,
+    activeWorkspace,
+    setIsLoadingServerData,
+    setAuthError,
+    pendingWorkspaceIdRef,
+  });
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const apiUrl = getApiUrl(serverUrl);
@@ -1044,8 +884,16 @@ function AppContent() {
         break;
 
       case 'message.updated':
-        // Only apply content updates for visible (current) session to prevent performance issues
+        // Flush pending appends before updating message status to ensure correctness
         if (msg.message.sessionId === currentSessionIdRef.current) {
+          if ('status' in msg.message && msg.message.status !== 'streaming') {
+            // About to transition to non-streaming: flush any pending appends first
+            if (partAppendRafRef.current !== null) {
+              cancelAnimationFrame(partAppendRafRef.current);
+              partAppendRafRef.current = null;
+            }
+            flushPendingPartAppends();
+          }
           setMessagesBySession(prev => ({
             ...prev,
             [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m =>
@@ -1133,33 +981,15 @@ function AppContent() {
         }
         // Only apply content updates for visible (current) session to prevent performance issues
         if (msg.sessionId === currentSessionIdRef.current) {
-          setPartsBySession(prev => {
-            const location = partIdIndexRef.current.get(msg.partId);
-            if (!location) return prev;
+          // Batch updates via RAF to reduce UI thrash while preserving live streaming feel
+          const existing = pendingPartAppendsRef.current.get(msg.partId);
+          pendingPartAppendsRef.current.set(msg.partId, (existing || '') + msg.delta);
 
-            const sessionParts = prev[location.sessionId];
-            if (!sessionParts) return prev;
-
-            const messageParts = sessionParts[location.messageId];
-            if (!messageParts) return prev;
-
-            const part = messageParts[location.index];
-            if (!part || (part.type !== 'text' && part.type !== 'reasoning')) return prev;
-
-            const updatedMessageParts = [...messageParts];
-            updatedMessageParts[location.index] = {
-              ...part,
-              text: part.text + msg.delta,
-            };
-
-            return {
-              ...prev,
-              [location.sessionId]: {
-                ...sessionParts,
-                [location.messageId]: updatedMessageParts,
-              },
-            };
-          });
+          if (partAppendRafRef.current === null) {
+            partAppendRafRef.current = requestAnimationFrame(() => {
+              flushPendingPartAppends();
+            });
+          }
         }
         break;
       }
@@ -1182,6 +1012,14 @@ function AppContent() {
         setSessions(prev => prev.map(s =>
           s.id === msg.sessionId ? { ...s, status: 'closed' } : s
         ));
+        // If closing the current session, cancel pending RAF and clear pending appends
+        if (currentSession?.id === msg.sessionId) {
+          if (partAppendRafRef.current !== null) {
+            cancelAnimationFrame(partAppendRafRef.current);
+            partAppendRafRef.current = null;
+          }
+          pendingPartAppendsRef.current.clear();
+        }
         setMessagesBySession(prev => {
           const newMap = { ...prev };
           delete newMap[msg.sessionId];
@@ -1391,6 +1229,14 @@ function AppContent() {
       }
 
       case 'session.state':
+        // Flush pending appends before state replacement to ensure correctness
+        if (msg.sessionId === currentSessionIdRef.current) {
+          if (partAppendRafRef.current !== null) {
+            cancelAnimationFrame(partAppendRafRef.current);
+            partAppendRafRef.current = null;
+          }
+          flushPendingPartAppends();
+        }
         // Only apply content updates for visible (current) session to prevent performance issues
         if (msg.sessionId === currentSessionIdRef.current) {
           setMessagesBySession(prev => ({
@@ -1456,148 +1302,55 @@ function AppContent() {
     handleServerMessageRef.current = handleServerMessage;
   }, [handleServerMessage]);
 
+  // Filter out subagent-only preconfigs for primary sessions
+  const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
 
-
-  const sendMessage = useCallback((type: ClientMessage['type'], payload: ClientMessagePayload) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type, ...payload }));
-    }
-  }, [ws]);
-
-  const createSession = useCallback((preconfigId?: string, title?: string) => {
-    pendingSessionCreateRef.current = true;
-    sendMessage('session.create', { preconfigId, title, workspaceId: activeWorkspace?.id });
-  }, [sendMessage, activeWorkspace]);
-
-  const resumeSession = useCallback((sessionId: string) => {
-    removePendingPermissionsBySessionId(sessionId);
-    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
-    clearStreamingSessions();
-    setCompactionSuccess(false);
-    sessionAccessTimesRef.current.set(sessionId, Date.now());
-    const session = sessions.find(s => s.id === sessionId);
-    if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
-      const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
-      if (targetWorkspace) {
-        setActiveWorkspace(targetWorkspace);
-      }
-    }
-    // Optimistically set currentSession immediately to stop old streaming content churn
-    if (session) {
-      setCurrentSession(session);
-      currentSessionIdRef.current = session.id;
-    }
-    sendMessage('session.resume', { sessionId });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sendMessage, sessions, workspaces, activeWorkspace]);
-
-  const closeSession = useCallback((sessionId: string) => {
-    sendMessage('session.close', { sessionId });
-  }, [sendMessage]);
-
-  const revertSession = useCallback((sessionId: string, messageId: string) => {
-    sendMessage('session.revert', { sessionId, messageId });
-  }, [sendMessage]);
-
-  const forkSession = useCallback((sessionId: string, messageId: string) => {
-    sendMessage('session.fork', { sessionId, messageId });
-  }, [sendMessage]);
-
-  const compactSession = useCallback((sessionId: string) => {
-    sendMessage('session.compact', { sessionId });
-  }, [sendMessage]);
-
-  const reopenSession = useCallback((sessionId: string) => {
-    sendMessage('session.reopen', { sessionId });
-  }, [sendMessage]);
-
-  const permanentlyDeleteSession = useCallback((sessionId: string) => {
-    sendMessage('session.delete', { sessionId });
-  }, [sendMessage]);
-
-  const updateSessionPreconfig = useCallback((preconfigId: string) => {
-    if (currentSession) {
-      sendMessage('session.update', { sessionId: currentSession.id, preconfigId });
-    }
-  }, [currentSession, sendMessage]);
-
-  const updateSessionModel = useCallback((modelId: string, providerId: string) => {
-    setCurrentModel(modelId);
-    setSelectedVariant(null);
-    if (currentSession) {
-      sendMessage('session.update_model', { sessionId: currentSession.id, modelId, providerId });
-    }
-  }, [currentSession, sendMessage]);
-
-  const updateSessionVariant = useCallback((variant: string | null) => {
-    if (currentSession) {
-      sendMessage('session.update_model', {
-        sessionId: currentSession.id,
-        modelId: currentSession.selectedModel || currentModel,
-        providerId: currentSession.selectedProvider || 'openai',
-        variant,
-      });
-      setSelectedVariant(variant);
-    }
-  }, [currentSession, currentModel, sendMessage]);
-
-  const handleRenameSession = useCallback((sessionId: string, title: string) => {
-    sendMessage('session.rename', { sessionId, title });
-  }, [sendMessage]);
-
-  const handleNavigateBack = useCallback(() => {
-    if (currentSession?.parentId) {
-      resumeSession(currentSession.parentId);
-    }
-  }, [currentSession, resumeSession]);
-
-  const addToQueue = useCallback((sessionId: string, content: string) => {
-    sendMessage('queue.add', { sessionId, content });
-  }, [sendMessage]);
-
-  const removeFromQueue = useCallback((queueId: string) => {
-    sendMessage('queue.remove', { queueId });
-  }, [sendMessage]);
-
-  const sendChatMessage = useCallback((content: string) => {
-    if (!currentSession || isCompacting) return;
-    if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
-      addToQueue(currentSession.id, content);
-    } else {
-      sendMessage('chat.message', { sessionId: currentSession.id, content });
-    }
-  }, [currentSession, streamingSessionIds, isCompacting, sendMessage, addToQueue]);
-
-  const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
-    removePendingPermissionByToolCallId(toolCallId);
-
-    sendMessage('permission.response', {
-      toolCallId,
-      allowed,
-      alwaysAllow,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sendMessage]);
-
-  const handleInterruptSession = useCallback(() => {
-    if (currentSession) {
-      sendMessage('session.interrupt', { sessionId: currentSession.id });
-    }
-  }, [currentSession, sendMessage]);
-
-  const refreshPermissions = useCallback(() => {
-    if (activeWorkspace) {
-      sendMessage('permission.list', { workspaceId: activeWorkspace.id });
-    }
-  }, [activeWorkspace, sendMessage]);
-
-  const connectProvider = useCallback((provider: string) => {
-    sendMessage('provider.connect', { provider });
-  }, [sendMessage]);
-
-  const disconnectProvider = useCallback((provider: string) => {
-    sendMessage('provider.disconnect', { provider });
-  }, [sendMessage]);
+  const {
+    sendMessage,
+    createSession,
+    resumeSession,
+    closeSession,
+    reopenSession,
+    permanentlyDeleteSession,
+    handleRenameSession,
+    revertSession,
+    forkSession,
+    compactSession,
+    removeFromQueue,
+    sendChatMessage,
+    handlePermissionResponse,
+    handleInterruptSession,
+    updateSessionPreconfig,
+    updateSessionModel,
+    updateSessionVariant,
+    handleNavigateBack,
+    refreshPermissions,
+    connectProvider,
+    disconnectProvider,
+    createSessionInWorkspace,
+  } = useSessionCommands({
+    ws,
+    currentSession,
+    sessions,
+    workspaces,
+    activeWorkspace,
+    currentModel,
+    streamingSessionIds,
+    isCompacting,
+    primaryPreconfigs,
+    setCurrentSession,
+    setActiveWorkspace,
+    setCompactionSuccess,
+    setCurrentModel,
+    setSelectedVariant,
+    removePendingPermissionByToolCallId,
+    removePendingPermissionsBySessionId,
+    clearStreamingSessions,
+    pendingSessionCreateRef,
+    partAppendRafRef,
+    pendingPartAppendsRef,
+    skipFinishSoundSessionIdsRef,
+  });
 
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
@@ -1608,16 +1361,6 @@ function AppContent() {
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
   const headerTitle = currentSession ? (activeWorkspace?.name ?? 'Jean2') : 'Jean2';
-
-  // Filter out subagent-only preconfigs for primary sessions
-  const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
-
-  const createSessionInWorkspace = useCallback((workspaceId: string) => {
-    setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
-    pendingSessionCreateRef.current = true;
-    const primary = primaryPreconfigs[0]?.id;
-    sendMessage('session.create', { preconfigId: primary, workspaceId });
-  }, [sendMessage, workspaces, primaryPreconfigs]);
 
   const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
 

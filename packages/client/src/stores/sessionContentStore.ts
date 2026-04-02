@@ -19,11 +19,12 @@ interface SessionContentState {
 interface SessionContentActions {
   setMessagesBySession: (updater: MessagesBySessionUpdater) => void;
   setPartsBySession: (updater: PartsBySessionUpdater) => void;
+  getMessagesBySessionKeysCount: () => number;
 }
 
 type SessionContentStore = SessionContentState & SessionContentActions;
 
-export const useSessionContentStore = create<SessionContentStore>((set) => ({
+export const useSessionContentStore = create<SessionContentStore>((set, get) => ({
   messagesBySession: {},
   partsBySession: {},
 
@@ -40,4 +41,6 @@ export const useSessionContentStore = create<SessionContentStore>((set) => ({
       partsBySession:
         typeof updater === 'function' ? updater(state.partsBySession) : updater,
     })),
+
+  getMessagesBySessionKeysCount: () => Object.keys(get().messagesBySession).length,
 }));
