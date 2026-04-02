@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
-import { FolderOpen, TerminalSquare } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
+import { useUIStore } from '@/stores/uiStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
@@ -19,21 +20,18 @@ import type {
 } from '@jean2/shared';
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
-import { FilesPanel } from '@/components/layout/FilesPanel';
-import { TerminalPanel } from '@/components/layout/TerminalPanel';
 import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
-import { SidebarProvider, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import FirstServerScreen from '@/components/FirstServerScreen';
-import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
-import { SidebarLayoutToggle } from '@/components/layout/SidebarLayoutToggle';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { AppHeader, AppPanels } from '@/components/app';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 
@@ -238,13 +236,27 @@ function AppContent() {
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showFilesPanel, setShowFilesPanel] = useState(false);
-  const [showTerminalPanel, setShowTerminalPanel] = useState(false);
-  const [showMCPDialog, setShowMCPDialog] = useState(false);
-  const [sidebarViewMode, setSidebarViewMode] = useState<'default' | 'overview'>(() => {
-    return (localStorage.getItem('jean2_sidebar_view') as 'default' | 'overview') || 'default';
-  });
+
+  // UI state managed by Zustand store (dialog-related only; header/panel state extracted to sub-components)
+  const {
+    showSettings,
+    showMCPDialog,
+    showAddServer,
+    editServerData,
+    setShowSettings,
+    setShowMCPDialog,
+    setShowAddServer,
+    setEditServerData,
+  } = useUIStore(useShallow((s) => ({
+    showSettings: s.showSettings,
+    showMCPDialog: s.showMCPDialog,
+    showAddServer: s.showAddServer,
+    editServerData: s.editServerData,
+    setShowSettings: s.setShowSettings,
+    setShowMCPDialog: s.setShowMCPDialog,
+    setShowAddServer: s.setShowAddServer,
+    setEditServerData: s.setEditServerData,
+  })));
 
   // Notification sound settings
   const [chatFinishSoundEnabled, setChatFinishSoundEnabled] = useState<boolean>(() => {
@@ -262,10 +274,6 @@ function AppContent() {
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
   const [authError, setAuthError] = useState<string | null>(null);
-
-  // Dialog states
-  const [showAddServer, setShowAddServer] = useState(false);
-  const [editServerData, setEditServerData] = useState<SavedServer | null>(null);
 
   // Connection offline handling
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
@@ -320,10 +328,6 @@ function AppContent() {
       skipFinishSoundSessionIdsRef.current.delete(sessionId);
     }
   }, [streamingSessionIds, playChatFinishSound, sessions, chatFinishSoundEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('jean2_sidebar_view', sidebarViewMode);
-  }, [sidebarViewMode]);
 
   useEffect(() => {
     localStorage.setItem('jean2_sound_chat_finish_enabled', String(chatFinishSoundEnabled));
@@ -1574,19 +1578,23 @@ function AppContent() {
     sendMessage('session.create', { preconfigId: primary, workspaceId });
   }, [sendMessage, workspaces, primaryPreconfigs]);
 
+  const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
+
   const handleSidebarViewModeChange = useCallback((
     mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
   ) => {
-    setSidebarViewMode(mode);
+    const currentMode = useUIStore.getState().sidebarViewMode;
+    const resolvedMode = typeof mode === 'function' ? mode(currentMode) : mode;
+    setSidebarViewMode(resolvedMode);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         sidebarRef.current?.focusSessionPanel();
       });
     });
-  }, [sidebarRef]);
+  }, [sidebarRef, setSidebarViewMode]);
 
   const keyboardShortcutHandlers = useMemo(() => ({
-    onCloseTerminal: () => setShowTerminalPanel(false),
+    onCloseTerminal: () => useUIStore.getState().setShowTerminalPanel(false),
     focusChatInput: () => chatInputRef.current?.focus(),
     onNewSession: () => {
       if (activeWorkspace) {
@@ -1597,7 +1605,7 @@ function AppContent() {
       invoke('create_new_window').catch(() => {});
     },
     onToggleViewMode: () => handleSidebarViewModeChange(prev => prev === 'overview' ? 'default' : 'overview'),
-    setTerminalOpen: setShowTerminalPanel,
+    setTerminalOpen: useUIStore.getState().setShowTerminalPanel,
     sidebarRef,
     terminalPanelRef,
     onStopStreaming: handleInterruptSession,
@@ -1735,7 +1743,6 @@ function AppContent() {
         <AppSidebar
           ref={sidebarRef}
           allSessions={sessions}
-          viewMode={sidebarViewMode}
           favoritedWorkspaceIds={favoritedWorkspaceIds}
           sessions={workspaceSessions}
           currentSession={currentSession}
@@ -1772,114 +1779,30 @@ function AppContent() {
         paddingTop: 'env(safe-area-inset-top, 0)',
         paddingBottom: 'env(safe-area-inset-bottom, 0)',
       }}>
-        {/* Mobile header with hamburger menu */}
-        <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            {isLoggedIn && <SidebarTrigger />}
-            <span className="font-semibold">{headerTitle}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {isLoggedIn && (
-              <QuickSwitcher
-                onServerSwitch={handleServerSwitch}
-                onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
-              />
-            )}
-            {isLoggedIn && (
-              <SidebarLayoutToggle
-                viewMode={sidebarViewMode}
-                onViewModeChange={handleSidebarViewModeChange}
-              />
-            )}
-            {isLoggedIn && activeWorkspace && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowFilesPanel(!showFilesPanel)}
-                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-              >
-                <FolderOpen className="w-4 h-4" />
-              </Button>
-            )}
-            {isLoggedIn && activeWorkspace && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                title={showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}
-              >
-                <TerminalSquare className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </header>
-
-        {/* Desktop header with sidebar toggle */}
-        <header className="hidden md:flex items-center justify-between p-3 border-b border-border">
-          <div className="flex items-center gap-2">
-            {isLoggedIn && <SidebarTrigger />}
-            <span className="font-semibold">{headerTitle}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {isLoggedIn && (
-              <QuickSwitcher 
-                onServerSwitch={handleServerSwitch}
-                onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
-              />
-            )}
-            {isLoggedIn && (
-              <SidebarLayoutToggle
-                viewMode={sidebarViewMode}
-                onViewModeChange={handleSidebarViewModeChange}
-              />
-            )}
-            {isLoggedIn && activeWorkspace && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowFilesPanel(!showFilesPanel)}
-                title={showFilesPanel ? 'Hide Files' : 'Show Files'}
-              >
-                <FolderOpen className="w-4 h-4" />
-              </Button>
-            )}
-            {isLoggedIn && activeWorkspace && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                title={showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}
-              >
-                <TerminalSquare className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </header>
+        <AppHeader
+          headerTitle={headerTitle}
+          isLoggedIn={isLoggedIn}
+          activeWorkspace={activeWorkspace}
+          onServerSwitch={handleServerSwitch}
+          onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
+          onSidebarViewModeChange={handleSidebarViewModeChange}
+        />
 
         {renderMainContent()}
 
-        {isLoggedIn && (            <TerminalPanel
-              ref={terminalPanelRef}
-              workspaceId={activeWorkspace?.id}            workspacePath={activeWorkspace?.path}
-            workspaceName={activeWorkspace?.name}
-            serverUrl={serverUrl ?? undefined}
-            apiToken={apiToken ?? undefined}
-            isOpen={showTerminalPanel}
-            onClose={() => setShowTerminalPanel(false)}
-          />
-        )}
+        <AppPanels
+          workspaceId={activeWorkspace?.id}
+          workspacePath={activeWorkspace?.path}
+          workspaceName={activeWorkspace?.name}
+          serverUrl={serverUrl ?? undefined}
+          apiToken={apiToken ?? undefined}
+          isLoggedIn={isLoggedIn}
+          terminalPanelRef={terminalPanelRef}
+        />
       </main>
 
       {isLoggedIn && (
         <>
-          <FilesPanel
-            workspaceId={activeWorkspace?.id}
-            serverUrl={serverUrl ?? undefined}
-            apiToken={apiToken ?? undefined}
-            isOpen={showFilesPanel}
-            onClose={() => setShowFilesPanel(false)}
-          />
-
           <SettingsDialog
             open={showSettings}
             onOpenChange={setShowSettings}

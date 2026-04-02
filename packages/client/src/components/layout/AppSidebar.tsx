@@ -1,6 +1,7 @@
 import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server} from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
+import { useUIStore } from '@/stores/uiStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { ServerSwitcher } from './ServerSwitcher';
 
@@ -40,7 +41,6 @@ interface AppSidebarProps {
   activeWorkspace: Workspace | null;
 
   allSessions: Session[];
-  viewMode: 'default' | 'overview';
   favoritedWorkspaceIds: string[];
 
   onCreateSession: () => void;
@@ -79,7 +79,6 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     workspaces,
     activeWorkspace,
     allSessions,
-    viewMode,
     favoritedWorkspaceIds,
     onCreateSession,
     onResumeSession,
@@ -98,6 +97,8 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onServerSwitch,
     onEscape,
   } = props;
+
+  const viewMode = useUIStore((s) => s.sidebarViewMode);
   const { quickConnections, addToQuickConnections, removeFromQuickConnections, activeServer } = useServerContext();
   useSidebar(); // Keep hook call to maintain sidebar context
 

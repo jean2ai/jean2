@@ -9,7 +9,7 @@ import { getSkill, getAvailableSkills, formatSkillsList } from './registry';
 export async function buildSkillToolDefinition(
   workspacePath: string,
   allowedSkills: string[] | null | undefined,
-  sessionId: string,
+  _sessionId: string,
 ): Promise<ToolDefinition | null> {
   const skills = await getAvailableSkills(workspacePath, allowedSkills);
   
@@ -72,7 +72,7 @@ export async function executeSkillTool(
   skillName: string,
   workspacePath: string,
   allowedSkills: string[] | null | undefined,
-  sessionId: string,
+  _sessionId: string,
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
   // Check if skills are allowed
   const availableSkills = await getAvailableSkills(workspacePath, allowedSkills);
