@@ -83,8 +83,8 @@ function AppContent() {
   });
 
   // LRU cache eviction for session data
-  // Intentional tiny cache: keep only current + most recent session to minimize memory
-  const SESSION_CACHE_MAX = 2;
+  // Only keep current session data in memory; no multi-session caching
+  const SESSION_CACHE_MAX = 1;
   const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
   const prevSessionKeyCountRef = useRef(0);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -346,6 +346,11 @@ function AppContent() {
       }
       if (!oldestKey) break;
       sessionAccessTimesRef.current.delete(oldestKey);
+      for (const [partId, entry] of partIdIndexRef.current) {
+        if (entry.sessionId === oldestKey) {
+          partIdIndexRef.current.delete(partId);
+        }
+      }
       keys.splice(keys.indexOf(oldestKey), 1);
       setMessagesBySession(prev => {
         if (!(oldestKey! in prev)) return prev;
@@ -386,6 +391,10 @@ function AppContent() {
   useEffect(() => {
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession]);
+
+  useEffect(() => {
+    notifiedToolCallIdsRef.current.clear();
+  }, [currentSession?.id]);
 
   // Keep sessionsRef in sync with session store
   useLayoutEffect(() => {
@@ -451,6 +460,7 @@ function AppContent() {
     sessionAccessTimesRef.current.clear();
     prevSessionKeyCountRef.current = 0;
     skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    notifiedToolCallIdsRef.current.clear();
     clearStreamingSessions();
     clearInterruptedSessions();
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });

@@ -16,6 +16,7 @@ export function handleSessionCreated(
     setSelectedVariant,
     pendingSessionCreateRef,
     sessionAccessTimesRef,
+    partIdIndexRef,
     defaultModel,
   } = ctx;
 
@@ -23,14 +24,9 @@ export function handleSessionCreated(
 
   if (pendingSessionCreateRef.current) {
     setCurrentSession(session);
-    setMessagesBySession(prev => ({
-      ...prev,
-      [session.id]: [],
-    }));
-    setPartsBySession(prev => ({
-      ...prev,
-      [session.id]: {},
-    }));
+    setMessagesBySession({ [session.id]: [] });
+    setPartsBySession({ [session.id]: {} });
+    partIdIndexRef.current.clear();
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
     setCurrentModel(session.selectedModel || defaultModel);
     setSelectedVariant(session.selectedVariant ?? null);
@@ -72,12 +68,9 @@ export function handleSessionResumed(
   }
 
   if (messages) {
-    setMessagesBySession(prev => ({
-      ...prev,
-      [session.id]: messages.map(mwp => mwp.message),
-    }));
-    setPartsBySession(prev => {
-      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = { ...prev };
+    setMessagesBySession({ [session.id]: messages.map(mwp => mwp.message) });
+    setPartsBySession(() => {
+      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
       newParts[session.id] = {};
       for (const mwp of messages) {
         newParts[session.id][mwp.message.id] = mwp.parts;
@@ -85,11 +78,7 @@ export function handleSessionResumed(
       return newParts;
     });
 
-    for (const [partId, entry] of partIdIndexRef.current) {
-      if (entry.sessionId === session.id) {
-        partIdIndexRef.current.delete(partId);
-      }
-    }
+    partIdIndexRef.current.clear();
     for (const mwp of messages) {
       for (let i = 0; i < mwp.parts.length; i++) {
         partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -294,12 +283,9 @@ export function handleSessionForked(
   } = ctx;
 
   setSessions(prev => [forkedSession, ...prev]);
-  setMessagesBySession(prev => ({
-    ...prev,
-    [forkedSession.id]: forkedMessages.map(mwp => mwp.message),
-  }));
-  setPartsBySession(prev => {
-    const newParts = { ...prev };
+  setMessagesBySession({ [forkedSession.id]: forkedMessages.map(mwp => mwp.message) });
+  setPartsBySession(() => {
+    const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
     newParts[forkedSession.id] = {};
     for (const mwp of forkedMessages) {
       newParts[forkedSession.id][mwp.message.id] = mwp.parts;
@@ -307,6 +293,7 @@ export function handleSessionForked(
     return newParts;
   });
 
+  partIdIndexRef.current.clear();
   for (const mwp of forkedMessages) {
     for (let i = 0; i < mwp.parts.length; i++) {
       partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -347,12 +334,9 @@ export function handleSessionState(
   }
 
   if (currentSessionIdRef.current === sessionId) {
-    setMessagesBySession(prev => ({
-      ...prev,
-      [sessionId]: messages.map(mwp => mwp.message),
-    }));
-    setPartsBySession(prev => {
-      const newParts = { ...prev };
+    setMessagesBySession({ [sessionId]: messages.map(mwp => mwp.message) });
+    setPartsBySession(() => {
+      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
       newParts[sessionId] = {};
       for (const mwp of messages) {
         newParts[sessionId][mwp.message.id] = mwp.parts;
@@ -360,11 +344,7 @@ export function handleSessionState(
       return newParts;
     });
 
-    for (const [partId, entry] of partIdIndexRef.current) {
-      if (entry.sessionId === sessionId) {
-        partIdIndexRef.current.delete(partId);
-      }
-    }
+    partIdIndexRef.current.clear();
     for (const mwp of messages) {
       for (let i = 0; i < mwp.parts.length; i++) {
         partIdIndexRef.current.set(mwp.parts[i].id, {
