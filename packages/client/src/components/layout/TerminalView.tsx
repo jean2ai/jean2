@@ -57,6 +57,9 @@ export function TerminalView({ cachedTerminal }: TerminalViewProps) {
 
     return () => {
       observer.disconnect();
+      if (terminal.element && terminal.element.parentElement) {
+        terminal.element.parentElement.removeChild(terminal.element);
+      }
     };
   }, [cachedTerminal]);
 

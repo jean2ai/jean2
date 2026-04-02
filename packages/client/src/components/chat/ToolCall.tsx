@@ -1,10 +1,47 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle, Pause } from 'lucide-react';
 import type { ToolPart, AnyVisualization } from '@jean2/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { VisualizationRenderer } from '@/components/visualizations';
+
+const LARGE_OUTPUT_THRESHOLD = 1536;
+
+interface LazyOutputProps {
+  content: string;
+  className?: string;
+}
+
+const LazyOutput = memo(function LazyOutput({ content, className }: LazyOutputProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const size = new Blob([content]).size;
+  const isLarge = size > LARGE_OUTPUT_THRESHOLD;
+  const preview = isLarge ? content.slice(0, LARGE_OUTPUT_THRESHOLD) + '\n...' : null;
+
+  if (!isLarge) {
+    return <pre className={className}>{content}</pre>;
+  }
+
+  const sizeLabel = size > 1024 * 1024
+    ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+    : size > 1024
+      ? `${(size / 1024).toFixed(1)} KB`
+      : `${size} bytes`;
+
+  return (
+    <div>
+      <pre className={className}>{isExpanded ? content : preview}</pre>
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:text-foreground mt-1 transition-colors cursor-pointer"
+        onClick={() => setIsExpanded(prev => !prev)}
+      >
+        {isExpanded ? 'Show less' : `Show full output (${sizeLabel})`}
+      </button>
+    </div>
+  );
+});
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -78,6 +115,23 @@ export const ToolCall = memo(function ToolCall({
 
   const state = part.state;
   const status = state.status;
+
+  const serializedInput = useMemo((): string => {
+    if (!isOpen) return '';
+    try {
+      return JSON.stringify(state.input, null, 2);
+    } catch {
+      return String(state.input);
+    }
+  }, [state.input, isOpen]);
+
+  const serializedOutput = useMemo((): string | null => {
+    if (!isOpen) return null;
+    if (status !== 'completed' || !('output' in state)) return null;
+    return typeof state.output === 'string'
+      ? state.output
+      : JSON.stringify(state.output, null, 2);
+  }, [status, state, isOpen]);
 
   // Extract visualization at component level to render outside collapsible
   const visualization = status === 'completed' && 'output' in state
@@ -171,14 +225,15 @@ export const ToolCall = memo(function ToolCall({
           </div>
         </CollapsibleTrigger>
 
-        <CollapsibleContent>
+        {isOpen && <CollapsibleContent>
           <div className="pl-5 pb-2 flex flex-col gap-2">
             {/* Input */}
             <div>
               <div className="text-xs uppercase text-muted-foreground mb-1">Input</div>
-              <pre className="text-xs bg-background border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words">
-                {JSON.stringify(state.input, null, 2)}
-              </pre>
+              <LazyOutput
+                content={serializedInput}
+                className="text-xs bg-background border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words"
+              />
             </div>
 
             {/* Subagent Navigation */}
@@ -195,7 +250,7 @@ export const ToolCall = memo(function ToolCall({
             )}
 
             {/* Output - always show raw (visualization shown separately below) */}
-            {status === 'completed' && 'output' in state && (
+            {status === 'completed' && serializedOutput !== null && (
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-xs uppercase text-muted-foreground">Output</div>
@@ -212,11 +267,10 @@ export const ToolCall = memo(function ToolCall({
                     )}
                   </Button>
                 </div>
-                <pre className="text-xs bg-success/10 border border-success/20 rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words">
-                  {typeof state.output === 'string'
-                    ? state.output
-                    : JSON.stringify(state.output, null, 2)}
-                </pre>
+                <LazyOutput
+                  content={serializedOutput}
+                  className="text-xs bg-success/10 border border-success/20 rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words"
+                />
               </div>
             )}
 
@@ -230,7 +284,7 @@ export const ToolCall = memo(function ToolCall({
               </div>
             )}
           </div>
-        </CollapsibleContent>
+        </CollapsibleContent>}
       </Collapsible>
 
       {/* Pending Permission Request - outside Collapsible, always visible when pending */}

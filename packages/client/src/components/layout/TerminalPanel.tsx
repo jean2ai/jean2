@@ -564,8 +564,10 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     ) : null;
   }
 
+  if (!isOpen) return null;
+
   return (
-    <div className={cn(!isOpen && 'hidden')} data-terminal-panel="">
+    <div data-terminal-panel="">
       <div
         className="w-full cursor-ns-resize flex items-center justify-center border-t border-border bg-background select-none shrink-0"
         style={{ height: 4 }}

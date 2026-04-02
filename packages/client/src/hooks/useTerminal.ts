@@ -99,7 +99,7 @@ export function createTerminalInstance(options?: CreateTerminalOptions): { termi
     cursorStyle: 'bar',
     fontSize: options?.fontSize ?? 13,
     fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-    scrollback: options?.scrollback ?? 5000,
+    scrollback: options?.scrollback ?? 1000,
     allowProposedApi: true,
     theme: options?.theme ?? {
       background: 'var(--background)',
