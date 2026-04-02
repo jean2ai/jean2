@@ -203,7 +203,8 @@ function AppContent() {
     );
 
   // LRU cache eviction for session data
-  const SESSION_CACHE_MAX = 10;
+  // Intentional tiny cache: keep only current + most recent session to minimize memory
+  const SESSION_CACHE_MAX = 2;
   const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
   const prevSessionKeyCountRef = useRef(0);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -1021,18 +1022,21 @@ function AppContent() {
         break;
 
       case 'message.created':
-        setMessagesBySession(prev => ({
-          ...prev,
-          [msg.message.sessionId]: [...(prev[msg.message.sessionId] || []), msg.message]
-        }));
-        setPartsBySession(prev => ({
-          ...prev,
-          [msg.message.sessionId]: {
-            ...prev[msg.message.sessionId],
-            [msg.message.id]: []
-          }
-        }));
-        // Track streaming state and clear interrupted status for this session
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.message.sessionId === currentSessionIdRef.current) {
+          setMessagesBySession(prev => ({
+            ...prev,
+            [msg.message.sessionId]: [...(prev[msg.message.sessionId] || []), msg.message]
+          }));
+          setPartsBySession(prev => ({
+            ...prev,
+            [msg.message.sessionId]: {
+              ...prev[msg.message.sessionId],
+              [msg.message.id]: []
+            }
+          }));
+        }
+        // Track streaming state and clear interrupted status for this session (always)
         if ('status' in msg.message && msg.message.status === 'streaming') {
           addStreamingSession(msg.message.sessionId);
           removeInterruptedSession(msg.message.sessionId);
@@ -1040,64 +1044,24 @@ function AppContent() {
         break;
 
       case 'message.updated':
-        setMessagesBySession(prev => ({
-          ...prev,
-          [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m =>
-            m.id === msg.message.id ? msg.message : m
-          )
-        }));
-        // Clear streaming state if message is no longer streaming
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.message.sessionId === currentSessionIdRef.current) {
+          setMessagesBySession(prev => ({
+            ...prev,
+            [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m =>
+              m.id === msg.message.id ? msg.message : m
+            )
+          }));
+        }
+        // Clear streaming state if message is no longer streaming (always)
         if ('status' in msg.message && msg.message.status !== 'streaming') {
           removeStreamingSession(msg.message.sessionId);
         }
         break;
 
       case 'part.created': {
-        setPartsBySession(prev => {
-          const sessionParts = prev[msg.sessionId] || {};
-          const messageParts = sessionParts[msg.part.messageId] || [];
-          return {
-            ...prev,
-            [msg.sessionId]: {
-              ...sessionParts,
-              [msg.part.messageId]: [...messageParts, msg.part]
-            }
-          };
-        });
-        let newIndex = 0;
-        for (const entry of partIdIndexRef.current.values()) {
-          if (entry.sessionId === msg.sessionId && entry.messageId === msg.part.messageId) {
-            newIndex = Math.max(newIndex, entry.index + 1);
-          }
-        }
-        partIdIndexRef.current.set(msg.part.id, {
-          sessionId: msg.sessionId,
-          messageId: msg.part.messageId,
-          index: newIndex,
-        });
-        break;
-      }
-
-      case 'part.updated': {
-        const partLocation = partIdIndexRef.current.get(msg.part.id);
-        if (partLocation) {
-          setPartsBySession(prev => {
-            const sessionParts = prev[partLocation.sessionId];
-            if (!sessionParts) return prev;
-            const messageParts = sessionParts[partLocation.messageId];
-            if (!messageParts) return prev;
-            const updatedMessageParts = [...messageParts];
-            updatedMessageParts[partLocation.index] = msg.part;
-            return {
-              ...prev,
-              [partLocation.sessionId]: {
-                ...sessionParts,
-                [partLocation.messageId]: updatedMessageParts
-              }
-            };
-          });
-        } else {
-          // Fallback: search all parts (should rarely happen)
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.sessionId === currentSessionIdRef.current) {
           setPartsBySession(prev => {
             const sessionParts = prev[msg.sessionId] || {};
             const messageParts = sessionParts[msg.part.messageId] || [];
@@ -1105,45 +1069,98 @@ function AppContent() {
               ...prev,
               [msg.sessionId]: {
                 ...sessionParts,
-                [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
+                [msg.part.messageId]: [...messageParts, msg.part]
               }
             };
+          });
+          let newIndex = 0;
+          for (const entry of partIdIndexRef.current.values()) {
+            if (entry.sessionId === msg.sessionId && entry.messageId === msg.part.messageId) {
+              newIndex = Math.max(newIndex, entry.index + 1);
+            }
+          }
+          partIdIndexRef.current.set(msg.part.id, {
+            sessionId: msg.sessionId,
+            messageId: msg.part.messageId,
+            index: newIndex,
           });
         }
         break;
       }
 
+      case 'part.updated': {
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.sessionId === currentSessionIdRef.current) {
+          const partLocation = partIdIndexRef.current.get(msg.part.id);
+          if (partLocation) {
+            setPartsBySession(prev => {
+              const sessionParts = prev[partLocation.sessionId];
+              if (!sessionParts) return prev;
+              const messageParts = sessionParts[partLocation.messageId];
+              if (!messageParts) return prev;
+              const updatedMessageParts = [...messageParts];
+              updatedMessageParts[partLocation.index] = msg.part;
+              return {
+                ...prev,
+                [partLocation.sessionId]: {
+                  ...sessionParts,
+                  [partLocation.messageId]: updatedMessageParts
+                }
+              };
+            });
+          } else {
+            // Fallback: search all parts (should rarely happen)
+            setPartsBySession(prev => {
+              const sessionParts = prev[msg.sessionId] || {};
+              const messageParts = sessionParts[msg.part.messageId] || [];
+              return {
+                ...prev,
+                [msg.sessionId]: {
+                  ...sessionParts,
+                  [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
+                }
+              };
+            });
+          }
+        }
+        break;
+      }
+
       case 'part.append': {
+        // Track streaming state (always)
         if (!interruptedSessions.has(msg.sessionId)) {
           addStreamingSession(msg.sessionId);
         }
-        setPartsBySession(prev => {
-          const location = partIdIndexRef.current.get(msg.partId);
-          if (!location) return prev;
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.sessionId === currentSessionIdRef.current) {
+          setPartsBySession(prev => {
+            const location = partIdIndexRef.current.get(msg.partId);
+            if (!location) return prev;
 
-          const sessionParts = prev[location.sessionId];
-          if (!sessionParts) return prev;
+            const sessionParts = prev[location.sessionId];
+            if (!sessionParts) return prev;
 
-          const messageParts = sessionParts[location.messageId];
-          if (!messageParts) return prev;
+            const messageParts = sessionParts[location.messageId];
+            if (!messageParts) return prev;
 
-          const part = messageParts[location.index];
-          if (!part || (part.type !== 'text' && part.type !== 'reasoning')) return prev;
+            const part = messageParts[location.index];
+            if (!part || (part.type !== 'text' && part.type !== 'reasoning')) return prev;
 
-          const updatedMessageParts = [...messageParts];
-          updatedMessageParts[location.index] = {
-            ...part,
-            text: part.text + msg.delta,
-          };
+            const updatedMessageParts = [...messageParts];
+            updatedMessageParts[location.index] = {
+              ...part,
+              text: part.text + msg.delta,
+            };
 
-          return {
-            ...prev,
-            [location.sessionId]: {
-              ...sessionParts,
-              [location.messageId]: updatedMessageParts,
-            },
-          };
-        });
+            return {
+              ...prev,
+              [location.sessionId]: {
+                ...sessionParts,
+                [location.messageId]: updatedMessageParts,
+              },
+            };
+          });
+        }
         break;
       }
 
@@ -1374,31 +1391,34 @@ function AppContent() {
       }
 
       case 'session.state':
-        setMessagesBySession(prev => ({
-          ...prev,
-          [msg.sessionId]: msg.messages.map(mwp => mwp.message)
-        }));
-        setPartsBySession(prev => {
-          const newParts = { ...prev };
-          newParts[msg.sessionId] = {};
+        // Only apply content updates for visible (current) session to prevent performance issues
+        if (msg.sessionId === currentSessionIdRef.current) {
+          setMessagesBySession(prev => ({
+            ...prev,
+            [msg.sessionId]: msg.messages.map(mwp => mwp.message)
+          }));
+          setPartsBySession(prev => {
+            const newParts = { ...prev };
+            newParts[msg.sessionId] = {};
+            for (const mwp of msg.messages) {
+              newParts[msg.sessionId][mwp.message.id] = mwp.parts;
+            }
+            return newParts;
+          });
+          // Rebuild part index from session state
+          for (const [partId, entry] of partIdIndexRef.current) {
+            if (entry.sessionId === msg.sessionId) {
+              partIdIndexRef.current.delete(partId);
+            }
+          }
           for (const mwp of msg.messages) {
-            newParts[msg.sessionId][mwp.message.id] = mwp.parts;
-          }
-          return newParts;
-        });
-        // Rebuild part index from session state
-        for (const [partId, entry] of partIdIndexRef.current) {
-          if (entry.sessionId === msg.sessionId) {
-            partIdIndexRef.current.delete(partId);
-          }
-        }
-        for (const mwp of msg.messages) {
-          for (let i = 0; i < mwp.parts.length; i++) {
-            partIdIndexRef.current.set(mwp.parts[i].id, {
-              sessionId: msg.sessionId,
-              messageId: mwp.message.id,
-              index: i,
-            });
+            for (let i = 0; i < mwp.parts.length; i++) {
+              partIdIndexRef.current.set(mwp.parts[i].id, {
+                sessionId: msg.sessionId,
+                messageId: mwp.message.id,
+                index: i,
+              });
+            }
           }
         }
         skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
@@ -1461,6 +1481,11 @@ function AppContent() {
       if (targetWorkspace) {
         setActiveWorkspace(targetWorkspace);
       }
+    }
+    // Optimistically set currentSession immediately to stop old streaming content churn
+    if (session) {
+      setCurrentSession(session);
+      currentSessionIdRef.current = session.id;
     }
     sendMessage('session.resume', { sessionId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
