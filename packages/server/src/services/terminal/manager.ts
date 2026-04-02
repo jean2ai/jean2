@@ -48,11 +48,12 @@ export class TerminalManager {
   private _eventManager: TerminalEventManager | null = null;
   private _getEventManager: (() => TerminalEventManager) | null = null;
 
-  private static readonly MAX_BUFFER_BYTES = 10 * 1024 * 1024;
   private readonly maxSessionsPerWorkspace: number;
+  private readonly maxBufferBytes: number;
 
   constructor() {
     this.maxSessionsPerWorkspace = parseInt(process.env.JEAN2_TERMINAL_MAX_SESSIONS || '10', 10);
+    this.maxBufferBytes = parseInt(process.env.JEAN2_TERMINAL_BUFFER_BYTES || String(5 * 1024 * 1024), 10);
     this.startExitedSessionCleanup();
   }
 
@@ -470,7 +471,7 @@ export class TerminalManager {
   private bufferOutput(session: TerminalSession, data: Uint8Array): void {
     const now = Date.now();
 
-    if (data.length > TerminalManager.MAX_BUFFER_BYTES) {
+    if (data.length > this.maxBufferBytes) {
       session.buffer = [{ data, timestamp: now }];
       session.bufferBytes = data.length;
       return;
@@ -478,7 +479,7 @@ export class TerminalManager {
 
     while (
       session.buffer.length > 0 &&
-      session.bufferBytes + data.length > TerminalManager.MAX_BUFFER_BYTES
+      session.bufferBytes + data.length > this.maxBufferBytes
     ) {
       const removed = session.buffer.shift()!;
       session.bufferBytes -= removed.data.length;

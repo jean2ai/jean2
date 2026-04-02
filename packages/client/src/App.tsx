@@ -9,7 +9,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Session,
-  Part,
   Message,
   MessageWithParts,
   ServerMessage,
@@ -39,7 +38,13 @@ import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppHeader, AppPanels } from '@/components/app';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
+import {
+  sessionHandlers,
+  messagePartHandlers,
+  permissionQueueHandlers,
+  providerHandlers,
+} from '@/handlers/serverMessage';
+import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
 
 const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
 
@@ -781,522 +786,134 @@ function AppContent() {
     await createWorkspace(name, path, false);
   };
 
+  const handlerContext = useMemo<SessionHandlersContext>(() => ({
+    setSessions,
+    setCurrentSession,
+    setMessagesBySession,
+    setPartsBySession,
+    setSessionUsage,
+    setCurrentModel,
+    setSelectedVariant,
+    addStreamingSession,
+    removeStreamingSession,
+    addInterruptedSession,
+    removeInterruptedSession,
+    setQueuedMessagesForSession,
+    addQueuedMessage,
+    removeQueuedMessageById,
+    clearPendingPermissions,
+    clearQueuedMessages,
+    setCompactionSuccess,
+    pendingSessionCreateRef,
+    sessionAccessTimesRef,
+    partIdIndexRef,
+    partAppendRafRef,
+    pendingPartAppendsRef,
+    skipFinishSoundSessionIdsRef,
+    currentSessionIdRef,
+    models,
+    defaultModel,
+    interruptedSessions,
+    sessionsRef,
+    flushPendingPartAppends,
+    setProviderStatuses,
+    setPermissions,
+    mergePendingPermissions,
+    addPendingPermission,
+    removePendingPermissionByToolCallId,
+    notifiedToolCallIdsRef,
+    permissionSoundEnabled,
+    playPermissionSound,
+  }), [
+    setSessions,
+    setCurrentSession,
+    setMessagesBySession,
+    setPartsBySession,
+    setSessionUsage,
+    setCurrentModel,
+    setSelectedVariant,
+    addStreamingSession,
+    removeStreamingSession,
+    addInterruptedSession,
+    removeInterruptedSession,
+    setQueuedMessagesForSession,
+    addQueuedMessage,
+    removeQueuedMessageById,
+    clearPendingPermissions,
+    clearQueuedMessages,
+    setCompactionSuccess,
+    pendingSessionCreateRef,
+    sessionAccessTimesRef,
+    partIdIndexRef,
+    partAppendRafRef,
+    pendingPartAppendsRef,
+    skipFinishSoundSessionIdsRef,
+    currentSessionIdRef,
+    models,
+    defaultModel,
+    interruptedSessions,
+    sessionsRef,
+    flushPendingPartAppends,
+    setProviderStatuses,
+    setPermissions,
+    mergePendingPermissions,
+    addPendingPermission,
+    removePendingPermissionByToolCallId,
+    notifiedToolCallIdsRef,
+    permissionSoundEnabled,
+    playPermissionSound,
+  ]);
+
   const handleServerMessage = useCallback((msg: ServerMessage) => {
     switch (msg.type) {
       case 'session.created':
-        setSessions(prev => [msg.session, ...prev]);
-
-        if (pendingSessionCreateRef.current) {
-          setCurrentSession(msg.session);
-          setMessagesBySession(prev => ({
-            ...prev,
-            [msg.session.id]: []
-          }));
-          setPartsBySession(prev => ({
-            ...prev,
-            [msg.session.id]: {}
-          }));
-          setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-          setCurrentModel(msg.session.selectedModel || defaultModel);
-          setSelectedVariant(msg.session.selectedVariant ?? null);
-          pendingSessionCreateRef.current = false;
-        }
-        sessionAccessTimesRef.current.set(msg.session.id, Date.now());
-        break;
-
       case 'session.resumed':
-        setCurrentSession(msg.session);
-
-        removeInterruptedSession(msg.session.id);
-
-        if (msg.isRunning) {
-          addStreamingSession(msg.session.id);
-        } else {
-          removeStreamingSession(msg.session.id);
-          skipFinishSoundSessionIdsRef.current.add(msg.session.id);
-        }
-
-        if (msg.messages) {
-          setMessagesBySession(prev => ({
-            ...prev,
-            [msg.session.id]: msg.messages.map(mwp => mwp.message)
-          }));
-          setPartsBySession(prev => {
-            const newParts: Record<string, Record<string, Part[]>> = { ...prev };
-            newParts[msg.session.id] = {};
-            for (const mwp of msg.messages) {
-              newParts[msg.session.id][mwp.message.id] = mwp.parts;
-            }
-            return newParts;
-          });
-          // Rebuild part index for resumed session only
-          for (const [partId, entry] of partIdIndexRef.current) {
-            if (entry.sessionId === msg.session.id) {
-              partIdIndexRef.current.delete(partId);
-            }
-          }
-          for (const mwp of msg.messages) {
-            for (let i = 0; i < mwp.parts.length; i++) {
-              partIdIndexRef.current.set(mwp.parts[i].id, {
-                sessionId: msg.session.id,
-                messageId: mwp.message.id,
-                index: i,
-              });
-            }
-          }
-        }
-
-        setSessionUsage(msg.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-        setCurrentModel(msg.session.selectedModel || defaultModel);
-        setSelectedVariant(msg.session.selectedVariant || null);
-
-        // Clear variant if restored model doesn't support it
-        {
-          const restoredModelId = msg.session.selectedModel || defaultModel;
-          const restoredVariants = models.find(m => m.id === restoredModelId)?.variants;
-          if (msg.session.selectedVariant && restoredVariants && !restoredVariants[msg.session.selectedVariant]) {
-            setSelectedVariant(null);
-          }
-        }
-        sessionAccessTimesRef.current.set(msg.session.id, Date.now());
+      case 'session.closed':
+      case 'session.reopened':
+      case 'session.deleted':
+      case 'session.updated':
+      case 'session.renamed':
+      case 'session.interrupted':
+      case 'session.reverted':
+      case 'session.forked':
+      case 'session.state':
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sessionHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
         break;
 
       case 'message.created':
-        // Only apply content updates for visible (current) session to prevent performance issues
-        if (msg.message.sessionId === currentSessionIdRef.current) {
-          setMessagesBySession(prev => ({
-            ...prev,
-            [msg.message.sessionId]: [...(prev[msg.message.sessionId] || []), msg.message]
-          }));
-          setPartsBySession(prev => ({
-            ...prev,
-            [msg.message.sessionId]: {
-              ...prev[msg.message.sessionId],
-              [msg.message.id]: []
-            }
-          }));
-        }
-        // Track streaming state and clear interrupted status for this session (always)
-        if ('status' in msg.message && msg.message.status === 'streaming') {
-          addStreamingSession(msg.message.sessionId);
-          removeInterruptedSession(msg.message.sessionId);
-        }
-        break;
-
       case 'message.updated':
-        // Flush pending appends before updating message status to ensure correctness
-        if (msg.message.sessionId === currentSessionIdRef.current) {
-          if ('status' in msg.message && msg.message.status !== 'streaming') {
-            // About to transition to non-streaming: flush any pending appends first
-            if (partAppendRafRef.current !== null) {
-              cancelAnimationFrame(partAppendRafRef.current);
-              partAppendRafRef.current = null;
-            }
-            flushPendingPartAppends();
-          }
-          setMessagesBySession(prev => ({
-            ...prev,
-            [msg.message.sessionId]: (prev[msg.message.sessionId] || []).map(m =>
-              m.id === msg.message.id ? msg.message : m
-            )
-          }));
-        }
-        // Clear streaming state if message is no longer streaming (always)
-        if ('status' in msg.message && msg.message.status !== 'streaming') {
-          removeStreamingSession(msg.message.sessionId);
-        }
-        break;
-
-      case 'part.created': {
-        // Only apply content updates for visible (current) session to prevent performance issues
-        if (msg.sessionId === currentSessionIdRef.current) {
-          setPartsBySession(prev => {
-            const sessionParts = prev[msg.sessionId] || {};
-            const messageParts = sessionParts[msg.part.messageId] || [];
-            return {
-              ...prev,
-              [msg.sessionId]: {
-                ...sessionParts,
-                [msg.part.messageId]: [...messageParts, msg.part]
-              }
-            };
-          });
-          let newIndex = 0;
-          for (const entry of partIdIndexRef.current.values()) {
-            if (entry.sessionId === msg.sessionId && entry.messageId === msg.part.messageId) {
-              newIndex = Math.max(newIndex, entry.index + 1);
-            }
-          }
-          partIdIndexRef.current.set(msg.part.id, {
-            sessionId: msg.sessionId,
-            messageId: msg.part.messageId,
-            index: newIndex,
-          });
-        }
-        break;
-      }
-
-      case 'part.updated': {
-        // Only apply content updates for visible (current) session to prevent performance issues
-        if (msg.sessionId === currentSessionIdRef.current) {
-          const partLocation = partIdIndexRef.current.get(msg.part.id);
-          if (partLocation) {
-            setPartsBySession(prev => {
-              const sessionParts = prev[partLocation.sessionId];
-              if (!sessionParts) return prev;
-              const messageParts = sessionParts[partLocation.messageId];
-              if (!messageParts) return prev;
-              const updatedMessageParts = [...messageParts];
-              updatedMessageParts[partLocation.index] = msg.part;
-              return {
-                ...prev,
-                [partLocation.sessionId]: {
-                  ...sessionParts,
-                  [partLocation.messageId]: updatedMessageParts
-                }
-              };
-            });
-          } else {
-            // Fallback: search all parts (should rarely happen)
-            setPartsBySession(prev => {
-              const sessionParts = prev[msg.sessionId] || {};
-              const messageParts = sessionParts[msg.part.messageId] || [];
-              return {
-                ...prev,
-                [msg.sessionId]: {
-                  ...sessionParts,
-                  [msg.part.messageId]: messageParts.map(p => p.id === msg.part.id ? msg.part : p)
-                }
-              };
-            });
-          }
-        }
-        break;
-      }
-
-      case 'part.append': {
-        // Track streaming state (always)
-        if (!interruptedSessions.has(msg.sessionId)) {
-          addStreamingSession(msg.sessionId);
-        }
-        // Only apply content updates for visible (current) session to prevent performance issues
-        if (msg.sessionId === currentSessionIdRef.current) {
-          // Batch updates via RAF to reduce UI thrash while preserving live streaming feel
-          const existing = pendingPartAppendsRef.current.get(msg.partId);
-          pendingPartAppendsRef.current.set(msg.partId, (existing || '') + msg.delta);
-
-          if (partAppendRafRef.current === null) {
-            partAppendRafRef.current = requestAnimationFrame(() => {
-              flushPendingPartAppends();
-            });
-          }
-        }
-        break;
-      }
-
+      case 'part.created':
+      case 'part.updated':
+      case 'part.append':
       case 'chat.usage':
-        if (msg.sessionId !== currentSession?.id) return;
-        setSessionUsage({
-          promptTokens: msg.usage.promptTokens,
-          completionTokens: msg.usage.completionTokens,
-          totalTokens: msg.usage.totalTokens,
-        });
-        setCurrentModel(msg.model);
-        break;
-
+      case 'compaction.complete':
       case 'error':
-        console.error('Server error:', msg.code, msg.message);
-        break;
-
-      case 'session.closed':
-        setSessions(prev => prev.map(s =>
-          s.id === msg.sessionId ? { ...s, status: 'closed' } : s
-        ));
-        // If closing the current session, cancel pending RAF and clear pending appends
-        if (currentSession?.id === msg.sessionId) {
-          if (partAppendRafRef.current !== null) {
-            cancelAnimationFrame(partAppendRafRef.current);
-            partAppendRafRef.current = null;
-          }
-          pendingPartAppendsRef.current.clear();
-        }
-        setMessagesBySession(prev => {
-          const newMap = { ...prev };
-          delete newMap[msg.sessionId];
-          return newMap;
-        });
-        setPartsBySession(prev => {
-          const newMap = { ...prev };
-          delete newMap[msg.sessionId];
-          return newMap;
-        });
-        // Clean up part index for closed session
-        for (const [partId, entry] of partIdIndexRef.current) {
-          if (entry.sessionId === msg.sessionId) {
-            partIdIndexRef.current.delete(partId);
-          }
-        }
-        sessionAccessTimesRef.current.delete(msg.sessionId);
-        if (currentSession?.id === msg.sessionId) {
-          setCurrentSession(null);
-        }
-        break;
-
-      case 'session.reopened':
-        setSessions(prev => prev.map(s =>
-          s.id === msg.session.id ? msg.session : s
-        ));
-        if (currentSession?.id === msg.session.id) {
-          setCurrentSession(msg.session);
-        }
-        break;
-
-      case 'session.deleted':
-        setSessions(prev => prev.filter(s => s.id !== msg.sessionId));
-        setMessagesBySession(prev => {
-          const newMap = { ...prev };
-          delete newMap[msg.sessionId];
-          return newMap;
-        });
-        setPartsBySession(prev => {
-          const newMap = { ...prev };
-          delete newMap[msg.sessionId];
-          return newMap;
-        });
-        removeInterruptedSession(msg.sessionId);
-        // Clean up part index for deleted session
-        for (const [partId, entry] of partIdIndexRef.current) {
-          if (entry.sessionId === msg.sessionId) {
-            partIdIndexRef.current.delete(partId);
-          }
-        }
-        sessionAccessTimesRef.current.delete(msg.sessionId);
-        if (currentSession?.id === msg.sessionId) {
-          setCurrentSession(null);
-        }
-        break;
-
-      case 'session.updated':
-        setSessions(prev => prev.map(s =>
-          s.id === msg.session.id ? msg.session : s
-        ));
-        if (currentSession?.id === msg.session.id) {
-          setCurrentSession(msg.session);
-          if (msg.session.selectedVariant !== undefined) {
-            setSelectedVariant(msg.session.selectedVariant);
-          }
-        }
-        break;
-
-      case 'session.renamed':
-        setSessions(prev => prev.map(s =>
-          s.id === msg.session.id ? msg.session : s
-        ));
-        if (currentSession?.id === msg.session.id) {
-          setCurrentSession(msg.session);
-        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (messagePartHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
         break;
 
       case 'permission.list':
-        setPermissions(msg.permissions);
-        break;
-
       case 'permissions.sync':
-        mergePendingPermissions(
-          msg.approvals.map((a) => ({
-            toolCallId: a.toolCallId,
-            sessionId: a.sessionId,
-            toolName: a.toolName,
-            args: a.args,
-            permissionType: a.permissionType,
-            permissionKey: a.permissionKey,
-            message: a.message,
-            details: a.details,
-            dangerous: a.dangerous,
-            childSessionId: a.childSessionId,
-            subagentName: a.subagentName,
-          }))
-        );
-        break;
-
       case 'permission.revoked':
-        setPermissions(prev => prev.map(p =>
-          p.id === msg.permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
-        ));
-        break;
-
       case 'permission.all_revoked':
-        setPermissions(prev => {
-          const now = new Date().toISOString();
-          return prev.map(p => ({ ...p, revokedAt: now }));
-        });
-        break;
-
-      case 'permission.request': {
-        const request: PendingPermissionRequest = {
-          toolCallId: msg.toolCallId,
-          sessionId: msg.sessionId,
-          toolName: msg.toolName,
-          args: msg.args,
-          permissionType: msg.permissionType,
-          permissionKey: msg.permissionKey,
-          message: msg.message,
-          details: msg.details,
-          dangerous: msg.dangerous,
-          childSessionId: msg.childSessionId,
-          subagentName: msg.subagentName,
-        };
-        addPendingPermission(request);
-
-        // Play permission sound only for main sessions (parentId === null)
-        // Only play if this approval has not already triggered a sound (prevents replay on session resume)
-        const session = sessionsRef.current.find(s => s.id === msg.sessionId);
-        if (session?.parentId === null && permissionSoundEnabled && !notifiedToolCallIdsRef.current.has(msg.toolCallId)) {
-          playPermissionSound();
-          notifiedToolCallIdsRef.current.add(msg.toolCallId);
-        }
-        break;
-      }
-
+      case 'permission.request':
       case 'permission.granted':
-        removePendingPermissionByToolCallId(msg.toolCallId);
-        break;
-
-      case 'session.interrupted':
-        addInterruptedSession(msg.sessionId);
-        skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
-        removeStreamingSession(msg.sessionId);
-        if (msg.result.cascadedTo.length > 0) {
-          console.log(`Session ${msg.sessionId} interrupted. Cascaded to:`, msg.result.cascadedTo);
-        }
-        break;
-
       case 'queue.list':
-        setQueuedMessagesForSession(msg.sessionId, msg.messages);
-        break;
-
       case 'queue.added':
-        addQueuedMessage(msg.sessionId, msg.message);
-        break;
-
       case 'queue.removed':
-        removeQueuedMessageById(msg.sessionId, msg.queueId);
-        break;
-
       case 'queue.sending':
-        removeQueuedMessageById(msg.sessionId, msg.queueId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (permissionQueueHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
         break;
 
-      case 'session.reverted':
-        console.log(`Session reverted to message ${msg.revertedTo.messageId}, removed ${msg.removed.messageIds.length} messages`);
-        break;
-
-      case 'compaction.complete':
-        if (msg.sessionId === currentSession?.id) {
-          setCompactionSuccess(true);
-        }
-        break;
-
-      case 'session.forked': {
-        const { forkedSession, messages: forkedMessages } = msg;
-        setSessions(prev => [forkedSession, ...prev]);
-        setMessagesBySession(prev => ({
-          ...prev,
-          [forkedSession.id]: forkedMessages.map(mwp => mwp.message),
-        }));
-        setPartsBySession(prev => {
-          const newParts = { ...prev };
-          newParts[forkedSession.id] = {};
-          for (const mwp of forkedMessages) {
-            newParts[forkedSession.id][mwp.message.id] = mwp.parts;
-          }
-          return newParts;
-        });
-        // Rebuild part index for forked session
-        for (const mwp of forkedMessages) {
-          for (let i = 0; i < mwp.parts.length; i++) {
-            partIdIndexRef.current.set(mwp.parts[i].id, {
-              sessionId: forkedSession.id,
-              messageId: mwp.message.id,
-              index: i,
-            });
-          }
-        }
-        setCurrentSession(forkedSession);
-        setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-        sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
-        break;
-      }
-
-      case 'session.state':
-        // Flush pending appends before state replacement to ensure correctness
-        if (msg.sessionId === currentSessionIdRef.current) {
-          if (partAppendRafRef.current !== null) {
-            cancelAnimationFrame(partAppendRafRef.current);
-            partAppendRafRef.current = null;
-          }
-          flushPendingPartAppends();
-        }
-        // Only apply content updates for visible (current) session to prevent performance issues
-        if (msg.sessionId === currentSessionIdRef.current) {
-          setMessagesBySession(prev => ({
-            ...prev,
-            [msg.sessionId]: msg.messages.map(mwp => mwp.message)
-          }));
-          setPartsBySession(prev => {
-            const newParts = { ...prev };
-            newParts[msg.sessionId] = {};
-            for (const mwp of msg.messages) {
-              newParts[msg.sessionId][mwp.message.id] = mwp.parts;
-            }
-            return newParts;
-          });
-          // Rebuild part index from session state
-          for (const [partId, entry] of partIdIndexRef.current) {
-            if (entry.sessionId === msg.sessionId) {
-              partIdIndexRef.current.delete(partId);
-            }
-          }
-          for (const mwp of msg.messages) {
-            for (let i = 0; i < mwp.parts.length; i++) {
-              partIdIndexRef.current.set(mwp.parts[i].id, {
-                sessionId: msg.sessionId,
-                messageId: mwp.message.id,
-                index: i,
-              });
-            }
-          }
-        }
-        skipFinishSoundSessionIdsRef.current.add(msg.sessionId);
-        removeStreamingSession(msg.sessionId);
-        sessionAccessTimesRef.current.set(msg.sessionId, Date.now());
-        break;
-
-      case 'provider.status': {
-        setProviderStatuses(prev => {
-          const existing = prev.find(s => s.provider === msg.provider);
-          if (existing) {
-            return prev.map(s => s.provider === msg.provider
-              ? { ...s, connected: msg.connected, authorizationUrl: msg.authorizationUrl, error: msg.error }
-              : s
-            );
-          }
-          return [...prev, { provider: msg.provider, connected: msg.connected, authorizationUrl: msg.authorizationUrl, error: msg.error }];
-        });
-        break;
-      }
-
+      case 'provider.status':
       case 'provider.connected':
-        setProviderStatuses(prev =>
-          prev.map(s => s.provider === msg.provider
-            ? { ...s, connected: msg.connected, connectedAt: msg.connectedAt, accountId: msg.accountId }
-            : s
-          )
-        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (providerHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
         break;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSession, defaultModel, models, interruptedSessions, playPermissionSound, permissionSoundEnabled]);
+  }, [handlerContext]);
 
   useEffect(() => {
     handleServerMessageRef.current = handleServerMessage;
