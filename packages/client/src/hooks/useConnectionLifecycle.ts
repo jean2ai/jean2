@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import type { ServerMessage } from '@jean2/shared';
 
 const getWsUrl = (token: string | null, url: string | null) =>
@@ -7,6 +7,7 @@ const getWsUrl = (token: string | null, url: string | null) =>
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
 const INITIAL_RETRY_DELAY = 1000;
+const STALE_THRESHOLD = 30_000;
 
 export interface ConnectionLifecycleParams {
   apiToken: string | null;
@@ -51,6 +52,8 @@ export function useConnectionLifecycle({
   retryCount,
   onMessage,
 }: ConnectionLifecycleParams) {
+  const lastMessageTimeRef = useRef(Date.now());
+
   useEffect(() => {
     if (!apiToken || !serverUrl) {
       return;
@@ -65,6 +68,7 @@ export function useConnectionLifecycle({
 
     socket.onopen = () => {
       if (serverEpochRef.current !== localEpoch) return;
+      lastMessageTimeRef.current = Date.now();
       setConnected(true);
       setAuthError(null);
       setRetryCount(0);
@@ -98,6 +102,7 @@ export function useConnectionLifecycle({
 
     socket.onmessage = (event) => {
       if (serverEpochRef.current !== localEpoch) return;
+      lastMessageTimeRef.current = Date.now();
       const msg: ServerMessage = JSON.parse(event.data);
       onMessage(msg);
     };
@@ -115,7 +120,7 @@ export function useConnectionLifecycle({
           setConnectionTimedOut(true);
         }
       }, CONNECTION_TIMEOUT);
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [apiToken, serverUrl, connected, connectionTimedOut, setConnectionTimedOut]);
@@ -128,27 +133,27 @@ export function useConnectionLifecycle({
         INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
         MAX_RETRY_DELAY
       );
-      
+
       let countdown = Math.floor(delay / 1000);
       setNextRetryIn(countdown);
-      
+
       const countdownInterval = setInterval(() => {
         countdown -= 1;
         setNextRetryIn(Math.max(0, countdown));
       }, 1000);
-      
+
       const retryTimeout = setTimeout(() => {
         if (serverEpochRef.current !== localEpoch) return;
         setRetryCount(c => c + 1);
         setReconnectTrigger(t => t + 1);
       }, delay);
-      
+
       return () => {
         clearInterval(countdownInterval);
         clearTimeout(retryTimeout);
       };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn]);
 
   useEffect(() => {
@@ -163,6 +168,10 @@ export function useConnectionLifecycle({
       if (!socket || !apiToken || !serverUrl) return;
 
       if (socket.readyState === WebSocket.OPEN) {
+        const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
+        if (timeSinceLastMessage < STALE_THRESHOLD) {
+          return;
+        }
         socket.onclose = null;
         socket.close();
         setConnected(false);
@@ -179,8 +188,8 @@ export function useConnectionLifecycle({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
 
   useEffect(() => {
     const localEpoch = serverEpochRef.current;
@@ -201,6 +210,6 @@ export function useConnectionLifecycle({
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
 }
