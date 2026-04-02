@@ -4,11 +4,11 @@ import { useUIStore } from '@/stores/uiStore';
 import { useSessionMetaStore } from '@/stores/sessionMetaStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionContentStore } from '@/stores/sessionContentStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Session,
-  Message,
   Part,
   MessageWithParts,
   ServerMessage,
@@ -178,12 +178,29 @@ function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
 
   // Session state managed by Zustand store
-  const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore();
+  const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore(
+    useShallow((s) => ({
+      sessions: s.sessions,
+      currentSession: s.currentSession,
+      setSessions: s.setSessions,
+      setCurrentSession: s.setCurrentSession,
+      clearSessionState: s.clearSessionState,
+    })),
+  );
 
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-  const [messagesBySession, setMessagesBySession] = useState<Record<string, Message[]>>({});
-  const [partsBySession, setPartsBySession] = useState<Record<string, Record<string, Part[]>>>({});
+
+  // Session content stored in Zustand for cross-component access
+  const { messagesBySession, partsBySession, setMessagesBySession, setPartsBySession } =
+    useSessionContentStore(
+      useShallow((state) => ({
+        messagesBySession: state.messagesBySession,
+        partsBySession: state.partsBySession,
+        setMessagesBySession: state.setMessagesBySession,
+        setPartsBySession: state.setPartsBySession,
+      })),
+    );
 
   // LRU cache eviction for session data
   const SESSION_CACHE_MAX = 10;
@@ -207,7 +224,18 @@ function AppContent() {
     removeStreamingSession,
     addInterruptedSession,
     removeInterruptedSession,
-  } = useStreamStateStore();
+  } = useStreamStateStore(
+    useShallow((s) => ({
+      streamingSessionIds: s.streamingSessionIds,
+      interruptedSessions: s.interruptedSessions,
+      clearStreamingSessions: s.clearStreamingSessions,
+      clearInterruptedSessions: s.clearInterruptedSessions,
+      addStreamingSession: s.addStreamingSession,
+      removeStreamingSession: s.removeStreamingSession,
+      addInterruptedSession: s.addInterruptedSession,
+      removeInterruptedSession: s.removeInterruptedSession,
+    })),
+  );
   const [sessionUsage, setSessionUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
@@ -283,7 +311,21 @@ function AppContent() {
     setQueuedMessagesForSession,
     addQueuedMessage,
     removeQueuedMessageById,
-  } = useSessionMetaStore();
+  } = useSessionMetaStore(
+    useShallow((s) => ({
+      pendingPermissions: s.pendingPermissions,
+      queuedMessages: s.queuedMessages,
+      clearPendingPermissions: s.clearPendingPermissions,
+      clearQueuedMessages: s.clearQueuedMessages,
+      mergePendingPermissions: s.mergePendingPermissions,
+      addPendingPermission: s.addPendingPermission,
+      removePendingPermissionByToolCallId: s.removePendingPermissionByToolCallId,
+      removePendingPermissionsBySessionId: s.removePendingPermissionsBySessionId,
+      setQueuedMessagesForSession: s.setQueuedMessagesForSession,
+      addQueuedMessage: s.addQueuedMessage,
+      removeQueuedMessageById: s.removeQueuedMessageById,
+    })),
+  );
 
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -297,6 +339,9 @@ function AppContent() {
 
   // Track toolCallIds that have already triggered the permission sound notification
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
+
+  // Epoch for stale-event protection: prevents old async events from mutating current state
+  const serverEpochRef = useRef(0);
 
   // Index for O(1) part lookup: partId -> { sessionId, messageId, index }
   type PartIndexEntry = { sessionId: string; messageId: string; index: number };
@@ -452,6 +497,10 @@ function AppContent() {
   }, []);
 
   const handleServerSwitch = useCallback(() => {
+    // Increment epoch FIRST before any state mutation or reconnect
+    // This ensures any in-flight handlers from the old connection are ignored
+    serverEpochRef.current += 1;
+
     // Close existing WebSocket connection
     if (wsRef.current) {
       wsRef.current.close();
@@ -552,7 +601,12 @@ function AppContent() {
 
     const socket = new WebSocket(wsUrl);
 
+    // Capture local epoch at effect start to detect stale events from previous connections
+    const localEpoch = serverEpochRef.current;
+
     socket.onopen = () => {
+      // Ignore stale events from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
       setConnected(true);
       setAuthError(null);
       setRetryCount(0);
@@ -575,6 +629,8 @@ function AppContent() {
     };
 
     socket.onclose = (event) => {
+      // Ignore stale events from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
       setConnected(false);
 
       // Check if closed due to auth error
@@ -585,10 +641,14 @@ function AppContent() {
     };
 
     socket.onerror = (error) => {
+      // Ignore stale events from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
       console.error('WebSocket error:', error);
     };
 
     socket.onmessage = (event) => {
+      // Ignore stale events from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
       const msg: ServerMessage = JSON.parse(event.data);
       handleServerMessageRef.current?.(msg);
     };
@@ -614,6 +674,9 @@ function AppContent() {
 
   // Auto-reconnect with exponential backoff
   useEffect(() => {
+    // Capture local epoch to detect stale callbacks
+    const localEpoch = serverEpochRef.current;
+
     if (connectionTimedOut && !connected && apiToken && serverUrl) {
       // Calculate delay with exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
       const delay = Math.min(
@@ -632,6 +695,8 @@ function AppContent() {
       
       // Retry timeout
       const retryTimeout = setTimeout(() => {
+        // Check epoch before mutating state - stale retries should be ignored
+        if (serverEpochRef.current !== localEpoch) return;
         setRetryCount(c => c + 1);
         // Trigger reconnection by incrementing the trigger counter
         setReconnectTrigger(t => t + 1);
@@ -642,11 +707,17 @@ function AppContent() {
         clearTimeout(retryTimeout);
       };
     }
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount]);
+  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef]);
 
   // Reconnect when app returns to foreground (fixes iOS background disconnect)
   useEffect(() => {
+    // Capture local epoch to detect stale callbacks
+    const localEpoch = serverEpochRef.current;
+
     const handleVisibilityChange = () => {
+      // Ignore stale callbacks from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
+
       if (document.visibilityState !== 'visible') return;
 
       const socket = wsRef.current;
@@ -671,11 +742,17 @@ function AppContent() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl]);
+  }, [apiToken, serverUrl, serverEpochRef]);
 
   // Reconnect when network comes back online
   useEffect(() => {
+    // Capture local epoch to detect stale callbacks
+    const localEpoch = serverEpochRef.current;
+
     const handleOnline = () => {
+      // Ignore stale callbacks from previous connection epochs
+      if (serverEpochRef.current !== localEpoch) return;
+
       if (!apiToken || !serverUrl) return;
 
       const socket = wsRef.current;
@@ -689,7 +766,7 @@ function AppContent() {
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl]);
+  }, [apiToken, serverUrl, serverEpochRef]);
 
   // Consolidated effect for fetching sessions, preconfigs, models, and workspaces
   useEffect(() => {
@@ -703,6 +780,9 @@ function AppContent() {
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
 
+    // Capture local epoch to detect stale fetch results
+    const localEpoch = serverEpochRef.current;
+
     // Show loading state
     setIsLoadingServerData(true);
 
@@ -715,6 +795,9 @@ function AppContent() {
       fetchWithAuth(`${apiUrl}/providers`, { signal }).then(r => r.json()),
     ])
       .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData, providersData]) => {
+        // Ignore stale results from previous connection epochs
+        if (serverEpochRef.current !== localEpoch) return;
+
         setSessions(sessionsData.sessions || []);
         setPreconfigs(preconfigsData.preconfigs || []);
         setPrompts(promptsData.prompts || []);
