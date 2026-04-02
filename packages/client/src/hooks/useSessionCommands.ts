@@ -110,7 +110,7 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
     sendMessage('session.create', { preconfigId, title, workspaceId: activeWorkspace?.id });
-  }, [sendMessage, activeWorkspace]);
+  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string) => {
     removePendingPermissionsBySessionId(sessionId);
@@ -134,7 +134,7 @@ export function useSessionCommands({
       setCurrentSession(session);
     }
     sendMessage('session.resume', { sessionId });
-  }, [sendMessage, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
+  }, [partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sendMessage, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
 
   const closeSession = useCallback((sessionId: string) => {
     sendMessage('session.close', { sessionId });
@@ -252,7 +252,7 @@ export function useSessionCommands({
     pendingPartAppendsRef.current.clear();
     const primary = primaryPreconfigs[0]?.id;
     sendMessage('session.create', { preconfigId: primary, workspaceId });
-  }, [sendMessage, workspaces, primaryPreconfigs, setActiveWorkspace]);
+  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, workspaces, primaryPreconfigs, setActiveWorkspace]);
 
   return {
     sendMessage,

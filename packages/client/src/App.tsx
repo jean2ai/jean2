@@ -5,8 +5,6 @@ import { useSessionMetaStore } from '@/stores/sessionMetaStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionContentStore } from '@/stores/sessionContentStore';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Session,
   Message,
@@ -21,21 +19,16 @@ import type {
 } from '@jean2/shared';
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
-import { ChatView } from '@/components/chat/ChatView';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
-import { ConnectingState } from '@/components/shared/LoadingSkeleton';
-import { OfflineState } from '@/components/shared/OfflineState';
-import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
-import FirstServerScreen from '@/components/FirstServerScreen';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
 import { useServerDataLoader } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
-import { AppHeader, AppPanels } from '@/components/app';
+import { AppKeyboardHandlersMount } from '@/hooks/useAppKeyboardHandlers';
+import { AppHeader, AppPanels, AppMainContent } from '@/components/app';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 import {
@@ -47,121 +40,6 @@ import {
 import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
 
 const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
-
-function KeyboardShortcutHandler({
-  onNewSession,
-  onNewWindow,
-  onToggleViewMode,
-  onCloseTerminal,
-  focusChatInput,
-  setTerminalOpen,
-  sidebarRef,
-  terminalPanelRef,
-  onStopStreaming,
-}: {
-  onNewSession: () => void;
-  onNewWindow: () => void;
-  onToggleViewMode: () => void;
-  onCloseTerminal: () => void;
-  focusChatInput: () => void;
-  setTerminalOpen: (open: boolean) => void;
-  sidebarRef: React.RefObject<AppSidebarHandle | null>;
-  terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
-  onStopStreaming: () => void;
-}) {
-  const { setOpen } = useSidebar();
-
-  const focusSidebarSessionPanel = useCallback(() => {
-    setOpen(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        sidebarRef.current?.focusSessionPanel();
-      });
-    });
-  }, [setOpen, sidebarRef]);
-
-  const focusTerminalPanel = useCallback(() => {
-    setTerminalOpen(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        terminalPanelRef.current?.focus();
-      });
-    });
-  }, [setTerminalOpen, terminalPanelRef]);
-
-  const focusSidebarSessionPanelRef = useRef(focusSidebarSessionPanel);
-  useLayoutEffect(() => {
-    focusSidebarSessionPanelRef.current = focusSidebarSessionPanel;
-  });
-  const focusTerminalPanelRef = useRef(focusTerminalPanel);
-  useLayoutEffect(() => {
-    focusTerminalPanelRef.current = focusTerminalPanel;
-  });
-
-  useKeyboardShortcuts({
-    onOpenSidebar: () => focusSidebarSessionPanelRef.current(),
-    onOpenTerminal: () => focusTerminalPanelRef.current(),
-    onNewSession,
-    onNewWindow,
-    onToggleViewMode,
-    onCloseFocusedPanel: () => {
-      const activeEl = document.activeElement;
-      if (activeEl?.closest('[data-terminal-panel]')) {
-        onCloseTerminal();
-      } else if (activeEl?.closest('[data-sidebar="sidebar"]')) {
-        setOpen(false);
-      }
-    },
-    onFocusChatInput: focusChatInput,
-    onStopStreaming,
-  });
-
-  // Listen for native Tauri accelerator events — register once, call latest handlers via refs
-  useEffect(() => {
-    const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-    if (!isTauri) return;
-
-    let disposed = false;
-    const unlistenFns: UnlistenFn[] = [];
-
-    const registerListeners = async () => {
-      try {
-        const unlistenSidebar = await listen('jean2://accelerator/open-sidebar', () => {
-          focusSidebarSessionPanelRef.current();
-        });
-        if (disposed) {
-          unlistenSidebar();
-          return;
-        }
-        unlistenFns.push(unlistenSidebar);
-      } catch (err) {
-        console.error('Failed to register open-sidebar accelerator listener:', err);
-      }
-
-      try {
-        const unlistenTerminal = await listen('jean2://accelerator/open-terminal', () => {
-          focusTerminalPanelRef.current();
-        });
-        if (disposed) {
-          unlistenTerminal();
-          return;
-        }
-        unlistenFns.push(unlistenTerminal);
-      } catch (err) {
-        console.error('Failed to register open-terminal accelerator listener:', err);
-      }
-    };
-
-    registerListeners();
-
-    return () => {
-      disposed = true;
-      unlistenFns.forEach(fn => fn());
-    };
-  }, []); // Stable registration — handlers accessed via refs
-
-  return null;
-}
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
@@ -912,6 +790,13 @@ function AppContent() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (providerHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
         break;
+
+      default: {
+        const _exhaustive: never = msg as never;
+        console.warn(`[handleServerMessage] Unknown message type: ${(msg as { type: string }).type}`);
+        void _exhaustive;
+        break;
+      }
     }
   }, [handlerContext]);
 
@@ -994,152 +879,22 @@ function AppContent() {
     });
   }, [sidebarRef, setSidebarViewMode]);
 
-  const keyboardShortcutHandlers = useMemo(() => ({
-    onCloseTerminal: () => useUIStore.getState().setShowTerminalPanel(false),
-    focusChatInput: () => chatInputRef.current?.focus(),
-    onNewSession: () => {
-      if (activeWorkspace) {
-        createSession(primaryPreconfigs[0]?.id);
-      }
-    },
-    onNewWindow: () => {
-      invoke('create_new_window').catch(() => {});
-    },
-    onToggleViewMode: () => handleSidebarViewModeChange(prev => prev === 'overview' ? 'default' : 'overview'),
-    setTerminalOpen: useUIStore.getState().setShowTerminalPanel,
-    sidebarRef,
-    terminalPanelRef,
-    onStopStreaming: handleInterruptSession,
-  }), [activeWorkspace, createSession, primaryPreconfigs, handleSidebarViewModeChange, sidebarRef, terminalPanelRef, handleInterruptSession]);
-
   const isPrimarySession = !currentSession?.parentId;
 
   const isLoggedIn = !!(activeServer);
 
-  // Determine main content based on auth and connection state
-  const renderMainContent = () => {
-    // No servers exist - show FirstServerScreen
-    if (servers.length === 0) {
-      return (
-        <FirstServerScreen
-          onServerAdded={handleFirstServerAdded}
-          error={authError || undefined}
-        />
-      );
-    }
-
-    // Not logged in (no active server) - show FirstServerScreen
-    if (!isLoggedIn) {
-      return (
-        <FirstServerScreen
-          onServerAdded={handleFirstServerAdded}
-          error={authError || undefined}
-        />
-      );
-    }
-
-    // Logged in but currently switching servers
-    if (isSwitching) {
-      return (
-        <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
-          <ConnectingState message={`Connecting to ${activeServer?.name || 'server'}...`} />
-        </div>
-      );
-    }
-
-    // Logged in but not connected yet
-    if (!connected && sessions.length === 0) {
-      if (connectionTimedOut) {
-        return (
-          <div className="flex w-full h-full items-center justify-center bg-background">
-            <OfflineState
-              serverUrl={serverUrl!}
-              authError={authError}
-              retryCount={retryCount}
-              nextRetryIn={nextRetryIn}
-              onRetry={handleRetry}
-              onLogout={handleLogout}
-            />
-          </div>
-        );
-      }
-      return (
-        <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
-          <ConnectingState />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-muted-foreground"
-          >
-            Change Server
-          </Button>
-        </div>
-      );
-    }
-
-    // Logged in and connected - show main content
-    return (
-      <>
-        {currentSession ? (
-          <ChatView
-            inputRef={chatInputRef}
-            session={currentSession}
-            messagesWithParts={messagesWithParts}
-            queuedMessages={queuedMessages[currentSession.id] || []}
-            preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
-            prompts={prompts}
-            models={models}
-            connectedProviderIds={new Set(providerStatuses.filter(s => s.connected).map(s => s.provider))}
-            connectableProviderIds={new Set(providerStatuses.filter(s => s.connectable).map(s => s.provider))}
-            defaultModel={defaultModel}
-            onSendMessage={sendChatMessage}
-            onRemoveFromQueue={removeFromQueue}
-            onChangePreconfig={updateSessionPreconfig}
-            onChangeModel={updateSessionModel}
-            onChangeVariant={updateSessionVariant}
-            selectedVariant={selectedVariant}
-            variants={models.find(m => m.id === currentModel)?.variants}
-            pendingPermissions={pendingPermissions}
-            onPermissionResponse={handlePermissionResponse}
-            onRename={handleRenameSession}
-            usage={sessionUsage}
-            modelName={currentModel}
-            onNavigateToSubagent={resumeSession}
-            onNavigateBack={handleNavigateBack}
-            isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
-            onInterrupt={handleInterruptSession}
-            onRevert={revertSession}
-            onFork={forkSession}
-            onCompact={
-              (() => {
-                const compactable = messagesWithParts.filter(
-                  m => m.message.role !== 'system'
-                );
-                return compactable.length >= 4
-                  ? () => compactSession(currentSession.id)
-                  : undefined;
-              })()
-            }
-            isCompacting={isCompacting}
-            compactionSuccess={compactionSuccess}
-            onClearCompactionSuccess={() => setCompactionSuccess(false)}
-            serverUrl={serverUrl ?? undefined}
-            apiToken={apiToken ?? undefined}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground px-6">
-            <h2 className="mb-2">Select or create a session</h2>
-            <p>Choose a session from the sidebar or create a new one to start chatting.</p>
-          </div>
-        )}
-      </>
-    );
-  };
-
   return (
     <SidebarProvider defaultOpen={true}>
-      <KeyboardShortcutHandler {...keyboardShortcutHandlers} />
+      <AppKeyboardHandlersMount
+        sidebarRef={sidebarRef}
+        terminalPanelRef={terminalPanelRef}
+        chatInputRef={chatInputRef}
+        activeWorkspace={activeWorkspace}
+        primaryPreconfigs={primaryPreconfigs}
+        handleInterruptSession={handleInterruptSession}
+        handleSidebarViewModeChange={handleSidebarViewModeChange}
+        createSession={createSession}
+      />
       {isLoggedIn && (
         <AppSidebar
           ref={sidebarRef}
@@ -1189,7 +944,53 @@ function AppContent() {
           onSidebarViewModeChange={handleSidebarViewModeChange}
         />
 
-        {renderMainContent()}
+        <AppMainContent
+          servers={servers}
+          activeServer={activeServer}
+          isSwitching={isSwitching}
+          connected={connected}
+          authError={authError}
+          connectionTimedOut={connectionTimedOut}
+          retryCount={retryCount}
+          nextRetryIn={nextRetryIn}
+          serverUrl={serverUrl}
+          currentSession={currentSession}
+          messagesWithParts={messagesWithParts}
+          queuedMessages={queuedMessages}
+          preconfigs={preconfigs}
+          primaryPreconfigs={primaryPreconfigs}
+          prompts={prompts}
+          models={models}
+          providerStatuses={providerStatuses}
+          defaultModel={defaultModel}
+          selectedVariant={selectedVariant}
+          pendingPermissions={pendingPermissions}
+          sessionUsage={sessionUsage}
+          currentModel={currentModel}
+          streamingSessionIds={streamingSessionIds}
+          isCompacting={isCompacting}
+          compactionSuccess={compactionSuccess}
+          isPrimarySession={isPrimarySession}
+          inputRef={chatInputRef}
+          apiToken={apiToken}
+          onFirstServerAdded={handleFirstServerAdded}
+          onRetry={handleRetry}
+          onLogout={handleLogout}
+          onSendMessage={sendChatMessage}
+          onRemoveFromQueue={removeFromQueue}
+          onChangePreconfig={updateSessionPreconfig}
+          onChangeModel={updateSessionModel}
+          onChangeVariant={updateSessionVariant}
+          onPermissionResponse={handlePermissionResponse}
+          onRename={handleRenameSession}
+          onNavigateToSubagent={resumeSession}
+          onNavigateBack={handleNavigateBack}
+          onInterrupt={handleInterruptSession}
+          onRevert={revertSession}
+          onFork={forkSession}
+          onCompact={compactSession}
+          onClearCompactionSuccess={() => setCompactionSuccess(false)}
+        />
 
         <AppPanels
           workspaceId={activeWorkspace?.id}
