@@ -16,14 +16,14 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
-import { SessionMenuButton } from './SessionMenuButton';
+import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
 
 interface WorkspaceOverviewProps {
   allSessions: Session[];
+  childrenMap: ChildrenMap;
+  sessionDerivedValues: SessionDerivedValuesMap;
   currentSession: Session | null;
   currentSessionId: string | null;
-  streamingSessionIds: Set<string>;
-  pendingPermissions: { sessionId: string }[];
   favoritedWorkspaceIds: string[];
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
@@ -39,10 +39,10 @@ interface WorkspaceOverviewProps {
 
 export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   allSessions,
+  childrenMap,
+  sessionDerivedValues,
   currentSession,
   currentSessionId,
-  streamingSessionIds,
-  pendingPermissions,
   favoritedWorkspaceIds,
   workspaces,
   activeWorkspace,
@@ -140,22 +140,23 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
                         (no active sessions)
                       </div>
                     ) : (
-                      activeSessions.map((session) => (
-                        <SessionMenuButton
-                          key={session.id}
-                          session={session}
-                          allSessions={allSessions}
-                          isActive={currentSession?.id === session.id}
-                          currentSessionId={currentSessionId}
-                          streamingSessionIds={streamingSessionIds}
-                          pendingPermissions={pendingPermissions}
-                          onResumeSession={onResumeSession}
-                          onCloseSession={onCloseSession}
-                          onReopenSession={onReopenSession}
-                          onDeleteSession={onDeleteSession}
-                          onRename={onRenameSession}
-                        />
-                      ))
+                      activeSessions.map((session) => {
+                        return (
+                          <SessionMenuButton
+                            key={session.id}
+                            session={session}
+                            childrenMap={childrenMap}
+                            sessionDerivedValues={sessionDerivedValues}
+                            isActive={currentSession?.id === session.id}
+                            currentSessionId={currentSessionId}
+                            onResumeSession={onResumeSession}
+                            onCloseSession={onCloseSession}
+                            onReopenSession={onReopenSession}
+                            onDeleteSession={onDeleteSession}
+                            onRename={onRenameSession}
+                          />
+                        );
+                      })
                     )}
                   </SidebarMenu>
                 </SidebarGroupContent>

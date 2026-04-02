@@ -25,7 +25,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 
-import { SessionMenuButton } from './SessionMenuButton';
+import { SessionMenuButton, type ChildrenMap } from './SessionMenuButton';
 import { WorkspaceOverview } from './WorkspaceOverview';
 import { Badge } from '@/components/ui/badge';
 import { useServerContext } from '@/contexts/ServerContext';
@@ -219,6 +219,32 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
   // handlers in App.tsx. Keeping it stable (no reactive deps) ensures the imperative
   // handle reference never changes unless the sidebar DOM is remounted.
 
+  // Precompute childrenMap from allSessions for overview mode compatibility
+  const childrenMap = useMemo((): ChildrenMap => {
+    const map = new Map<string, Session[]>();
+    for (const session of allSessions) {
+      if (session.parentId) {
+        const existing = map.get(session.parentId) ?? [];
+        existing.push(session);
+        map.set(session.parentId, existing);
+      }
+    }
+    return map;
+  }, [allSessions]);
+
+  // Precompute derived values from allSessions for overview mode compatibility
+  const sessionDerivedValues = useMemo(() => {
+    const pendingSet = new Set(pendingPermissions.map(p => p.sessionId));
+    const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
+    for (const session of allSessions) {
+      const isStreaming = streamingSessionIds.has(session.id);
+      const hasPendingPermission = pendingSet.has(session.id);
+      const isRunning = isStreaming || session.subagentStatus === 'running' || !!session.runningAt;
+      derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
+    }
+    return derived;
+  }, [allSessions, streamingSessionIds, pendingPermissions]);
+
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
     const rootSessions = sessions.filter((s) => !s.parentId);
@@ -293,9 +319,10 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
         {viewMode === 'overview' ? (
           <WorkspaceOverview
             allSessions={allSessions}
+            childrenMap={childrenMap}
+            sessionDerivedValues={sessionDerivedValues}
             currentSession={currentSession}
             currentSessionId={currentSessionId}
-            streamingSessionIds={streamingSessionIds}
             favoritedWorkspaceIds={favoritedWorkspaceIds}
             workspaces={workspaces}
             activeWorkspace={activeWorkspace}
@@ -307,7 +334,6 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
             onRenameSession={onRenameSession}
             onCreateSessionInWorkspace={onCreateSessionInWorkspace}
             connected={connected}
-            pendingPermissions={pendingPermissions}
           />
         ) : (
           <>
@@ -331,11 +357,10 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                           <SessionMenuButton
                             key={session.id}
                             session={session}
-                            allSessions={sessions}
+                            childrenMap={childrenMap}
+                            sessionDerivedValues={sessionDerivedValues}
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
-                            streamingSessionIds={streamingSessionIds}
-                            pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}
@@ -370,11 +395,10 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
                           <SessionMenuButton
                             key={session.id}
                             session={session}
-                            allSessions={sessions}
+                            childrenMap={childrenMap}
+                            sessionDerivedValues={sessionDerivedValues}
                             isActive={currentSession?.id === session.id}
                             currentSessionId={currentSessionId}
-                            streamingSessionIds={streamingSessionIds}
-                            pendingPermissions={pendingPermissions}
                             onResumeSession={onResumeSession}
                             onCloseSession={onCloseSession}
                             onReopenSession={onReopenSession}

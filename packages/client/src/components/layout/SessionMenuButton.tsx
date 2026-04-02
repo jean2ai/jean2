@@ -1,5 +1,5 @@
 import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil } from 'lucide-react';
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/shared';
 import {
@@ -23,13 +23,20 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useCompletionFlash } from '@/hooks/useCompletionFlash';
 import { cn } from '@/lib/utils';
 
+export type ChildrenMap = Map<string, Session[]>;
+
+export type SessionDerivedValuesMap = Map<string, {
+  isStreaming: boolean;
+  hasPendingPermission: boolean;
+  isRunning: boolean;
+}>;
+
 interface SessionMenuButtonProps {
   session: Session;
-  allSessions: Session[];
+  childrenMap: ChildrenMap;
+  sessionDerivedValues: SessionDerivedValuesMap;
   isActive: boolean;
   currentSessionId: string | null;
-  streamingSessionIds: Set<string>;
-  pendingPermissions: { sessionId: string }[];
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
@@ -103,40 +110,28 @@ const SessionStatusIcon = React.memo(function SessionStatusIcon({
   isStreaming?: boolean;
   runningAt?: string | null;
 }) {
-  // Show running spinner when:
-  // - Client is streaming this session, OR
-  // - Subagent is running (status === 'running'), OR
-  // - Main session has runningAt set
   const isRunning = isStreaming || status === 'running' || !!runningAt;
   if (isRunning) {
     return <Loader2 className="size-3.5 animate-spin shrink-0" />;
   }
 
-  // Show error icon when subagent errored
   if (status === 'error') {
     return <XCircle className="size-3.5 shrink-0" />;
   }
 
-  // Show pause icon when subagent was interrupted
   if (status === 'interrupted') {
     return <Pause className="size-3.5 shrink-0" />;
   }
 
-  // Default: show checkmark for idle/completed sessions
-  // This covers:
-  // - Main sessions that are not streaming (idle)
-  // - Subagent sessions with completed status
-  // - Subagent sessions with no status (fallback)
   return <CheckCircle className="size-3.5 shrink-0" />;
 });
 
 export const SessionMenuButton = React.memo(function SessionMenuButton({
   session,
-  allSessions,
+  childrenMap,
+  sessionDerivedValues,
   isActive,
   currentSessionId,
-  streamingSessionIds,
-  pendingPermissions,
   onResumeSession,
   onCloseSession,
   onReopenSession,
@@ -147,12 +142,21 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const [editValue, setEditValue] = useState(session.title || '');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const childSessions = useMemo(
-    () => allSessions.filter(s => s.parentId === session.id),
-    [allSessions, session.id]
-  );
+  // O(1) lookup for derived values from the shared map
+  const derived = sessionDerivedValues.get(session.id) ?? {
+    isStreaming: false,
+    hasPendingPermission: false,
+    isRunning: false,
+  };
+
+  // O(1) lookup instead of O(N) filter
+  const childSessions = childrenMap.get(session.id) ?? [];
   const hasChildren = childSessions.length > 0;
   const isClosed = session.status === 'closed';
+
+  const hasActiveChild = childSessions.some(c => c.id === currentSessionId);
+
+  const { isFlashing } = useCompletionFlash(session.id, derived.isRunning);
 
   // Track whether we've already performed the initial focus/select for the current edit session.
   // This prevents focus/select from resetting on unrelated re-renders while already editing.
@@ -206,17 +210,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   };
 
-  const hasActiveChild = useMemo(
-    () => childSessions.some(c => c.id === currentSessionId),
-    [childSessions, currentSessionId]
-  );
-
-  const isStreaming = streamingSessionIds.has(session.id);
-  const hasPendingPermission = pendingPermissions.some(p => p.sessionId === session.id);
-
-  const isRunning = isStreaming || session.subagentStatus === 'running' || !!session.runningAt;
-  const { isFlashing } = useCompletionFlash(session.id, isRunning);
-
   // No children - simple item with spacer for alignment
   if (!hasChildren) {
     return (
@@ -248,8 +241,8 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="truncate flex items-center gap-2">
-                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
-                      {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={derived.isStreaming} runningAt={session.runningAt} />
+                      {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
                     </span>
                   </TooltipTrigger>
@@ -313,8 +306,8 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="truncate flex items-center gap-2">
-                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isStreaming} runningAt={session.runningAt} />
-                      {hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={derived.isStreaming} runningAt={session.runningAt} />
+                      {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
                     </span>
                   </TooltipTrigger>
@@ -336,18 +329,17 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             />
           </div>
 
-          {/* Nested children - recursive rendering */}
+          {/* Nested children - recursive rendering with same childrenMap */}
           <CollapsibleContent>
             <SidebarMenuSub>
               {childSessions.map((child) => (
                 <SessionMenuButton
                   key={child.id}
                   session={child}
-                  allSessions={allSessions}
+                  childrenMap={childrenMap}
+                  sessionDerivedValues={sessionDerivedValues}
                   isActive={currentSessionId === child.id}
                   currentSessionId={currentSessionId}
-                  streamingSessionIds={streamingSessionIds}
-                  pendingPermissions={pendingPermissions}
                   onResumeSession={onResumeSession}
                   onCloseSession={onCloseSession}
                   onReopenSession={onReopenSession}
