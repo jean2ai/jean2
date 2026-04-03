@@ -759,3 +759,77 @@ main {
 .xterm-screen {
   height: 100% !important;
 }
+
+/* ==========================================================================
+   SAFARI-LIKE CHAT SCROLLBAR STYLING
+   Thin, subtle, rounded scrollbars for chat transcript and input areas
+   ========================================================================== */
+
+/* Safari-like scrollbar for chat transcript (main message area) */
+.chat-transcript-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) transparent;
+}
+
+.chat-transcript-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-transcript-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+
+.chat-transcript-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--muted-foreground);
+  opacity: 0.35;
+  border-radius: 3px;
+  border: none;
+}
+
+.chat-transcript-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+  opacity: 0.5;
+}
+
+/* Firefox fallback for transcript */
+@supports not (-webkit-scrollbar-thumb) {
+  .chat-transcript-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
+}
+
+/* Safari-like scrollbar for chat input textarea */
+.chat-input-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) transparent;
+}
+
+.chat-input-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-input-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-input-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--muted-foreground);
+  opacity: 0.3;
+  border-radius: 3px;
+  border: none;
+}
+
+.chat-input-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+  opacity: 0.45;
+}
+
+/* Firefox fallback for input */
+@supports not (-webkit-scrollbar-thumb) {
+  .chat-input-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent) transparent;
+  }
+}

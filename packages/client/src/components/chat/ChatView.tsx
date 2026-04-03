@@ -1,18 +1,12 @@
-import { useRef, useEffect, useState, useMemo, memo } from 'react';
-import { Lock, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, Part, TextPart, ToolPart, QueuedMessage, Message, CompactionPart, PromptInfo, AssistantMessage } from '@jean2/shared';
-import { isAssistantMessage } from '@jean2/shared';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
+import { Lock, ChevronRight } from 'lucide-react';
+import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage } from '@jean2/shared';
 import { ChatHeader } from './ChatHeader';
-import { MessageBubble } from './MessageBubble';
-import { ToolCall } from './ToolCall';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { VirtualizedTranscript } from './VirtualizedTranscript';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 
 interface PendingPermissionRequest {
   toolCallId: string;
@@ -38,8 +32,8 @@ interface Model {
 }
 
 interface DisplayItem {
-  message: Message;
-  parts: Part[];
+  message: import('@jean2/shared').Message;
+  parts: import('@jean2/shared').Part[];
   isQueued?: boolean;
   queueId?: string;
 }
@@ -49,7 +43,7 @@ interface ChatViewProps {
   messagesWithParts: MessageWithParts[];
   queuedMessages: QueuedMessage[];
   preconfigs: Preconfig[];
-  prompts?: PromptInfo[];
+  prompts?: import('@jean2/shared').PromptInfo[];
   models: Model[];
   connectedProviderIds?: Set<string>;
   connectableProviderIds?: Set<string>;
@@ -85,33 +79,6 @@ interface ChatViewProps {
   inputRef?: React.RefObject<MessageInputHandle | null>;
 }
 
-function getTextContent(parts: Part[]): string {
-  return parts
-    .filter((part): part is TextPart => part.type === 'text')
-    .map(part => part.text)
-    .join('');
-}
-
-function findRevertMessageId(
-  targetMessageId: string,
-  messagesWithParts: MessageWithParts[]
-): string | null {
-  const targetIndex = messagesWithParts.findIndex(mwp => mwp.message.id === targetMessageId);
-
-  if (targetIndex <= 0) {
-    return null;
-  }
-
-  for (let i = targetIndex - 1; i >= 0; i--) {
-    const mwp = messagesWithParts[i];
-    if (mwp.message.role === 'assistant' && mwp.message.status !== 'streaming') {
-      return mwp.message.id;
-    }
-  }
-
-  return null;
-}
-
 function mergeMessagesWithQueue(
   messagesWithParts: MessageWithParts[],
   queuedMessages: QueuedMessage[]
@@ -128,7 +95,7 @@ function mergeMessagesWithQueue(
       role: 'user' as const,
       sessionId: qm.sessionId,
       createdAt: qm.createdAt,
-    } as Message,
+    },
     parts: [{
       id: `${qm.id}-part`,
       messageId: qm.id,
@@ -153,182 +120,77 @@ function mergeMessagesWithQueue(
   return [...sortedRegularItems, ...sortedQueuedItems];
 }
 
-function CompactionInProgressBanner() {
-  return (
-    <div className="mx-4 mt-4 flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border border-border">
-      <Minimize2 className="size-4 animate-pulse" />
-      <span>Compacting conversation...</span>
-    </div>
-  );
-}
-
-function CompactionSuccessBanner() {
-  return (
-    <div className="mx-4 mt-4 flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg px-3 py-2 border border-green-500/20">
-      <CheckCircle2 className="size-4" />
-      <span>Compaction complete</span>
-    </div>
-  );
-}
-
-function CompactionFailedMessage({
-  message,
-  textContent,
-  onRetry,
-}: {
-  message: AssistantMessage;
-  textContent: string;
-  onRetry?: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1 mb-4 animate-slide-up min-w-0">
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-destructive ml-3">
-        <AlertTriangle className="size-3" />
-        Compaction Failed
-      </div>
-      <div className="rounded-2xl px-4 py-3 max-w-full bg-destructive/10 border border-destructive/30 rounded-bl-md">
-        <p className="text-sm text-destructive/90">
-          {textContent || message.error || 'Compaction failed. The conversation could not be summarized.'}
-        </p>
-        {onRetry && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRetry}
-            className="mt-2 h-7 text-xs gap-1.5"
-          >
-            <RotateCcw className="size-3" />
-            Retry
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CompactionDivider({ part }: { part: CompactionPart }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const reason = part.overflow ? 'overflow' : part.auto ? 'auto' : 'manual';
-
-  return (
-    <div className="flex flex-col items-center my-4">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-      >
-        {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-        <span className="border-b border-dashed border-muted-foreground/40 pb-px">
-          {reason === 'overflow' ? 'Context overflow' : reason === 'auto' ? 'Auto' : 'Manual'} compaction
-        </span>
-      </button>
-      {expanded && (
-        <div className="mt-2 text-xs text-muted-foreground italic">
-          Summary available in the assistant message below
-        </div>
-      )}
-    </div>
-  );
-}
-
-const MessageParts = memo(function MessageParts({
-  parts,
-  pendingPermissions,
+// Permission requests panel - rendered at the bottom outside the virtualized scroll container
+// This ensures permissions are always reachable and visible near the input area
+function PermissionRequestsPanel({
+  permissions,
   onPermissionResponse,
-  onNavigateToSubagent,
-  inverted = false,
 }: {
-  parts: Part[];
-  pendingPermissions: PendingPermissionRequest[];
+  permissions: PendingPermissionRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  onNavigateToSubagent?: (sessionId: string) => void;
-  inverted?: boolean;
 }) {
-  // Sort parts by createdAt to ensure chronological order
-  const sortedParts = [...parts].sort((a, b) => a.createdAt - b.createdAt);
+  if (permissions.length === 0) return null;
 
   return (
-    <>
-      {sortedParts.map((part) => {
-        switch (part.type) {
-          case 'text':
-            return (
-              <div key={part.id} className="min-w-0">
-                <MarkdownRenderer inverted={inverted}>{part.text || '...'}</MarkdownRenderer>
-              </div>
-            );
+    <div className="border-t border-border bg-muted/30 flex flex-col gap-2 p-4">
+      <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+        Pending Requests
+      </div>
+      {permissions.map((p) => {
+        const commandText = typeof p.args?.command === 'string'
+          ? p.args.command
+          : JSON.stringify(p.args, null, 2);
 
-          case 'reasoning':
-            return (
-              <div
-                key={part.id}
-                className="visualization-container text-muted-foreground text-sm italic border-l-2 border-muted-foreground/30 pl-3 my-2 wrap-break-word"
+        return (
+          <div
+            key={p.toolCallId}
+            className="p-3 bg-warning/10 border border-warning/30 rounded-lg flex flex-col gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{p.toolName}</span>
+            </div>
+            <p className="text-sm">{p.message}</p>
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
+                  <ChevronRight className="size-3" />
+                  <span className="uppercase tracking-wide">Command</span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words">
+                  {commandText}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+            <div className="flex justify-end gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onPermissionResponse(p.toolCallId, false, false)}
               >
-                {part.text}
-              </div>
-            );
-
-          case 'tool':
-            return (
-              <ToolCall
-                key={part.id}
-                part={part}
-                pendingPermissions={pendingPermissions}
-                onPermissionResponse={onPermissionResponse}
-                onNavigateToSubagent={onNavigateToSubagent}
-              />
-            );
-
-          case 'image':
-            return (
-              <img
-                key={part.id}
-                src={part.url}
-                alt=""
-                className="max-w-full rounded-lg mt-2"
-              />
-            );
-
-          case 'file':
-            return (
-              <div key={part.id} className="mt-2 p-2 bg-muted rounded text-sm">
-                {part.filename || 'unnamed'}
-              </div>
-            );
-
-          default:
-            return null;
-        }
+                Deny
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onPermissionResponse(p.toolCallId, true, false)}
+              >
+                Approve
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onPermissionResponse(p.toolCallId, true, true)}
+              >
+                Always Allow
+              </Button>
+            </div>
+          </div>
+        );
       })}
-    </>
+    </div>
   );
-}, (prev, next) => {
-  if (prev.parts !== next.parts) return false;
-  if (prev.inverted !== next.inverted) return false;
-  if (prev.onPermissionResponse !== next.onPermissionResponse) return false;
-  if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
-
-  const hasPendingTool = prev.parts.some(
-    p => p.type === 'tool' && (p as ToolPart).state.status === 'pending'
-  );
-  if (!hasPendingTool) return true;
-
-  const prevToolCallIds = new Set(
-    prev.parts
-      .filter((p): p is ToolPart => p.type === 'tool')
-      .map(p => p.callId)
-  );
-
-  const prevRelevantPerms = prev.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
-  const nextRelevantPerms = next.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
-
-  if (prevRelevantPerms.length !== nextRelevantPerms.length) return false;
-  for (let i = 0; i < prevRelevantPerms.length; i++) {
-    if (prevRelevantPerms[i].toolCallId !== nextRelevantPerms[i].toolCallId) return false;
-  }
-
-  return true;
-});
+}
 
 export function ChatView({
   session,
@@ -359,7 +221,7 @@ export function ChatView({
   onCompact,
   isCompacting,
   compactionSuccess,
-  onClearCompactionSuccess,
+  onClearCompactionSuccess: _onClearCompactionSuccess,
   serverUrl,
   apiToken,
   selectedVariant,
@@ -369,54 +231,13 @@ export function ChatView({
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
 
-  // Auto-clear compaction success after delay
-  useEffect(() => {
-    if (compactionSuccess) {
-      const timer = setTimeout(() => {
-        onClearCompactionSuccess?.();
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [compactionSuccess, onClearCompactionSuccess]);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [isNearBottom, setIsNearBottom] = useState(true);
-  const SCROLL_THRESHOLD = 150;
-
   const displayItems = useMemo(
     () => mergeMessagesWithQueue(messagesWithParts, queuedMessages),
     [messagesWithParts, queuedMessages]
   );
 
-  // Scroll to bottom on initial session load and reset near-bottom state
-  useEffect(() => {
-    setIsNearBottom(true);
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [session.id]);
-
-  // Scroll to bottom when new messages arrive (only if user is near bottom)
-  useEffect(() => {
-    if (scrollRef.current && isNearBottom) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messagesWithParts, isNearBottom]);
-
-  // Track scroll position to determine if user is near bottom
-  useEffect(() => {
-    const viewport = scrollRef.current;
-    if (!viewport) return;
-
-    const handleScroll = () => {
-      const { scrollHeight, scrollTop, clientHeight } = viewport;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      setIsNearBottom(distanceFromBottom < SCROLL_THRESHOLD);
-    };
-
-    viewport.addEventListener('scroll', handleScroll, { passive: true });
-    return () => viewport.removeEventListener('scroll', handleScroll);
-  }, []);
-
+  // Permission requests that don't have matching tool parts in the transcript
+  // These are shown in the PermissionRequestsPanel at the bottom
   const orphanedPermissions = useMemo(() =>
     pendingPermissions.filter((p) => {
       if (p.sessionId !== session.id) return false;
@@ -454,142 +275,29 @@ export function ChatView({
         variants={variants}
       />
 
-      {isCompacting && <CompactionInProgressBanner />}
+      {/* Virtualized transcript - handles scrolling for messages only */}
+      <VirtualizedTranscript
+        displayItems={displayItems}
+        messagesWithParts={messagesWithParts}
+        sessionId={session.id}
+        sessionStatus={session.status}
+        pendingPermissions={pendingPermissions}
+        isCompacting={isCompacting}
+        compactionSuccess={compactionSuccess}
+        onPermissionResponse={onPermissionResponse}
+        onNavigateToSubagent={onNavigateToSubagent}
+        onRemoveFromQueue={onRemoveFromQueue}
+        onRevert={_onRevert}
+        onFork={_onFork}
+        onCompact={onCompact}
+        isMainActiveSession={isMainActiveSession}
+      />
 
-      {compactionSuccess && <CompactionSuccessBanner />}
-
-      {session.status === 'closed' && (
-        <Alert className="mx-4 mt-4">
-          <AlertDescription>
-            This session is archived. You can reopen it from the sidebar.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
-        <div className="p-4">
-          {displayItems.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <p className="text-lg mb-2">Start a conversation</p>
-              <p className="text-sm">Send a message below to begin.</p>
-            </div>
-          ) : (
-            displayItems.map((item) => {
-              const compactionPart = item.parts.find(
-                (p): p is CompactionPart => p.type === 'compaction'
-              );
-
-              const isCompactFailed = isAssistantMessage(item.message) && item.message.mode === 'compact_failed';
-
-              if (isCompactFailed) {
-                return (
-                  <CompactionFailedMessage
-                    key={item.message.id}
-                    message={item.message as AssistantMessage}
-                    textContent={getTextContent(item.parts)}
-                    onRetry={isMainActiveSession && !isCompacting ? onCompact : undefined}
-                  />
-                );
-              }
-
-              if (compactionPart) {
-                return (
-                  <CompactionDivider key={item.message.id} part={compactionPart} />
-                );
-              }
-
-              const canRevert = !item.isQueued && item.message.role === 'user';
-              const revertMessageId = canRevert
-                ? findRevertMessageId(item.message.id, messagesWithParts)
-                : null;
-
-              return (
-                <MessageBubble
-                  key={item.message.id}
-                  message={item.message}
-                  textContent={getTextContent(item.parts)}
-                  isQueued={item.isQueued}
-                  onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
-                  canRevert={canRevert && revertMessageId !== null}
-                  onRevert={revertMessageId ? () => _onRevert?.(session.id, revertMessageId) : undefined}
-                  canFork={canRevert && revertMessageId !== null}
-                  onFork={revertMessageId ? () => _onFork?.(session.id, item.message.id) : undefined}
-                >
-                {item.parts.length === 0 ? (
-                  <span className="opacity-50">...</span>
-                ) : (
-                  <MessageParts
-                    parts={item.parts}
-                    pendingPermissions={pendingPermissions}
-                    onPermissionResponse={onPermissionResponse}
-                    onNavigateToSubagent={onNavigateToSubagent}
-                    inverted={item.message.role === 'user'}
-                  />
-                )}
-              </MessageBubble>
-            );
-            })
-          )}
-
-          {orphanedPermissions.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2">
-              {orphanedPermissions.map((p) => {
-                const commandText = typeof p.args?.command === 'string'
-                  ? p.args.command
-                  : JSON.stringify(p.args, null, 2);
-
-                return (
-                  <div
-                    key={p.toolCallId}
-                    className="p-3 bg-warning/10 border border-warning/30 rounded-lg flex flex-col gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{p.toolName}</span>
-                      <span className="text-xs text-muted-foreground">{p.permissionType}</span>
-                    </div>
-                    <p className="text-sm">{p.message}</p>
-                    <Collapsible>
-                      <CollapsibleTrigger asChild>
-                        <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
-                          <ChevronRight className="size-3" />
-                          <span className="uppercase tracking-wide">Command</span>
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words">
-                          {commandText}
-                        </pre>
-                      </CollapsibleContent>
-                    </Collapsible>
-                    <div className="flex justify-end gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onPermissionResponse(p.toolCallId, false, false)}
-                      >
-                        Deny
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => onPermissionResponse(p.toolCallId, true, false)}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => onPermissionResponse(p.toolCallId, true, true)}
-                      >
-                        Always Allow
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      {/* Permission requests panel rendered at the bottom - visible near input area */}
+      <PermissionRequestsPanel
+        permissions={orphanedPermissions}
+        onPermissionResponse={onPermissionResponse}
+      />
 
       {session.status === 'active' && !session.parentId && (
         <MessageInput

@@ -239,11 +239,14 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     for (const session of allSessions) {
       const isStreaming = streamingSessionIds.has(session.id);
       const hasPendingPermission = pendingSet.has(session.id);
-      const isRunning = isStreaming || session.subagentStatus === 'running' || !!session.runningAt;
+      // Only use transient streaming state for the current session.
+      // Non-current sessions should rely on authoritative session state.
+      const isCurrentSession = session.id === currentSessionId;
+      const isRunning = (isCurrentSession && isStreaming) || session.subagentStatus === 'running' || !!session.runningAt;
       derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
     }
     return derived;
-  }, [allSessions, streamingSessionIds, pendingPermissions]);
+  }, [allSessions, streamingSessionIds, pendingPermissions, currentSessionId]);
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {

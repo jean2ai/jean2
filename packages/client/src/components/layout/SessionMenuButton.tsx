@@ -241,7 +241,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="truncate flex items-center gap-2">
-                      <SessionStatusIcon status={session.subagentStatus} isStreaming={derived.isStreaming} runningAt={session.runningAt} />
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isActive ? derived.isStreaming : false} runningAt={session.runningAt} />
                       {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
                     </span>
@@ -306,7 +306,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="truncate flex items-center gap-2">
-                      <SessionStatusIcon status={session.subagentStatus} isStreaming={derived.isStreaming} runningAt={session.runningAt} />
+                      <SessionStatusIcon status={session.subagentStatus} isStreaming={isActive ? derived.isStreaming : false} runningAt={session.runningAt} />
                       {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
                     </span>

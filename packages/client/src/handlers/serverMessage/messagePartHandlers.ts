@@ -28,7 +28,7 @@ export function handleMessageCreated(
     }));
   }
 
-  if ('status' in message && message.status === 'streaming') {
+  if (message.sessionId === currentSessionIdRef.current && 'status' in message && message.status === 'streaming') {
     addStreamingSession(message.sessionId);
     removeInterruptedSession(message.sessionId);
   }
@@ -157,7 +157,7 @@ export function handlePartAppend(
     flushPendingPartAppends,
   } = ctx;
 
-  if (!interruptedSessions.has(sessionId)) {
+  if (sessionId === currentSessionIdRef.current && !interruptedSessions.has(sessionId)) {
     addStreamingSession(sessionId);
   }
 

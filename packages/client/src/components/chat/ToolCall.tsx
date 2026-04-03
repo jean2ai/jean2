@@ -1,7 +1,6 @@
 import { memo, useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle, Pause } from 'lucide-react';
 import type { ToolPart, AnyVisualization } from '@jean2/shared';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { VisualizationRenderer } from '@/components/visualizations';
@@ -292,12 +291,7 @@ export const ToolCall = memo(function ToolCall({
         <div className="border border-warning/50 bg-warning/10 rounded-md p-3 flex flex-col gap-3 mt-2">
           <div className="flex items-center gap-2">
             <AlertTriangle className="size-4 text-warning" />
-            <Badge variant="outline" className="text-warning border-warning">
-              {pendingPermission.permissionType}
-            </Badge>
-            <span className="text-sm font-mono text-muted-foreground">
-              {pendingPermission.permissionKey}
-            </span>
+            <span className="text-sm font-medium">Permission Required</span>
           </div>
 
           {pendingPermission.message && (

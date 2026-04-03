@@ -305,7 +305,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 placeholder={placeholder}
                 disabled={disabled}
                 className={cn(
-                  'min-h-[44px] max-h-[150px] resize-none pr-12',
+                  'min-h-[44px] max-h-[150px] resize-none pr-12 chat-input-scrollbar',
                   'focus-visible:ring-1'
                 )}
                 rows={1}
