@@ -833,3 +833,14 @@ main {
     scrollbar-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent) transparent;
   }
 }
+
+/* ==========================================================================
+   SIDEBAR RESIZE TRANSITION CONTROL
+   Suppresses CSS transitions during drag for instant cursor tracking
+   ========================================================================== */
+
+.no-transition,
+.no-transition * {
+  transition: none !important;
+  animation: none !important;
+}

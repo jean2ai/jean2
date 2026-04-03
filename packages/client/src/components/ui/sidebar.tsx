@@ -4,7 +4,9 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
+import { clampPanelWidth } from "@jean2/shared"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useUIStore } from "@/stores/uiStore"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -665,6 +667,117 @@ function SidebarMenuSubButton({
   )
 }
 
+function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div">) {
+  const isMobile = useIsMobile();
+  const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
+  const setSessionsPanelWidth = useUIStore((s) => s.setSessionsPanelWidth);
+
+  const [isDragging, setIsDragging] = React.useState(false);
+  const isDraggingRef = React.useRef(false);
+  const startXRef = React.useRef(0);
+  const startWidthRef = React.useRef(0);
+  const liveWidthRef = React.useRef(0);
+  const wrapperRef = React.useRef<HTMLElement | null>(null);
+  const savedWidthRef = React.useRef<string | null>(null);
+
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    if (isMobile) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = liveWidthRef.current;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    // Find the wrapper element that holds the --sidebar-width CSS variable
+    // Both sidebar-gap and sidebar-container consume this variable, so updating it
+    // here will make both elements track during drag
+    const wrapper = document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+    wrapperRef.current = wrapper;
+    if (wrapper) {
+      // Save the current CSS variable value so we can restore it later
+      savedWidthRef.current = wrapper.style.getPropertyValue('--sidebar-width') || null;
+      // Suppress CSS transitions during drag for instant tracking
+      wrapper.classList.add('no-transition');
+    }
+  }, [isMobile]);
+
+  React.useEffect(() => {
+    liveWidthRef.current = sessionsPanelWidth;
+  }, [sessionsPanelWidth]);
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = e.clientX - startXRef.current;
+      const next = clampPanelWidth(startWidthRef.current + delta);
+      liveWidthRef.current = next;
+
+      // Update the --sidebar-width CSS variable on the wrapper element
+      // This drives both the gap and container since they both use this variable
+      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+      if (wrapper) {
+        wrapper.style.setProperty('--sidebar-width', `${Math.round(next)}px`);
+        wrapperRef.current = wrapper;
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+
+      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+      if (wrapper) {
+        // Remove no-transition class to restore CSS transitions
+        wrapper.classList.remove('no-transition');
+        // Clean up the inline CSS variable override so the SidebarProvider
+        // style takes over again (it will set the correct value from store)
+        if (savedWidthRef.current !== null) {
+          wrapper.style.setProperty('--sidebar-width', savedWidthRef.current);
+        } else {
+          wrapper.style.removeProperty('--sidebar-width');
+        }
+      }
+
+      setSessionsPanelWidth(Math.round(liveWidthRef.current));
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setSessionsPanelWidth]);
+
+  if (isMobile) return null;
+
+  return (
+    <div
+      data-slot="sessions-resize-handle"
+      className={cn(
+        "absolute top-0 right-0 z-30 h-full w-2 flex cursor-ew-resize items-center justify-center group/sidebar-resize",
+        className
+      )}
+      onMouseDown={handleMouseDown}
+      {...props}
+    >
+      <div
+        className={cn(
+          "h-8 w-0.5 rounded-full transition-colors duration-100",
+          "bg-transparent group-hover/sidebar-resize:bg-border",
+          isDragging ? "bg-primary" : "group-active/sidebar-resize:bg-primary"
+        )}
+      />
+    </div>
+  );
+}
+
 export {
   Sidebar,
   SidebarContent,
@@ -689,5 +802,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  SessionsResizeHandle,
   useSidebar,
 }

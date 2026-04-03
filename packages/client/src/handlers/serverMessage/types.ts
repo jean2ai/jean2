@@ -76,7 +76,6 @@ export interface SessionHandlersContext {
   playPermissionSound: () => void;
   chatFinishSoundEnabledRef: React.MutableRefObject<boolean>;
   playChatFinishSound: () => void;
-  onSessionCompleted?: () => void;
 }
 
 export type SessionHandlers = {

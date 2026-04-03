@@ -79,7 +79,6 @@ interface ChatViewProps {
   inputRef?: React.RefObject<MessageInputHandle | null>;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
-  onSessionCompletedRef?: React.RefObject<(() => void) | null>;
 }
 
 function mergeMessagesWithQueue(
@@ -232,7 +231,6 @@ export function ChatView({
   inputRef,
   scrollToBottomRef,
   autoFollowToggleRef,
-  onSessionCompletedRef,
 }: ChatViewProps) {
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
@@ -259,15 +257,6 @@ export function ChatView({
       };
     }
   }, [autoFollowToggleRef, handleToggleAutoFollow]);
-
-  // Wire up session completion callback to disable auto-follow (switch to Free mode)
-  useEffect(() => {
-    if (onSessionCompletedRef) {
-      onSessionCompletedRef.current = () => {
-        setAutoFollow(false);
-      };
-    }
-  }, [onSessionCompletedRef]);
 
   const displayItems = useMemo(
     () => mergeMessagesWithQueue(messagesWithParts, queuedMessages),

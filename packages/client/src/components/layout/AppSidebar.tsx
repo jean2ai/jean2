@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SessionsResizeHandle,
   useSidebar,
 } from '@/components/ui/sidebar';
 
@@ -279,6 +280,8 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
 
   return (
     <Sidebar collapsible="offcanvas">
+      {/* Sessions panel resize handle — desktop only, right edge */}
+      <SessionsResizeHandle />
       {/* Header: Workspace + New Chat */}
       <SidebarHeader>
         <div className="p-2 space-y-2">

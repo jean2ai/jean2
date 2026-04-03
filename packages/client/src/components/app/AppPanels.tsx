@@ -26,6 +26,7 @@ export function AppPanels({
   const setShowTerminalPanel = useUIStore((s) => s.setShowTerminalPanel);
   const showFilesPanel = useUIStore((s) => s.showFilesPanel);
   const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
+  const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
 
   if (!isLoggedIn) {
     return null;
@@ -38,6 +39,7 @@ export function AppPanels({
         serverUrl={serverUrl}
         apiToken={apiToken}
         isOpen={showFilesPanel}
+        width={filesPanelWidth}
         onClose={() => setShowFilesPanel(false)}
       />
 

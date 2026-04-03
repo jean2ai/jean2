@@ -96,7 +96,6 @@ function AppContent() {
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
-  const onSessionCompletedRef = useRef<(() => void) | null>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
 
@@ -729,7 +728,6 @@ function AppContent() {
     playPermissionSound,
     chatFinishSoundEnabledRef,
     playChatFinishSound,
-    onSessionCompleted: () => onSessionCompletedRef.current?.(),
   }), [
     setSessions,
     setCurrentSession,
@@ -900,6 +898,7 @@ function AppContent() {
   const headerTitle = currentSession ? (activeWorkspace?.name ?? 'Jean2') : 'Jean2';
 
   const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
+  const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
 
   const handleSidebarViewModeChange = useCallback((
     mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
@@ -919,7 +918,7 @@ function AppContent() {
   const isLoggedIn = !!(activeServer);
 
   return (
-    <SidebarProvider defaultOpen={true}>
+    <SidebarProvider defaultOpen={true} style={{ '--sidebar-width': `${sessionsPanelWidth}px` } as React.CSSProperties}>
       <AppKeyboardHandlersMount
         sidebarRef={sidebarRef}
         terminalPanelRef={terminalPanelRef}
@@ -1028,7 +1027,6 @@ function AppContent() {
           onClearCompactionSuccess={() => setCompactionSuccess(false)}
           scrollToBottomRef={scrollToBottomRef}
           autoFollowToggleRef={autoFollowToggleRef}
-          onSessionCompletedRef={onSessionCompletedRef}
         />
 
         <AppPanels

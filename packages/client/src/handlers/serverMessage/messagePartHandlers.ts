@@ -88,10 +88,6 @@ export function handleMessageUpdated(
       if (chatFinishSoundEnabledRef.current) {
         playChatFinishSound();
       }
-      // Only auto-switch to Free mode when the completing session is the active session
-      if (message.sessionId === currentSessionIdRef.current) {
-        ctx.onSessionCompleted?.();
-      }
     }
   }
 }

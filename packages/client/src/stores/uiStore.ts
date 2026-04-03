@@ -1,5 +1,15 @@
 import { create } from 'zustand';
 import type { SavedServer } from '@jean2/shared';
+import {
+  PANEL_DEFAULT_WIDTH,
+  clampPanelWidth,
+} from '@jean2/shared';
+import {
+  getSessionsPanelWidth,
+  saveSessionsPanelWidth,
+  getFilesPanelWidth,
+  saveFilesPanelWidth,
+} from '@/config/panelStorage';
 
 export type CompletionRecord = {
   type: 'flash-only' | 'flash-then-sticky';
@@ -19,6 +29,8 @@ interface UIState {
   editServerData: SavedServer | null;
   sidebarViewMode: SidebarViewMode;
   completionState: Map<string, CompletionRecord>;
+  sessionsPanelWidth: number;
+  filesPanelWidth: number;
 }
 
 interface UIActions {
@@ -32,6 +44,8 @@ interface UIActions {
   setCompletion: (sessionId: string, record: CompletionRecord) => void;
   clearCompletion: (sessionId: string) => void;
   clearAllCompletions: () => void;
+  setSessionsPanelWidth: (width: number) => void;
+  setFilesPanelWidth: (width: number) => void;
 }
 
 type UIStore = UIState & UIActions;
@@ -44,6 +58,14 @@ const getInitialSidebarViewMode = (): SidebarViewMode => {
   return stored === 'default' || stored === 'overview' ? stored : 'default';
 };
 
+const getInitialSessionsPanelWidth = (): number => {
+  return getSessionsPanelWidth(PANEL_DEFAULT_WIDTH);
+};
+
+const getInitialFilesPanelWidth = (): number => {
+  return getFilesPanelWidth(PANEL_DEFAULT_WIDTH);
+};
+
 export const useUIStore = create<UIStore>((set) => ({
   showSettings: false,
   showMCPDialog: false,
@@ -53,6 +75,8 @@ export const useUIStore = create<UIStore>((set) => ({
   editServerData: null,
   sidebarViewMode: getInitialSidebarViewMode(),
   completionState: new Map<string, CompletionRecord>(),
+  sessionsPanelWidth: getInitialSessionsPanelWidth(),
+  filesPanelWidth: getInitialFilesPanelWidth(),
 
   setShowSettings: (show) => set({ showSettings: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
@@ -77,6 +101,16 @@ export const useUIStore = create<UIStore>((set) => ({
     return { completionState: newMap };
   }),
   clearAllCompletions: () => set({ completionState: new Map<string, CompletionRecord>() }),
+  setSessionsPanelWidth: (width) => {
+    const clampedWidth = clampPanelWidth(width);
+    saveSessionsPanelWidth(clampedWidth);
+    set({ sessionsPanelWidth: clampedWidth });
+  },
+  setFilesPanelWidth: (width) => {
+    const clampedWidth = clampPanelWidth(width);
+    saveFilesPanelWidth(clampedWidth);
+    set({ filesPanelWidth: clampedWidth });
+  },
 }));
 
 // Selector: get completion record for a session
