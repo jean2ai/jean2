@@ -379,8 +379,10 @@ export function VirtualizedTranscript({
   const initialScrollDoneRef = useRef(false);
   // Track if user has manually scrolled up (away from bottom)
   const userScrolledUpRef = useRef(false);
-  // Dedicated wheel flag: set immediately on wheel, cleared only on explicit bottom return
+  // Dedicated wheel flag: set on significant upward wheel, cleared only on explicit bottom return
   const wheelScrolledUpRef = useRef(false);
+  // Accumulate wheel delta to avoid hair-trigger disengage
+  const wheelDeltaAccumRef = useRef(0);
 
   // Fingerprint of the last item's content state - robust signal for growth detection
   // Changes when: item added, item replaced, or content mutates (e.g., streaming text)
@@ -529,12 +531,27 @@ export function VirtualizedTranscript({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]); // Only depend on sessionId - rowVirtualizer is stable reference
 
-  // Immediate wheel handler: disables streaming scroll the instant user wheels
-  // This prevents any racing ResizeObserver RAF from reclaiming during wheel interaction
-  const handleWheel = useCallbackRef(() => {
-    wheelScrolledUpRef.current = true;
-    autoScrollRef.current = false;
-    userScrolledUpRef.current = true;
+  // Wheel handler: only disengages follow on significant upward wheel movement
+  // This prevents tiny incidental upward wheel noise from breaking follow
+  // threshold: cumulative deltaY (positive = upward) before disengaging
+  const WHEEL_DISENGAGE_THRESHOLD = 30; // pixels
+  const handleWheel = useCallbackRef((e: unknown) => {
+    const wheelEvent = e as WheelEvent;
+    // Accumulate upward delta
+    if (wheelEvent.deltaY > 0) {
+      wheelDeltaAccumRef.current += wheelEvent.deltaY;
+    } else {
+      // Downward scroll resets the accumulator
+      wheelDeltaAccumRef.current = Math.max(0, wheelDeltaAccumRef.current + wheelEvent.deltaY);
+    }
+
+    // Only disengage if accumulated upward delta exceeds threshold
+    if (wheelDeltaAccumRef.current >= WHEEL_DISENGAGE_THRESHOLD) {
+      wheelScrolledUpRef.current = true;
+      autoScrollRef.current = false;
+      userScrolledUpRef.current = true;
+      wheelDeltaAccumRef.current = 0; // reset after disengage
+    }
   });
 
   // Scroll handler for auto-follow state management
@@ -547,12 +564,14 @@ export function VirtualizedTranscript({
     const isAtBottom = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
 
     if (isAtBottom) {
-      // User scrolled back to bottom - re-enable auto-follow and clear wheel flag
+      // User scrolled back to bottom - re-enable auto-follow and clear flags
       if (userScrolledUpRef.current || wheelScrolledUpRef.current) {
         autoScrollRef.current = true;
         userScrolledUpRef.current = false;
         wheelScrolledUpRef.current = false;
       }
+      // Reset wheel accumulator when at bottom
+      wheelDeltaAccumRef.current = 0;
     } else {
       // User scrolled up away from bottom - disable auto-follow
       // Only update if not already set (avoid redundant writes)
