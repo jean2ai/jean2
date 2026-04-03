@@ -19,6 +19,7 @@ export interface AppKeyboardHandlersConfig {
   ) => void;
   createSession: (preconfigId?: string, title?: string) => void;
   setSidebarOpen: (open: boolean) => void;
+  onToggleAutoFollow?: () => void;
 }
 
 export function useAppKeyboardHandlers({
@@ -31,6 +32,7 @@ export function useAppKeyboardHandlers({
   handleSidebarViewModeChange,
   createSession,
   setSidebarOpen,
+  onToggleAutoFollow,
 }: AppKeyboardHandlersConfig) {
   const focusSidebarSessionPanel = useCallback(() => {
     setSidebarOpen(true);
@@ -104,6 +106,7 @@ export function useAppKeyboardHandlers({
     onCloseFocusedPanel: handleCloseFocusedPanel,
     onFocusChatInput: focusChatInput,
     onStopStreaming: handleStopStreaming,
+    onToggleAutoFollow: () => onToggleAutoFollow?.(),
   });
 
   // Listen for native Tauri accelerator events
@@ -164,6 +167,7 @@ export interface AppKeyboardHandlersMountProps {
     mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
   ) => void;
   createSession: (preconfigId?: string, title?: string) => void;
+  onToggleAutoFollow?: () => void;
 }
 
 export function AppKeyboardHandlersMount(props: AppKeyboardHandlersMountProps) {

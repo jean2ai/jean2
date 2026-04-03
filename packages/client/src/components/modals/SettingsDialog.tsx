@@ -115,6 +115,7 @@ export function SettingsDialog({
     { keys: [mod, 'O'], description: 'Toggle overview mode' },
     { keys: [mod, 'N'], description: 'New session' },
     { keys: [mod, 'Shift', 'N'], description: 'New window' },
+    { keys: [mod, 'Shift', 'F'], description: 'Toggle follow/free mode' },
     { keys: ['Shift', 'Esc'], description: 'Close focused panel' },
 
     { keys: ['Shift', 'Enter'], description: 'New line in input' },

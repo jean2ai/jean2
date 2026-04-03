@@ -12,7 +12,11 @@ export function handleMessageCreated(
     addStreamingSession,
     removeInterruptedSession,
     currentSessionIdRef,
+    clearCompletion,
   } = ctx;
+
+  // Clear completion state when activity happens in this session
+  clearCompletion(message.sessionId);
 
   if (message.sessionId === currentSessionIdRef.current) {
     setMessagesBySession(prev => ({
@@ -45,6 +49,10 @@ export function handleMessageUpdated(
     partAppendRafRef,
     flushPendingPartAppends,
     currentSessionIdRef,
+    sessionsRef,
+    setCompletion,
+    chatFinishSoundEnabledRef,
+    playChatFinishSound,
   } = ctx;
 
   if (message.sessionId === currentSessionIdRef.current) {
@@ -65,6 +73,17 @@ export function handleMessageUpdated(
 
   if ('status' in message && message.status !== 'streaming') {
     removeStreamingSession(message.sessionId);
+
+    const session = sessionsRef.current.find(s => s.id === message.sessionId);
+    const isTopLevel = session && session.parentId === null;
+
+    if (isTopLevel) {
+      const flashStartedAt = Date.now();
+      setCompletion(message.sessionId, { type: 'flash-only', flashStartedAt });
+      if (chatFinishSoundEnabledRef.current) {
+        playChatFinishSound();
+      }
+    }
   }
 }
 
@@ -73,7 +92,9 @@ export function handlePartCreated(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, part } = msg;
-  const { setPartsBySession, partIdIndexRef, currentSessionIdRef } = ctx;
+  const { setPartsBySession, partIdIndexRef, currentSessionIdRef, clearCompletion } = ctx;
+
+  clearCompletion(sessionId);
 
   if (sessionId === currentSessionIdRef.current) {
     setPartsBySession(prev => {
@@ -107,7 +128,9 @@ export function handlePartUpdated(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, part } = msg;
-  const { setPartsBySession, partIdIndexRef, currentSessionIdRef } = ctx;
+  const { setPartsBySession, partIdIndexRef, currentSessionIdRef, clearCompletion } = ctx;
+
+  clearCompletion(sessionId);
 
   if (sessionId === currentSessionIdRef.current) {
     const partLocation = partIdIndexRef.current.get(part.id);
@@ -155,7 +178,11 @@ export function handlePartAppend(
     interruptedSessions,
     currentSessionIdRef,
     flushPendingPartAppends,
+    clearCompletion,
   } = ctx;
+
+  // Clear completion state when activity happens in this session
+  clearCompletion(sessionId);
 
   if (sessionId === currentSessionIdRef.current && !interruptedSessions.has(sessionId)) {
     addStreamingSession(sessionId);

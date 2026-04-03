@@ -1,3 +1,5 @@
+mod audio;
+
 #[cfg(not(mobile))]
 mod desktop;
 

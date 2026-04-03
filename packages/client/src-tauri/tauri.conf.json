@@ -42,6 +42,9 @@
     "longDescription": "Jean2 - AI Agent Desktop and Mobile Application",
     "macOS": {
       "minimumSystemVersion": "10.13"
+    },
+    "resources": {
+      "../src/assets/sounds/*": "sounds/"
     }
   }
 }

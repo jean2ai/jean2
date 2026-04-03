@@ -1,3 +1,5 @@
+use crate::audio;
+
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
@@ -29,7 +31,7 @@ fn create_new_window(app_handle: tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![create_new_window])
+        .invoke_handler(tauri::generate_handler![create_new_window, audio::play_sound])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -39,7 +41,10 @@ pub fn run() {
                 )?;
             }
 
-            // Build custom accelerator menu items
+            if let Err(e) = audio::init_audio() {
+                eprintln!("Failed to initialize audio system: {}", e);
+            }
+
             let open_sidebar = MenuItemBuilder::with_id("open-sidebar", "Open Sidebar")
                 .accelerator("CmdOrCtrl+1")
                 .build(app)?;
@@ -47,29 +52,23 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+T")
                 .build(app)?;
 
-            // Build a proper native menu structure with standard edit shortcuts preserved
-            // On macOS, the global menubar can only contain Submenus
             let menu = MenuBuilder::new(app)
-                // App menu (macOS) - must be first to appear as the app menu in the menu bar
                 .item(&SubmenuBuilder::new(app, "Jean2")
                     .about(None)
                     .separator()
                     .quit()
                     .build()?)
-                // Edit submenu with native shortcuts (Cmd+C, Cmd+V, Cmd+A, etc.)
                 .item(&SubmenuBuilder::new(app, "Edit")
                     .copy()
                     .cut()
                     .paste()
                     .select_all()
                     .build()?)
-                // Window submenu
                 .item(&SubmenuBuilder::new(app, "Window")
                     .minimize()
                     .maximize()
                     .fullscreen()
                     .build()?)
-                // View submenu with custom accelerator items
                 .item(&SubmenuBuilder::new(app, "View")
                     .item(&open_sidebar)
                     .item(&open_terminal)

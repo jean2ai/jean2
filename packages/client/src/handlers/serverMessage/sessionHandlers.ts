@@ -55,10 +55,13 @@ export function handleSessionResumed(
     partIdIndexRef,
     models,
     defaultModel,
+    clearCompletion,
   } = ctx;
 
   setCurrentSession(session);
   removeInterruptedSession(session.id);
+  // Clear completion state when session is opened
+  clearCompletion(session.id);
 
   if (isRunning) {
     addStreamingSession(session.id);
@@ -117,11 +120,15 @@ export function handleSessionClosed(
     pendingPartAppendsRef,
     sessionAccessTimesRef,
     currentSessionIdRef,
+    clearCompletion,
   } = ctx;
 
   setSessions(prev => prev.map(s =>
     s.id === sessionId ? { ...s, status: 'closed' } : s
   ));
+
+  // Clear completion state when session is closed
+  clearCompletion(sessionId);
 
   if (currentSessionIdRef.current === sessionId) {
     if (partAppendRafRef.current !== null) {
@@ -182,9 +189,13 @@ export function handleSessionDeleted(
     sessionAccessTimesRef,
     setCurrentSession,
     currentSessionIdRef,
+    clearCompletion,
   } = ctx;
 
   setSessions(prev => prev.filter(s => s.id !== sessionId));
+
+  // Clear completion state when session is deleted
+  clearCompletion(sessionId);
   setMessagesBySession(prev => {
     const newMap = { ...prev };
     delete newMap[sessionId];
@@ -280,6 +291,7 @@ export function handleSessionForked(
     setSessionUsage,
     sessionAccessTimesRef,
     partIdIndexRef,
+    clearCompletion,
   } = ctx;
 
   setSessions(prev => [forkedSession, ...prev]);
@@ -306,6 +318,8 @@ export function handleSessionForked(
   setCurrentSession(forkedSession);
   setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
+  // Clear completion state when session is forked (creates new context)
+  clearCompletion(forkedSession.id);
 }
 
 export function handleSessionState(
@@ -323,6 +337,7 @@ export function handleSessionState(
     sessionAccessTimesRef,
     flushPendingPartAppends,
     currentSessionIdRef,
+    clearCompletion,
   } = ctx;
 
   if (currentSessionIdRef.current === sessionId) {
@@ -358,6 +373,8 @@ export function handleSessionState(
   skipFinishSoundSessionIdsRef.current.add(sessionId);
   removeStreamingSession(sessionId);
   sessionAccessTimesRef.current.set(sessionId, Date.now());
+  // Clear completion state when session state is refreshed
+  clearCompletion(sessionId);
 }
 
 export const sessionHandlers = {

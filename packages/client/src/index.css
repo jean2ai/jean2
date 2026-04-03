@@ -73,7 +73,7 @@
     background-color: oklch(0.85 0.12 145 / 0.25);
   }
   100% {
-    background-color: oklch(0.85 0 0 / 0);
+    background-color: oklch(0.85 0.15 145 / 0.15);
   }
 }
 

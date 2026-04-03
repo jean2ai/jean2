@@ -20,8 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { useCompletionFlash } from '@/hooks/useCompletionFlash';
 import { cn } from '@/lib/utils';
+import { useUIStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/uiStore';
 
 export type ChildrenMap = Map<string, Session[]>;
 
@@ -156,7 +156,44 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
 
   const hasActiveChild = childSessions.some(c => c.id === currentSessionId);
 
-  const { isFlashing } = useCompletionFlash(session.id, derived.isRunning);
+  // Read completion record directly from store
+  const completionRecord = useUIStore(selectCompletionRecord(session.id));
+  const clearCompletion = useUIStore(s => s.clearCompletion);
+
+  // Track current time for flash phase calculation
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Derive visual state from completion record
+  const isFlashing = !!completionRecord && (now - completionRecord.flashStartedAt < COMPLETION_FLASH_DURATION_MS);
+  const isSticky = completionRecord?.type === 'flash-then-sticky';
+
+  // Auto-clear flash-only records after flash duration
+  useEffect(() => {
+    if (!completionRecord || completionRecord.type !== 'flash-only') return;
+
+    const remainingTime = COMPLETION_FLASH_DURATION_MS - (now - completionRecord.flashStartedAt);
+    if (remainingTime <= 0) {
+      clearCompletion(session.id);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      clearCompletion(session.id);
+    }, remainingTime);
+
+    return () => clearTimeout(timer);
+  }, [completionRecord, session.id, clearCompletion, now]);
+
+  // Determine the highlight class: flashing takes precedence, then sticky green
+  const highlightClass = isFlashing
+    ? 'animate-completion-flash rounded-md'
+    : isSticky
+      ? 'bg-[oklch(0.85_0.15_145_/_0.15)] rounded-md'
+      : '';
 
   // Track whether we've already performed the initial focus/select for the current edit session.
   // This prevents focus/select from resetting on unrelated re-renders while already editing.
@@ -236,7 +273,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 data-session-id={session.id}
                 isActive={isActive}
                 onClick={() => onResumeSession(session.id)}
-                className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
+                className={cn('flex-1 min-w-0', highlightClass)}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -301,7 +338,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 data-session-id={session.id}
                 isActive={isActive}
                 onClick={() => onResumeSession(session.id)}
-                className={cn('flex-1 min-w-0', isFlashing && 'animate-completion-flash rounded-md')}
+                className={cn('flex-1 min-w-0', highlightClass)}
               >
                 <Tooltip>
                   <TooltipTrigger asChild>

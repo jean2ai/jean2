@@ -24,6 +24,7 @@ import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
 import { useServerDataLoader } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
@@ -93,6 +94,8 @@ function AppContent() {
   const chatInputRef = useRef<MessageInputHandle>(null);
   const terminalPanelRef = useRef<TerminalPanelHandle>(null);
   const sidebarRef = useRef<AppSidebarHandle>(null);
+  const scrollToBottomRef = useRef<(() => void) | null>(null);
+  const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
 
@@ -156,6 +159,9 @@ function AppContent() {
     setShowMCPDialog,
     setShowAddServer,
     setEditServerData,
+    setCompletion,
+    clearCompletion,
+    clearAllCompletions,
   } = useUIStore(useShallow((s) => ({
     showSettings: s.showSettings,
     showMCPDialog: s.showMCPDialog,
@@ -165,6 +171,9 @@ function AppContent() {
     setShowMCPDialog: s.setShowMCPDialog,
     setShowAddServer: s.setShowAddServer,
     setEditServerData: s.setEditServerData,
+    setCompletion: s.setCompletion,
+    clearCompletion: s.clearCompletion,
+    clearAllCompletions: s.clearAllCompletions,
   })));
 
   // Notification sound settings
@@ -176,6 +185,12 @@ function AppContent() {
     const stored = localStorage.getItem('jean2_sound_permission_enabled');
     return stored !== null ? stored === 'true' : true;
   });
+
+  // Ref for permission sound enablement to avoid stale closures in async handlers
+  const permissionSoundEnabledRef = useRef(permissionSoundEnabled);
+  useLayoutEffect(() => {
+    permissionSoundEnabledRef.current = permissionSoundEnabled;
+  }, [permissionSoundEnabled]);
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
@@ -276,40 +291,16 @@ function AppContent() {
 
 
 
-  // Notification sound for chat completion - only on natural completion (non-null -> null transition)
+  // Notification sound hook
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
-  const hasInitializedRef = useRef(false);
-  const prevStreamingSessionIdsRef = useRef<Set<string>>(new Set());
   const skipFinishSoundSessionIdsRef = useRef<Set<string>>(new Set());
   const pendingWorkspaceIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!hasInitializedRef.current) {
-      prevStreamingSessionIdsRef.current = new Set(streamingSessionIds);
-      hasInitializedRef.current = true;
-      return;
-    }
-
-    const prev = prevStreamingSessionIdsRef.current;
-    const completedSessionIds = [...prev].filter(id => !streamingSessionIds.has(id));
-
-    for (const sessionId of completedSessionIds) {
-      if (skipFinishSoundSessionIdsRef.current.has(sessionId)) {
-        continue;
-      }
-      const session = sessions.find(s => s.id === sessionId);
-      if (session?.parentId === null && chatFinishSoundEnabled) {
-        playChatFinishSound();
-        break;
-      }
-    }
-
-    prevStreamingSessionIdsRef.current = new Set(streamingSessionIds);
-
-    for (const sessionId of completedSessionIds) {
-      skipFinishSoundSessionIdsRef.current.delete(sessionId);
-    }
-  }, [streamingSessionIds, playChatFinishSound, sessions, chatFinishSoundEnabled]);
+  // Ref for chat finish sound enablement - kept for server switch logic
+  const chatFinishSoundEnabledRef = useRef(chatFinishSoundEnabled);
+  useLayoutEffect(() => {
+    chatFinishSoundEnabledRef.current = chatFinishSoundEnabled;
+  }, [chatFinishSoundEnabled]);
 
   useEffect(() => {
     localStorage.setItem('jean2_sound_chat_finish_enabled', String(chatFinishSoundEnabled));
@@ -471,6 +462,7 @@ function AppContent() {
     setPermissions([]);
     clearPendingPermissions();
     clearQueuedMessages();
+    clearAllCompletions();
 
     // Clear any open popovers/sheets by forcing a re-render
     // (the callback will be called after state is cleared)
@@ -692,6 +684,9 @@ function AppContent() {
     clearPendingPermissions,
     clearQueuedMessages,
     setCompactionSuccess,
+    setCompletion,
+    clearCompletion,
+    clearAllCompletions,
     pendingSessionCreateRef,
     sessionAccessTimesRef,
     partIdIndexRef,
@@ -710,8 +705,10 @@ function AppContent() {
     addPendingPermission,
     removePendingPermissionByToolCallId,
     notifiedToolCallIdsRef,
-    permissionSoundEnabled,
+    permissionSoundEnabledRef,
     playPermissionSound,
+    chatFinishSoundEnabledRef,
+    playChatFinishSound,
   }), [
     setSessions,
     setCurrentSession,
@@ -748,8 +745,13 @@ function AppContent() {
     addPendingPermission,
     removePendingPermissionByToolCallId,
     notifiedToolCallIdsRef,
-    permissionSoundEnabled,
+    permissionSoundEnabledRef,
     playPermissionSound,
+    setCompletion,
+    clearCompletion,
+    clearAllCompletions,
+    chatFinishSoundEnabledRef,
+    playChatFinishSound,
   ]);
 
   const handleServerMessage = useCallback((msg: ServerMessage) => {
@@ -904,6 +906,7 @@ function AppContent() {
         handleInterruptSession={handleInterruptSession}
         handleSidebarViewModeChange={handleSidebarViewModeChange}
         createSession={createSession}
+        onToggleAutoFollow={() => autoFollowToggleRef.current?.toggle()}
       />
       {isLoggedIn && (
         <AppSidebar
@@ -1000,6 +1003,8 @@ function AppContent() {
           onFork={forkSession}
           onCompact={compactSession}
           onClearCompactionSuccess={() => setCompactionSuccess(false)}
+          scrollToBottomRef={scrollToBottomRef}
+          autoFollowToggleRef={autoFollowToggleRef}
         />
 
         <AppPanels

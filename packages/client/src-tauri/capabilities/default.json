@@ -12,6 +12,7 @@
     "core:window:allow-close",
     "core:window:allow-create",
     "core:webview:allow-create-webview-window",
+    "core:path:default",
     "store:default"
   ]
 }

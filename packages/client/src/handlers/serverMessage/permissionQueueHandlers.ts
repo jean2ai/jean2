@@ -81,7 +81,7 @@ export function handlePermissionRequest(
     addPendingPermission,
     sessionsRef,
     notifiedToolCallIdsRef,
-    permissionSoundEnabled,
+    permissionSoundEnabledRef,
     playPermissionSound,
   } = ctx;
 
@@ -101,7 +101,7 @@ export function handlePermissionRequest(
   addPendingPermission(request);
 
   const session = sessionsRef.current.find(s => s.id === sessionId);
-  if (session?.parentId === null && permissionSoundEnabled && !notifiedToolCallIdsRef.current.has(toolCallId)) {
+  if (session?.parentId === null && permissionSoundEnabledRef.current && !notifiedToolCallIdsRef.current.has(toolCallId)) {
     playPermissionSound();
     notifiedToolCallIdsRef.current.add(toolCallId);
   }

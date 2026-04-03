@@ -11,6 +11,7 @@ export interface KeyboardShortcutsConfig {
   onCloseFocusedPanel: () => void;
   onFocusChatInput: () => void;
   onStopStreaming: () => void;
+  onToggleAutoFollow: () => void;
 }
 
 // Check if running in Tauri environment (v1/v2 compatible)
@@ -99,7 +100,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
         return;
       }
 
-      const { onCloseFocusedPanel, onFocusChatInput, onStopStreaming, onOpenSidebar, onOpenTerminal, onNewWindow, onNewSession, onToggleViewMode } = configRef.current;
+      const { onCloseFocusedPanel, onFocusChatInput, onStopStreaming, onOpenSidebar, onOpenTerminal, onNewWindow, onNewSession, onToggleViewMode, onToggleAutoFollow } = configRef.current;
 
       if (e.shiftKey && e.key === 'Escape') {
         e.preventDefault();
@@ -179,6 +180,13 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
       if (modifierPressed && e.code === 'KeyO') {
         e.preventDefault();
         onToggleViewMode();
+        return;
+      }
+
+      // Cmd/Ctrl+Shift+F: Toggle auto-follow (works even in input fields)
+      if (modifierPressed && e.shiftKey && e.code === 'KeyF') {
+        e.preventDefault();
+        onToggleAutoFollow();
         return;
       }
     };

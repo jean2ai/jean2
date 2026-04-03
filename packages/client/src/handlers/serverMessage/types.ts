@@ -7,6 +7,7 @@ import type {
   ProviderStatus,
 } from '@jean2/shared';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
+import type { CompletionRecord } from '@/stores/uiStore';
 
 export type SessionUsage = {
   promptTokens: number;
@@ -48,6 +49,9 @@ export interface SessionHandlersContext {
   clearPendingPermissions: () => void;
   clearQueuedMessages: () => void;
   setCompactionSuccess: (success: boolean) => void;
+  setCompletion: (sessionId: string, record: CompletionRecord) => void;
+  clearCompletion: (sessionId: string) => void;
+  clearAllCompletions: () => void;
   pendingSessionCreateRef: React.MutableRefObject<boolean>;
   sessionAccessTimesRef: React.MutableRefObject<Map<string, number>>;
   partIdIndexRef: React.MutableRefObject<Map<string, PartIndexEntry>>;
@@ -66,8 +70,10 @@ export interface SessionHandlersContext {
   addPendingPermission: (permission: PendingPermissionRequest) => void;
   removePendingPermissionByToolCallId: (toolCallId: string) => void;
   notifiedToolCallIdsRef: React.MutableRefObject<Set<string>>;
-  permissionSoundEnabled: boolean;
+  permissionSoundEnabledRef: React.MutableRefObject<boolean>;
   playPermissionSound: () => void;
+  chatFinishSoundEnabledRef: React.MutableRefObject<boolean>;
+  playChatFinishSound: () => void;
 }
 
 export type SessionHandlers = {
