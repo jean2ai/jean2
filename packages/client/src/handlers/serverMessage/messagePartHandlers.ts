@@ -47,6 +47,7 @@ export function handleMessageUpdated(
     setMessagesBySession,
     removeStreamingSession,
     partAppendRafRef,
+    partAppendTimeoutRef,
     flushPendingPartAppends,
     currentSessionIdRef,
     sessionsRef,
@@ -60,6 +61,10 @@ export function handleMessageUpdated(
       if (partAppendRafRef.current !== null) {
         cancelAnimationFrame(partAppendRafRef.current);
         partAppendRafRef.current = null;
+      }
+      if (partAppendTimeoutRef.current !== null) {
+        clearTimeout(partAppendTimeoutRef.current);
+        partAppendTimeoutRef.current = null;
       }
       flushPendingPartAppends();
     }
@@ -82,6 +87,10 @@ export function handleMessageUpdated(
       setCompletion(message.sessionId, { type: 'flash-only', flashStartedAt });
       if (chatFinishSoundEnabledRef.current) {
         playChatFinishSound();
+      }
+      // Only auto-switch to Free mode when the completing session is the active session
+      if (message.sessionId === currentSessionIdRef.current) {
+        ctx.onSessionCompleted?.();
       }
     }
   }
@@ -175,6 +184,8 @@ export function handlePartAppend(
     addStreamingSession,
     pendingPartAppendsRef,
     partAppendRafRef,
+    lastPartAppendFlushAtRef,
+    partAppendTimeoutRef,
     interruptedSessions,
     currentSessionIdRef,
     flushPendingPartAppends,
@@ -192,10 +203,31 @@ export function handlePartAppend(
     const existing = pendingPartAppendsRef.current.get(partId);
     pendingPartAppendsRef.current.set(partId, (existing || '') + delta);
 
-    if (partAppendRafRef.current === null) {
-      partAppendRafRef.current = requestAnimationFrame(() => {
-        flushPendingPartAppends();
-      });
+    const now = Date.now();
+    const timeSinceLastFlush = now - lastPartAppendFlushAtRef.current;
+    const THROTTLE_INTERVAL = 50;
+
+    // If within 50ms throttle window and no timeout is scheduled, schedule one
+    if (timeSinceLastFlush < THROTTLE_INTERVAL) {
+      if (partAppendTimeoutRef.current === null) {
+        const remainingTime = THROTTLE_INTERVAL - timeSinceLastFlush;
+        partAppendTimeoutRef.current = setTimeout(() => {
+          partAppendTimeoutRef.current = null;
+          // Only schedule RAF if none pending (avoid double-scheduling)
+          if (partAppendRafRef.current === null) {
+            partAppendRafRef.current = requestAnimationFrame(() => {
+              flushPendingPartAppends();
+            });
+          }
+        }, remainingTime) as unknown as number;
+      }
+    } else {
+      // Outside throttle window, schedule RAF if none pending
+      if (partAppendRafRef.current === null) {
+        partAppendRafRef.current = requestAnimationFrame(() => {
+          flushPendingPartAppends();
+        });
+      }
     }
   }
 }

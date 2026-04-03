@@ -56,14 +56,13 @@ interface VirtualizedTranscriptProps {
   isCompacting?: boolean;
   compactionSuccess?: boolean;
   autoFollow?: boolean;
-  onAutoScrollChange?: (isFollowing: boolean) => void;
+  onAutoScrollChange?: (enabled: boolean) => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
 }
 
 const MIN_ESTIMATED_SIZE = 60;
 const MAX_ESTIMATED_SIZE = 300;
 const ROW_PADDING = 16; // p-4 = 16px padding on each side
-const BOTTOM_THRESHOLD_PX = 250; // Distance from bottom to consider "at bottom" (more forgiving for auto-scroll)
 
 // Whether the last message is still streaming (growing in height)
 function isLastMessageStreaming(items: DisplayItem[]): boolean {
@@ -379,17 +378,10 @@ export function VirtualizedTranscript({
 
   // Refs for scroll-to-bottom logic
   const autoScrollRef = useRef(autoFollow);
-  const prevFollowStateRef = useRef(autoFollow);
   const prevDisplayLengthRef = useRef(displayItems.length);
   const prevLastItemSizeRef = useRef<number>(0);
   // Per-session initial scroll tracking to avoid race conditions
   const initialScrollDoneRef = useRef(false);
-  // Track if user has manually scrolled up (away from bottom)
-  const userScrolledUpRef = useRef(false);
-  // Dedicated wheel flag: set on significant upward wheel, cleared only on explicit bottom return
-  const wheelScrolledUpRef = useRef(false);
-  // Accumulate wheel delta to avoid hair-trigger disengage
-  const wheelDeltaAccumRef = useRef(0);
   // Guard against handleScroll disabling follow on programmatic scroll-to-bottom
   const isProgrammaticScrollRef = useRef(false);
 
@@ -525,7 +517,6 @@ export function VirtualizedTranscript({
   useLayoutEffect(() => {
     // Reset auto-follow state for new session (respects prop if explicitly false)
     autoScrollRef.current = autoFollow;
-    prevFollowStateRef.current = autoFollow;
     prevDisplayLengthRef.current = displayItems.length;
     prevLastItemSizeRef.current = 0;
     initialScrollDoneRef.current = false;
@@ -541,82 +532,47 @@ export function VirtualizedTranscript({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]); // Only depend on sessionId - rowVirtualizer is stable reference
 
-  // Wheel handler: only disengages follow on significant upward wheel movement
-  // This prevents tiny incidental upward wheel noise from breaking follow
-  // threshold: cumulative deltaY (negative = upward, positive = downward) before disengaging
-  const WHEEL_DISENGAGE_THRESHOLD = 30; // pixels
-  const handleWheel = useCallbackRef((e: unknown) => {
-    const wheelEvent = e as WheelEvent;
-    // deltaY < 0 means upward scroll (content scrolls down, user pulls up)
-    // deltaY > 0 means downward scroll (content scrolls up, user pushes down)
-    if (wheelEvent.deltaY < 0) {
-      // Upward scroll - accumulate toward disengage threshold
-      wheelDeltaAccumRef.current += Math.abs(wheelEvent.deltaY);
-    } else {
-      // Downward scroll - reduce/reset the accumulator
-      wheelDeltaAccumRef.current = Math.max(0, wheelDeltaAccumRef.current - wheelEvent.deltaY);
-    }
+  // Wheel handler: when in follow mode and user scrolls up, disable follow and notify parent
+  // Uses passive: false to allow preventDefault for the scroll direction change
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
 
-    // Only disengage if accumulated upward delta exceeds threshold
-    if (wheelDeltaAccumRef.current >= WHEEL_DISENGAGE_THRESHOLD) {
-      wheelScrolledUpRef.current = true;
-      autoScrollRef.current = false;
-      userScrolledUpRef.current = true;
-      wheelDeltaAccumRef.current = 0; // reset after disengage
-      // Notify parent of auto-follow state change (only if state actually changed)
-      if (prevFollowStateRef.current !== false) {
-        prevFollowStateRef.current = false;
-        if (onAutoScrollChange) {
-          onAutoScrollChange(false);
-        }
+    const onWheel = (e: WheelEvent) => {
+      // Only trigger on upward scroll (deltaY < 0) while in follow mode
+      if (autoScrollRef.current && e.deltaY < 0) {
+        // Disable follow mode and notify parent
+        autoScrollRef.current = false;
+        onAutoScrollChange?.(false);
+        // Do NOT preventDefault - allow the scroll to proceed naturally
       }
-    }
-  });
+    };
+
+    scrollEl.addEventListener('wheel', onWheel, { passive: false });
+    return () => scrollEl.removeEventListener('wheel', onWheel);
+  }, [onAutoScrollChange]);
 
   // Scroll handler for auto-follow state management
   const handleScroll = useCallbackRef(() => {
-    // Ignore programmatic scrolls - don't disable follow when we scroll to bottom ourselves
-    if (isProgrammaticScrollRef.current) {
-      // Clear the flag after the frame so handleScroll from real scroll events
-      // during the same frame also respects the programmatic context
-      requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
-      });
-      return;
-    }
+    // Guard against programmatic scroll triggering follow logic
+    if (isProgrammaticScrollRef.current) return;
 
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollEl;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isAtBottom = distanceFromBottom <= BOTTOM_THRESHOLD_PX;
+    // In follow mode, enforce scroll-to-bottom if user scrolled away
+    if (autoScrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-    if (isAtBottom) {
-      // User scrolled back to bottom - re-enable auto-follow and clear flags
-      if (userScrolledUpRef.current || wheelScrolledUpRef.current) {
-        autoScrollRef.current = true;
-        userScrolledUpRef.current = false;
-        wheelScrolledUpRef.current = false;
+      // If not at bottom, scroll back to bottom immediately
+      if (distanceFromBottom > 0) {
+        isProgrammaticScrollRef.current = true;
+        scrollEl.scrollTop = scrollHeight;
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
+        });
       }
-      // Reset wheel accumulator when at bottom
-      wheelDeltaAccumRef.current = 0;
-    } else {
-      // User scrolled up away from bottom - disable auto-follow
-      // Only update if not already set (avoid redundant writes)
-      if (autoScrollRef.current) {
-        autoScrollRef.current = false;
-        userScrolledUpRef.current = true;
-        // Notify parent of auto-follow state change (only if state actually changed)
-        if (prevFollowStateRef.current !== false) {
-          prevFollowStateRef.current = false;
-          if (onAutoScrollChange) {
-            onAutoScrollChange(false);
-          }
-        }
-      }
-      // Clear wheel flag on non-wheel scroll (e.g., programmatic scroll)
-      wheelScrolledUpRef.current = false;
     }
   });
 
@@ -630,30 +586,12 @@ export function VirtualizedTranscript({
   // (e.g., streaming text growth) even when displayItems.length doesn't change.
   const lastItemFingerprintValue = computeLastItemFingerprint(displayItems);
 
-  // Check if the last item is user-authored (for forcing follow on send)
-  const isLastItemUserAuthored = (items: DisplayItem[]): boolean => {
-    if (items.length === 0) return false;
-    const lastItem = items[items.length - 1];
-    return lastItem.message.role === 'user';
-  };
 
-  // Check if any newly added items include a user-authored message
-  // This handles the case where user message + assistant response arrive in same render
-  const hasUserAuthoredInNewItems = (currentItems: DisplayItem[], prevLength: number): boolean => {
-    if (currentItems.length <= prevLength) return false;
-    // Check all items from prevLength onwards for user-authored messages
-    for (let i = prevLength; i < currentItems.length; i++) {
-      if (currentItems[i].message.role === 'user') {
-        return true;
-      }
-    }
-    return false;
-  };
 
   // Track content changes and handle conditional auto-scroll
   // Fires on: new items appended, growing last item (streaming height change)
   // Fires on: last item content mutations (captured via fingerprint VALUE dependency)
-  // Fires on: user-authored messages - always force follow (sending a message re-enables follow)
+  // Does NOT force follow on user messages - respects user's scroll position
   // Does NOT fire on sessionId change (handled by session-load effect above)
   useLayoutEffect(() => {
     const currentLength = displayItems.length;
@@ -676,9 +614,6 @@ export function VirtualizedTranscript({
     const prevLastItemSize = prevLastItemSizeRef.current;
     const lastItemGrew = lastIndex >= 0 && lastItemMeasuredSize > prevLastItemSize && prevLastItemSize > 0;
 
-    // Check if the new item is user-authored (user just sent a message)
-    const lastItemIsUserAuthored = lengthChanged && isLastItemUserAuthored(displayItems);
-
     // Only update refs AFTER all comparisons are done so next render sees correct values
     prevDisplayLengthRef.current = currentLength;
     prevLastItemSizeRef.current = lastItemMeasuredSize;
@@ -700,29 +635,7 @@ export function VirtualizedTranscript({
       return;
     }
 
-    // Sending a message always re-enables follow and scrolls to bottom
-    // This overrides any previous "scrolled up" state
-    // Check both last item AND any newly added items for user-authored messages
-    const newItemsContainUserMessage = hasUserAuthoredInNewItems(displayItems, prevLength);
-    if (lastItemIsUserAuthored || newItemsContainUserMessage) {
-      autoScrollRef.current = true;
-      userScrolledUpRef.current = false;
-      wheelScrolledUpRef.current = false;
-      wheelDeltaAccumRef.current = 0;
-      // Use programmatic scroll guard to prevent handleScroll from disabling follow
-      isProgrammaticScrollRef.current = true;
-      scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
-      // Notify parent that auto-follow was re-enabled (only if state actually changed)
-      if (prevFollowStateRef.current !== true) {
-        prevFollowStateRef.current = true;
-        if (onAutoScrollChange) {
-          onAutoScrollChange(true);
-        }
-      }
-      return;
-    }
-
-    // Only follow if auto-follow is currently enabled (non-user messages)
+    // Only follow if auto-follow is currently enabled
     if (!autoScrollRef.current) {
       return;
     }
@@ -762,7 +675,9 @@ export function VirtualizedTranscript({
     }
 
     resizeObserverRef.current = new ResizeObserver((_entries) => {
-      // After the resize is measured, scroll to bottom if user wants auto-scroll
+      // After the resize is measured, scroll to bottom if:
+      // - user wants auto-scroll (autoScrollRef.current)
+      // - last message is still streaming
       if (autoScrollRef.current && isLastMessageStreaming(displayItems)) {
         requestAnimationFrame(() => {
           if (!autoScrollRef.current) return;
@@ -781,6 +696,8 @@ export function VirtualizedTranscript({
     };
   }, [displayItems, rowVirtualizer]);
 
+
+
   // Auto-clear compaction success after delay
   useEffect(() => {
     if (compactionSuccess) {
@@ -796,21 +713,14 @@ export function VirtualizedTranscript({
     if (scrollToBottomRef) {
       scrollToBottomRef.current = () => {
         autoScrollRef.current = true;
-        userScrolledUpRef.current = false;
-        wheelScrolledUpRef.current = false;
-        wheelDeltaAccumRef.current = 0;
         isProgrammaticScrollRef.current = true;
         scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
-        // Notify parent that auto-follow was re-enabled (only if state actually changed)
-        if (prevFollowStateRef.current !== true) {
-          prevFollowStateRef.current = true;
-          if (onAutoScrollChange) {
-            onAutoScrollChange(true);
-          }
-        }
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
+        });
       };
     }
-  }, [scrollToBottomRef, onAutoScrollChange]);
+  }, [scrollToBottomRef]);
 
   // Sync autoFollow prop to autoScrollRef when prop changes
   // This ensures external changes (e.g., toggling "Free" mode) are respected immediately
@@ -826,7 +736,6 @@ export function VirtualizedTranscript({
       className="flex-1 min-h-0 overflow-y-auto relative chat-transcript-scrollbar"
       style={{ WebkitOverflowScrolling: 'touch' }}
       onScroll={handleScroll}
-      onWheel={handleWheel}
     >
       {showCompactionBanner && (
         <div className="sticky top-0 z-10 px-4 pt-4">

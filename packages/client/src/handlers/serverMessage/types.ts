@@ -57,6 +57,8 @@ export interface SessionHandlersContext {
   partIdIndexRef: React.MutableRefObject<Map<string, PartIndexEntry>>;
   partAppendRafRef: React.MutableRefObject<number | null>;
   pendingPartAppendsRef: React.MutableRefObject<Map<string, string>>;
+  lastPartAppendFlushAtRef: React.MutableRefObject<number>;
+  partAppendTimeoutRef: React.MutableRefObject<number | null>;
   skipFinishSoundSessionIdsRef: React.MutableRefObject<Set<string>>;
   currentSessionIdRef: React.MutableRefObject<string | null>;
   models: ModelInfo[];
@@ -74,6 +76,7 @@ export interface SessionHandlersContext {
   playPermissionSound: () => void;
   chatFinishSoundEnabledRef: React.MutableRefObject<boolean>;
   playChatFinishSound: () => void;
+  onSessionCompleted?: () => void;
 }
 
 export type SessionHandlers = {

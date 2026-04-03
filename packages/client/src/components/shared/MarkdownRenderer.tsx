@@ -131,7 +131,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
   }), [inverted]);
 
   return (
-    <div className={cn('visualization-container markdown-render overflow-x-auto wrap-break-words break', className)}>
+    <div className={cn('w-full markdown-render overflow-x-auto wrap-break-words break', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}

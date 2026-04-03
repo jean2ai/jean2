@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Lock, ChevronRight } from 'lucide-react';
+import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
 import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage } from '@jean2/shared';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
@@ -79,6 +79,7 @@ interface ChatViewProps {
   inputRef?: React.RefObject<MessageInputHandle | null>;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
+  onSessionCompletedRef?: React.RefObject<(() => void) | null>;
 }
 
 function mergeMessagesWithQueue(
@@ -231,15 +232,12 @@ export function ChatView({
   inputRef,
   scrollToBottomRef,
   autoFollowToggleRef,
+  onSessionCompletedRef,
 }: ChatViewProps) {
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
 
   const [autoFollow, setAutoFollow] = useState(true);
-
-  const handleAutoScrollChange = useCallback((isFollowing: boolean) => {
-    setAutoFollow(isFollowing);
-  }, []);
 
   const handleToggleAutoFollow = useCallback(() => {
     setAutoFollow((prev) => {
@@ -262,6 +260,15 @@ export function ChatView({
     }
   }, [autoFollowToggleRef, handleToggleAutoFollow]);
 
+  // Wire up session completion callback to disable auto-follow (switch to Free mode)
+  useEffect(() => {
+    if (onSessionCompletedRef) {
+      onSessionCompletedRef.current = () => {
+        setAutoFollow(false);
+      };
+    }
+  }, [onSessionCompletedRef]);
+
   const displayItems = useMemo(
     () => mergeMessagesWithQueue(messagesWithParts, queuedMessages),
     [messagesWithParts, queuedMessages]
@@ -282,7 +289,7 @@ export function ChatView({
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 relative">
       <ChatHeader
         session={session}
         preconfigs={preconfigs}
@@ -306,70 +313,67 @@ export function ChatView({
         variants={variants}
       />
 
-      {/* Virtualized transcript - handles scrolling for messages only */}
-      <VirtualizedTranscript
-        displayItems={displayItems}
-        messagesWithParts={messagesWithParts}
-        sessionId={session.id}
-        sessionStatus={session.status}
-        pendingPermissions={pendingPermissions}
-        isCompacting={isCompacting}
-        compactionSuccess={compactionSuccess}
-        onPermissionResponse={onPermissionResponse}
-        onNavigateToSubagent={onNavigateToSubagent}
-        onRemoveFromQueue={onRemoveFromQueue}
-        onRevert={_onRevert}
-        onFork={_onFork}
-        onCompact={onCompact}
-        isMainActiveSession={isMainActiveSession}
-        autoFollow={autoFollow}
-        onAutoScrollChange={handleAutoScrollChange}
-        scrollToBottomRef={scrollToBottomRef}
-      />
+      {/* Transcript area with floating Follow/Free button */}
+      <div className="relative flex flex-col flex-1 min-h-0">
+        {/* Virtualized transcript - handles scrolling for messages only */}
+        <VirtualizedTranscript
+          displayItems={displayItems}
+          messagesWithParts={messagesWithParts}
+          sessionId={session.id}
+          sessionStatus={session.status}
+          pendingPermissions={pendingPermissions}
+          isCompacting={isCompacting}
+          compactionSuccess={compactionSuccess}
+          onPermissionResponse={onPermissionResponse}
+          onNavigateToSubagent={onNavigateToSubagent}
+          onRemoveFromQueue={onRemoveFromQueue}
+          onRevert={_onRevert}
+          onFork={_onFork}
+          onCompact={onCompact}
+          isMainActiveSession={isMainActiveSession}
+          autoFollow={autoFollow}
+          onAutoScrollChange={setAutoFollow}
+          scrollToBottomRef={scrollToBottomRef}
+        />
+
+        {/* Floating Follow/Free pill button - positioned within transcript area */}
+        <button
+          onClick={handleToggleAutoFollow}
+          className="absolute bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-colors cursor-pointer bg-background/80 backdrop-blur-sm hover:bg-background border border-border/50 shadow-sm pointer-events-auto"
+          title={autoFollow ? 'Auto-follow enabled (Cmd+Shift+F)' : 'Auto-follow disabled (Cmd+Shift+F)'}
+        >
+        {autoFollow ? (
+          <>
+            <ArrowDown className="size-3" />
+            <span>Follow</span>
+          </>
+        ) : (
+          <>
+            <Eye className="size-3" />
+            <span>Free</span>
+          </>
+        )}
+      </button>
+      </div>
 
       {/* Permission requests panel rendered at the bottom - visible near input area */}
-      <PermissionRequestsPanel
-        permissions={orphanedPermissions}
-        onPermissionResponse={onPermissionResponse}
-      />
+      {orphanedPermissions.length > 0 && (
+        <PermissionRequestsPanel
+          permissions={orphanedPermissions}
+          onPermissionResponse={onPermissionResponse}
+        />
+      )}
 
       {session.status === 'active' && !session.parentId && (
-        <>
-          <div className="px-4 pb-2 flex items-center justify-end">
-            <button
-              onClick={handleToggleAutoFollow}
-              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-colors cursor-pointer bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
-              title={autoFollow ? 'Auto-follow enabled (Cmd+Shift+F)' : 'Auto-follow disabled (Cmd+Shift+F)'}
-            >
-              {autoFollow ? (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <span>Follow</span>
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                  <span>Free</span>
-                </>
-              )}
-            </button>
-          </div>
-          <MessageInput
-            ref={inputRef}
-            onSendMessage={onSendMessage}
-            disabled={isCompacting}
-            workspaceId={session.workspaceId}
-            serverUrl={serverUrl}
-            apiToken={apiToken}
-            prompts={prompts}
-          />
-        </>
+        <MessageInput
+          ref={inputRef}
+          onSendMessage={onSendMessage}
+          disabled={isCompacting}
+          workspaceId={session.workspaceId}
+          serverUrl={serverUrl}
+          apiToken={apiToken}
+          prompts={prompts}
+        />
       )}
 
       {session.parentId && (

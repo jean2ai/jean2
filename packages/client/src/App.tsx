@@ -96,6 +96,7 @@ function AppContent() {
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
+  const onSessionCompletedRef = useRef<(() => void) | null>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
 
@@ -246,14 +247,26 @@ function AppContent() {
   // Batching refs for part.append updates to reduce UI thrash
   const pendingPartAppendsRef = useRef<Map<string, string>>(new Map());
   const partAppendRafRef = useRef<number | null>(null);
+  const lastPartAppendFlushAtRef = useRef<number>(0);
+  const partAppendTimeoutRef = useRef<number | null>(null);
 
   // Flush all pending part appends in a single update
   const flushPendingPartAppends = useCallback(() => {
+    // Clear refs first to prevent stale callbacks from interfering
+    if (partAppendRafRef.current !== null) {
+      cancelAnimationFrame(partAppendRafRef.current);
+      partAppendRafRef.current = null;
+    }
+    if (partAppendTimeoutRef.current !== null) {
+      clearTimeout(partAppendTimeoutRef.current);
+      partAppendTimeoutRef.current = null;
+    }
+
     if (pendingPartAppendsRef.current.size === 0) return;
 
     const pending = new Map(pendingPartAppendsRef.current);
     pendingPartAppendsRef.current.clear();
-    partAppendRafRef.current = null;
+    lastPartAppendFlushAtRef.current = Date.now();
 
     setPartsBySession(prev => {
       const newState = { ...prev };
@@ -470,12 +483,17 @@ function AppContent() {
     // Clear part index on server switch
     partIdIndexRef.current.clear();
 
-    // Cancel pending RAF and clear pending appends on server switch
+    // Cancel pending RAF, timeout, and clear pending appends on server switch
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
       partAppendRafRef.current = null;
     }
+    if (partAppendTimeoutRef.current !== null) {
+      clearTimeout(partAppendTimeoutRef.current);
+      partAppendTimeoutRef.current = null;
+    }
     pendingPartAppendsRef.current.clear();
+    lastPartAppendFlushAtRef.current = 0;
 
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
@@ -692,6 +710,8 @@ function AppContent() {
     partIdIndexRef,
     partAppendRafRef,
     pendingPartAppendsRef,
+    lastPartAppendFlushAtRef,
+    partAppendTimeoutRef,
     skipFinishSoundSessionIdsRef,
     currentSessionIdRef,
     models,
@@ -709,6 +729,7 @@ function AppContent() {
     playPermissionSound,
     chatFinishSoundEnabledRef,
     playChatFinishSound,
+    onSessionCompleted: () => onSessionCompletedRef.current?.(),
   }), [
     setSessions,
     setCurrentSession,
@@ -732,6 +753,8 @@ function AppContent() {
     partIdIndexRef,
     partAppendRafRef,
     pendingPartAppendsRef,
+    lastPartAppendFlushAtRef,
+    partAppendTimeoutRef,
     skipFinishSoundSessionIdsRef,
     currentSessionIdRef,
     models,
@@ -1005,6 +1028,7 @@ function AppContent() {
           onClearCompactionSuccess={() => setCompactionSuccess(false)}
           scrollToBottomRef={scrollToBottomRef}
           autoFollowToggleRef={autoFollowToggleRef}
+          onSessionCompletedRef={onSessionCompletedRef}
         />
 
         <AppPanels

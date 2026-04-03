@@ -65,6 +65,7 @@ export interface AppMainContentProps {
   onClearCompactionSuccess: () => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
+  onSessionCompletedRef?: React.RefObject<(() => void) | null>;
 }
 
 export function AppMainContent({
@@ -115,6 +116,7 @@ export function AppMainContent({
   onClearCompactionSuccess,
   scrollToBottomRef,
   autoFollowToggleRef,
+  onSessionCompletedRef,
 }: AppMainContentProps) {
   const connectedProviderIds = useMemo(
     () => new Set(providerStatuses.filter((s) => s.connected).map((s) => s.provider)),
@@ -251,6 +253,7 @@ export function AppMainContent({
       apiToken={apiToken ?? undefined}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
+      onSessionCompletedRef={onSessionCompletedRef}
     />
   );
 }
