@@ -19,6 +19,9 @@
 		C6BD59C055C986EA4A77FDA2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF1DE57E7D9CF13BB2E0E038 /* Assets.xcassets */; };
 		C869023DDFE275D42F3FBF29 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 39EEC6A55698228E08917A52 /* libapp.a */; };
 		E68F6CFDAED6503ABB4044A5 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE1209BFDECB28E00189B168 /* Metal.framework */; };
+		AA11111100000001AAAAAAAAAA /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB11111100000001BBBBBBBBBB /* AVFoundation.framework */; };
+		AA22222200000001AAAAAAAAAA /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22222200000001BBBBBBBBBB /* AudioToolbox.framework */; };
+		AA33333300000001AAAAAAAAAA /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB33333300000001BBBBBBBBBB /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +42,9 @@
 		CE1209BFDECB28E00189B168 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		D8F57162F5CC7AEDD55F173D /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		F3673D372C5ABDD1AD6E7067 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		BB11111100000001BBBBBBBBBB /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		BB22222200000001BBBBBBBBBB /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		BB33333300000001BBBBBBBBBB /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		FBC720DFA1D01F55B0A32344 /* Jean2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jean2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -55,6 +61,9 @@
 				324A1E9A4258E7911D4DAC39 /* Security.framework in Frameworks */,
 				618672DC8A5E0605441C9935 /* UIKit.framework in Frameworks */,
 				836D84C5F07860664DAF79C8 /* WebKit.framework in Frameworks */,
+				AA11111100000001AAAAAAAAAA /* AVFoundation.framework in Frameworks */,
+				AA22222200000001AAAAAAAAAA /* AudioToolbox.framework in Frameworks */,
+				AA33333300000001AAAAAAAAAA /* CoreAudio.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,6 +81,9 @@
 				9FACFFCB6E3743955F72464C /* Security.framework */,
 				0E2B15F176E4B041AE33EEEA /* UIKit.framework */,
 				D8F57162F5CC7AEDD55F173D /* WebKit.framework */,
+				BB11111100000001BBBBBBBBBB /* AVFoundation.framework */,
+				BB22222200000001BBBBBBBBBB /* AudioToolbox.framework */,
+				BB33333300000001BBBBBBBBBB /* CoreAudio.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
