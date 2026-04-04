@@ -68,13 +68,15 @@ export function FileTreeNode({
   };
 
   const handleToggle = (open: boolean) => {
+    (document.activeElement as HTMLElement)?.focus();
     setIsOpen(open);
     if (open && isDirectory) {
       loadChildren();
     }
   };
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    (e.currentTarget as HTMLButtonElement).focus();
     if (!isDirectory && onFileSelect) {
       onFileSelect({ ...entry, path: fullPath });
     }
@@ -87,16 +89,19 @@ export function FileTreeNode({
   if (!isDirectory) {
     return (
       <button
+        data-file-node
+        data-file-type="file"
         onClick={handleClick}
         className={cn(
-          'flex items-center gap-1.5 w-full min-w-0 overflow-x-hidden px-1.5 py-0.5 rounded text-sm',
-          'hover:bg-accent hover:text-accent-foreground',
-          'transition-colors text-left',
+          'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
+          'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+          'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
+          '[&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate',
         )}
-        style={{ paddingLeft: `${depth * 12 + 6}px` }}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
-        <Icon className={cn('w-4 h-4 shrink-0', iconColor)} />
-        <span className="truncate min-w-0 flex-1">{entry.name}</span>
+        <Icon className={iconColor} />
+        <div className="flex-1 min-w-0 truncate">{entry.name}</div>
       </button>
     );
   }
@@ -105,12 +110,16 @@ export function FileTreeNode({
     <Collapsible open={isOpen} onOpenChange={handleToggle}>
       <CollapsibleTrigger asChild>
         <button
+          data-file-node
+          data-file-type="directory"
+          data-file-is-open={isOpen || undefined}
           className={cn(
-            'flex items-center gap-1.5 w-full min-w-0 overflow-x-hidden px-1.5 py-0.5 rounded text-sm',
-            'hover:bg-accent hover:text-accent-foreground',
-            'transition-colors text-left',
+            'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
+            'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
+            '[&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate',
           )}
-          style={{ paddingLeft: `${depth * 12 + 6}px` }}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {isLoading ? (
             <Loader2 className="w-3 h-3 animate-spin shrink-0" />
@@ -122,8 +131,8 @@ export function FileTreeNode({
               )}
             />
           )}
-          <Icon className={cn('w-4 h-4 shrink-0', iconColor)} />
-          <span className="truncate min-w-0 flex-1">{entry.name}</span>
+          <Icon className={iconColor} />
+          <div className="flex-1 min-w-0 truncate">{entry.name}</div>
         </button>
       </CollapsibleTrigger>
 

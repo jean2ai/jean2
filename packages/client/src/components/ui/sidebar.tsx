@@ -60,11 +60,13 @@ function SidebarProvider({
   className,
   style,
   children,
+  panelId,
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  panelId?: "sessions" | "files"
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
@@ -114,6 +116,7 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
+        data-panel-id={panelId}
         style={
           {
             "--sidebar-width": SIDEBAR_WIDTH,
@@ -140,13 +143,23 @@ function Sidebar({
   className,
   children,
   dir,
+  isOpen: isOpenProp,
+  onOpenChange: _onOpenChangeProp,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  isOpen?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state: contextState, openMobile, setOpenMobile } = useSidebar()
+
+  const isControlled = isOpenProp !== undefined;
+  const effectiveOpen = isControlled ? isOpenProp : undefined;
+  const effectiveState = effectiveOpen !== undefined
+    ? (effectiveOpen ? "expanded" : "collapsed")
+    : contextState;
 
   if (collapsible === "none") {
     return (
@@ -192,8 +205,8 @@ function Sidebar({
   return (
     <div
       className="group peer hidden text-sidebar-foreground md:block"
-      data-state={state}
-      data-collapsible={state === "collapsed" ? collapsible : ""}
+      data-state={effectiveState}
+      data-collapsible={effectiveState === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
@@ -204,6 +217,7 @@ function Sidebar({
         className={cn( 
           "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
+          effectiveOpen !== undefined && !effectiveOpen && "w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
@@ -215,6 +229,8 @@ function Sidebar({
         data-side={side}
         className={cn( 
           "fixed z-10 hidden w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          side === "left" && effectiveOpen !== undefined && !effectiveOpen && "left-[calc(var(--sidebar-width)*-1)]",
+          side === "right" && effectiveOpen !== undefined && !effectiveOpen && "right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -361,7 +377,7 @@ const SidebarContent = React.forwardRef<HTMLDivElement, React.ComponentProps<"di
         data-slot="sidebar-content"
         data-sidebar="content"
         className={cn(
-          "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+          "no-scrollbar flex min-h-0 min-w-0 w-full flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
           className
         )}
         ref={ref}
@@ -667,10 +683,21 @@ function SidebarMenuSubButton({
   )
 }
 
-function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div">) {
+interface PanelResizeHandleProps extends React.ComponentProps<"div"> {
+  side: "left" | "right"
+  panelId: "sessions" | "files"
+}
+
+function PanelResizeHandle({ side, panelId, className, ...props }: PanelResizeHandleProps) {
   const isMobile = useIsMobile();
+
   const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
   const setSessionsPanelWidth = useUIStore((s) => s.setSessionsPanelWidth);
+  const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
+  const setFilesPanelWidth = useUIStore((s) => s.setFilesPanelWidth);
+
+  const panelWidth = panelId === "sessions" ? sessionsPanelWidth : filesPanelWidth;
+  const setPanelWidth = panelId === "sessions" ? setSessionsPanelWidth : setFilesPanelWidth;
 
   const [isDragging, setIsDragging] = React.useState(false);
   const isDraggingRef = React.useRef(false);
@@ -688,39 +715,39 @@ function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div
     setIsDragging(true);
     startXRef.current = e.clientX;
     startWidthRef.current = liveWidthRef.current;
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.userSelect = 'none';
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
 
-    // Find the wrapper element that holds the --sidebar-width CSS variable
-    // Both sidebar-gap and sidebar-container consume this variable, so updating it
-    // here will make both elements track during drag
-    const wrapper = document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+    const wrapper = document.querySelector<HTMLElement>(`[data-panel-id="${panelId}"]`);
     wrapperRef.current = wrapper;
     if (wrapper) {
-      // Save the current CSS variable value so we can restore it later
-      savedWidthRef.current = wrapper.style.getPropertyValue('--sidebar-width') || null;
-      // Suppress CSS transitions during drag for instant tracking
-      wrapper.classList.add('no-transition');
+      savedWidthRef.current = wrapper.style.getPropertyValue("--sidebar-width") || null;
+      wrapper.classList.add("no-transition");
     }
-  }, [isMobile]);
+  }, [isMobile, panelId]);
 
   React.useEffect(() => {
-    liveWidthRef.current = sessionsPanelWidth;
-  }, [sessionsPanelWidth]);
+    liveWidthRef.current = panelWidth;
+  }, [panelWidth]);
 
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return;
-      const delta = e.clientX - startXRef.current;
+      const delta = side === "left"
+        ? e.clientX - startXRef.current
+        : startXRef.current - e.clientX;
       const next = clampPanelWidth(startWidthRef.current + delta);
       liveWidthRef.current = next;
 
-      // Update the --sidebar-width CSS variable on the wrapper element
-      // This drives both the gap and container since they both use this variable
-      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>(`[data-panel-id="${panelId}"]`);
       if (wrapper) {
-        wrapper.style.setProperty('--sidebar-width', `${Math.round(next)}px`);
+        wrapper.style.setProperty("--sidebar-width", `${Math.round(next)}px`);
         wrapperRef.current = wrapper;
+      }
+
+      const gap = document.querySelector<HTMLElement>(`[data-panel-gap="${panelId}"]`);
+      if (gap) {
+        gap.style.width = `${Math.round(next)}px`;
       }
     };
 
@@ -728,40 +755,50 @@ function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       setIsDragging(false);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
 
-      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>('[data-slot="sidebar-wrapper"]');
+      const wrapper = wrapperRef.current || document.querySelector<HTMLElement>(`[data-panel-id="${panelId}"]`);
       if (wrapper) {
-        // Remove no-transition class to restore CSS transitions
-        wrapper.classList.remove('no-transition');
-        // Clean up the inline CSS variable override so the SidebarProvider
-        // style takes over again (it will set the correct value from store)
+        wrapper.classList.remove("no-transition");
         if (savedWidthRef.current !== null) {
-          wrapper.style.setProperty('--sidebar-width', savedWidthRef.current);
+          wrapper.style.setProperty("--sidebar-width", savedWidthRef.current);
         } else {
-          wrapper.style.removeProperty('--sidebar-width');
+          wrapper.style.removeProperty("--sidebar-width");
         }
       }
 
-      setSessionsPanelWidth(Math.round(liveWidthRef.current));
+      const gap = document.querySelector<HTMLElement>(`[data-panel-gap="${panelId}"]`);
+      if (gap) {
+        gap.classList.add("no-transition");
+        gap.style.width = `${Math.round(liveWidthRef.current)}px`;
+        requestAnimationFrame(() => {
+          gap?.classList.remove("no-transition");
+        });
+      }
+
+      setPanelWidth(Math.round(liveWidthRef.current));
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [setSessionsPanelWidth]);
+  }, [setPanelWidth, side, panelId]);
 
   if (isMobile) return null;
 
+  const positionClass = side === "left" ? "absolute top-0 right-0" : "absolute top-0 left-0";
+
   return (
     <div
-      data-slot="sessions-resize-handle"
+      data-slot="panel-resize-handle"
+      data-panel-id={panelId}
       className={cn(
-        "absolute top-0 right-0 z-30 h-full w-2 flex cursor-ew-resize items-center justify-center group/sidebar-resize",
+        "z-30 flex h-full w-2 cursor-ew-resize items-center justify-center group/sidebar-resize",
+        positionClass,
         className
       )}
       onMouseDown={handleMouseDown}
@@ -776,6 +813,10 @@ function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div
       />
     </div>
   );
+}
+
+function SessionsResizeHandle({ className, ...props }: React.ComponentProps<"div">) {
+  return <PanelResizeHandle side="left" panelId="sessions" className={className} {...props} />
 }
 
 export {
@@ -802,6 +843,7 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  PanelResizeHandle,
   SessionsResizeHandle,
   useSidebar,
 }

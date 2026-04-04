@@ -10,6 +10,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
   terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
+  filesPanelRef: React.RefObject<{ focus: () => void } | null>;
   chatInputRef: React.RefObject<{ focus: () => void } | null>;
   activeWorkspace: Workspace | null;
   primaryPreconfigs: Preconfig[];
@@ -25,6 +26,7 @@ export interface AppKeyboardHandlersConfig {
 export function useAppKeyboardHandlers({
   sidebarRef,
   terminalPanelRef,
+  filesPanelRef,
   chatInputRef,
   activeWorkspace,
   primaryPreconfigs,
@@ -66,6 +68,17 @@ export function useAppKeyboardHandlers({
     useUIStore.getState().setShowTerminalPanel(false);
   }, []);
 
+  const focusFilesPanel = useCallback(() => {
+    requestAnimationFrame(() => {
+      filesPanelRef.current?.focus();
+    });
+  }, [filesPanelRef]);
+
+  const focusFilesPanelRef = useRef(focusFilesPanel);
+  useLayoutEffect(() => {
+    focusFilesPanelRef.current = focusFilesPanel;
+  });
+
   const focusChatInput = useCallback(() => {
     chatInputRef.current?.focus();
   }, [chatInputRef]);
@@ -88,6 +101,8 @@ export function useAppKeyboardHandlers({
     const activeEl = document.activeElement;
     if (activeEl?.closest('[data-terminal-panel]')) {
       handleCloseTerminal();
+    } else if (activeEl?.closest('[data-panel-id="files"]')) {
+      useUIStore.getState().setShowFilesPanel(false);
     } else if (activeEl?.closest('[data-sidebar="sidebar"]')) {
       setSidebarOpen(false);
     }
@@ -100,6 +115,7 @@ export function useAppKeyboardHandlers({
   useKeyboardShortcuts({
     onOpenSidebar: () => focusSidebarSessionPanelRef.current(),
     onOpenTerminal: () => focusTerminalPanelRef.current(),
+    onOpenFilesPanel: () => focusFilesPanelRef.current(),
     onNewSession: handleNewSession,
     onNewWindow: handleNewWindow,
     onToggleViewMode: handleToggleViewMode,
@@ -159,6 +175,7 @@ export function useAppKeyboardHandlers({
 export interface AppKeyboardHandlersMountProps {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
   terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
+  filesPanelRef: React.RefObject<{ focus: () => void } | null>;
   chatInputRef: React.RefObject<{ focus: () => void } | null>;
   activeWorkspace: Workspace | null;
   primaryPreconfigs: Preconfig[];

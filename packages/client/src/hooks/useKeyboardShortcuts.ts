@@ -5,6 +5,7 @@ const DOUBLE_ESCAPE_WINDOW_MS = 400;
 export interface KeyboardShortcutsConfig {
   onOpenSidebar: () => void;
   onOpenTerminal: () => void;
+  onOpenFilesPanel: () => void;
   onNewSession: () => void;
   onNewWindow: () => void;
   onToggleViewMode: () => void;
@@ -100,7 +101,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
         return;
       }
 
-      const { onCloseFocusedPanel, onFocusChatInput, onStopStreaming, onOpenSidebar, onOpenTerminal, onNewWindow, onNewSession, onToggleViewMode, onToggleAutoFollow } = configRef.current;
+      const { onCloseFocusedPanel, onFocusChatInput, onStopStreaming, onOpenSidebar, onOpenTerminal, onOpenFilesPanel, onNewWindow, onNewSession, onToggleViewMode, onToggleAutoFollow } = configRef.current;
 
       if (e.shiftKey && e.key === 'Escape') {
         e.preventDefault();
@@ -163,6 +164,12 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
           onOpenTerminal();
           return;
         }
+      }
+
+      if (modifierPressed && e.code === 'Digit2') {
+        e.preventDefault();
+        onOpenFilesPanel();
+        return;
       }
 
       if (modifierPressed && e.shiftKey && e.code === 'KeyN') {

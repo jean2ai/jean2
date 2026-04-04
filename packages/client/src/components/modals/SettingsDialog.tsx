@@ -111,6 +111,7 @@ export function SettingsDialog({
 
   const shortcuts = [
     { keys: [mod, '1'], description: 'Open session list' },
+    { keys: [mod, '2'], description: 'Open files panel' },
     { keys: [mod, 'T'], description: 'Open terminal' },
     { keys: [mod, 'O'], description: 'Toggle overview mode' },
     { keys: [mod, 'N'], description: 'New session' },

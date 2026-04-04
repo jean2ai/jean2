@@ -30,6 +30,7 @@ import { useServerDataLoader } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppKeyboardHandlersMount } from '@/hooks/useAppKeyboardHandlers';
 import { AppHeader, AppPanels, AppMainContent } from '@/components/app';
+import { FilesPanel, type FilesPanelHandle } from '@/components/layout/FilesPanel';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 import {
@@ -93,6 +94,7 @@ function AppContent() {
   const currentSessionIdRef = useRef<string | null>(null);
   const chatInputRef = useRef<MessageInputHandle>(null);
   const terminalPanelRef = useRef<TerminalPanelHandle>(null);
+  const filesPanelRef = useRef<FilesPanelHandle>(null);
   const sidebarRef = useRef<AppSidebarHandle>(null);
   const scrollToBottomRef = useRef<(() => void) | null>(null);
   const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
@@ -163,6 +165,9 @@ function AppContent() {
     showMCPDialog,
     showAddServer,
     editServerData,
+    showFilesPanel,
+    setShowFilesPanel,
+    filesPanelWidth,
     setShowSettings,
     setShowMCPDialog,
     setShowAddServer,
@@ -175,6 +180,9 @@ function AppContent() {
     showMCPDialog: s.showMCPDialog,
     showAddServer: s.showAddServer,
     editServerData: s.editServerData,
+    showFilesPanel: s.showFilesPanel,
+    setShowFilesPanel: s.setShowFilesPanel,
+    filesPanelWidth: s.filesPanelWidth,
     setShowSettings: s.setShowSettings,
     setShowMCPDialog: s.setShowMCPDialog,
     setShowAddServer: s.setShowAddServer,
@@ -926,10 +934,11 @@ function AppContent() {
   const isLoggedIn = !!(activeServer);
 
   return (
-    <SidebarProvider defaultOpen={true} style={{ '--sidebar-width': `${sessionsPanelWidth}px` } as React.CSSProperties}>
+    <SidebarProvider panelId="sessions" defaultOpen={true} style={{ '--sidebar-width': `${sessionsPanelWidth}px` } as React.CSSProperties}>
       <AppKeyboardHandlersMount
         sidebarRef={sidebarRef}
         terminalPanelRef={terminalPanelRef}
+        filesPanelRef={filesPanelRef}
         chatInputRef={chatInputRef}
         activeWorkspace={activeWorkspace}
         primaryPreconfigs={primaryPreconfigs}
@@ -971,6 +980,17 @@ function AppContent() {
           }}
           onCreateSessionInWorkspace={createSessionInWorkspace}
           pendingPermissions={pendingPermissions}
+        />
+      )}
+
+      {isLoggedIn && (
+        <FilesPanel
+          ref={filesPanelRef}
+          workspaceId={activeWorkspace?.id}
+          serverUrl={serverUrl ?? undefined}
+          apiToken={apiToken ?? undefined}
+          isOpen={showFilesPanel}
+          onClose={() => setShowFilesPanel(false)}
         />
       )}
 
@@ -1043,10 +1063,17 @@ function AppContent() {
           workspaceName={activeWorkspace?.name}
           serverUrl={serverUrl ?? undefined}
           apiToken={apiToken ?? undefined}
-          isLoggedIn={isLoggedIn}
           terminalPanelRef={terminalPanelRef}
         />
       </main>
+
+      {isLoggedIn && (
+        <div
+          data-panel-gap="files"
+          className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
+          style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
+        />
+      )}
 
       {isLoggedIn && (
         <>
