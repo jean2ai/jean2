@@ -622,6 +622,14 @@ export function VirtualizedTranscript({
           isProgrammaticScrollRef.current = false;
         });
       }
+    } else {
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+      if (distanceFromBottom <= 5) {
+        autoScrollRef.current = true;
+        onAutoScrollChange?.(true);
+      }
     }
   });
 
