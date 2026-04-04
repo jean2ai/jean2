@@ -1,6 +1,8 @@
 import { type FC, memo, useState, useMemo } from 'react';
-import { Check, FileText, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, FileText, AlertCircle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { Highlight, themes } from 'prism-react-renderer';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 const CODE_THEME = themes.oneDark;
 
@@ -44,6 +46,17 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   highlightLines = [],
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const openFilePreview = useUIStore((s) => s.openFilePreview);
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+
+  const handlePathClick = () => {
+    if (!activeWorkspace) return;
+    openFilePreview({
+      workspaceId: activeWorkspace.id,
+      path,
+      name: path.split('/').pop() || path,
+    });
+  };
   const detectedLanguage = language || detectLanguage(path);
   const highlightSet = useMemo(() => new Set(highlightLines), [highlightLines]);
   const lineCount = useMemo(() => content.split('\n').length, [content]);
@@ -51,7 +64,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   return (
     <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
       <div>
-        <div className="flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
+        <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-2 px-2 py-1 hover:bg-muted"
@@ -60,7 +73,15 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
           </button>
 
           <FileText className="size-3" />
-          <span className="font-mono pr-2">{path}</span>
+          <button
+            type="button"
+            onClick={handlePathClick}
+            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted"
+            title="Open file preview"
+          >
+            {path}
+            <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
+          </button>
 
           {!expanded && (
             <span className="text-xs text-muted-foreground/70">

@@ -5,6 +5,7 @@ import { useSessionMetaStore } from '@/stores/sessionMetaStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionContentStore } from '@/stores/sessionContentStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type {
   Session,
   Message,
@@ -23,6 +24,7 @@ import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
+import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
@@ -159,6 +161,12 @@ function AppContent() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
 
+  const setActiveWorkspaceStore = useWorkspaceStore((s) => s.setActiveWorkspace);
+
+  useLayoutEffect(() => {
+    setActiveWorkspaceStore(activeWorkspace);
+  }, [activeWorkspace, setActiveWorkspaceStore]);
+
   // UI state managed by Zustand store (dialog-related only; header/panel state extracted to sub-components)
   const {
     showSettings,
@@ -175,6 +183,8 @@ function AppContent() {
     setCompletion,
     clearCompletion,
     clearAllCompletions,
+    filePreviewTarget,
+    closeFilePreview,
   } = useUIStore(useShallow((s) => ({
     showSettings: s.showSettings,
     showMCPDialog: s.showMCPDialog,
@@ -190,6 +200,8 @@ function AppContent() {
     setCompletion: s.setCompletion,
     clearCompletion: s.clearCompletion,
     clearAllCompletions: s.clearAllCompletions,
+    filePreviewTarget: s.filePreviewTarget,
+    closeFilePreview: s.closeFilePreview,
   })));
 
   // Notification sound settings
@@ -1119,6 +1131,19 @@ function AppContent() {
         }}
         editServer={editServerData}
       />
+
+      {isLoggedIn && (
+        <FilePreviewOverlay
+          workspaceId={activeWorkspace?.id}
+          target={filePreviewTarget}
+          serverUrl={serverUrl ?? undefined}
+          apiToken={apiToken ?? undefined}
+          open={filePreviewTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) closeFilePreview();
+          }}
+        />
+      )}
     </SidebarProvider>
   );
 }

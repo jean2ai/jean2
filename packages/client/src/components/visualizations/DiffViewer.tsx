@@ -1,10 +1,12 @@
-import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, FileText } from 'lucide-react';
 import { memo, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 
 const CODE_THEME = themes.oneDark;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/uiStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface DiffViewerProps {
   hunks: DiffHunk[];
@@ -98,10 +100,22 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const [expanded, setExpanded] = useState(true);
   const language = propLanguage || detectLanguage(path);
 
+  const openFilePreview = useUIStore((s) => s.openFilePreview);
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+
+  const handlePathClick = () => {
+    if (!activeWorkspace) return;
+    openFilePreview({
+      workspaceId: activeWorkspace.id,
+      path,
+      name: path.split('/').pop() || path,
+    });
+  };
+
   return (
     <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
       <div>
-        <div className="flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
+        <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
             onClick={() => setExpanded(!expanded)}
             className="px-1 py-1 hover:bg-muted rounded"
@@ -110,7 +124,15 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
           </button>
 
           <FileText className="size-3" />
-          <span className="font-mono pr-2">{path}</span>
+          <button
+            type="button"
+            onClick={handlePathClick}
+            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted"
+            title="Open file preview"
+          >
+            {path}
+            <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
+          </button>
 
           {additions !== undefined && deletions !== undefined && (
             <span className="ml-auto mr-2 text-muted-foreground">

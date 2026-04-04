@@ -20,6 +20,12 @@ const FLASH_DURATION_MS = 5000;
 
 export type SidebarViewMode = 'default' | 'overview';
 
+export interface FilePreviewTarget {
+  workspaceId: string;
+  path: string;
+  name: string;
+}
+
 interface UIState {
   showSettings: boolean;
   showMCPDialog: boolean;
@@ -31,6 +37,7 @@ interface UIState {
   completionState: Map<string, CompletionRecord>;
   sessionsPanelWidth: number;
   filesPanelWidth: number;
+  filePreviewTarget: FilePreviewTarget | null;
 }
 
 interface UIActions {
@@ -46,6 +53,8 @@ interface UIActions {
   clearAllCompletions: () => void;
   setSessionsPanelWidth: (width: number) => void;
   setFilesPanelWidth: (width: number) => void;
+  openFilePreview: (target: FilePreviewTarget) => void;
+  closeFilePreview: () => void;
 }
 
 type UIStore = UIState & UIActions;
@@ -77,6 +86,7 @@ export const useUIStore = create<UIStore>((set) => ({
   completionState: new Map<string, CompletionRecord>(),
   sessionsPanelWidth: getInitialSessionsPanelWidth(),
   filesPanelWidth: getInitialFilesPanelWidth(),
+  filePreviewTarget: null,
 
   setShowSettings: (show) => set({ showSettings: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
@@ -111,6 +121,8 @@ export const useUIStore = create<UIStore>((set) => ({
     saveFilesPanelWidth(clampedWidth);
     set({ filesPanelWidth: clampedWidth });
   },
+  openFilePreview: (target) => set({ filePreviewTarget: target }),
+  closeFilePreview: () => set({ filePreviewTarget: null }),
 }));
 
 // Selector: get completion record for a session

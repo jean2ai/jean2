@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import type { FileEntry } from '@jean2/shared';
 import { X, RefreshCw } from 'lucide-react';
 import { FileTree, type FileTreeHandle } from '@/components/files';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,18 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
+    const openFilePreview = useUIStore((s) => s.openFilePreview);
+
+    const handleFileSelect = useCallback((file: FileEntry) => {
+      if (file.type === 'file' && workspaceId) {
+        openFilePreview({
+          workspaceId,
+          path: file.path,
+          name: file.name,
+        });
+      }
+    }, [workspaceId, openFilePreview]);
+
     if (!workspaceId) {
       return null;
     }
@@ -76,6 +89,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
                 serverUrl={serverUrl}
                 apiToken={apiToken}
                 showHidden={true}
+                onFileSelect={handleFileSelect}
               />
             </div>
           </SheetContent>
@@ -111,6 +125,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
               apiToken={apiToken}
               showHidden={true}
               width={filesPanelWidth}
+              onFileSelect={handleFileSelect}
             />
           </SidebarContent>
         </Sidebar>

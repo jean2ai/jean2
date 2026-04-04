@@ -82,6 +82,13 @@ export function FileTreeNode({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleClick(e as unknown as React.MouseEvent<HTMLButtonElement>);
+    }
+  };
+
   const iconConfig = entry.extension ? FILE_ICONS[entry.extension] : null;
   const Icon = isDirectory ? (isOpen ? FolderOpen : Folder) : (iconConfig?.icon || File);
   const iconColor = isDirectory ? 'text-amber-500' : (iconConfig?.color || 'text-muted-foreground');
@@ -92,6 +99,7 @@ export function FileTreeNode({
         data-file-node
         data-file-type="file"
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         className={cn(
           'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
           'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',

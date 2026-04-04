@@ -72,6 +72,7 @@ import { getModelsConfig, getAllModels } from './config';
 
 // Import file service
 import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
+import { getFilePreview } from './services/filePreview';
 
 // Import auth modules
 import { requireAuth, isPublicRoute } from './auth/middleware';
@@ -489,6 +490,37 @@ export function createApp() {
     } catch (_err: unknown) {
       const _message = _err instanceof Error ? _err.message : 'Unknown error';
       return c.json({ error: 'Not Found', message: 'Path not found' }, 404);
+    }
+  });
+
+  app.get('/api/workspaces/:id/file-preview', async (c) => {
+    const workspaceId = c.req.param('id');
+    const path = c.req.query('path');
+
+    if (!path) {
+      return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
+    }
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    try {
+      const preview = await getFilePreview(workspace.path, path);
+      return c.json(preview);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+
+      if (message === 'Cannot preview a directory') {
+        return c.json({ error: 'Bad Request', message }, 400);
+      }
+
+      if (message === 'Path outside workspace') {
+        return c.json({ error: 'Forbidden', message }, 403);
+      }
+
+      return c.json({ error: 'Not Found', message }, 404);
     }
   });
 
