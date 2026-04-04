@@ -56,6 +56,7 @@ interface VirtualizedTranscriptProps {
   isMainActiveSession?: boolean;
   isCompacting?: boolean;
   compactionSuccess?: boolean;
+  onClearCompactionSuccess?: () => void;
   autoFollow?: boolean;
   onAutoScrollChange?: (enabled: boolean) => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
@@ -102,7 +103,7 @@ function findRevertMessageId(
 
 function CompactionInProgressBanner() {
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 border border-border">
+    <div className="flex items-center gap-2 text-sm font-medium text-foreground bg-muted rounded-lg px-3 py-2 border border-border shadow-sm">
       <Minimize2 className="size-4 animate-pulse" />
       <span>Compacting conversation...</span>
     </div>
@@ -111,7 +112,7 @@ function CompactionInProgressBanner() {
 
 function CompactionSuccessBanner() {
   return (
-    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg px-3 py-2 border border-green-500/20">
+    <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400 bg-green-500/15 rounded-lg px-3 py-2 border border-green-500/30 shadow-sm">
       <CheckCircle2 className="size-4" />
       <span>Compaction complete</span>
     </div>
@@ -410,6 +411,7 @@ export function VirtualizedTranscript({
   pendingPermissions,
   isCompacting = false,
   compactionSuccess = false,
+  onClearCompactionSuccess,
   onPermissionResponse,
   onNavigateToSubagent,
   onRemoveFromQueue,
@@ -759,11 +761,11 @@ export function VirtualizedTranscript({
   useEffect(() => {
     if (compactionSuccess) {
       const timer = setTimeout(() => {
-        setShowCompactionBanner(false);
+        onClearCompactionSuccess?.();
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [compactionSuccess]);
+  }, [compactionSuccess, onClearCompactionSuccess]);
 
   // Sync scrollToBottomRef for programmatic scrolling (e.g., when enabling auto-follow)
   useLayoutEffect(() => {
@@ -795,13 +797,13 @@ export function VirtualizedTranscript({
       onScroll={handleScroll}
     >
       {showCompactionBanner && (
-        <div className="sticky top-0 z-10 px-4 pt-4">
+        <div className="sticky top-0 z-10 px-4 pt-4 pb-1 bg-gradient-to-b from-background via-background/95 to-transparent">
           <CompactionInProgressBanner />
         </div>
       )}
 
       {compactionSuccess && (
-        <div className="sticky top-0 z-10 px-4 pt-4">
+        <div className="sticky top-0 z-10 px-4 pt-4 pb-1 bg-gradient-to-b from-background via-background/95 to-transparent">
           <CompactionSuccessBanner />
         </div>
       )}

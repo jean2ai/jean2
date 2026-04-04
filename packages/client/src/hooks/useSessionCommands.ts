@@ -110,7 +110,8 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
     sendMessage('session.create', { preconfigId, title, workspaceId: activeWorkspace?.id });
-  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, activeWorkspace]);
+    setCompactionSuccess(false);
+  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, activeWorkspace, setCompactionSuccess]);
 
   const resumeSession = useCallback((sessionId: string) => {
     removePendingPermissionsBySessionId(sessionId);
@@ -256,7 +257,8 @@ export function useSessionCommands({
     pendingPartAppendsRef.current.clear();
     const primary = primaryPreconfigs[0]?.id;
     sendMessage('session.create', { preconfigId: primary, workspaceId });
-  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, workspaces, primaryPreconfigs, setActiveWorkspace]);
+    setCompactionSuccess(false);
+  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
 
   return {
     sendMessage,

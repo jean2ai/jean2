@@ -261,7 +261,7 @@ export function ChatView({
   onCompact,
   isCompacting,
   compactionSuccess,
-  onClearCompactionSuccess: _onClearCompactionSuccess,
+  onClearCompactionSuccess,
   serverUrl,
   apiToken,
   selectedVariant,
@@ -351,6 +351,7 @@ export function ChatView({
           pendingPermissions={pendingPermissions}
           isCompacting={isCompacting}
           compactionSuccess={compactionSuccess}
+          onClearCompactionSuccess={onClearCompactionSuccess}
           onPermissionResponse={onPermissionResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           onRemoveFromQueue={onRemoveFromQueue}
