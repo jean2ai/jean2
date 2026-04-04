@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, memo, useLayoutEffect } from 'react';
 import { useCallbackRef } from '@/hooks/useCallbackRef';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, FileIcon } from 'lucide-react';
 import type {
   MessageWithParts,
   Part,
@@ -17,6 +17,7 @@ import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './MessageBubble';
 import { ToolCall } from './ToolCall';
+import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 interface PendingPermissionRequest {
@@ -58,6 +59,7 @@ interface VirtualizedTranscriptProps {
   autoFollow?: boolean;
   onAutoScrollChange?: (enabled: boolean) => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
+  serverUrl?: string;
 }
 
 const MIN_ESTIMATED_SIZE = 60;
@@ -151,6 +153,11 @@ function CompactionFailedMessage({
   );
 }
 
+function getFileExtensionBadge(mimeType?: string, filename?: string): string {
+  const ext = mimeType?.split('/').pop() || filename?.split('.').pop()?.toLowerCase() || '';
+  return ext;
+}
+
 function CompactionDivider({ part }: { part: CompactionPart }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -182,12 +189,14 @@ const MessageParts = memo(function MessageParts({
   onPermissionResponse,
   onNavigateToSubagent,
   inverted = false,
+  serverUrl,
 }: {
   parts: Part[];
   pendingPermissions: PendingPermissionRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
+  serverUrl?: string;
 }) {
   const sortedParts = [...parts].sort((a, b) => a.createdAt - b.createdAt);
 
@@ -223,22 +232,57 @@ const MessageParts = memo(function MessageParts({
               />
             );
 
-          case 'image':
+          case 'image': {
+            const fullUrl = serverUrl ? `http://${serverUrl}${part.url}` : part.url;
             return (
               <img
                 key={part.id}
-                src={part.url}
+                src={fullUrl}
                 alt=""
-                className="max-w-full rounded-lg mt-2"
+                className={cn(
+                  'max-w-full max-h-64 rounded-xl mt-2 object-contain',
+                  inverted && 'ring-2 ring-white/20'
+                )}
               />
             );
+          }
 
-          case 'file':
+          case 'file': {
+            const fullUrl = serverUrl ? `http://${serverUrl}${part.url}` : part.url;
+            const ext = getFileExtensionBadge(part.mimeType, part.filename);
+            const filename = part.filename || '';
+            const displayName = filename.length > 30
+              ? filename.slice(0, 27) + '...'
+              : (filename || 'unnamed');
             return (
-              <div key={part.id} className="mt-2 p-2 bg-muted rounded text-sm">
-                {part.filename || 'unnamed'}
-              </div>
+              <a
+                key={part.id}
+                href={fullUrl}
+                className={cn(
+                  'mt-2 p-2 rounded-lg text-sm flex items-center gap-2 transition-colors',
+                  inverted
+                    ? 'bg-white/15 hover:bg-white/25 text-primary-foreground'
+                    : 'bg-muted hover:bg-accent'
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FileIcon className="size-4 shrink-0" />
+                <span className="truncate">{displayName}</span>
+                {ext && (
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ml-auto shrink-0',
+                    inverted
+                      ? 'bg-white/25 text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground'
+                  )}>
+                    {ext}
+                  </span>
+                )}
+                <Download className="size-3.5 shrink-0 opacity-60" />
+              </a>
             );
+          }
 
           default:
             return null;
@@ -251,6 +295,7 @@ const MessageParts = memo(function MessageParts({
   if (prev.inverted !== next.inverted) return false;
   if (prev.onPermissionResponse !== next.onPermissionResponse) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
+  if (prev.serverUrl !== next.serverUrl) return false;
 
   const hasPendingTool = prev.parts.some(
     p => p.type === 'tool' && (p as ToolPart).state.status === 'pending'
@@ -287,6 +332,7 @@ interface MessageRowProps {
   isMainActiveSession?: boolean;
   isCompacting?: boolean;
   onCompact?: () => void;
+  serverUrl?: string;
 }
 
 const MessageRow = memo(function MessageRow({
@@ -302,6 +348,7 @@ const MessageRow = memo(function MessageRow({
   isMainActiveSession = false,
   isCompacting = false,
   onCompact,
+  serverUrl,
 }: MessageRowProps) {
   const compactionPart = item.parts.find(
     (p): p is CompactionPart => p.type === 'compaction'
@@ -348,6 +395,7 @@ const MessageRow = memo(function MessageRow({
           onPermissionResponse={onPermissionResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           inverted={item.message.role === 'user'}
+          serverUrl={serverUrl}
         />
       )}
     </MessageBubble>
@@ -372,6 +420,7 @@ export function VirtualizedTranscript({
   autoFollow = true,
   onAutoScrollChange,
   scrollToBottomRef,
+  serverUrl,
 }: VirtualizedTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showCompactionBanner, setShowCompactionBanner] = useState(false);
@@ -797,6 +846,7 @@ export function VirtualizedTranscript({
                     isMainActiveSession={isMainActiveSession}
                     isCompacting={isCompacting}
                     onCompact={onCompact}
+                    serverUrl={serverUrl}
                   />
                 </div>
               );

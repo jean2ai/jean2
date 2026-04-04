@@ -9,7 +9,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { mkdirSync, accessSync, constants } from 'fs';
+import { mkdirSync, accessSync, constants, existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { join, dirname, resolve } from 'path';
 
@@ -26,6 +26,14 @@ import {
   updateSession,
   deleteSession,
   listSessionsByWorkspace,
+} from '@/store';
+import {
+  getAttachmentByKey,
+  getAttachmentsForSession,
+  createAttachment,
+  determineKind,
+  validateImageMime,
+  MAX_ATTACHMENT_SIZE,
 } from '@/store';
 import {
   listWorkspaces,
@@ -546,6 +554,115 @@ export function createApp() {
     
     const messages = listMessages(sessionId);
     return c.json({ messages });
+  });
+
+  // ============================================================================
+  // Attachments API
+  // ============================================================================
+
+  // GET /api/sessions/:id/attachments - List attachments for a session
+  app.get('/api/sessions/:id/attachments', async (c) => {
+    const sessionId = c.req.param('id');
+    const session = getSession(sessionId);
+    if (!session) {
+      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+    }
+
+    const attachments = getAttachmentsForSession(sessionId);
+    return c.json({
+      attachments: attachments.map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        filename: a.filename,
+        mimeType: a.mimeType,
+        size: a.sizeBytes,
+        url: `/api/sessions/${sessionId}/attachments/${a.id}/content`,
+      })),
+    });
+  });
+
+  // POST /api/sessions/:id/attachments - Upload an attachment
+  app.post('/api/sessions/:id/attachments', async (c) => {
+    const sessionId = c.req.param('id');
+    const session = getSession(sessionId);
+    if (!session) {
+      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+    }
+
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'Bad Request', message: 'No file provided. Use multipart/form-data with field name "file".' }, 400);
+    }
+
+    const mimeType = file.type || 'application/octet-stream';
+    const sizeBytes = file.size;
+
+    if (sizeBytes > MAX_ATTACHMENT_SIZE) {
+      return c.json({ error: 'Payload Too Large', message: `File size (${Math.round(sizeBytes / 1024 / 1024)} MB) exceeds the 20 MB limit.` }, 413);
+    }
+
+    const kind = determineKind(mimeType);
+
+    if (kind === 'image' && !validateImageMime(mimeType)) {
+      return c.json({ error: 'Bad Request', message: `Image type "${mimeType}" is not supported. Allowed: png, jpeg, webp, gif.` }, 400);
+    }
+
+    if (sizeBytes === 0) {
+      return c.json({ error: 'Bad Request', message: 'File is empty.' }, 400);
+    }
+
+    const buffer = await file.arrayBuffer();
+    const attachment = createAttachment({
+      sessionId,
+      workspaceId: session.workspaceId,
+      filename: file.name || 'unnamed',
+      mimeType,
+      sizeBytes,
+      data: buffer,
+    });
+
+    return c.json({
+      id: attachment.id,
+      kind: attachment.kind,
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+      size: attachment.sizeBytes,
+      url: `/api/sessions/${sessionId}/attachments/${attachment.id}/content?key=${attachment.accessKey}`,
+    }, 201);
+  });
+
+  // GET /api/sessions/:id/attachments/:attachmentId/content - Get attachment content
+  app.get('/api/sessions/:id/attachments/:attachmentId/content', async (c) => {
+    const sessionId = c.req.param('id');
+    const attachmentId = c.req.param('attachmentId');
+    const accessKey = c.req.query('key');
+
+    if (!accessKey) {
+      return c.json({ error: 'Unauthorized', message: 'Missing access key' }, 401);
+    }
+
+    const attachment = getAttachmentByKey(attachmentId, accessKey);
+    if (!attachment) {
+      return c.json({ error: 'Not Found', message: 'Attachment not found' }, 404);
+    }
+
+    if (attachment.sessionId !== sessionId) {
+      return c.json({ error: 'Forbidden', message: 'Session mismatch' }, 403);
+    }
+
+    if (!existsSync(attachment.absolutePath)) {
+      return c.json({ error: 'Not Found', message: 'Attachment file not found on disk' }, 404);
+    }
+
+    const fileBuffer = readFileSync(attachment.absolutePath);
+    return new Response(fileBuffer, {
+      headers: {
+        'Content-Type': attachment.mimeType,
+        'Content-Length': String(attachment.sizeBytes),
+        'Cache-Control': 'private, max-age=86400',
+      },
+    });
   });
 
   // ============================================================================

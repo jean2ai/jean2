@@ -9,7 +9,7 @@ import type {
 type ClientMessagePayload =
   | { preconfigId?: string; title?: string; workspaceId?: string }
   | { sessionId: string }
-  | { sessionId: string; content: string }
+  | { sessionId: string; content: string; attachments?: Array<{ id: string; kind: string }> }
   | { toolCallId: string; approved: boolean }
   | { sessionId: string; preconfigId?: string }
   | { sessionId: string; modelId: string; providerId: string; variant?: string | null }
@@ -57,9 +57,9 @@ interface UseSessionCommandsReturn {
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
-  addToQueue: (sessionId: string, content: string) => void;
+  addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: string }>) => void;
   removeFromQueue: (queueId: string) => void;
-  sendChatMessage: (content: string) => void;
+  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: string }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -196,20 +196,24 @@ export function useSessionCommands({
     }
   }, [currentSession, resumeSession]);
 
-  const addToQueue = useCallback((sessionId: string, content: string) => {
-    sendMessage('queue.add', { sessionId, content });
+  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: string }>) => {
+    sendMessage('queue.add', { sessionId, content, ...(attachments && attachments.length > 0 ? { attachments } : {}) });
   }, [sendMessage]);
 
   const removeFromQueue = useCallback((queueId: string) => {
     sendMessage('queue.remove', { queueId });
   }, [sendMessage]);
 
-  const sendChatMessage = useCallback((content: string) => {
+  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: string }>) => {
     if (!currentSession || isCompacting) return;
     if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
-      addToQueue(currentSession.id, content);
+      addToQueue(currentSession.id, content, attachments);
     } else {
-      sendMessage('chat.message', { sessionId: currentSession.id, content });
+      sendMessage('chat.message', {
+        sessionId: currentSession.id,
+        content,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      });
     }
   }, [currentSession, streamingSessionIds, isCompacting, sendMessage, addToQueue]);
 

@@ -135,6 +135,14 @@ function AppContent() {
     providerId: string;
     providerName: string;
     variants?: Record<string, { providerOptions: Record<string, unknown> }>;
+    capabilities?: {
+      input?: {
+        text?: boolean;
+        image?: boolean;
+        video?: boolean;
+        file?: boolean;
+      };
+    };
   }>>([]);
   const [defaultModel, setDefaultModel] = useState<string>('gpt-4o');
 

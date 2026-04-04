@@ -1,6 +1,7 @@
 import { getDatabase } from './index';
 import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
 import { getWorkspace } from './workspaces';
+import { deleteAttachmentsForSession, deleteAttachmentsForWorkspace } from './attachments';
 import { rmSync, existsSync } from 'fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -199,6 +200,9 @@ export function cleanupSessionsOutputDirs(sessionIds: string[]): void {
 
 export function deleteSession(id: string): boolean {
   const db = getDatabase();
+
+  deleteAttachmentsForSession(id);
+
   const result = db.run('DELETE FROM sessions WHERE id = ?', [id]);
 
   if (result.changes > 0) {
@@ -210,6 +214,9 @@ export function deleteSession(id: string): boolean {
 
 export function deleteSessionsByWorkspace(workspaceId: string): void {
   const sessions = listSessionsByWorkspace(workspaceId);
+
+  deleteAttachmentsForWorkspace(workspaceId);
+
   const db = getDatabase();
   db.run('DELETE FROM sessions WHERE workspace_id = ?', [workspaceId]);
   for (const session of sessions) {

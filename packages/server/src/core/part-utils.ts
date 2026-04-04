@@ -1,4 +1,4 @@
-import type { TextPart, ToolPart, StepPart, Part } from '@jean2/shared';
+import type { TextPart, ToolPart, StepPart, Part, ImagePart, FilePart } from '@jean2/shared';
 import { randomUUID } from 'crypto';
 
 export function isTextPart(part: Part): part is TextPart {
@@ -7,6 +7,14 @@ export function isTextPart(part: Part): part is TextPart {
 
 export function isToolPart(part: Part): part is ToolPart {
   return part.type === 'tool';
+}
+
+export function isImagePart(part: Part): part is ImagePart {
+  return part.type === 'image';
+}
+
+export function isFilePart(part: Part): part is FilePart {
+  return part.type === 'file';
 }
 
 export function parseToolInput(input: unknown): Record<string, unknown> {

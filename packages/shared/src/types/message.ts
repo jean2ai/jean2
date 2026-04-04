@@ -179,6 +179,7 @@ export interface QueuedMessage {
   content: string;
   position: number;
   createdAt: number;
+  attachments?: Array<{ id: string; kind: string; filename?: string; mimeType?: string; accessKey?: string }>;
 }
 
 // ===========================================
@@ -230,6 +231,14 @@ export function isReasoningPart(part: Part): part is ReasoningPart {
 
 export function isStepPart(part: Part): part is StepPart {
   return part.type === 'step';
+}
+
+export function isImagePart(part: Part): part is ImagePart {
+  return part.type === 'image';
+}
+
+export function isFilePart(part: Part): part is FilePart {
+  return part.type === 'file';
 }
 
 export function isCompactionPart(part: Part): part is CompactionPart {

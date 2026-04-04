@@ -7,6 +7,7 @@ import type {
   ProviderStatus,
   QueuedMessage,
   SavedServer,
+  AttachmentKind,
 } from '@jean2/shared';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
@@ -49,7 +50,7 @@ export interface AppMainContentProps {
   onFirstServerAdded: (server: SavedServer) => void;
   onRetry: () => void;
   onLogout: () => void;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   onRemoveFromQueue: (queueItemId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
@@ -237,6 +238,7 @@ export function AppMainContent({
       onRename={onRename}
       usage={sessionUsage}
       modelName={currentModel}
+      modelSupportsImage={currentModelInfo?.capabilities?.input?.image ?? false}
       onNavigateToSubagent={onNavigateToSubagent}
       onNavigateBack={onNavigateBack}
       isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}

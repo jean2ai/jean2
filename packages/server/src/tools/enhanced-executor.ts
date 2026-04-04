@@ -60,6 +60,7 @@ export async function executeToolWithSecurity(
       args,
       workspacePath: context.workspacePath || '',
       sessionId: context.sessionId,
+      allowedPaths: context.allowedPaths,
     };
 
     const securityOutcome = await runSecurityCheck({
@@ -188,6 +189,7 @@ export async function getExecutionDecision(
     args,
     workspacePath: context.workspacePath || '',
     sessionId: context.sessionId,
+    allowedPaths: context.allowedPaths,
   };
 
   const securityOutcome = await runSecurityCheck({

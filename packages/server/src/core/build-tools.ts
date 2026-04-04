@@ -1,3 +1,5 @@
+import { homedir } from 'os';
+import { join } from 'path';
 import { tool, jsonSchema, type Tool } from 'ai';
 import type { ToolExecutionContext } from '@jean2/shared';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
@@ -82,6 +84,7 @@ export async function buildAiSdkTools(
             workspacePath,
             sessionId,
             workspaceId,
+            allowedPaths: [join(homedir(), '.jean2', 'data', 'upload')],
           };
 
           if (hasSecurityCheck(discoveredTool)) {

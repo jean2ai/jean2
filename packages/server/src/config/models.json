@@ -64,6 +64,7 @@
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
           "tier": "premium",
+          "capabilities": { "input": { "text": true, "image": true } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
@@ -76,6 +77,7 @@
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
           "tier": "premium",
+          "capabilities": { "input": { "text": true, "image": true } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
@@ -89,6 +91,7 @@
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "premium",
+          "capabilities": { "input": { "text": true, "image": true } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
@@ -102,6 +105,7 @@
           "contextWindow": 1050000,
           "maxOutputTokens": 128000,
           "tier": "premium",
+          "capabilities": { "input": { "text": true, "image": true, "file": ["application/pdf"] } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
@@ -115,6 +119,7 @@
           "contextWindow": 200000,
           "maxOutputTokens": 64000,
           "tier": "standard",
+          "capabilities": { "input": { "text": true, "image": true } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
@@ -127,6 +132,7 @@
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "premium",
+          "capabilities": { "input": { "text": true, "image": true } },
           "variants": {
             "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
             "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },

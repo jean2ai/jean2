@@ -26,6 +26,7 @@ import {
   getNextQueuedMessage,
   reconcileSessionCompaction,
   reconcileAllSessionsCompaction,
+  getAttachment,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
@@ -645,7 +646,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
     }
 
     case 'chat.message': {
-      await handleChat(ws, msg.sessionId, msg.content);
+      await handleChat(ws, msg.sessionId, msg.content, msg.attachments);
       break;
     }
 
@@ -757,7 +758,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         return;
       }
 
-      const queuedMessage = addMessageToQueue(msg.sessionId, msg.content);
+      const queuedMessage = addMessageToQueue(msg.sessionId, msg.content, msg.attachments);
       clients.set(ws, { sessionId: msg.sessionId });
 
       send(ws, {
@@ -966,7 +967,10 @@ function findReplayText(sessionId: string): string | null {
   return null;
 }
 
-async function drainQueue(ws: ServerWebSocket, sessionId: string): Promise<string | null> {
+async function drainQueue(
+  ws: ServerWebSocket,
+  sessionId: string,
+): Promise<{ content: string; attachments?: Array<{ id: string; kind: string }> } | null> {
   const nextMsg = getNextQueuedMessage(sessionId);
 
   if (!nextMsg) {
@@ -981,7 +985,10 @@ async function drainQueue(ws: ServerWebSocket, sessionId: string): Promise<strin
 
   deleteQueuedMessage(nextMsg.id);
 
-  return nextMsg.content;
+  return {
+    content: nextMsg.content,
+    ...(nextMsg.attachments ? { attachments: nextMsg.attachments } : {}),
+  };
 }
 
 interface ChatTurnResult {
@@ -1005,6 +1012,7 @@ async function runSingleChatTurn(
   provider: string,
   workspacePath: string | null | undefined,
   session: NonNullable<ReturnType<typeof getSession>>,
+  attachments?: Array<{ id: string; kind: string }>,
 ): Promise<ChatTurnResult> {
   const userMsgId = crypto.randomUUID();
 
@@ -1028,6 +1036,41 @@ async function runSingleChatTurn(
 
   broadcast({ type: 'message.created', message: userMessage });
   broadcast({ type: 'part.created', sessionId, part: textPart });
+
+  if (attachments && attachments.length > 0) {
+    for (const attachment of attachments) {
+      const attachmentRecord = getAttachment(sessionId, attachment.id);
+      if (!attachmentRecord) continue;
+
+      const partId = crypto.randomUUID();
+      const serverUrl = `/api/sessions/${sessionId}/attachments/${attachmentRecord.id}/content?key=${attachmentRecord.accessKey}`;
+
+      if (attachmentRecord.kind === 'image') {
+        const imagePart = {
+          id: partId,
+          messageId: userMsgId,
+          createdAt: Date.now(),
+          type: 'image' as const,
+          url: serverUrl,
+          mimeType: attachmentRecord.mimeType,
+        };
+        createPart(imagePart, sessionId);
+        broadcast({ type: 'part.created', sessionId, part: imagePart });
+      } else {
+        const filePart = {
+          id: partId,
+          messageId: userMsgId,
+          createdAt: Date.now(),
+          type: 'file' as const,
+          url: serverUrl,
+          mimeType: attachmentRecord.mimeType,
+          filename: attachmentRecord.filename,
+        };
+        createPart(filePart, sessionId);
+        broadcast({ type: 'part.created', sessionId, part: filePart });
+      }
+    }
+  }
 
   const { messages: history } = buildEffectiveContextHistory(sessionId);
   const onPermissionRequest = createPermissionRequestHandler(sessionId);
@@ -1214,7 +1257,12 @@ async function runSingleChatTurn(
   }
 }
 
-async function handleChat(ws: ServerWebSocket, sessionId: string, content: string): Promise<void> {
+async function handleChat(
+  ws: ServerWebSocket,
+  sessionId: string,
+  content: string,
+  attachments?: Array<{ id: string; kind: string }>,
+): Promise<void> {
   const session = getSession(sessionId);
   if (!session) {
     send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
@@ -1228,7 +1276,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
 
   // If session is already actively streaming (e.g., subagent running), queue the message instead
   if (interruptManager.isSessionActive(sessionId)) {
-    const queuedMessage = addMessageToQueue(sessionId, content);
+    const queuedMessage = addMessageToQueue(sessionId, content, attachments);
     clients.set(ws, { sessionId });
     send(ws, { type: 'queue.added', sessionId, message: queuedMessage });
     return;
@@ -1284,6 +1332,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
   }
 
   let currentContent: string = content;
+  let currentAttachments: Array<{ id: string; kind: string }> | undefined = attachments;
   let overflowRetryDepth = 0;
 
   while (true) {
@@ -1296,6 +1345,7 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
       provider,
       workspacePath,
       session,
+      currentAttachments,
     );
 
     if (result.contextOverflow) {
@@ -1327,9 +1377,10 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
     }
 
     if (result.isQueueDrainable) {
-      const nextContent = await drainQueue(ws, sessionId);
-      if (nextContent) {
-        currentContent = nextContent;
+      const next = await drainQueue(ws, sessionId);
+      if (next) {
+        currentContent = next.content;
+        currentAttachments = next.attachments;
         continue;
       }
     }
@@ -1339,18 +1390,20 @@ async function handleChat(ws: ServerWebSocket, sessionId: string, content: strin
       if (currentSession && !currentSession.parentId) {
         await executeCompaction(sessionId, 'auto');
       }
-      const nextContent = await drainQueue(ws, sessionId);
-      if (nextContent) {
-        currentContent = nextContent;
+      const next = await drainQueue(ws, sessionId);
+      if (next) {
+        currentContent = next.content;
+        currentAttachments = next.attachments;
         continue;
       }
       return;
     }
 
     if (result.streamCompleted) {
-      const nextContent = await drainQueue(ws, sessionId);
-      if (nextContent) {
-        currentContent = nextContent;
+      const next = await drainQueue(ws, sessionId);
+      if (next) {
+        currentContent = next.content;
+        currentAttachments = next.attachments;
         continue;
       }
       return;

@@ -4,6 +4,9 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import App from './App';
 import './index.css';
 
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => e.preventDefault());
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Use system+neutral (new API defaults) for consistency across the app */}

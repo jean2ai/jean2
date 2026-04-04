@@ -210,6 +210,15 @@ export function getHost(): string {
 // Maximum output tokens cap (like opencode's OUTPUT_TOKEN_MAX)
 export const OUTPUT_TOKEN_MAX = getLLMMaxTokens();
 
+export interface ModelCapabilities {
+  input?: {
+    text?: boolean;
+    image?: boolean;
+    video?: boolean;
+    file?: string[];
+  };
+}
+
 export interface ModelDefinition {
   id: string;
   name: string;
@@ -217,6 +226,7 @@ export interface ModelDefinition {
   maxOutputTokens?: number;
   tier: 'budget' | 'standard' | 'premium';
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
+  capabilities?: ModelCapabilities;
 }
 
 export interface ProviderDefinition {

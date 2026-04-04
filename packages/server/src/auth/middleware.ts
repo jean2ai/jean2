@@ -85,5 +85,6 @@ export const PUBLIC_ROUTES = [
  * Check if a path is public (doesn't require auth)
  */
 export function isPublicRoute(path: string): boolean {
-  return PUBLIC_ROUTES.includes(path);
+  if (PUBLIC_ROUTES.includes(path)) return true;
+  return /^\/api\/sessions\/[^/]+\/attachments\/[^/]+\/content$/.test(path);
 }

@@ -20,6 +20,7 @@ export interface ToolExecutionContext {
   workspacePath?: string;
   sessionId: string;
   workspaceId?: string;
+  allowedPaths?: string[];
 }
 
 export interface ToolExecution {

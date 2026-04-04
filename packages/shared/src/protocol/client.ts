@@ -10,10 +10,18 @@ export interface SessionResumeMessage {
   sessionId: string;
 }
 
+import type { AttachmentKind } from '../types/model';
+
+export interface ChatMessageAttachment {
+  id: string;
+  kind: AttachmentKind;
+}
+
 export interface ChatMessage {
   type: 'chat.message';
   sessionId: string;
   content: string;
+  attachments?: ChatMessageAttachment[];
 }
 
 export interface ToolApprovalMessage {
@@ -132,6 +140,7 @@ export interface QueueAddMessage {
   type: 'queue.add';
   sessionId: string;
   content: string;
+  attachments?: ChatMessageAttachment[];
 }
 
 export interface QueueRemoveMessage {

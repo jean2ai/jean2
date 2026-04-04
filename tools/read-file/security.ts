@@ -9,6 +9,7 @@ interface ReadFileSecurityInput {
   };
   workspacePath: string;
   sessionId: string;
+  allowedPaths?: string[];
 }
 
 interface ReadFileSecurityResult {
@@ -88,6 +89,16 @@ function isOutsideWorkspace(resolvedPath: string, workspacePath: string): boolea
   return !resolvedPath.startsWith(resolvedWorkspace);
 }
 
+function isInAllowedPath(resolvedPath: string, allowedPaths?: string[]): boolean {
+  if (!allowedPaths || allowedPaths.length === 0) return false;
+  for (const allowedPath of allowedPaths) {
+    const normalized = normalizePath(allowedPath);
+    const resolvedAllowed = path.resolve(normalized);
+    if (resolvedPath.startsWith(resolvedAllowed)) return true;
+  }
+  return false;
+}
+
 async function main() {
   try {
     const inputText = await Bun.stdin.text();
@@ -122,6 +133,24 @@ async function main() {
           originalPath: filePath,
           normalizedPath,
           resolvedPath: normalizedPath,
+        },
+      };
+      console.log(JSON.stringify(result));
+      return;
+    }
+
+    const allowed = isInAllowedPath(path.resolve(normalizedPath), input.allowedPaths);
+    if (allowed) {
+      const result: ReadFileSecurityResult = {
+        allowed: true,
+        requiresApproval: false,
+        permissionType: 'tool',
+        permissionKey: 'tool:read-file',
+        message: 'Reading from allowed path.',
+        details: {
+          originalPath: filePath,
+          normalizedPath,
+          resolvedPath: path.resolve(normalizedPath),
         },
       };
       console.log(JSON.stringify(result));

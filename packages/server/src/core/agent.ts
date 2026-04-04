@@ -96,12 +96,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =
     await getModelWithMetadata(resolvedModelId, providerId, systemMessage);
 
-  // Convert messages for ai-sdk
-  const aiMessages = await convertToAiSdkMessages(messages);
-
-  // Resolve model definition for context window
+  // Resolve model definition for context window and capabilities
   const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;
   const contextWindow = modelDef?.contextWindow;
+
+  // Convert messages for ai-sdk, passing model capabilities for multimodal handling
+  const aiMessages = await convertToAiSdkMessages(messages, modelDef?.capabilities);
   const modelMaxOutputTokens = contextWindow ? getMaxOutputTokens(resolvedModelId) : 0;
 
   // Resolve hybrid formula parameters from compactionPolicy or env defaults

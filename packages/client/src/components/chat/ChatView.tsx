@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
-import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/shared';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
@@ -29,6 +29,14 @@ interface Model {
   tier: 'budget' | 'standard' | 'premium';
   providerId: string;
   providerName: string;
+  capabilities?: {
+    input?: {
+      text?: boolean;
+      image?: boolean;
+      video?: boolean;
+      file?: boolean;
+    };
+  };
 }
 
 interface DisplayItem {
@@ -48,7 +56,7 @@ interface ChatViewProps {
   connectedProviderIds?: Set<string>;
   connectableProviderIds?: Set<string>;
   defaultModel: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
@@ -62,6 +70,7 @@ interface ChatViewProps {
     totalTokens: number;
   };
   modelName: string;
+  modelSupportsImage?: boolean;
   onNavigateToSubagent?: (sessionId: string) => void;
   onNavigateBack?: () => void;
   isStreaming?: boolean;
@@ -91,23 +100,51 @@ function mergeMessagesWithQueue(
     isQueued: false,
   }));
 
-  const queuedItems: DisplayItem[] = queuedMessages.map(qm => ({
-    message: {
-      id: qm.id,
-      role: 'user' as const,
-      sessionId: qm.sessionId,
-      createdAt: qm.createdAt,
-    },
-    parts: [{
-      id: `${qm.id}-part`,
-      messageId: qm.id,
-      createdAt: qm.createdAt,
-      type: 'text' as const,
-      text: qm.content,
-    }],
-    isQueued: true,
-    queueId: qm.id,
-  }));
+  const queuedItems: DisplayItem[] = queuedMessages.map(qm => {
+    const attachmentParts = (qm.attachments || []).map(att => {
+      const url = `/api/sessions/${qm.sessionId}/attachments/${att.id}/content?key=${att.accessKey}`;
+      if (att.kind === 'image') {
+        return {
+          id: `${qm.id}-att-${att.id}`,
+          messageId: qm.id,
+          createdAt: qm.createdAt,
+          type: 'image' as const,
+          url,
+          mimeType: att.mimeType,
+        };
+      }
+      return {
+        id: `${qm.id}-att-${att.id}`,
+        messageId: qm.id,
+        createdAt: qm.createdAt,
+        type: 'file' as const,
+        url,
+        mimeType: att.mimeType || '',
+        filename: att.filename,
+      };
+    });
+
+    return {
+      message: {
+        id: qm.id,
+        role: 'user' as const,
+        sessionId: qm.sessionId,
+        createdAt: qm.createdAt,
+      },
+      parts: [
+        ...attachmentParts,
+        ...(qm.content.trim() ? [{
+          id: `${qm.id}-part`,
+          messageId: qm.id,
+          createdAt: qm.createdAt,
+          type: 'text' as const,
+          text: qm.content,
+        }] : []),
+      ],
+      isQueued: true,
+      queueId: qm.id,
+    };
+  });
 
   // Sort regular messages by createdAt, then append queued messages at the end
   const sortedRegularItems = [...regularItems].sort((a, b) =>
@@ -214,6 +251,7 @@ export function ChatView({
   onRename,
   usage,
   modelName,
+  modelSupportsImage,
   onNavigateToSubagent,
   onNavigateBack,
   isStreaming,
@@ -323,6 +361,7 @@ export function ChatView({
           autoFollow={autoFollow}
           onAutoScrollChange={setAutoFollow}
           scrollToBottomRef={scrollToBottomRef}
+          serverUrl={serverUrl}
         />
 
         {/* Floating Follow/Free pill button - positioned within transcript area */}
@@ -362,6 +401,8 @@ export function ChatView({
           serverUrl={serverUrl}
           apiToken={apiToken}
           prompts={prompts}
+          sessionId={session.id}
+          modelSupportsImage={modelSupportsImage}
         />
       )}
 

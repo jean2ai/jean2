@@ -185,11 +185,36 @@ function initializeSchema(db: Database): void {
       content TEXT NOT NULL,
       position INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
+      attachments TEXT,
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
 
+  try {
+    db.run(`ALTER TABLE queued_messages ADD COLUMN attachments TEXT`);
+  } catch (_e: unknown) {
+    // Column may already exist
+  }
+
   db.run('CREATE INDEX IF NOT EXISTS idx_queued_messages_session ON queued_messages(session_id, position)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      absolute_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      access_key TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS terminal_sessions (
@@ -231,3 +256,7 @@ export { cleanupSessionOutputDir, cleanupSessionsOutputDirs, cleanupWorkspaceSes
 // Re-export for recovery functions
 export { findOrphanedCompactionTriggers } from './messages';
 export { reconcileSessionCompaction, reconcileAllSessionsCompaction } from './compaction-recovery';
+
+// Re-export attachment functions
+export * from './attachments';
+export { deleteAttachmentsForSession, deleteAttachmentsForWorkspace, getAttachment } from './attachments';

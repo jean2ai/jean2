@@ -1,18 +1,19 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { FileEntry, PromptInfo } from '@jean2/shared';
+import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/shared';
 import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
+import { PendingAttachment } from './PendingAttachment';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 
 type AutocompleteMode = 'none' | 'files' | 'prompts';
 
 interface MessageInputProps {
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   disabled?: boolean;
   isStreaming?: boolean;
   onStopStreaming?: () => void;
@@ -21,6 +22,19 @@ interface MessageInputProps {
   serverUrl?: string;
   apiToken?: string;
   prompts?: PromptInfo[];
+  sessionId?: string;
+  modelSupportsImage?: boolean;
+}
+
+interface PendingAttachmentData {
+  id: string;
+  kind: AttachmentKind;
+  filename: string;
+  size: number;
+  previewUrl?: string;
+  uploadedId?: string;
+  uploadedKind?: AttachmentKind;
+  isUploading?: boolean;
 }
 
 export interface MessageInputHandle {
@@ -57,6 +71,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   serverUrl,
   apiToken,
   prompts = [],
+  sessionId,
+  modelSupportsImage,
 }: MessageInputProps, ref) {
   const [input, setInput] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -64,7 +80,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [acMode, setAcMode] = useState<AutocompleteMode>('none');
   const [promptQuery, setPromptQuery] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachmentData[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useImperativeHandle(ref, () => ({
     focus: () => textareaRef.current?.focus(),
@@ -169,23 +188,149 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }, 0);
   }, [input, cursorPosition]);
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const cleanupPending = useCallback(() => {
+    for (const a of pendingAttachments) {
+      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+    }
+    setPendingAttachments([]);
+    setInput('');
+  }, [pendingAttachments]);
+
+  const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
+    if (!serverUrl || !apiToken || !sessionId) return null;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`http://${serverUrl}/api/sessions/${sessionId}/attachments`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiToken}` },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+        console.error('Upload failed:', error.message);
+        return null;
+      }
+
+      const attachment = await response.json();
+
+      return {
+        id: crypto.randomUUID(),
+        kind: attachment.kind,
+        filename: attachment.filename,
+        size: attachment.size,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+        uploadedId: attachment.id,
+        uploadedKind: attachment.kind,
+      };
+    } catch (err) {
+      console.error('Upload error:', err);
+      return null;
+    }
+  }, [serverUrl, apiToken, sessionId]);
+
+  const removeAttachment = useCallback((id: string) => {
+    setPendingAttachments(prev => {
+      const item = prev.find(a => a.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter(a => a.id !== id);
+    });
+  }, []);
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+
+    for (const file of fileArray) {
+      if (file.size > 20 * 1024 * 1024) continue;
+
+      const localKind = file.type.startsWith('image/') ? 'image' as const
+        : file.type.startsWith('video/') ? 'video' as const
+        : 'file' as const;
+
+      const previewItem: PendingAttachmentData = {
+        id: crypto.randomUUID(),
+        kind: localKind,
+        filename: file.name,
+        size: file.size,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+        isUploading: true,
+      };
+      setPendingAttachments(prev => [...prev, previewItem]);
+
+      const result = await uploadAttachment(file);
+      if (result) {
+        setPendingAttachments(prev => prev.map(a => {
+          if (a.id === previewItem.id) {
+            if (a.previewUrl && a.previewUrl !== result.previewUrl) {
+              URL.revokeObjectURL(a.previewUrl);
+            }
+            return { ...result, isUploading: false };
+          }
+          return a;
+        }));
+      } else {
+        setPendingAttachments(prev => prev.filter(a => a.id !== previewItem.id));
+      }
+    }
+  }, [uploadAttachment]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  }, [addFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      addFiles(files);
+    }
+  }, [addFiles]);
+
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input.trim() || disabled) return;
+    const trimmed = input.trim();
+    if ((!trimmed && pendingAttachments.length === 0) || disabled) return;
 
     const parsed = extractPromptCommand(input);
     if (parsed) {
       const prompt = prompts.find(p => p.name === parsed.command);
       if (prompt) {
         const expanded = expandPromptContent(prompt, parsed.rest);
-        onSendMessage(expanded);
-        setInput('');
+        const uploadedAttachments = pendingAttachments
+          .filter(a => a.uploadedId)
+          .map(a => ({ id: a.uploadedId!, kind: a.uploadedKind! }));
+        onSendMessage(expanded, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+        cleanupPending();
         return;
       }
     }
 
-    onSendMessage(input.trim());
-    setInput('');
+    const uploadedAttachments = pendingAttachments
+      .filter(a => a.uploadedId)
+      .map(a => ({ id: a.uploadedId!, kind: a.uploadedKind! }));
+    onSendMessage(trimmed || '', uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+    cleanupPending();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -285,9 +430,44 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       </div>
     );
   }
+  const trimmed = input.trim();
+  const hasUploadingAttachment = pendingAttachments.some(a => a.isUploading);
+  const canSend = trimmed || pendingAttachments.length > 0;
+  const isDisabled = !canSend || disabled || hasUploadingAttachment;
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 border-t border-border bg-card">
+    <form
+      onSubmit={handleSubmit}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        'p-4 border-t border-border bg-card',
+        isDragOver && 'ring-2 ring-primary'
+      )}
+    >
+      {(pendingAttachments.length > 0 || !isStreaming) && (
+        <div className="flex gap-2 flex-wrap mb-2">
+          {pendingAttachments.map(a => (
+            <PendingAttachment
+              key={a.id}
+              id={a.id}
+              kind={a.kind}
+              filename={a.filename}
+              size={a.size}
+              previewUrl={a.previewUrl}
+              isUploading={a.isUploading}
+              onRemove={removeAttachment}
+            />
+          ))}
+        </div>
+      )}
+      {pendingAttachments.length > 0 && modelSupportsImage === false && (
+        <div className="flex items-center gap-1.5 mb-2 text-xs text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span>This model will not inspect images directly. They will be sent as file paths instead.</span>
+        </div>
+      )}
       <div className="flex gap-3 items-end">
         <div className="flex-1 relative">
           <Popover open={showPromptAc || showFileAc} onOpenChange={(open) => {
@@ -302,6 +482,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 placeholder={placeholder}
                 disabled={disabled}
                 className={cn(
@@ -342,9 +523,28 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </PopoverContent>
           </Popover>
         </div>
+        <button
+          type="button"
+          className="flex items-center justify-center size-11 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled}
+        >
+          <Paperclip className="size-4" />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,.pdf,.doc,.docx,.txt,.csv,.json,.xml,.md"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) addFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
         <Button
           type="submit"
-          disabled={!input.trim() || disabled}
+          disabled={isDisabled}
           size="default"
           className="h-11"
         >

@@ -6,6 +6,7 @@ export interface SecurityCheckInput {
   args: Record<string, unknown>;
   workspacePath: string;
   sessionId: string;
+  allowedPaths?: string[];
 }
 
 export interface SecurityCheckResult {

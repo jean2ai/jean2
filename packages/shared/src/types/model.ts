@@ -1,3 +1,14 @@
+export type AttachmentKind = 'image' | 'video' | 'file';
+
+export interface ModelCapabilities {
+  input?: {
+    text?: boolean;
+    image?: boolean;
+    video?: boolean;
+    file?: string[];
+  };
+}
+
 /**
  * Model tier for pricing categorization
  */
@@ -20,6 +31,7 @@ export interface ModelDefinition {
   /** Pricing tier */
   tier: ModelTier;
   variants?: Record<string, VariantOption>;
+  capabilities?: ModelCapabilities;
 }
 
 /**
