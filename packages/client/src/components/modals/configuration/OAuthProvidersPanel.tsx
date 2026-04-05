@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { buildApiUrl } from '@/config/urls';
-import { Loader2, Unplug } from 'lucide-react';
+import { Loader2, Unplug, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/shared';
 import { useApi } from '@/hooks/useApi';
@@ -18,6 +18,8 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [authUrls, setAuthUrls] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
     if (!apiToken || !apiUrl) return;
@@ -43,6 +45,7 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
 
   const handleConnect = async (providerId: string) => {
     setConnectingId(providerId);
+    setAuthUrls(prev => ({ ...prev, [providerId]: '' }));
     setError(null);
     try {
       const res = await fetchWithAuth(`${apiUrl}/api/providers/${providerId}/connect`, {
@@ -52,10 +55,11 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
       if (!res.ok) throw new Error('Failed to connect provider');
       const data = await res.json();
       if (data.authorizationUrl) {
-        window.open(data.authorizationUrl, '_blank');
+        setAuthUrls(prev => ({ ...prev, [providerId]: data.authorizationUrl }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect provider');
+      setAuthUrls(prev => ({ ...prev, [providerId]: '' }));
     } finally {
       setConnectingId(null);
     }
@@ -72,6 +76,16 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
       await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect provider');
+    }
+  };
+
+  const handleCopyUrl = async (url: string, providerId: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(providerId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // silently fail
     }
   };
 
@@ -124,7 +138,7 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
               )}
 
               <div className="flex gap-2">
-                {!provider.connected && (
+                {!provider.connected && !authUrls[provider.provider] && (
                   <Button
                     size="sm"
                     onClick={() => handleConnect(provider.provider)}
@@ -148,6 +162,36 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
                   </Button>
                 )}
               </div>
+
+              {!provider.connected && authUrls[provider.provider] && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Open this URL in your browser to complete the connection:
+                  </p>
+                  <div className="rounded-md bg-muted p-2">
+                    <a
+                      href={authUrls[provider.provider]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-blue-500 underline break-all"
+                    >
+                      {authUrls[provider.provider]}
+                    </a>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopyUrl(authUrls[provider.provider]!, provider.provider)}
+                  >
+                    {copiedId === provider.provider ? (
+                      <Check className="size-3" />
+                    ) : (
+                      <Copy className="size-3" />
+                    )}
+                    {copiedId === provider.provider ? 'Copied' : 'Copy URL'}
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
