@@ -149,6 +149,11 @@ function AppContent() {
         file?: boolean;
       };
     };
+    runtimeStatus: {
+      providerSupported: boolean;
+      providerConfigured: boolean;
+      usable: boolean;
+    };
   }>>([]);
   const [defaultModel, setDefaultModel] = useState<string>('gpt-4o');
 
@@ -227,7 +232,7 @@ function AppContent() {
   }, [permissionSoundEnabled]);
 
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
-  const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
+  const [_providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
   const {
     pendingPermissions,
@@ -635,11 +640,11 @@ function AppContent() {
       ]).then(([preconfigsData, promptsData, modelsData]) => {
         setPreconfigs(preconfigsData.preconfigs || []);
         setPrompts(promptsData.prompts || []);
-        setModels(modelsData.models || []);
+        setModels((modelsData.models || []).filter((m: { runtimeStatus?: { usable: boolean } }) => m.runtimeStatus?.usable));
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
       }).catch(() => {});
     }
-  }, [showConfiguration]);
+  }, [showConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps -- Intentionally only depends on showConfiguration to refetch when dialog closes
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const apiUrl = getApiUrl(serverUrl);
@@ -1058,7 +1063,6 @@ function AppContent() {
           primaryPreconfigs={primaryPreconfigs}
           prompts={prompts}
           models={models}
-          providerStatuses={providerStatuses}
           defaultModel={defaultModel}
           selectedVariant={selectedVariant}
           pendingPermissions={pendingPermissions}

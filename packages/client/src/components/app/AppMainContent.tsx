@@ -1,10 +1,8 @@
-import { useMemo } from 'react';
 import type {
   Session,
   MessageWithParts,
   Preconfig,
   PromptInfo,
-  ProviderStatus,
   QueuedMessage,
   SavedServer,
   AttachmentKind,
@@ -35,7 +33,6 @@ export interface AppMainContentProps {
   primaryPreconfigs: Preconfig[];
   prompts: PromptInfo[];
   models: ModelInfo[];
-  providerStatuses: ProviderStatus[];
   defaultModel: string;
   selectedVariant: string | null;
   pendingPermissions: PendingPermissionRequest[];
@@ -85,7 +82,6 @@ export function AppMainContent({
   primaryPreconfigs,
   prompts,
   models,
-  providerStatuses,
   defaultModel,
   selectedVariant,
   pendingPermissions,
@@ -117,16 +113,6 @@ export function AppMainContent({
   scrollToBottomRef,
   autoFollowToggleRef,
 }: AppMainContentProps) {
-  const connectedProviderIds = useMemo(
-    () => new Set(providerStatuses.filter((s) => s.connected).map((s) => s.provider)),
-    [providerStatuses]
-  );
-
-  const connectableProviderIds = useMemo(
-    () => new Set(providerStatuses.filter((s) => s.connectable).map((s) => s.provider)),
-    [providerStatuses]
-  );
-
   const isLoggedIn = !!(activeServer);
 
   const handleChangePreconfig = (preconfigId: string) => {
@@ -223,8 +209,6 @@ export function AppMainContent({
       preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
       prompts={prompts}
       models={models}
-      connectedProviderIds={connectedProviderIds}
-      connectableProviderIds={connectableProviderIds}
       defaultModel={defaultModel}
       onSendMessage={onSendMessage}
       onRemoveFromQueue={onRemoveFromQueue}

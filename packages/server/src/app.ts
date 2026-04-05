@@ -71,9 +71,6 @@ import { cleanupSessionsOutputDirs } from '@/store';
 // Import prompt operations
 import { listPrompts, ensurePromptsDir } from './prompts/registry';
 
-// Import config functions
-import { getModelsConfig, getAllModels } from './config';
-
 // Import file service
 import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
 import { getFilePreview } from './services/filePreview';
@@ -973,12 +970,12 @@ export function createApp() {
   // GET /api/models - List all available models
   app.get('/api/models', async (c) => {
     try {
-      const models = getAllModels();
-      const config = getModelsConfig();
-      return c.json({ 
+      const configResponse = modelsConfig.getModelsConfigWithStatus();
+      const models = configResponse.providers.flatMap((provider) => provider.models);
+      return c.json({
         models,
-        defaultModel: config.defaultModel,
-        defaultProvider: config.defaultProvider,
+        defaultModel: configResponse.defaultModel,
+        defaultProvider: configResponse.defaultProvider,
       });
     } catch (_error) {
       return c.json({ models: [], error: 'Failed to load models' });

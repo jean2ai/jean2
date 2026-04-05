@@ -31,6 +31,11 @@ export type ModelInfo = {
       file?: boolean;
     };
   };
+  runtimeStatus: {
+    providerSupported: boolean;
+    providerConfigured: boolean;
+    usable: boolean;
+  };
 };
 
 export interface PartIndexEntry {

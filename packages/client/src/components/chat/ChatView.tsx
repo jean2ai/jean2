@@ -53,8 +53,6 @@ interface ChatViewProps {
   preconfigs: Preconfig[];
   prompts?: import('@jean2/shared').PromptInfo[];
   models: Model[];
-  connectedProviderIds?: Set<string>;
-  connectableProviderIds?: Set<string>;
   defaultModel: string;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   onRemoveFromQueue: (queueId: string) => void;
@@ -238,8 +236,6 @@ export function ChatView({
   preconfigs,
   prompts,
   models,
-  connectedProviderIds,
-  connectableProviderIds,
   defaultModel,
   onSendMessage,
   onRemoveFromQueue,
@@ -334,8 +330,6 @@ export function ChatView({
         onCompact={onCompact}
         isCompacting={isCompacting}
         canCompact={messagesWithParts.length >= 4}
-        connectedProviderIds={connectedProviderIds}
-        connectableProviderIds={connectableProviderIds}
         selectedVariant={selectedVariant}
         variants={variants}
       />

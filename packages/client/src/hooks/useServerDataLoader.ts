@@ -12,6 +12,11 @@ export interface ModelInfo {
   providerId: string;
   providerName: string;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
+  runtimeStatus: {
+    providerSupported: boolean;
+    providerConfigured: boolean;
+    usable: boolean;
+  };
 }
 
 export interface UseServerDataLoaderParams {
@@ -97,7 +102,7 @@ export function useServerDataLoader({
         setSessions(sessionsData.sessions || []);
         setPreconfigs(preconfigsData.preconfigs || []);
         setPrompts(promptsData.prompts || []);
-        setModels(modelsData.models || []);
+        setModels((modelsData.models || []).filter((m: ModelInfo) => m.runtimeStatus?.usable));
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
         setProviderStatuses(providersData.providers || []);
 
