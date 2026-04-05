@@ -28,6 +28,7 @@ export interface FilePreviewTarget {
 
 interface UIState {
   showSettings: boolean;
+  showConfiguration: boolean;
   showMCPDialog: boolean;
   showFilesPanel: boolean;
   showTerminalPanel: boolean;
@@ -42,6 +43,7 @@ interface UIState {
 
 interface UIActions {
   setShowSettings: (show: boolean) => void;
+  setShowConfiguration: (show: boolean) => void;
   setShowMCPDialog: (show: boolean) => void;
   setShowFilesPanel: (show: boolean) => void;
   setShowTerminalPanel: (show: boolean) => void;
@@ -77,6 +79,7 @@ const getInitialFilesPanelWidth = (): number => {
 
 export const useUIStore = create<UIStore>((set) => ({
   showSettings: false,
+  showConfiguration: false,
   showMCPDialog: false,
   showFilesPanel: false,
   showTerminalPanel: false,
@@ -89,6 +92,7 @@ export const useUIStore = create<UIStore>((set) => ({
   filePreviewTarget: null,
 
   setShowSettings: (show) => set({ showSettings: show }),
+  setShowConfiguration: (show) => set({ showConfiguration: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowFilesPanel: (show) => set({ showFilesPanel: show }),
   setShowTerminalPanel: (show) => set({ showTerminalPanel: show }),

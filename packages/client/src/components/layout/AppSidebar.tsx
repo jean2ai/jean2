@@ -1,4 +1,4 @@
-import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server} from 'lucide-react';
+import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server, SlidersHorizontal} from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Session, Workspace } from '@jean2/shared';
 import { useUIStore } from '@/stores/uiStore';
@@ -61,6 +61,7 @@ interface AppSidebarProps {
   onOpenSettings: () => void;
   onOpenMCP: () => void;
   onOpenAddServer: () => void;
+  onOpenConfiguration: () => void;
   onServerSwitch?: () => void;
   onEscape?: () => void;
 }
@@ -95,6 +96,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onOpenSettings,
     onOpenMCP,
     onOpenAddServer,
+    onOpenConfiguration,
     onServerSwitch,
     onEscape,
   } = props;
@@ -451,6 +453,12 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
             <SidebarMenuButton onClick={onOpenMCP}>
               <Server className="size-4" data-icon="inline-start" />
               <span>MCP Servers</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={onOpenConfiguration}>
+              <SlidersHorizontal className="size-4" data-icon="inline-start" />
+              <span>Configuration</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

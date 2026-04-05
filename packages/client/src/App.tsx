@@ -22,6 +22,7 @@ import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
+import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
@@ -172,6 +173,7 @@ function AppContent() {
     showSettings,
     showMCPDialog,
     showAddServer,
+    showConfiguration,
     editServerData,
     showFilesPanel,
     setShowFilesPanel,
@@ -179,6 +181,7 @@ function AppContent() {
     setShowSettings,
     setShowMCPDialog,
     setShowAddServer,
+    setShowConfiguration,
     setEditServerData,
     setCompletion,
     clearCompletion,
@@ -189,6 +192,7 @@ function AppContent() {
     showSettings: s.showSettings,
     showMCPDialog: s.showMCPDialog,
     showAddServer: s.showAddServer,
+    showConfiguration: s.showConfiguration,
     editServerData: s.editServerData,
     showFilesPanel: s.showFilesPanel,
     setShowFilesPanel: s.setShowFilesPanel,
@@ -196,6 +200,7 @@ function AppContent() {
     setShowSettings: s.setShowSettings,
     setShowMCPDialog: s.setShowMCPDialog,
     setShowAddServer: s.setShowAddServer,
+    setShowConfiguration: s.setShowConfiguration,
     setEditServerData: s.setEditServerData,
     setCompletion: s.setCompletion,
     clearCompletion: s.clearCompletion,
@@ -984,6 +989,7 @@ function AppContent() {
           onOpenSettings={() => setShowSettings(true)}
           onOpenMCP={() => setShowMCPDialog(true)}
           onOpenAddServer={() => setShowAddServer(true)}
+          onOpenConfiguration={() => setShowConfiguration(true)}
           onServerSwitch={handleServerSwitch}
           onEscape={() => {
             if (currentSession) {
@@ -1119,6 +1125,13 @@ function AppContent() {
             workspacePath={activeWorkspace?.path}
             serverUrl={serverUrl ?? undefined}
             apiToken={apiToken ?? undefined}
+          />
+
+          <ConfigurationDialog
+            open={showConfiguration}
+            onOpenChange={setShowConfiguration}
+            serverUrl={serverUrl}
+            apiToken={apiToken}
           />
         </>
       )}

@@ -13,5 +13,6 @@ export * from './mcp';
 export * from './skill';
 export * from './server';
 export * from './prompt';
+export * from './configuration';
 export * from './provider';
 export * from './ui';

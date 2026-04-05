@@ -72,3 +72,15 @@ export async function listPrompts(): Promise<PromptInfo[]> {
   lastScanTime = now;
   return promptsCache;
 }
+
+export function clearPromptsCache(): void {
+  promptsCache = null;
+  lastScanTime = 0;
+}
+
+export async function getPrompt(name: string): Promise<PromptInfo | null> {
+  const prompts = await listPrompts();
+  return prompts.find(p => p.name === name) || null;
+}
+
+export { parsePromptFile };

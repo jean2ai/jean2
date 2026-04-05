@@ -28,6 +28,8 @@ export interface ModelDefinition {
   name: string;
   /** Maximum context window in tokens */
   contextWindow: number;
+  /** Maximum output tokens */
+  maxOutputTokens?: number;
   /** Pricing tier */
   tier: ModelTier;
   variants?: Record<string, VariantOption>;
