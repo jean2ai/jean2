@@ -18,6 +18,7 @@ import { showToken, regenerateToken } from './auth/token';
 import { initJean2, type InitOptions } from './init';
 import { runMigrations } from './store';
 import { runToolsCommand, type ToolsCommandArgs } from './tools/tools-cli';
+import { performUpdate, type UpdateOptions } from './update';
 import { VERSION } from './version';
 
 // Parse command line arguments
@@ -129,6 +130,12 @@ Commands:
 
   migrate              Run database migrations
 
+  update               Update jean2 to latest version
+    --version <ver>    Update to a specific version
+    --force            Reinstall even if already on latest
+    --dry-run          Check for updates without installing
+    --no-restart       Don't restart daemon after update
+
   version              Show version
   help                 Show this help
 
@@ -148,7 +155,9 @@ Examples:
   jean2 tools update              Update installed tools
   jean2 tools outdated            Check for updates
   jean2 migrate                   Run database migrations
-  jean2 version                   Show version
+  jean2 update                     Update to latest version
+  jean2 update --dry-run           Check for updates only
+  jean2 update --version 0.9.0     Update to specific version
 
 Environment:
   API keys and config can be set in ~/.jean2/.env
@@ -339,6 +348,57 @@ Auth commands:
         const message = err instanceof Error ? err.message : String(err);
         console.error('Migration failed:', message);
         process.exit(1);
+      }
+      break;
+    }
+
+    case 'update': {
+      const updateOptions: UpdateOptions = {};
+      const updateArgs = args.slice(1);
+
+      for (let i = 0; i < updateArgs.length; i++) {
+        if (updateArgs[i] === '--version' && updateArgs[i + 1]) {
+          updateOptions.version = updateArgs[++i];
+        } else if (updateArgs[i] === '--force') {
+          updateOptions.force = true;
+        } else if (updateArgs[i] === '--dry-run') {
+          updateOptions.dryRun = true;
+        } else if (updateArgs[i] === '--no-restart') {
+          updateOptions.noRestart = true;
+        } else if (updateArgs[i] === '--help' || updateArgs[i] === '-h') {
+          console.log(`
+jean2 update - Update jean2 to latest version
+
+Usage: jean2 update [options]
+
+Options:
+  --version <ver>    Update to a specific version (default: latest)
+  --force            Reinstall even if already on latest version
+  --dry-run          Check for updates without installing
+  --no-restart       Don't restart daemon after update
+  --help             Show this help message
+
+Examples:
+  jean2 update                     Update to latest version
+  jean2 update --dry-run           Check for updates only
+  jean2 update --version 0.9.0     Update to specific version
+`);
+          process.exit(0);
+        }
+      }
+
+      const result = await performUpdate(updateOptions);
+      if (!result.success) {
+        console.error('Update failed:', result.error);
+        process.exit(1);
+      }
+
+      if (result.previousVersion !== result.newVersion) {
+        console.log(`info: Updated from v${result.previousVersion} to v${result.newVersion}`);
+      }
+
+      if (!updateOptions.dryRun && result.previousVersion !== result.newVersion) {
+        process.exit(0);
       }
       break;
     }
