@@ -12,4 +12,5 @@ export * from './enhanced-executor';
 
 export * from './tool-repository';
 export { installTool, removeTool, getInstalledTools, isToolInstalled, getToolsBaseDir, type InstallOptions, type InstallResult, type RemoveResult, type ToolVersionInfo, type InstallManifest } from './tool-installer';
+export { getRuntimeSetup, getPlatformSetup, hasSetupForRuntime, verifyRuntime, offerRuntimeSetup } from './runtime-setup';
 export { runToolsCommand, toolsList, toolsInstall, toolsUpdate, toolsRemove, toolsOutdated, toolsHelp, installRecommendedTools, checkRuntime, type ToolsCliResult, type ListOptions, type CliInstallOptions, type UpdateOptions, type RemoveOptions, type OutdatedOptions, type ToolsCommandArgs, type InstallRecommendedToolsResult } from './tools-cli';

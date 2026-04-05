@@ -29,6 +29,12 @@ import {
   getToolsBaseDir,
 } from './tool-installer';
 
+import {
+  hasSetupForRuntime,
+  offerRuntimeSetup,
+  getRuntimeSetup,
+} from './runtime-setup';
+
 // ─── Runtime Checks ───────────────────────────────────────────────────────
 
 export interface RuntimeCheckResult {
@@ -37,7 +43,8 @@ export interface RuntimeCheckResult {
 }
 
 export async function checkRuntime(runtime: string): Promise<RuntimeCheckResult> {
-  const pathDirs = process.env.PATH?.split(':') || [];
+  const pathSep = process.platform === 'win32' ? ';' : ':';
+  const pathDirs = process.env.PATH?.split(pathSep) || [];
   const candidates = [runtime, `${runtime}.exe`];
 
   for (const dir of pathDirs) {
@@ -55,18 +62,25 @@ export async function checkRuntime(runtime: string): Promise<RuntimeCheckResult>
 
 async function getRuntimeVersion(runtime: string): Promise<string | undefined> {
   return new Promise<string | undefined>((resolve) => {
+    let settled = false;
+    const done = (result: string | undefined) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+
     const child = spawn(runtime, ['--version'], { stdio: 'pipe' });
     let output = '';
     child.stdout?.on('data', (data) => { output += data.toString(); });
     child.on('close', () => {
       const match = output.match(/v?(\d+[\d.]*)/);
-      resolve(match ? match[1] : undefined);
+      done(match ? match[1] : undefined);
     });
-    child.on('error', () => resolve(undefined));
-    // Timeout fallback
-    setTimeout(() => {
+    child.on('error', () => done(undefined));
+    const timer = setTimeout(() => {
       child.kill();
-      resolve(undefined);
+      done(undefined);
     }, 2000);
   });
 }
@@ -92,8 +106,15 @@ interface OutdatedResult {
 
 // ─── Utility ───────────────────────────────────────────────────────────────
 
-async function formatRuntimeCheck(requiredRuntimes: string[], skipCheck: boolean): Promise<{ ok: boolean; messages: string[] }> {
+interface RuntimeCheckSummary {
+  ok: boolean;
+  messages: string[];
+  missingWithSetup: string[];
+}
+
+async function formatRuntimeCheck(requiredRuntimes: string[], skipCheck: boolean): Promise<RuntimeCheckSummary> {
   const messages: string[] = [];
+  const missingWithSetup: string[] = [];
   let ok = true;
 
   for (const rt of requiredRuntimes) {
@@ -106,10 +127,13 @@ async function formatRuntimeCheck(requiredRuntimes: string[], skipCheck: boolean
       if (skipCheck) {
         messages.push(`  Skipping check via --skip-runtime-check`);
       }
+      if (hasSetupForRuntime(rt)) {
+        missingWithSetup.push(rt);
+      }
     }
   }
 
-  return { ok: skipCheck || ok, messages };
+  return { ok: skipCheck || ok, messages, missingWithSetup };
 }
 
 function pluralize(count: number, singular: string, plural?: string): string {
@@ -423,6 +447,36 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     }
     log.step('');
 
+    if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
+      for (const rt of runtimeCheck.missingWithSetup) {
+        const setup = getRuntimeSetup(rt);
+        const displayName = setup?.displayName ?? rt;
+        log.warn(`${displayName} is required but not found.`);
+
+        const shouldOffer = await confirm({
+          message: `Would you like help installing ${displayName}?`,
+          active: 'Yes',
+          inactive: 'No',
+        });
+
+        if (isCancel(shouldOffer) || !shouldOffer) {
+          continue;
+        }
+
+        await offerRuntimeSetup(rt);
+      }
+
+      const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
+      runtimeCheck.messages.length = 0;
+      runtimeCheck.messages.push(...afterSetup.messages);
+      runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
+      runtimeCheck.ok = afterSetup.ok;
+
+      if (runtimeCheck.missingWithSetup.length > 0) {
+        log.warn(`Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
+      }
+    }
+
     const choices = tools.map((tool) => {
       const extHints: string[] = [];
       for (const extId of tool.extensions) {
@@ -475,13 +529,48 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     outro('✨ Done');
     return { success: true };
   }
+    if (!isInteractive) {
+      intro('jean2 tools · install');
+      log.step('');
+      for (const msg of runtimeCheck.messages) {
+        log.step(`  Runtime required: ${msg}`);
+      }
 
-  if (!isInteractive) {
-    intro('jean2 tools · install');
-    log.step('');
-    for (const msg of runtimeCheck.messages) {
-      log.step(`  Runtime required: ${msg}`);
+      if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
+        for (const rt of runtimeCheck.missingWithSetup) {
+          const setup = getRuntimeSetup(rt);
+          const displayName = setup?.displayName ?? rt;
+          log.warn(`${displayName} is required but not found.`);
+
+          const shouldOffer = await confirm({
+            message: `Would you like help installing ${displayName}?`,
+            active: 'Yes',
+            inactive: 'No',
+          });
+
+          if (isCancel(shouldOffer) || !shouldOffer) {
+            log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+            return { success: false, error: 'Required runtimes not found' };
+          }
+
+          const result = await offerRuntimeSetup(rt);
+          if (!result.success) {
+            log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+            return { success: false, error: 'Required runtimes not found' };
+          }
+        }
+      const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
+      runtimeCheck.messages.length = 0;
+      runtimeCheck.messages.push(...afterSetup.messages);
+      runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
+      runtimeCheck.ok = afterSetup.ok;
+
+      log.step('');
+      for (const msg of runtimeCheck.messages) {
+        log.step(`  Runtime required: ${msg}`);
+      }
     }
+
     if (!runtimeCheck.ok) {
       log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
       return { success: false, error: 'Required runtimes not found' };
@@ -763,7 +852,7 @@ export interface InstallRecommendedToolsResult {
 }
 
 /**
- * Install recommended tools non-interactively.
+ * Install recommended tools.
  * Used by `jean2 init` to install recommended tools after setup.
  */
 export async function installRecommendedTools(): Promise<InstallRecommendedToolsResult> {
@@ -777,7 +866,7 @@ export async function installRecommendedTools(): Promise<InstallRecommendedTools
       return {
         success: false,
         toolsInstalled: false,
-        error: result.error,
+        error: `${result.error}\nRun 'jean2 tools install --recommended' to try again.`,
       };
     }
 

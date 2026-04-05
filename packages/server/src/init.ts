@@ -220,7 +220,9 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
     const result = await installRecommendedTools();
     toolsInstalled = result.toolsInstalled;
     if (!result.success && result.error) {
-      console.log(`Warning: Tool installation encountered an issue: ${result.error}`);
+      console.log('');
+      console.log(`⚠ Tool installation encountered an issue:`);
+      console.log(`  ${result.error}`);
     }
   }
 
