@@ -623,6 +623,23 @@ function AppContent() {
     pendingWorkspaceIdRef,
   });
 
+  // Refresh models, prompts, and preconfigs when Configuration dialog closes
+  useEffect(() => {
+    if (!showConfiguration && apiToken && serverUrl) {
+      const apiUrl = `http://${serverUrl}/api`;
+      Promise.all([
+        fetchWithAuth(`${apiUrl}/preconfigs`).then(r => r.json()),
+        fetchWithAuth(`${apiUrl}/prompts`).then(r => r.json()),
+        fetchWithAuth(`${apiUrl}/models`).then(r => r.json()),
+      ]).then(([preconfigsData, promptsData, modelsData]) => {
+        setPreconfigs(preconfigsData.preconfigs || []);
+        setPrompts(promptsData.prompts || []);
+        setModels(modelsData.models || []);
+        setDefaultModel(modelsData.defaultModel || 'gpt-4o');
+      }).catch(() => {});
+    }
+  }, [showConfiguration]);
+
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const apiUrl = getApiUrl(serverUrl);
     if (!apiUrl) return;
