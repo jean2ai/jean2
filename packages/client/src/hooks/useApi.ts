@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { buildApiUrl } from '@/config/urls';
 
 interface FetchConfig {
   serverUrl?: string;
@@ -16,7 +17,7 @@ export function useApi() {
     // Construct full URL for relative paths
     let fullUrl = url;
     if (url.startsWith('/') && serverUrl) {
-      fullUrl = `http://${serverUrl}${url}`;
+      fullUrl = buildApiUrl(serverUrl, url);
     }
     
     const headers = new Headers(options.headers || {});

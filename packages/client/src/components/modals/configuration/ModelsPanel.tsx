@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/shared';
 import {
   Plus,
@@ -105,7 +106,7 @@ const emptyModelForm: ModelFormData = { id: '', name: '', contextWindow: 128000,
 
 export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
   const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? `http://${serverUrl}` : '';
+  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
 
   const [config, setConfig] = useState<ModelsConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,7 +142,7 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     field: 'text' | 'image' | 'video',
     value: boolean
   ): ModelFormData {
-    const input = { ...form.capabilities?.input } || {};
+    const input = { ...(form.capabilities?.input) };
     input[field] = value;
     const hasCapabilities = input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0);
     return {

@@ -65,3 +65,5 @@ vite.config.ts.sig
 *.bun-build
 
 preconfigs-testing
+certs/
+*.pem

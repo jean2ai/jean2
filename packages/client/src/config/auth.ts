@@ -120,25 +120,27 @@ export function maskToken(token: string): string {
 }
 
 /**
- * Normalize server URL by stripping protocol prefixes and trailing slashes
+ * Normalize server URL by stripping protocol prefixes and trailing slashes.
+ * Preserves https:// prefix to allow secure protocol detection.
  * @param url - Raw URL input from user
- * @returns Clean host:port or host format
- * 
+ * @returns Clean host:port or host format, with https:// preserved if originally present
+ *
  * Examples:
  *   - "http://localhost:3000/" → "localhost:3000"
- *   - "https://domain/" → "domain"
- *   - "https://domain:8080" → "domain:8080"
- *   - "localhost:3000" → "localhost:3000" (unchanged)
- *   - "domain/" → "domain"
+ *   - "https://domain/" → "https://domain"
+ *   - "https://domain:8080" → "https://domain:8080"
+ *   - "domain:8080/" → "domain:8080"
  */
 export function normalizeServerUrl(url: string): string {
-  let normalized = url.trim();
-  
-  // Strip protocol prefixes
-  normalized = normalized.replace(/^(https?:\/\/|wss?:\/\/)/i, '');
-  
-  // Strip trailing slashes
+  const trimmed = url.trim();
+  const isHttps = /^https:\/\//i.test(trimmed);
+
+  let normalized = trimmed.replace(/^(https?:\/\/|wss?:\/\/)/i, '');
   normalized = normalized.replace(/\/+$/, '');
-  
+
+  if (isHttps) {
+    normalized = `https://${normalized}`;
+  }
+
   return normalized;
 }

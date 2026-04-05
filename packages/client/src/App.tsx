@@ -28,6 +28,7 @@ import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
+import { buildApiUrl } from '@/config/urls';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
 import { useServerDataLoader } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
@@ -44,7 +45,7 @@ import {
 } from '@/handlers/serverMessage';
 import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
 
-const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
+const getApiUrl = (url: string | null) => url ? buildApiUrl(url, '/api') : null;
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
@@ -626,7 +627,7 @@ function AppContent() {
   // Refresh models, prompts, and preconfigs when Configuration dialog closes
   useEffect(() => {
     if (!showConfiguration && apiToken && serverUrl) {
-      const apiUrl = `http://${serverUrl}/api`;
+      const apiUrl = buildApiUrl(serverUrl, '/api');
       Promise.all([
         fetchWithAuth(`${apiUrl}/preconfigs`).then(r => r.json()),
         fetchWithAuth(`${apiUrl}/prompts`).then(r => r.json()),
@@ -910,8 +911,6 @@ function AppContent() {
     updateSessionVariant,
     handleNavigateBack,
     refreshPermissions,
-    connectProvider,
-    disconnectProvider,
     createSessionInWorkspace,
   } = useSessionCommands({
     ws,

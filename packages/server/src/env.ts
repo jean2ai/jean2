@@ -231,3 +231,15 @@ export function reloadJean2Env(): void {
   envOverlay.clear();
   loadEnvFile();
 }
+
+export function getTlsEnabled(): boolean {
+  return process.env.JEAN2_TLS_ENABLED === 'true';
+}
+
+export function getTlsCertFile(): string | undefined {
+  return process.env.JEAN2_TLS_CERT_FILE;
+}
+
+export function getTlsKeyFile(): string | undefined {
+  return process.env.JEAN2_TLS_KEY_FILE;
+}

@@ -1,5 +1,7 @@
 globalThis.AI_SDK_LOG_WARNINGS = false;
 
+import { readFileSync } from 'fs';
+
 import { createApp } from './app';
 import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
@@ -57,6 +59,9 @@ import {
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
+  getTlsEnabled,
+  getTlsCertFile,
+  getTlsKeyFile,
 } from './env';
 import * as providerManager from './providers';
 
@@ -118,11 +123,30 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   const app = createApp();
 
-  console.log(`Server starting on http://${host}:${port}`);
+  let tls: { cert: string; key: string } | undefined;
+  if (getTlsEnabled()) {
+    const certPath = getTlsCertFile();
+    const keyPath = getTlsKeyFile();
+    if (!certPath || !keyPath) {
+      console.error('ERROR: JEAN2_TLS_ENABLED is set but JEAN2_TLS_CERT_FILE and/or JEAN2_TLS_KEY_FILE are not configured.');
+      process.exit(1);
+    }
+    try {
+      tls = { cert: readFileSync(certPath, 'utf-8'), key: readFileSync(keyPath, 'utf-8') };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`ERROR: Failed to read TLS certificate/key files: ${message}`);
+      process.exit(1);
+    }
+  }
+  const protocol = tls ? 'https' : 'http';
+
+  console.log(`Server starting on ${protocol}://${host}:${port}`);
 
   const server = Bun.serve({
     port,
     hostname: host,
+    ...(tls && { tls }),
 
     async fetch(req: Request): Promise<Response | undefined> {
       const url = new URL(req.url);
@@ -335,7 +359,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     },
   });
 
-  console.log(`AI Agent Server running at http://${host}:${port}`);
+  console.log(`AI Agent Server running at ${protocol}://${host}:${port}`);
 
   const onShutdown = (signal: string) => {
     console.log(`Received ${signal}, shutting down...`);

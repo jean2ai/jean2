@@ -3,7 +3,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
 
 import { getPort, getHost } from '../config';
-import { getToolEnv } from '../env';
+import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile } from '../env';
 
 export interface DaemonStatus {
   running: boolean;
@@ -122,6 +122,11 @@ export async function startDaemon(options?: DaemonOptions): Promise<DaemonResult
           ...getToolEnv(),
           JEAN2_PORT: String(port),
           JEAN2_HOST: host,
+          ...(getTlsEnabled() && {
+            JEAN2_TLS_ENABLED: 'true',
+            ...(getTlsCertFile() && { JEAN2_TLS_CERT_FILE: getTlsCertFile() }),
+            ...(getTlsKeyFile() && { JEAN2_TLS_KEY_FILE: getTlsKeyFile() }),
+          }),
         },
       }
     );
@@ -136,6 +141,11 @@ export async function startDaemon(options?: DaemonOptions): Promise<DaemonResult
           ...getToolEnv(),
           JEAN2_PORT: String(port),
           JEAN2_HOST: host,
+          ...(getTlsEnabled() && {
+            JEAN2_TLS_ENABLED: 'true',
+            ...(getTlsCertFile() && { JEAN2_TLS_CERT_FILE: getTlsCertFile() }),
+            ...(getTlsKeyFile() && { JEAN2_TLS_KEY_FILE: getTlsKeyFile() }),
+          }),
         },
       }
     );
@@ -154,8 +164,11 @@ export async function startDaemon(options?: DaemonOptions): Promise<DaemonResult
 
   child.unref();
 
+  const tls = getTlsEnabled() ? { cert: getTlsCertFile(), key: getTlsKeyFile() } : undefined;
+  const protocol = tls ? 'https' : 'http';
+
   console.log(`Daemon started with PID ${pid}`);
-  console.log(`Server running at http://${host}:${port}`);
+  console.log(`Server running at ${protocol}://${host}:${port}`);
   console.log(`Logs: ${logFilePath}`);
 
   return { success: true, pid };

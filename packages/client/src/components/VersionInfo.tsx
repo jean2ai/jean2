@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -77,7 +78,7 @@ export function VersionInfo({ serverUrl, enabled }: VersionInfoProps) {
     try {
       const results = await Promise.allSettled([
         serverUrl
-          ? fetch(`${serverUrl.startsWith('http') ? serverUrl : `http://${serverUrl}`}/api/info`)
+          ? fetch(buildApiUrl(serverUrl, '/api/info'))
               .then(r => r.ok ? r.json() : null)
               .then(data => data?.version ?? null)
           : Promise.resolve(null),

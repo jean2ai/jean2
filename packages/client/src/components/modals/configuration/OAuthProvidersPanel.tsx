@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { Loader2, Unplug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/shared';
@@ -11,7 +12,7 @@ interface PanelProps {
 
 export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
   const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? `http://${serverUrl}` : '';
+  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
 
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -203,7 +204,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`http://${serverUrl}/api/sessions/${sessionId}/attachments`, {
+      const response = await fetch(buildApiUrl(serverUrl, `/api/sessions/${sessionId}/attachments`), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${apiToken}` },
         body: formData,

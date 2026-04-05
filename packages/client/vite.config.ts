@@ -6,6 +6,9 @@ import pkg from './package.json';
 
 const host = process.env.TAURI_DEV_HOST;
 
+const serverOrigin = process.env.VITE_SERVER_URL || 'http://localhost:3000';
+const wsOrigin = serverOrigin.replace(/^http/, 'ws');
+
 export default defineConfig({
   clearScreen: false,
   plugins: [
@@ -47,12 +50,14 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true
+        target: serverOrigin,
+        changeOrigin: true,
+        secure: false
       },
       '/ws': {
-        target: 'ws://localhost:3000',
-        ws: true
+        target: wsOrigin,
+        ws: true,
+        secure: false
       }
     }
   }

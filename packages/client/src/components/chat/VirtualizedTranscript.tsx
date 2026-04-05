@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback, memo, useLayoutEffect } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { useCallbackRef } from '@/hooks/useCallbackRef';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Download, FileIcon } from 'lucide-react';
@@ -234,7 +235,7 @@ const MessageParts = memo(function MessageParts({
             );
 
           case 'image': {
-            const fullUrl = serverUrl ? `http://${serverUrl}${part.url}` : part.url;
+            const fullUrl = serverUrl ? buildApiUrl(serverUrl, part.url) : part.url;
             return (
               <img
                 key={part.id}
@@ -249,7 +250,7 @@ const MessageParts = memo(function MessageParts({
           }
 
           case 'file': {
-            const fullUrl = serverUrl ? `http://${serverUrl}${part.url}` : part.url;
+            const fullUrl = serverUrl ? buildApiUrl(serverUrl, part.url) : part.url;
             const ext = getFileExtensionBadge(part.mimeType, part.filename);
             const filename = part.filename || '';
             const displayName = filename.length > 30

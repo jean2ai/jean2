@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { buildWsUrl } from '@/config/urls';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -198,8 +199,8 @@ export function useTerminalConnection(
     setStatus('connecting');
 
     const wsUrl = sessionId
-      ? `ws://${serverUrlRef.current}/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}&sessionId=${sessionId}`
-      : `ws://${serverUrlRef.current}/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}`;
+      ? buildWsUrl(serverUrlRef.current, `/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}&sessionId=${sessionId}`)
+      : buildWsUrl(serverUrlRef.current, `/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}`);
 
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';

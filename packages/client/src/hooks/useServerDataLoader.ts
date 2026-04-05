@@ -1,7 +1,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import type { Preconfig, PromptInfo, Workspace, ProviderStatus, Session } from '@jean2/shared';
 
-const getApiUrl = (url: string | null) => url ? `http://${url}/api` : null;
+const getApiUrl = (url: string | null) => url ? buildApiUrl(url, '/api') : null;
 
 export interface ModelInfo {
   id: string;

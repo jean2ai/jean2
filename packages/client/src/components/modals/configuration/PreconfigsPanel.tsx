@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,7 +71,7 @@ const emptyForm: PreconfigForm = {
 
 export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
   const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? `http://${serverUrl}` : '';
+  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
 
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,8 +1,9 @@
 import { useEffect, useRef, type RefObject } from 'react';
+import { buildWsUrl } from '@/config/urls';
 import type { ServerMessage } from '@jean2/shared';
 
 const getWsUrl = (token: string | null, url: string | null) =>
-  (token && url) ? `ws://${url}/ws?token=${token}` : null;
+  (token && url) ? buildWsUrl(url, `/ws?token=${token}`) : null;
 
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;

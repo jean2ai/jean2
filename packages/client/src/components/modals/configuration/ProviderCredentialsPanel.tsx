@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { buildApiUrl } from '@/config/urls';
 import { Key, Check, X, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,7 @@ interface ProviderCredentialStatus {
 
 export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
   const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? `http://${serverUrl}` : '';
+  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
 
   const [providers, setProviders] = useState<ProviderCredentialStatus[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { buildWsUrl, buildApiUrl } from '@/config/urls';
 import { X, Plus, Terminal } from 'lucide-react';
 import { TerminalView } from './TerminalView';
 import {
@@ -213,7 +214,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     previousTabIdsRef.current = new Set(tabsRef.current.map(t => t.serverSessionId));
 
-    const wsUrl = `ws://${serverUrl}/ws/terminal/events?token=${apiToken}&workspaceId=${encodeURIComponent(workspaceId)}`;
+    const wsUrl = buildWsUrl(serverUrl, `/ws/terminal/events?token=${apiToken}&workspaceId=${encodeURIComponent(workspaceId)}`);
     const ws = new WebSocket(wsUrl);
     eventWsRef.current = ws;
 
@@ -345,7 +346,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     try {
       const response = await fetch(
-        `http://${serverUrl}/api/workspaces/${workspaceId}/terminals`,
+        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals`),
         {
           method: 'POST',
           headers: {
@@ -380,7 +381,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     try {
       await fetch(
-        `http://${serverUrl}/api/workspaces/${workspaceId}/terminals/${serverSessionId}`,
+        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals/${serverSessionId}`),
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${apiToken}` },
