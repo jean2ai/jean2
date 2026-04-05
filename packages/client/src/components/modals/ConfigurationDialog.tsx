@@ -1,4 +1,4 @@
-import { Key, Boxes, FileText, Layers } from 'lucide-react';
+import { Key, Boxes, FileText, Layers, Link2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProviderCredentialsPanel } from './configuration/ProviderCredentialsPanel';
+import { OAuthProvidersPanel } from './configuration/OAuthProvidersPanel';
 import { ModelsPanel } from './configuration/ModelsPanel';
 import { PromptsPanel } from './configuration/PromptsPanel';
 import { PreconfigsPanel } from './configuration/PreconfigsPanel';
@@ -32,15 +33,19 @@ export function ConfigurationDialog({
         <DialogHeader>
           <DialogTitle>Configuration</DialogTitle>
           <DialogDescription>
-            Manage providers, models, prompts, and preconfigs
+            Manage credentials, OAuth providers, models, prompts, and preconfigs
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="providers" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="providers">
               <Key className="size-4" data-icon="inline-start" />
-              <span className="hidden sm:inline">Providers</span>
+              <span className="hidden sm:inline">Credentials</span>
+            </TabsTrigger>
+            <TabsTrigger value="oauth">
+              <Link2 className="size-4" data-icon="inline-start" />
+              <span className="hidden sm:inline">OAuth</span>
             </TabsTrigger>
             <TabsTrigger value="models">
               <Boxes className="size-4" data-icon="inline-start" />
@@ -59,6 +64,15 @@ export function ConfigurationDialog({
           <TabsContent value="providers" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
               <ProviderCredentialsPanel
+                serverUrl={serverUrl}
+                apiToken={apiToken}
+              />
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="oauth" className="mt-4">
+            <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
+              <OAuthProvidersPanel
                 serverUrl={serverUrl}
                 apiToken={apiToken}
               />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, Link2, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
 import type { ToolPermission } from '@jean2/shared';
 import {
   Dialog,
@@ -17,8 +17,7 @@ import { useTheme } from '@/components/providers/ThemeProvider';
 import type { ThemeScheme } from '@/components/providers/ThemeProvider';
 import { PermissionListItem } from './PermissionListItem';
 import { ConfirmDialog } from './ConfirmDialog';
-import { ProviderCard } from '@/components/providers/ProviderCard';
-import type { ProviderStatus } from '@jean2/shared';
+
 import LogoutButton from '@/components/LogoutButton';
 import { VersionInfo } from '@/components/VersionInfo';
 
@@ -75,9 +74,6 @@ interface SettingsDialogProps {
   onRevokeAllPermissions: () => void;
   apiToken: string | null;
   onLogout: () => void;
-  providerStatuses: ProviderStatus[];
-  onConnectProvider: (provider: string) => void;
-  onDisconnectProvider: (provider: string) => void;
   chatFinishSoundEnabled: boolean;
   onChatFinishSoundEnabledChange: (enabled: boolean) => void;
   permissionSoundEnabled: boolean;
@@ -94,9 +90,6 @@ export function SettingsDialog({
   onRevokeAllPermissions,
   apiToken,
   onLogout,
-  providerStatuses,
-  onConnectProvider,
-  onDisconnectProvider,
   chatFinishSoundEnabled,
   onChatFinishSoundEnabledChange,
   permissionSoundEnabled,
@@ -140,7 +133,7 @@ export function SettingsDialog({
         </DialogHeader>
 
         <Tabs defaultValue="account" className="mt-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="account">
               <User className="size-4 sm:size-3" data-icon="inline-start" />
               <span className="hidden sm:inline">Account</span>
@@ -157,10 +150,6 @@ export function SettingsDialog({
                   {activePermissions.length}
                 </span>
               )}
-            </TabsTrigger>
-            <TabsTrigger value="providers">
-              <Link2 className="size-4 sm:size-3" data-icon="inline-start" />
-              <span className="hidden sm:inline">Providers</span>
             </TabsTrigger>
             <TabsTrigger value="keybinds">
               <Keyboard className="size-4 sm:size-3" data-icon="inline-start" />
@@ -375,26 +364,6 @@ export function SettingsDialog({
                   </div>
                 )}
               </ScrollArea>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="providers" className="mt-4">
-            <div className="flex flex-col gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Connect subscription-based providers to use models without API keys.
-                </p>
-                <div className="flex flex-col gap-3">
-                  {providerStatuses.map((status) => (
-                    <ProviderCard
-                      key={status.provider}
-                      provider={status}
-                      onConnect={() => onConnectProvider(status.provider)}
-                      onDisconnect={() => onDisconnectProvider(status.provider)}
-                    />
-                  ))}
-                </div>
-              </div>
             </div>
           </TabsContent>
 

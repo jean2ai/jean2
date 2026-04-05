@@ -1108,9 +1108,6 @@ function AppContent() {
             }}
             apiToken={apiToken}
             onLogout={handleLogout}
-            providerStatuses={providerStatuses}
-            onConnectProvider={connectProvider}
-            onDisconnectProvider={disconnectProvider}
             chatFinishSoundEnabled={chatFinishSoundEnabled}
             onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
             permissionSoundEnabled={permissionSoundEnabled}

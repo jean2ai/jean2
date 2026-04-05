@@ -129,7 +129,7 @@ export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
         Manage API keys for LLM providers. Keys are stored in ~/.jean2/.env and never exposed to the client.
       </p>
       <p className="text-xs text-muted-foreground mt-2">
-        OAuth-based providers (e.g., Codex) are managed in Settings → Providers.
+        OAuth-based providers are managed in the OAuth tab.
       </p>
 
       {error && (
