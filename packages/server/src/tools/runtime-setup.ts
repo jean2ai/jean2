@@ -185,8 +185,20 @@ export async function offerRuntimeSetup(
     return { success: false, error: 'Cancelled' };
   }
 
-  const shell = process.platform === 'win32' ? 'cmd' : 'sh';
-  const shellFlag = process.platform === 'win32' ? '/c' : '-c';
+  let shell: string;
+  let shellArgs: string[];
+
+  const cmdTrimmed = method.command.trim();
+
+  const psMatch = cmdTrimmed.match(/^(powershell|pwsh)\s+-[cC]\s+["'](.+?)["']\s*$/);
+  if (process.platform === 'win32' && psMatch) {
+    shell = psMatch[1];
+    shellArgs = ['-NoProfile', '-Command', psMatch[2]];
+  } else {
+    shell = process.platform === 'win32' ? 'cmd' : 'sh';
+    const shellFlag = process.platform === 'win32' ? '/c' : '-c';
+    shellArgs = [shellFlag, method.command];
+  }
 
   return new Promise((resolve) => {
     let settled = false;
@@ -197,7 +209,7 @@ export async function offerRuntimeSetup(
       resolve(result);
     };
 
-    const proc = spawn(shell, [shellFlag, method.command], {
+    const proc = spawn(shell, shellArgs, {
       stdio: 'inherit',
     });
 
