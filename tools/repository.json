@@ -3,7 +3,7 @@
 
   "registry": {
     "baseUrl": "https://github.com/rabbyte-tech/jean2/releases/download",
-    "urlTemplate": "{baseUrl}/tool-{name}%2Fv{version}/{name}.tar.gz",
+    "urlTemplate": "{baseUrl}/tool-{name}-bun%2Fv{version}/{name}-bun.tar.gz",
     "versionUrlTemplate": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/tools/{name}-bun/VERSION"
   },
 
