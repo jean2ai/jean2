@@ -6,7 +6,7 @@
 
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { intro, outro, log, multiselect, confirm, spinner, isCancel, cancel } from '@clack/prompts';
+import { log, multiselect, confirm, isCancel, cancel } from '@clack/prompts';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -309,22 +309,20 @@ export interface ListOptions {
 }
 
 export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
-  const s = spinner();
-
   try {
-    s.start('Fetching tool registry...');
+    log.step('Fetching tool registry...');
     const { tools, extensions, envConfig } = await fetchRepositoryWithVersions();
-    s.stop('Fetching tool registry... done');
+    log.step('Fetching tool registry... done');
 
     const installedSet = new Set(getInstalledTools().map((t) => t.name));
 
     if (options.extensions) {
-      intro('jean2 tools · extensions');
+      log.step('jean2 tools · extensions');
       log.step('');
       log.step('  Extensions:');
       log.step('');
       displayExtensionsDetail(extensions, envConfig);
-      outro('✨ Done');
+      log.step('✨ Done');
       return { success: true };
     }
 
@@ -352,7 +350,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
       return { success: true };
     }
 
-    intro('jean2 tools · list');
+    log.step('jean2 tools · list');
     log.step('');
     const TOOL_COL = 14;
     const VERS_COL = 8;
@@ -409,10 +407,9 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
       log.step('    ↗ optional  ·  ⚡ required  ·  run `jean2 tools list --extensions` for details');
     }
 
-    outro('✨ Done');
+    log.step('✨ Done');
     return { success: true };
   } catch (err: unknown) {
-    s.stop('Failed to fetch tool registry');
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
     return { success: false, error: message };
@@ -437,17 +434,14 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   const toolArgs = options.names || [];
   const isInteractive = toolArgs.length === 0 && !options.all && !options.recommended;
 
-  const s = spinner();
-
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    s.start('Fetching tool registry...');
+    log.step('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     repoData = await fetchRepositoryWithVersions({ availableRuntimes });
-    s.stop('Fetching tool registry... done');
+    log.step('Fetching tool registry... done');
   } catch (err: unknown) {
-    s.stop('Failed to fetch tool registry');
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
     return { success: false, error: message };
@@ -519,18 +513,17 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   const requiredRuntimes = collectRequiredRuntimes(selected);
   const runtimeCheck = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
 
-  // Display runtime check results (outside clack box since runtime setup may use inherited stdio)
-  console.log('');
+  // Display runtime check results
+  log.step('');
   for (const msg of runtimeCheck.messages) {
-    console.log(`  Runtime required: ${msg}`);
+    log.step(`  Runtime required: ${msg}`);
   }
-  console.log('');
 
   if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
     for (const rt of runtimeCheck.missingWithSetup) {
       const setup = getRuntimeSetup(rt);
       const displayName = setup?.displayName ?? rt;
-      console.log(`  ⚠ ${displayName} is required but not found.`);
+      log.warn(`  ⚠ ${displayName} is required but not found.`);
 
       const shouldOffer = await confirm({
         message: `Would you like help installing ${displayName}?`,
@@ -560,16 +553,17 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     runtimeCheck.ok = afterSetup.ok;
 
     if (runtimeCheck.missingWithSetup.length > 0) {
-      console.log(`  ⚠ Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
+      log.warn(`  ⚠ Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
     }
   }
 
   if (!runtimeCheck.ok) {
-    console.log('  Required runtimes not found. Use --skip-runtime-check to bypass.');
+    log.error('  Required runtimes not found. Use --skip-runtime-check to bypass.');
     return { success: false, error: 'Required runtimes not found' };
   }
 
-  intro('jean2 tools · install');
+  log.step('jean2 tools · install');
+  log.step('');
 
   const results: TaskResult[] = [];
   for (const tool of selected) {
@@ -621,7 +615,7 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     displayExtensionTips(selected, extensions, envConfig);
   }
 
-  outro('✨ Done');
+  log.step('✨ Done');
   return { success: errorCount === 0 };
 }
 
@@ -635,12 +629,10 @@ export interface UpdateOptions {
 export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResult> {
   const toolArgs = options.names || [];
 
-  const s = spinner();
-
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    s.start('Fetching tool registry...');
+    log.step('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     const installedPackages = new Map<string, string>();
     for (const tool of getInstalledTools()) {
@@ -650,9 +642,8 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
       }
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
-    s.stop('Fetching tool registry... done');
+    log.step('Fetching tool registry... done');
   } catch (err: unknown) {
-    s.stop('Failed to fetch tool registry');
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
     return { success: false, error: message };
@@ -671,10 +662,10 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   }
 
   if (toUpdate.length === 0) {
-    intro('jean2 tools · update');
+    log.step('jean2 tools · update');
     log.step('');
     log.step('  No installed tools to update.');
-    outro('✨ Done');
+    log.step('✨ Done');
     return { success: true };
   }
 
@@ -691,14 +682,14 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   }
 
   if (outdated.length === 0) {
-    intro('jean2 tools · update');
+    log.step('jean2 tools · update');
     log.step('');
     log.step('  All installed tools are up to date.');
-    outro('✨ Done');
+    log.step('✨ Done');
     return { success: true };
   }
     if (options.dryRun) {
-      intro('jean2 tools · update (dry run)');
+      log.step('jean2 tools · update (dry run)');
       log.step('');
       const COL_TOOL = 11;
       const COL_CURR = 10;
@@ -715,10 +706,10 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
         log.step(`  ${tool.name.padEnd(maxToolLen)}${installedVersion.padEnd(COL_CURR)}${tool.version}`);
       }
       log.step('');
-      outro('✨ Done');
+      log.step('✨ Done');
       return { success: true };
     }
-  intro('jean2 tools · update');
+  log.step('jean2 tools · update');
   log.step('');
   for (const { tool, installedVersion } of outdated) {
     log.step(`  ${tool.name.padEnd(11)}${installedVersion} → ${tool.version}`);
@@ -736,7 +727,7 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
 
   if (!confirmed) {
     log.step('Update cancelled.');
-    outro('✨ Done');
+    log.step('✨ Done');
     return { success: true };
   }
 
@@ -783,7 +774,7 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     .map((o) => o.tool);
   displayExtensionTips(updatedTools, extensions, envConfig);
 
-  outro('✨ Done');
+  log.step('✨ Done');
   return { success: updateErrorCount === 0 };
 }
 
@@ -822,8 +813,7 @@ export async function toolsRemove(options: RemoveOptions): Promise<ToolsCliResul
     return { success: true };
   }
 
-  const s = spinner();
-  s.start(`Removing ${toRemove.length} ${pluralize(toRemove.length, 'tool')}...`);
+  log.step(`Removing ${toRemove.length} ${pluralize(toRemove.length, 'tool')}...`);
 
   let successCount = 0;
   let failedCount = 0;
@@ -838,7 +828,7 @@ export async function toolsRemove(options: RemoveOptions): Promise<ToolsCliResul
     }
   }
 
-  s.stop(`Removed ${successCount} ${pluralize(successCount, 'tool')}`);
+  log.step(`Removed ${successCount} ${pluralize(successCount, 'tool')}`);
 
   if (failedCount > 0) {
     log.warn(`${failedCount} ${pluralize(failedCount, 'tool')} failed to remove`);
@@ -895,12 +885,10 @@ export interface OutdatedOptions {
 }
 
 export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<ToolsCliResult> {
-  const s = spinner();
-
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    s.start('Fetching tool registry...');
+    log.step('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     const installedPackages = new Map<string, string>();
     for (const tool of getInstalledTools()) {
@@ -910,9 +898,8 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
       }
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
-    s.stop('Fetching tool registry... done');
+    log.step('Fetching tool registry... done');
   } catch (err: unknown) {
-    s.stop('Failed to fetch tool registry');
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
     return { success: false, error: message, exitCode: 1 };
@@ -937,14 +924,14 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
     }
   }
 
-  intro('jean2 tools · outdated');
+  log.step('jean2 tools · outdated');
   log.step('');
 
   if (outdated.length === 0) {
     log.step('  All installed tools are up to date.');
     log.step('');
     log.step(`  ${installed.length} installed, all up-to-date`);
-    outro('✨ Done');
+    log.step('✨ Done');
     return { success: true, exitCode: 0 };
   }
 
@@ -966,7 +953,7 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
   log.step(`  ${outdated.length} of ${installed.length} installed ${pluralize(installed.length, 'tool')} are outdated`);
   log.step('  Run `jean2 tools update` to update');
 
-  outro('✨ Done');
+  log.step('✨ Done');
   return { success: true, exitCode: 1 };
 }
 

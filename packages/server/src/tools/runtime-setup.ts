@@ -210,7 +210,15 @@ export async function offerRuntimeSetup(
     };
 
     const proc = spawn(shell, shellArgs, {
-      stdio: 'inherit',
+      stdio: 'pipe',
+    });
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      process.stderr.write(data);
+    });
+
+    proc.stderr?.on('data', (data: Buffer) => {
+      process.stderr.write(data);
     });
 
     const timer = setTimeout(() => {
@@ -235,8 +243,6 @@ export async function offerRuntimeSetup(
         });
         return;
       }
-
-      process.stdout.write('\n');
 
       const verifyResult = await verifyRuntime(runtimeId);
 
