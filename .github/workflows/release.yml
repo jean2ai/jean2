@@ -13,128 +13,23 @@ on:
         required: false
         default: false
         type: boolean
-      tool_apply_patch_bun:
-        description: 'Release apply-patch (bun)'
+      release_all_tools:
+        description: 'Release all tools (bun + node)'
         required: false
         default: false
         type: boolean
-      tool_edit_bun:
-        description: 'Release edit (bun)'
+      release_bun_tools:
+        description: 'Release all bun tools only'
         required: false
         default: false
         type: boolean
-      tool_glob_bun:
-        description: 'Release glob (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_grep_bun:
-        description: 'Release grep (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_ls_bun:
-        description: 'Release ls (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_multiedit_bun:
-        description: 'Release multiedit (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_read_file_bun:
-        description: 'Release read-file (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_shell_bun:
-        description: 'Release shell (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_todoread_bun:
-        description: 'Release todoread (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_todowrite_bun:
-        description: 'Release todowrite (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_webfetch_bun:
-        description: 'Release webfetch (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_write_file_bun:
-        description: 'Release write-file (bun)'
-        required: false
-        default: false
-        type: boolean
-      tool_apply_patch_node:
-        description: 'Release apply-patch (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_edit_node:
-        description: 'Release edit (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_glob_node:
-        description: 'Release glob (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_grep_node:
-        description: 'Release grep (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_ls_node:
-        description: 'Release ls (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_multiedit_node:
-        description: 'Release multiedit (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_read_file_node:
-        description: 'Release read-file (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_shell_node:
-        description: 'Release shell (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_todoread_node:
-        description: 'Release todoread (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_todowrite_node:
-        description: 'Release todowrite (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_webfetch_node:
-        description: 'Release webfetch (node)'
-        required: false
-        default: false
-        type: boolean
-      tool_write_file_node:
-        description: 'Release write-file (node)'
+      release_node_tools:
+        description: 'Release all node tools only'
         required: false
         default: false
         type: boolean
       force:
-        description: 'Force release'
+        description: 'Force release (recreate existing)'
         required: false
         default: false
         type: boolean
@@ -161,80 +56,20 @@ jobs:
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "server"}]')
           fi
           
-          # Tools
-          if [ "${{ inputs.tool_apply_patch_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "apply-patch-bun"}]')
-          fi
-          if [ "${{ inputs.tool_edit_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "edit-bun"}]')
-          fi
-          if [ "${{ inputs.tool_glob_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "glob-bun"}]')
-          fi
-          if [ "${{ inputs.tool_grep_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "grep-bun"}]')
-          fi
-          if [ "${{ inputs.tool_ls_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "ls-bun"}]')
-          fi
-          if [ "${{ inputs.tool_multiedit_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "multiedit-bun"}]')
-          fi
-          if [ "${{ inputs.tool_read_file_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "read-file-bun"}]')
-          fi
-          if [ "${{ inputs.tool_shell_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "shell-bun"}]')
-          fi
-          if [ "${{ inputs.tool_todoread_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todoread-bun"}]')
-          fi
-          if [ "${{ inputs.tool_todowrite_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todowrite-bun"}]')
-          fi
-          if [ "${{ inputs.tool_webfetch_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "webfetch-bun"}]')
-          fi
-          if [ "${{ inputs.tool_write_file_bun }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "write-file-bun"}]')
+          # Tools - bun
+          BUN_TOOLS=(apply-patch-bun edit-bun glob-bun grep-bun ls-bun multiedit-bun read-file-bun shell-bun todoread-bun todowrite-bun webfetch-bun write-file-bun)
+          if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_bun_tools }}" = "true" ]; then
+            for TOOL in "${BUN_TOOLS[@]}"; do
+              ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
+            done
           fi
           
-          # Node tools
-          if [ "${{ inputs.tool_apply_patch_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "apply-patch-node"}]')
-          fi
-          if [ "${{ inputs.tool_edit_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "edit-node"}]')
-          fi
-          if [ "${{ inputs.tool_glob_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "glob-node"}]')
-          fi
-          if [ "${{ inputs.tool_grep_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "grep-node"}]')
-          fi
-          if [ "${{ inputs.tool_ls_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "ls-node"}]')
-          fi
-          if [ "${{ inputs.tool_multiedit_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "multiedit-node"}]')
-          fi
-          if [ "${{ inputs.tool_read_file_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "read-file-node"}]')
-          fi
-          if [ "${{ inputs.tool_shell_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "shell-node"}]')
-          fi
-          if [ "${{ inputs.tool_todoread_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todoread-node"}]')
-          fi
-          if [ "${{ inputs.tool_todowrite_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todowrite-node"}]')
-          fi
-          if [ "${{ inputs.tool_webfetch_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "webfetch-node"}]')
-          fi
-          if [ "${{ inputs.tool_write_file_node }}" = "true" ]; then
-            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "write-file-node"}]')
+          # Tools - node
+          NODE_TOOLS=(apply-patch-node edit-node glob-node grep-node ls-node multiedit-node read-file-node shell-node todoread-node todowrite-node webfetch-node write-file-node)
+          if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_node_tools }}" = "true" ]; then
+            for TOOL in "${NODE_TOOLS[@]}"; do
+              ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
+            done
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT
@@ -292,12 +127,8 @@ jobs:
             P="tools/$PACKAGE_NAME"
             V=$(cat "$P/VERSION") && TAG="tool-$PACKAGE_NAME/v${V}"
             if gh release view "$TAG" 2>/dev/null; then
-              if [ "$FORCE" != "true" ]; then
-                echo "Skipping $TAG - release already exists"
-                continue
-              fi
-              echo "Deleting existing release $TAG for force recreation..."
-              gh release delete "$TAG" --yes || true
+              echo "Skipping $TAG - release already exists"
+              continue
             fi
             git tag -f "$TAG"
             git push origin "$TAG" --force
