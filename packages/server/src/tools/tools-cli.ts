@@ -464,8 +464,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     selected = getRecommendedTools(tools);
   } else if (isInteractive) {
     // Interactive multiselect
-    intro('jean2 tools · install');
-
     const choices = tools.map((tool) => {
       const extHints: string[] = [];
       for (const extId of tool.extensions) {
@@ -498,8 +496,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     }
 
     if (!selectedNames || (Array.isArray(selectedNames) && selectedNames.length === 0)) {
-      log.step('No tools selected.');
-      outro('✨ Done');
       return { success: true };
     }
 
@@ -516,7 +512,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
 
   // Early return for no selection
   if (selected.length === 0) {
-    outro('✨ Done');
     return { success: true };
   }
 
@@ -524,20 +519,18 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   const requiredRuntimes = collectRequiredRuntimes(selected);
   const runtimeCheck = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
 
-  if (!isInteractive) {
-    intro('jean2 tools · install');
-  }
-
-  log.step('');
+  // Display runtime check results (outside clack box since runtime setup may use inherited stdio)
+  console.log('');
   for (const msg of runtimeCheck.messages) {
-    log.step(`  Runtime required: ${msg}`);
+    console.log(`  Runtime required: ${msg}`);
   }
+  console.log('');
 
   if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
     for (const rt of runtimeCheck.missingWithSetup) {
       const setup = getRuntimeSetup(rt);
       const displayName = setup?.displayName ?? rt;
-      log.warn(`${displayName} is required but not found.`);
+      console.log(`  ⚠ ${displayName} is required but not found.`);
 
       const shouldOffer = await confirm({
         message: `Would you like help installing ${displayName}?`,
@@ -567,20 +560,16 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     runtimeCheck.ok = afterSetup.ok;
 
     if (runtimeCheck.missingWithSetup.length > 0) {
-      log.warn(`Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
+      console.log(`  ⚠ Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
     }
   }
 
   if (!runtimeCheck.ok) {
-    if (isInteractive) {
-      log.error('Required runtimes not found. Use --skip-runtime-check to bypass.');
-      cancel();
-    } else {
-      log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-    }
+    console.log('  Required runtimes not found. Use --skip-runtime-check to bypass.');
     return { success: false, error: 'Required runtimes not found' };
   }
 
+  intro('jean2 tools · install');
 
   const results: TaskResult[] = [];
   for (const tool of selected) {
