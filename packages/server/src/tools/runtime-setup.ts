@@ -1,4 +1,7 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 import { log, select, confirm, isCancel } from '@clack/prompts';
 import { restoreTerminalState } from './clack-utils';
 import type {
@@ -249,6 +252,15 @@ export async function offerRuntimeSetup(
           error: `Installation failed with exit code ${code}. Restart your terminal and try again, or install manually.`,
         });
         return;
+      }
+
+      const knownPaths = runtimeId === 'bun'
+        ? [join(homedir(), '.bun', 'bin')]
+        : [];
+      for (const p of knownPaths) {
+        if (existsSync(p) && !process.env.PATH?.includes(p)) {
+          process.env.PATH = p + (process.platform === 'win32' ? ';' : ':') + (process.env.PATH || '');
+        }
       }
 
       const verifyResult = await verifyRuntime(runtimeId);
