@@ -9,6 +9,7 @@ import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
 import { useFileSearch } from '@/hooks/useFileSearch';
+import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 
 type AutocompleteMode = 'none' | 'files' | 'prompts';
@@ -75,7 +76,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   sessionId,
   modelSupportsImage,
 }: MessageInputProps, ref) {
-  const [input, setInput] = useState('');
+  const { input, setInput, clearInput } = useSessionDraft(sessionId);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [autocompleteFiles, setAutocompleteFiles] = useState<FileEntry[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -150,7 +151,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     setAcMode('none');
     setShowAutocomplete(false);
-  }, [setQuery, setShowAutocomplete]);
+  }, [setQuery, setShowAutocomplete, setInput]);
 
   const handleFileSelectWrapper = useCallback((file: FileEntry) => {
     const mention = handleFileSelect(file);
@@ -166,7 +167,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         textareaRef.current.setSelectionRange(result.cursorPos, result.cursorPos);
       }
     }, 0);
-  }, [input, cursorPosition, handleFileSelect, insertMention, setShowAutocomplete]);
+  }, [input, cursorPosition, handleFileSelect, insertMention, setShowAutocomplete, setInput]);
 
   const handlePromptSelect = useCallback((prompt: PromptInfo) => {
     const lastSlashIndex = input.lastIndexOf('/', cursorPosition);
@@ -187,15 +188,15 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
-  }, [input, cursorPosition]);
+  }, [input, cursorPosition, setInput]);
 
   const cleanupPending = useCallback(() => {
     for (const a of pendingAttachments) {
       if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
     }
     setPendingAttachments([]);
-    setInput('');
-  }, [pendingAttachments]);
+    clearInput();
+  }, [pendingAttachments, clearInput]);
 
   const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
     if (!serverUrl || !apiToken || !sessionId) return null;
