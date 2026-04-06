@@ -169,7 +169,7 @@ function PermissionRequestsPanel({
   if (permissions.length === 0) return null;
 
   return (
-    <div className="border-t border-border bg-muted/30 flex flex-col gap-2 p-4">
+    <div className="border-t border-border bg-muted/30 flex flex-col gap-2 p-4" style={{overflow: "overlay"}}>
       <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
         Pending Requests
       </div>
@@ -334,7 +334,7 @@ export function ChatView({
         variants={variants}
       />
 
-      {/* Transcript area with floating Follow/Free button */}
+      {/* Transcript area with floating auto-follow button */}
       <div className="relative flex flex-col flex-1 min-h-0">
         {/* Virtualized transcript - handles scrolling for messages only */}
         <VirtualizedTranscript
@@ -359,24 +359,18 @@ export function ChatView({
           serverUrl={serverUrl}
         />
 
-        {/* Floating Follow/Free pill button - positioned within transcript area */}
+        {/* Floating auto-follow toggle button - positioned within transcript area */}
         <button
           onClick={handleToggleAutoFollow}
-          className="absolute bottom-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-colors cursor-pointer bg-background/80 backdrop-blur-sm hover:bg-background border border-border/50 shadow-sm pointer-events-auto"
+          className="absolute bottom-4 right-4 z-50 flex items-center p-1.5 text-xs rounded-full transition-colors cursor-pointer bg-background/80 backdrop-blur-sm hover:bg-background border border-border/50 shadow-sm pointer-events-auto"
           title={autoFollow ? 'Auto-follow enabled (Cmd+Shift+F)' : 'Auto-follow disabled (Cmd+Shift+F)'}
         >
-        {autoFollow ? (
-          <>
-            <ArrowDown className="size-3" />
-            <span>Follow</span>
-          </>
-        ) : (
-          <>
-            <Eye className="size-3" />
-            <span>Free</span>
-          </>
-        )}
-      </button>
+          {autoFollow ? (
+            <ArrowDown className="size-3.5" />
+          ) : (
+            <Eye className="size-3.5" />
+          )}
+        </button>
       </div>
 
       {/* Permission requests panel rendered at the bottom - visible near input area */}
