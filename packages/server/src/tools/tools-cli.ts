@@ -484,6 +484,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
       required: false,
     });
 
+    process.stdout.write('\r\n');
+
     if (isCancel(selectedNames)) {
       cancel();
       return { success: true };
@@ -530,6 +532,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
         active: 'Yes',
         inactive: 'No',
       });
+
+      process.stdout.write('\r\n');
 
       if (isCancel(shouldOffer) || !shouldOffer) {
         if (isInteractive) {
