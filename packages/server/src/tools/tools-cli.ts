@@ -354,13 +354,24 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
 
     intro('jean2 tools · list');
     log.step('');
-    log.step('  Tool           Version   Status        Description');
-    log.step('  ──────────────────────────────────────────────────────────────────────');
+    const TOOL_COL = 14;
+    const VERS_COL = 8;
+    const STATUS_COL = 13;
+
+    let maxNameLen = TOOL_COL;
+    for (const tool of displayTools) {
+      const v = tool.packageName !== tool.name ? ` (${tool.packageName})` : '';
+      maxNameLen = Math.max(maxNameLen, (tool.name + v).length);
+    }
+
+    log.step(`  ${'Tool'.padEnd(maxNameLen)}${'Version'.padEnd(VERS_COL)}${'Status'.padEnd(STATUS_COL)}Description`);
+    log.step(`  ${'─'.repeat(maxNameLen)}${'─'.repeat(VERS_COL)}${'─'.repeat(STATUS_COL)}${'─'.repeat(20)}`);
 
     for (const tool of displayTools) {
       const installed = installedSet.has(tool.name);
       const status = installed ? '✔ installed' : '— available';
       const variant = tool.packageName !== tool.name ? ` (${tool.packageName})` : '';
+
 
       const extHints: string[] = [];
       for (const extId of tool.extensions) {
@@ -381,9 +392,9 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
         desc += '  ' + extHints.join('  ');
       }
 
-      const namePad = (tool.name + variant).padEnd(14);
-      const versionPad = (tool.version || '?').padEnd(8);
-      const statusPad = status.padEnd(13);
+      const namePad = (tool.name + variant).padEnd(maxNameLen);
+      const versionPad = (tool.version || '?').padEnd(VERS_COL);
+      const statusPad = status.padEnd(STATUS_COL);
       log.step(`  ${namePad}${versionPad}${statusPad}${desc}`);
     }
 
@@ -444,9 +455,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
 
   const { tools, registry, extensions, envConfig } = repoData;
 
-  const requiredRuntimes = collectRequiredRuntimes(tools);
-  const runtimeCheck = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
-
   // Resolve which tools to install
   let selected: ResolvedToolEntry[];
 
@@ -457,41 +465,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   } else if (isInteractive) {
     // Interactive multiselect
     intro('jean2 tools · install');
-    log.step('');
-    for (const msg of runtimeCheck.messages) {
-      log.step(`  Runtime required: ${msg}`);
-    }
-    log.step('');
-
-    if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
-      for (const rt of runtimeCheck.missingWithSetup) {
-        const setup = getRuntimeSetup(rt);
-        const displayName = setup?.displayName ?? rt;
-        log.warn(`${displayName} is required but not found.`);
-
-        const shouldOffer = await confirm({
-          message: `Would you like help installing ${displayName}?`,
-          active: 'Yes',
-          inactive: 'No',
-        });
-
-        if (isCancel(shouldOffer) || !shouldOffer) {
-          continue;
-        }
-
-        await offerRuntimeSetup(rt);
-      }
-
-      const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
-      runtimeCheck.messages.length = 0;
-      runtimeCheck.messages.push(...afterSetup.messages);
-      runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
-      runtimeCheck.ok = afterSetup.ok;
-
-      if (runtimeCheck.missingWithSetup.length > 0) {
-        log.warn(`Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
-      }
-    }
 
     const choices = tools.map((tool) => {
       const extHints: string[] = [];
@@ -541,58 +514,73 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     selected = filterToolsByName(tools, toolArgs);
   }
 
+  // Early return for no selection
   if (selected.length === 0) {
     outro('✨ Done');
     return { success: true };
   }
 
+  // Runtime check for selected tools (unified)
+  const requiredRuntimes = collectRequiredRuntimes(selected);
+  const runtimeCheck = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
+
   if (!isInteractive) {
     intro('jean2 tools · install');
-    log.step('');
-    for (const msg of runtimeCheck.messages) {
-      log.step(`  Runtime required: ${msg}`);
-    }
+  }
 
-    if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
-      for (const rt of runtimeCheck.missingWithSetup) {
-        const setup = getRuntimeSetup(rt);
-        const displayName = setup?.displayName ?? rt;
-        log.warn(`${displayName} is required but not found.`);
+  log.step('');
+  for (const msg of runtimeCheck.messages) {
+    log.step(`  Runtime required: ${msg}`);
+  }
 
-        const shouldOffer = await confirm({
-          message: `Would you like help installing ${displayName}?`,
-          active: 'Yes',
-          inactive: 'No',
-        });
+  if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
+    for (const rt of runtimeCheck.missingWithSetup) {
+      const setup = getRuntimeSetup(rt);
+      const displayName = setup?.displayName ?? rt;
+      log.warn(`${displayName} is required but not found.`);
 
-        if (isCancel(shouldOffer) || !shouldOffer) {
-          log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-          return { success: false, error: 'Required runtimes not found' };
+      const shouldOffer = await confirm({
+        message: `Would you like help installing ${displayName}?`,
+        active: 'Yes',
+        inactive: 'No',
+      });
+
+      if (isCancel(shouldOffer) || !shouldOffer) {
+        if (isInteractive) {
+          continue;
         }
-
-        const result = await offerRuntimeSetup(rt);
-        if (!result.success) {
-          log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-          return { success: false, error: 'Required runtimes not found' };
-        }
+        log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+        return { success: false, error: 'Required runtimes not found' };
       }
-      const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
-      runtimeCheck.messages.length = 0;
-      runtimeCheck.messages.push(...afterSetup.messages);
-      runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
-      runtimeCheck.ok = afterSetup.ok;
 
-      log.step('');
-      for (const msg of runtimeCheck.messages) {
-        log.step(`  Runtime required: ${msg}`);
+      const result = await offerRuntimeSetup(rt);
+      if (!isInteractive && !result.success) {
+        log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+        return { success: false, error: 'Required runtimes not found' };
       }
     }
 
-    if (!runtimeCheck.ok) {
-      log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-      return { success: false, error: 'Required runtimes not found' };
+    const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
+    runtimeCheck.messages.length = 0;
+    runtimeCheck.messages.push(...afterSetup.messages);
+    runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
+    runtimeCheck.ok = afterSetup.ok;
+
+    if (runtimeCheck.missingWithSetup.length > 0) {
+      log.warn(`Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
     }
   }
+
+  if (!runtimeCheck.ok) {
+    if (isInteractive) {
+      log.error('Required runtimes not found. Use --skip-runtime-check to bypass.');
+      cancel();
+    } else {
+      log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+    }
+    return { success: false, error: 'Required runtimes not found' };
+  }
+
 
   // Run installs sequentially with individual spinners
   const results: TaskResult[] = [];
@@ -723,20 +711,27 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     outro('✨ Done');
     return { success: true };
   }
+    if (options.dryRun) {
+      intro('jean2 tools · update (dry run)');
+      log.step('');
+      const COL_TOOL = 11;
+      const COL_CURR = 10;
 
-  if (options.dryRun) {
-    intro('jean2 tools · update (dry run)');
-    log.step('');
-    log.step('  Tool        Current   Latest');
-    log.step('  ──────────────────────────────');
-    for (const { tool, installedVersion } of outdated) {
-      log.step(`  ${tool.name.padEnd(11)}${installedVersion.padEnd(10)}${tool.version}`);
+
+      let maxToolLen = COL_TOOL;
+      for (const { tool } of outdated) {
+        maxToolLen = Math.max(maxToolLen, tool.name.length);
+      }
+
+      log.step(`  ${'Tool'.padEnd(maxToolLen)}${'Current'.padEnd(COL_CURR)}Latest`);
+      log.step(`  ${'─'.repeat(maxToolLen)}${'─'.repeat(COL_CURR)}${'─'.repeat(6)}`);
+      for (const { tool, installedVersion } of outdated) {
+        log.step(`  ${tool.name.padEnd(maxToolLen)}${installedVersion.padEnd(COL_CURR)}${tool.version}`);
+      }
+      log.step('');
+      outro('✨ Done');
+      return { success: true };
     }
-    log.step('');
-    outro('✨ Done');
-    return { success: true };
-  }
-
   intro('jean2 tools · update');
   log.step('');
   for (const { tool, installedVersion } of outdated) {
@@ -969,10 +964,18 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
     return { success: true, exitCode: 0 };
   }
 
-  log.step('  Tool        Current   Latest');
-  log.step('  ──────────────────────────────');
+  const COL_TOOL = 11;
+  const COL_CURR = 10;
+
+  let maxNameLen = COL_TOOL;
   for (const o of outdated) {
-    log.step(`  ${o.name.padEnd(11)}${o.currentVersion.padEnd(10)}${o.latestVersion}`);
+    maxNameLen = Math.max(maxNameLen, o.name.length);
+  }
+
+  log.step(`  ${'Tool'.padEnd(maxNameLen)}${'Current'.padEnd(COL_CURR)}Latest`);
+  log.step(`  ${'─'.repeat(maxNameLen)}${'─'.repeat(COL_CURR)}${'─'.repeat(6)}`);
+  for (const o of outdated) {
+    log.step(`  ${o.name.padEnd(maxNameLen)}${o.currentVersion.padEnd(COL_CURR)}${o.latestVersion}`);
   }
 
   log.step('');

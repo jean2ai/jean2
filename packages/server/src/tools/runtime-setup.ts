@@ -224,6 +224,8 @@ export async function offerRuntimeSetup(
         return;
       }
 
+      process.stdout.write('\n');
+
       const verifyResult = await verifyRuntime(runtimeId);
 
       if (verifyResult.success) {
