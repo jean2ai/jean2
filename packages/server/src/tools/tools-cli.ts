@@ -6,7 +6,7 @@
 
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { log, multiselect, confirm, isCancel, cancel } from '@clack/prompts';
+import { log, multiselect, confirm, isCancel, cancel, spinner } from '@clack/prompts';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -310,9 +310,10 @@ export interface ListOptions {
 
 export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
   try {
-    log.step('Fetching tool registry...');
+    const fetchSpinner = spinner();
+    fetchSpinner.start('Fetching tool registry...');
     const { tools, extensions, envConfig } = await fetchRepositoryWithVersions();
-    log.step('Fetching tool registry... done');
+    fetchSpinner.stop('Fetching tool registry... done');
 
     const installedSet = new Set(getInstalledTools().map((t) => t.name));
 
@@ -437,10 +438,11 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    log.step('Fetching tool registry...');
+    const fetchSpinner = spinner();
+    fetchSpinner.start('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     repoData = await fetchRepositoryWithVersions({ availableRuntimes });
-    log.step('Fetching tool registry... done');
+    fetchSpinner.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
@@ -483,8 +485,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
       options: choices,
       required: false,
     });
-
-    process.stdout.write('\r\n');
 
     if (isCancel(selectedNames)) {
       cancel();
@@ -532,8 +532,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
         active: 'Yes',
         inactive: 'No',
       });
-
-      process.stdout.write('\r\n');
 
       if (isCancel(shouldOffer) || !shouldOffer) {
         if (isInteractive) {
@@ -636,7 +634,8 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    log.step('Fetching tool registry...');
+    const fetchSpinner = spinner();
+    fetchSpinner.start('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     const installedPackages = new Map<string, string>();
     for (const tool of getInstalledTools()) {
@@ -646,7 +645,7 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
       }
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
-    log.step('Fetching tool registry... done');
+    fetchSpinner.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
@@ -892,7 +891,8 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
   let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
 
   try {
-    log.step('Fetching tool registry...');
+    const fetchSpinner = spinner();
+    fetchSpinner.start('Fetching tool registry...');
     const availableRuntimes = await buildAvailableRuntimes();
     const installedPackages = new Map<string, string>();
     for (const tool of getInstalledTools()) {
@@ -902,7 +902,7 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
       }
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
-    log.step('Fetching tool registry... done');
+    fetchSpinner.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);

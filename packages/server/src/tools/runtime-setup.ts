@@ -171,8 +171,6 @@ export async function offerRuntimeSetup(
           })),
         });
 
-  process.stdout.write('\r\n');
-
   if (isCancel(method)) {
     return { success: false, error: 'Cancelled' };
   }
@@ -182,8 +180,6 @@ export async function offerRuntimeSetup(
     active: 'Yes',
     inactive: 'No',
   });
-
-  process.stdout.write('\r\n');
 
   if (isCancel(confirmed) || !confirmed) {
     return { success: false, error: 'Cancelled' };
@@ -249,8 +245,6 @@ export async function offerRuntimeSetup(
       }
 
       const verifyResult = await verifyRuntime(runtimeId);
-
-      process.stdout.write('\r\n');
 
       if (verifyResult.success) {
         log.success(`${setup.displayName} ${verifyResult.version} installed successfully!`);
