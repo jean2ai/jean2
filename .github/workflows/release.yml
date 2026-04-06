@@ -73,6 +73,66 @@ on:
         required: false
         default: false
         type: boolean
+      tool_apply_patch_node:
+        description: 'Release apply-patch (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_edit_node:
+        description: 'Release edit (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_glob_node:
+        description: 'Release glob (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_grep_node:
+        description: 'Release grep (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_ls_node:
+        description: 'Release ls (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_multiedit_node:
+        description: 'Release multiedit (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_read_file_node:
+        description: 'Release read-file (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_shell_node:
+        description: 'Release shell (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_todoread_node:
+        description: 'Release todoread (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_todowrite_node:
+        description: 'Release todowrite (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_webfetch_node:
+        description: 'Release webfetch (node)'
+        required: false
+        default: false
+        type: boolean
+      tool_write_file_node:
+        description: 'Release write-file (node)'
+        required: false
+        default: false
+        type: boolean
       force:
         description: 'Force release'
         required: false
@@ -137,6 +197,44 @@ jobs:
           fi
           if [ "${{ inputs.tool_write_file_bun }}" = "true" ]; then
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "write-file-bun"}]')
+          fi
+          
+          # Node tools
+          if [ "${{ inputs.tool_apply_patch_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "apply-patch-node"}]')
+          fi
+          if [ "${{ inputs.tool_edit_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "edit-node"}]')
+          fi
+          if [ "${{ inputs.tool_glob_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "glob-node"}]')
+          fi
+          if [ "${{ inputs.tool_grep_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "grep-node"}]')
+          fi
+          if [ "${{ inputs.tool_ls_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "ls-node"}]')
+          fi
+          if [ "${{ inputs.tool_multiedit_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "multiedit-node"}]')
+          fi
+          if [ "${{ inputs.tool_read_file_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "read-file-node"}]')
+          fi
+          if [ "${{ inputs.tool_shell_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "shell-node"}]')
+          fi
+          if [ "${{ inputs.tool_todoread_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todoread-node"}]')
+          fi
+          if [ "${{ inputs.tool_todowrite_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "todowrite-node"}]')
+          fi
+          if [ "${{ inputs.tool_webfetch_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "webfetch-node"}]')
+          fi
+          if [ "${{ inputs.tool_write_file_node }}" = "true" ]; then
+            ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "tool", "packageName": "write-file-node"}]')
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT

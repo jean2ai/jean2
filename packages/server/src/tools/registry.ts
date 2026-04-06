@@ -43,6 +43,8 @@ const CACHE_TTL = 60000; // 1 minute cache
 
 export async function scanTools(toolsPath: string = getDefaultToolsPath()): Promise<DiscoveredTool[]> {
   const tools: DiscoveredTool[] = [];
+  let skippedCount = 0;
+  const runtimeFilter = process.env.JEAN2_TOOLS_RUNTIME || null;
   
   // Resolve to absolute path to ensure tool paths are absolute
   const absoluteToolsPath = resolve(toolsPath);
@@ -77,6 +79,11 @@ export async function scanTools(toolsPath: string = getDefaultToolsPath()): Prom
           continue;
         }
 
+        if (runtimeFilter && definition.runtime !== runtimeFilter) {
+          skippedCount++;
+          continue;
+        }
+
         tools.push({
           definition,
           path: toolDir,
@@ -89,7 +96,11 @@ export async function scanTools(toolsPath: string = getDefaultToolsPath()): Prom
     // Tools directory doesn't exist yet
     console.warn(`Tools directory not found: ${absoluteToolsPath}`);
   }
-  
+
+  if (skippedCount > 0) {
+    console.log(`  Skipped ${skippedCount} tool(s) (runtime filter: ${runtimeFilter})`);
+  }
+
   // Update cache
   toolsCache.clear();
   for (const tool of tools) {

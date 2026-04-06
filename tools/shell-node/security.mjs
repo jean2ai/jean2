@@ -1,0 +1,193 @@
+import os from 'node:os';
+import path from 'node:path';
+
+const DANGEROUS_COMMANDS = [
+  'rm', 'rmdir', 'del', 'erase',
+  'sudo', 'su', 'doas',
+  'chmod', 'chown',
+  'dd', 'mkfs', 'format',
+  'shutdown', 'reboot', 'halt', 'poweroff',
+  'iptables', 'ufw', 'firewall-cmd',
+  'curl', 'wget', 'nc', 'netcat',
+  'eval', 'exec',
+];
+
+const FILESYSTEM_COMMANDS = [
+  'mv', 'cp', 'mkdir', 'touch', 'ln',
+  'git push', 'git reset --hard',
+];
+
+function parseCommand(cmd) {
+  const parts = cmd.trim().split(/\s+/);
+  const baseCommand = parts[0]?.replace(/.*\//, '') || '';
+  return { baseCommand, args: parts.slice(1) };
+}
+
+function extractPathArguments(cmd) {
+  const paths = [];
+  const parts = cmd.split(/\s+/);
+
+  for (const part of parts) {
+    if (part.startsWith('-')) continue;
+
+    const isUnixPath = part.startsWith('/') || part.startsWith('~') ||
+      part.startsWith('./') || part.startsWith('../');
+    const isWindowsPath = /^[A-Za-z]:[\\\/]/.test(part) || /^\\\\/.test(part);
+
+    if (isUnixPath || isWindowsPath) {
+      paths.push(part);
+    }
+  }
+
+  return paths;
+}
+
+function hasPathOutsideWorkspace(cmd, workspacePath) {
+  const paths = extractPathArguments(cmd);
+  const resolvedWorkspace = path.resolve(normalizePath(workspacePath));
+
+  for (const p of paths) {
+    const resolved = resolvePath(p, workspacePath);
+    if (!resolved.startsWith(resolvedWorkspace)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getDangerReason(cmd, workspacePath) {
+  if (hasPathOutsideWorkspace(cmd, workspacePath)) {
+    return 'references paths outside the workspace';
+  }
+
+  const shellOperators = ['&&', '||', '|'];
+  let subCommands = [cmd];
+
+  for (const op of shellOperators) {
+    const parts = cmd.split(new RegExp(`\\s*${op.replace(/[|&]/g, '\\$&')}\\s*`));
+    if (parts.length > 1) {
+      subCommands = parts;
+      break;
+    }
+  }
+
+  for (const subCmd of subCommands) {
+    const trimmed = subCmd.trim();
+    if (!trimmed) continue;
+
+    const { baseCommand } = parseCommand(trimmed);
+    const lowerSub = trimmed.toLowerCase();
+
+    if (DANGEROUS_COMMANDS.some(dangerous =>
+      baseCommand === dangerous || lowerSub.startsWith(dangerous + ' ')
+    )) {
+      return `contains dangerous command "${baseCommand}"`;
+    }
+
+    if (FILESYSTEM_COMMANDS.some(fs => lowerSub.startsWith(fs))) {
+      return `contains filesystem command "${baseCommand}"`;
+    }
+
+    if (trimmed.includes('>') || trimmed.includes('>>') ||
+        trimmed.includes('`') || trimmed.includes('$(')) {
+      return `contains shell redirection or substitution`;
+    }
+  }
+
+  return null;
+}
+
+function normalizePath(pathToNormalize) {
+  if (pathToNormalize === '~' || pathToNormalize.startsWith('~/')) {
+    return pathToNormalize.replace('~', os.homedir());
+  }
+  return pathToNormalize;
+}
+
+function resolvePath(inputPath, workspacePath) {
+  const normalized = normalizePath(inputPath);
+  const normalizedWorkspace = normalizePath(workspacePath);
+
+  if (path.isAbsolute(normalized)) {
+    return path.resolve(normalized);
+  }
+
+  const resolved = path.resolve(normalizedWorkspace, normalized);
+  return resolved;
+}
+
+function isOutsideWorkspace(resolvedPath, workspacePath) {
+  const resolvedWorkspace = path.resolve(normalizePath(workspacePath));
+  return !resolvedPath.startsWith(resolvedWorkspace);
+}
+
+async function main() {
+  const inputText = await (() => {
+    const chunks = [];
+    const stdin = process.stdin;
+    return new Promise((resolve, reject) => {
+      stdin.on('data', (chunk) => chunks.push(chunk));
+      stdin.on('end', () => resolve(Buffer.concat(chunks).toString()));
+      stdin.on('error', reject);
+    });
+  })();
+  const input = JSON.parse(inputText);
+  const { command, cwd } = input.args;
+  const { workspacePath } = input;
+
+  const { baseCommand } = parseCommand(command);
+  const dangerReason = getDangerReason(command, workspacePath);
+  const isDangerous = dangerReason !== null;
+
+  const resolvedCwd = cwd ? resolvePath(cwd, workspacePath) : normalizePath(workspacePath);
+  let pathContext = 'workspace';
+  if (cwd && isOutsideWorkspace(resolvedCwd, workspacePath)) {
+    pathContext = 'outside_workspace';
+  }
+
+  let permissionKey;
+  let message;
+  let requiresApproval;
+
+  if (isDangerous && dangerReason) {
+    permissionKey = `command:${baseCommand}`;
+    message = `Command "${command.slice(0, 50)}${command.length > 50 ? '...' : ''}" ${dangerReason} and requires approval.`;
+    requiresApproval = true;
+  } else if (pathContext === 'outside_workspace') {
+    permissionKey = 'path:outside_workspace';
+    message = `This command runs outside the workspace directory and requires approval.`;
+    requiresApproval = true;
+  } else {
+    permissionKey = 'tool:shell';
+    message = `Command execution within workspace.`;
+    requiresApproval = false;
+  }
+
+  const result = {
+    allowed: true,
+    requiresApproval,
+    permissionType: isDangerous ? 'action' : 'tool',
+    permissionKey,
+    message,
+    details: {
+      baseCommand,
+      isDangerous,
+      pathContext,
+      cwd: cwd || workspacePath,
+      resolvedCwd,
+    },
+  };
+
+  console.log(JSON.stringify(result));
+}
+
+main().catch(err => {
+  console.log(JSON.stringify({
+    allowed: false,
+    requiresApproval: false,
+    permissionType: 'tool',
+    permissionKey: 'tool:shell',
+    message: `Security check failed: ${err.message}`,
+  }));
+});

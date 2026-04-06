@@ -15,6 +15,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "apply-patch-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": null
         }
       ],
       "extensions": [],
@@ -29,6 +36,13 @@
           "runtime": "bun",
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
+          "postInstall": null
+        },
+        {
+          "name": "edit-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
           "postInstall": null
         }
       ],
@@ -45,6 +59,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "glob-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": null
         }
       ],
       "extensions": [],
@@ -60,6 +81,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "grep-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -74,6 +102,13 @@
           "runtime": "bun",
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
+          "postInstall": null
+        },
+        {
+          "name": "ls-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
           "postInstall": null
         }
       ],
@@ -90,6 +125,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "multiedit-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": null
         }
       ],
       "extensions": [],
@@ -104,6 +146,13 @@
           "runtime": "bun",
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
+          "postInstall": null
+        },
+        {
+          "name": "read-file-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
           "postInstall": null
         }
       ],
@@ -120,6 +169,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "shell-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": null
         }
       ],
       "extensions": [],
@@ -135,6 +191,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "todoread-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -150,6 +213,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": null
+        },
+        {
+          "name": "todowrite-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -165,6 +235,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "webfetch-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -179,6 +256,13 @@
           "runtime": "bun",
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
+          "postInstall": null
+        },
+        {
+          "name": "write-file-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
           "postInstall": null
         }
       ],

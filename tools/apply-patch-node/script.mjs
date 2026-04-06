@@ -1,0 +1,350 @@
+import path from 'node:path';
+import os from 'node:os';
+import { readFile, writeFile, existsSync } from 'node:fs';
+
+function readStdin() {
+  const chunks = [];
+  const stdin = process.stdin;
+  return new Promise((resolve, reject) => {
+    stdin.on('data', (chunk) => chunks.push(chunk));
+    stdin.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    stdin.on('error', reject);
+  });
+}
+
+const input = JSON.parse(await readStdin());
+const { patch, workspacePath, sessionId } = input;
+
+if (!sessionId || !workspacePath) {
+  console.log(JSON.stringify({
+    error: 'Missing required sessionId or workspacePath',
+  }));
+  process.exit(0);
+}
+
+function resolvePath(p, ws) {
+  if (p === '~' || p.startsWith('~/')) {
+    p = p.replace('~', os.homedir());
+  }
+  if (path.isAbsolute(p)) {
+    return path.resolve(p);
+  }
+  return path.resolve(ws, p);
+}
+
+function normalizeLine(line) {
+  return line.replace(/\s+/g, ' ').trim();
+}
+
+function parseDiffHeader(lines, startIndex) {
+  const file = {
+    originalPath: '',
+    newPath: '',
+    hunks: [],
+  };
+
+  let i = startIndex;
+
+  if (i >= lines.length || !lines[i].startsWith('diff --git')) {
+    return null;
+  }
+  i++;
+
+  while (i < lines.length && !lines[i].startsWith('---')) {
+    i++;
+  }
+
+  if (i >= lines.length) {
+    return null;
+  }
+
+  const originalLine = lines[i];
+  i++;
+  if (i >= lines.length || !lines[i].startsWith('+++')) {
+    return null;
+  }
+  const newLine = lines[i];
+  i++;
+
+  file.originalPath = originalLine.substring(4);
+  if (file.originalPath.startsWith('a/')) {
+    file.originalPath = file.originalPath.substring(2);
+  }
+  file.originalPath = file.originalPath.replace(/\t.*$/, '');
+
+  file.newPath = newLine.substring(4);
+  if (file.newPath.startsWith('b/')) {
+    file.newPath = file.newPath.substring(2);
+  }
+  file.newPath = file.newPath.replace(/\t.*$/, '');
+
+  while (i < lines.length) {
+    if (lines[i].startsWith('@@')) {
+      const hunkMatch = lines[i].match(/^@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@(.*)$/);
+      if (hunkMatch) {
+        const hunk = {
+          originalStart: parseInt(hunkMatch[1], 10),
+          originalCount: hunkMatch[2] ? parseInt(hunkMatch[2], 10) : 1,
+          newStart: parseInt(hunkMatch[3], 10),
+          newCount: hunkMatch[4] ? parseInt(hunkMatch[4], 10) : 1,
+          lines: [],
+        };
+
+        i++;
+        while (i < lines.length && !lines[i].startsWith('@@') && !lines[i].startsWith('diff --git')) {
+          if (lines[i].startsWith('\\ ')) {
+            i++;
+            continue;
+          }
+          hunk.lines.push(lines[i]);
+          i++;
+        }
+
+        file.hunks.push(hunk);
+        continue;
+      }
+    }
+
+    if (lines[i].startsWith('diff --git')) {
+      break;
+    }
+
+    i++;
+  }
+
+  return { file, endIndex: i };
+}
+
+function parsePatch(patchContent) {
+  const lines = patchContent.split(/\r?\n/);
+  const files = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const result = parseDiffHeader(lines, i);
+    if (result) {
+      files.push(result.file);
+      i = result.endIndex;
+    } else {
+      i++;
+    }
+  }
+
+  return files;
+}
+
+function findBestMatch(
+  contentLines,
+  contextLines,
+  startSearch
+) {
+  const searchLimit = Math.min(contentLines.length, startSearch + 50);
+
+  for (let offset = 0; offset < 3; offset++) {
+    for (let i = Math.max(0, startSearch - 1 + offset); i < searchLimit && i + contextLines.length <= contentLines.length; i++) {
+      let match = true;
+      for (let j = 0; j < contextLines.length; j++) {
+        const contentLine = contentLines[i + j];
+        if (!contentLine) {
+          match = false;
+          break;
+        }
+        const contentLineNorm = normalizeLine(contentLine);
+        const contextLineNorm = normalizeLine(contextLines[j]);
+        if (contentLineNorm !== contextLineNorm) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return { lineNumber: i + 1, matched: true };
+      }
+    }
+  }
+
+  return { lineNumber: -1, matched: false };
+}
+
+function applyHunks(content, hunks) {
+  let lines = content.split(/\r?\n/);
+  let offset = 0;
+
+  for (const hunk of hunks) {
+    const contextLines = [];
+    const additions = [];
+    const removals = [];
+
+    for (const line of hunk.lines) {
+      if (!line) continue;
+      if (line.startsWith('-')) {
+        removals.push(line.substring(1));
+        contextLines.push(line.substring(1));
+      } else if (line.startsWith('+')) {
+        additions.push(line.substring(1));
+      } else if (line.startsWith(' ')) {
+        contextLines.push(line.substring(1));
+      } else if (line.length === 0) {
+        contextLines.push('');
+      } else if (!line.startsWith('@@') && !line.startsWith('diff') && !line.startsWith('index')) {
+        contextLines.push(line);
+      }
+    }
+
+    const searchStart = Math.max(0, hunk.originalStart - 1 + offset - 5);
+    const matchResult = findBestMatch(lines, contextLines, searchStart);
+
+    if (matchResult.lineNumber === -1) {
+      return null;
+    }
+
+    const matchLineIndex = matchResult.lineNumber - 1;
+
+    let idx = matchLineIndex;
+    let contextIdx = 0;
+    while (idx < lines.length && contextIdx < contextLines.length) {
+      const contentLine = lines[idx];
+      if (!contentLine) break;
+      const contentNorm = normalizeLine(contentLine);
+      const contextNorm = normalizeLine(contextLines[contextIdx] || '');
+      if (contentNorm === contextNorm) {
+        contextIdx++;
+      }
+      idx++;
+    }
+    const removeCount = idx - matchLineIndex;
+
+    const before = lines.slice(0, matchLineIndex);
+    const after = lines.slice(matchLineIndex + removeCount);
+    lines = [...before, ...additions, ...after];
+
+    offset += additions.length - removeCount;
+  }
+
+  return lines.join('\n');
+}
+
+async function applyPatch() {
+  try {
+    const files = parsePatch(patch);
+
+    if (files.length === 0) {
+      console.log(JSON.stringify({ success: false, error: 'No valid patch entries found' }));
+      return;
+    }
+
+    const appliedFiles = [];
+    const createdFiles = [];
+    const deletedFiles = [];
+    const originalContents = new Map();
+
+    for (const file of files) {
+      const originalResolvedPath = resolvePath(file.originalPath, workspacePath);
+      const newResolvedPath = resolvePath(file.newPath, workspacePath);
+
+      const isNewFile = file.originalPath === '/dev/null' || file.originalPath.startsWith('/dev/null');
+      const isDeletedFile = file.newPath === '/dev/null' || file.newPath.startsWith('/dev/null');
+
+      if (isDeletedFile) {
+        const exists = existsSync(originalResolvedPath);
+
+        if (exists) {
+          const originalContent = await readFile(originalResolvedPath, 'utf-8');
+          originalContents.set(originalResolvedPath, originalContent);
+          await writeFile(originalResolvedPath, '');
+          deletedFiles.push(file.newPath);
+        }
+        continue;
+      }
+
+      if (isNewFile) {
+        let newContent = '';
+        for (const hunk of file.hunks) {
+          for (const line of hunk.lines) {
+            if (line.startsWith('+')) {
+              newContent += line.substring(1) + '\n';
+            }
+          }
+        }
+        newContent = newContent.replace(/\n$/, '');
+
+        await writeFile(newResolvedPath, newContent);
+        createdFiles.push(file.newPath);
+        continue;
+      }
+
+      const exists = existsSync(originalResolvedPath);
+
+      if (!exists) {
+        for (const key of originalContents.keys()) {
+          await writeFile(key, originalContents.get(key));
+        }
+        console.log(JSON.stringify({ success: false, error: `File not found: ${originalResolvedPath}` }));
+        return;
+      }
+
+      const originalContent = await readFile(originalResolvedPath, 'utf-8');
+      if (!originalContents.has(originalResolvedPath)) {
+        originalContents.set(originalResolvedPath, originalContent);
+      }
+
+      const patchedContent = applyHunks(originalContent, file.hunks);
+
+      if (patchedContent === null) {
+        for (const key of originalContents.keys()) {
+          await writeFile(key, originalContents.get(key));
+        }
+        console.log(JSON.stringify({ success: false, error: `Failed to apply hunk to file: ${file.originalPath}` }));
+        return;
+      }
+
+      await writeFile(originalResolvedPath, patchedContent);
+      appliedFiles.push(file.newPath);
+    }
+
+    const groups = [];
+
+    if (appliedFiles.length > 0) {
+      groups.push({
+        label: 'Modified',
+        icon: 'edit',
+        files: appliedFiles.map(path => ({ path, action: 'modified' })),
+      });
+    }
+
+    if (createdFiles.length > 0) {
+      groups.push({
+        label: 'Created',
+        icon: 'plus',
+        files: createdFiles.map(path => ({ path, action: 'created' })),
+      });
+    }
+
+    if (deletedFiles.length > 0) {
+      groups.push({
+        label: 'Deleted',
+        icon: 'trash',
+        files: deletedFiles.map(path => ({ path, action: 'deleted' })),
+      });
+    }
+
+    const total = appliedFiles.length + createdFiles.length + deletedFiles.length;
+
+    console.log(JSON.stringify({
+      success: true,
+      appliedFiles,
+      createdFiles,
+      deletedFiles,
+      _visualization: {
+        type: 'file-list',
+        title: `Applied patch to ${total} file${total !== 1 ? 's' : ''}`,
+        groups,
+        total,
+      },
+    }));
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.log(JSON.stringify({ success: false, error: message }));
+  }
+}
+
+applyPatch();

@@ -1,0 +1,9 @@
+{
+  "name": "tool-webfetch-node",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "turndown": "^7.2.0"
+  }
+}
