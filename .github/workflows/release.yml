@@ -128,7 +128,7 @@ jobs:
             V=$(cat "$P/VERSION") && TAG="tool-$PACKAGE_NAME/v${V}"
             if gh release view "$TAG" 2>/dev/null; then
               echo "Skipping $TAG - release already exists"
-              continue
+              exit 0
             fi
             git tag -f "$TAG"
             git push origin "$TAG" --force
