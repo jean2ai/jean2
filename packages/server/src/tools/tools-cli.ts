@@ -10,6 +10,8 @@ import { log, multiselect, confirm, isCancel, cancel, spinner } from '@clack/pro
 import { join } from 'path';
 import { homedir } from 'os';
 
+import { restoreTerminalState } from './clack-utils';
+
 import {
   fetchRepositoryWithVersions,
   collectRequiredRuntimes,
@@ -314,6 +316,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
     fetchSpinner.start('Fetching tool registry...');
     const { tools, extensions, envConfig } = await fetchRepositoryWithVersions();
     fetchSpinner.stop('Fetching tool registry... done');
+    restoreTerminalState();
 
     const installedSet = new Set(getInstalledTools().map((t) => t.name));
 
@@ -443,6 +446,7 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     const availableRuntimes = await buildAvailableRuntimes();
     repoData = await fetchRepositoryWithVersions({ availableRuntimes });
     fetchSpinner.stop('Fetching tool registry... done');
+    restoreTerminalState();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
@@ -485,6 +489,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
       options: choices,
       required: false,
     });
+
+    restoreTerminalState();
 
     if (isCancel(selectedNames)) {
       cancel();
@@ -532,6 +538,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
         active: 'Yes',
         inactive: 'No',
       });
+
+      restoreTerminalState();
 
       if (isCancel(shouldOffer) || !shouldOffer) {
         if (isInteractive) {
@@ -646,6 +654,7 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
     fetchSpinner.stop('Fetching tool registry... done');
+    restoreTerminalState();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);
@@ -722,6 +731,8 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   const confirmed = await confirm({
     message: `Update ${outdated.length} ${pluralize(outdated.length, 'tool')} to latest versions?`,
   });
+
+  restoreTerminalState();
 
   if (isCancel(confirmed)) {
     cancel();
@@ -903,6 +914,7 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
     }
     repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
     fetchSpinner.stop('Fetching tool registry... done');
+    restoreTerminalState();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(message);

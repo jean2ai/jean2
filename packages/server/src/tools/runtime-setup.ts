@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { log, select, confirm, isCancel } from '@clack/prompts';
+import { restoreTerminalState } from './clack-utils';
 import type {
   RuntimeSetup,
   RuntimeSetupResult,
@@ -171,6 +172,8 @@ export async function offerRuntimeSetup(
           })),
         });
 
+  restoreTerminalState();
+
   if (isCancel(method)) {
     return { success: false, error: 'Cancelled' };
   }
@@ -180,6 +183,8 @@ export async function offerRuntimeSetup(
     active: 'Yes',
     inactive: 'No',
   });
+
+  restoreTerminalState();
 
   if (isCancel(confirmed) || !confirmed) {
     return { success: false, error: 'Cancelled' };
@@ -199,6 +204,8 @@ export async function offerRuntimeSetup(
     const shellFlag = process.platform === 'win32' ? '/c' : '-c';
     shellArgs = [shellFlag, method.command];
   }
+
+  restoreTerminalState();
 
   return new Promise((resolve) => {
     let settled = false;
