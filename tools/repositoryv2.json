@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "registry": {
+    "baseUrl": "https://github.com/rabbyte-tech/jean2/releases/download",
+    "urlTemplate": "{baseUrl}/tool-{name}%2Fv{version}/{name}.tar.gz",
+    "versionUrlTemplate": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/tools/{name}/VERSION"
+  },
+  "tools": {
+    "apply-patch": {
+      "description": "Apply unified diff patches to files atomically",
+      "packages": [
+        {
+          "name": "apply-patch-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "edit": {
+      "description": "String replacements in files with fuzzy matching support",
+      "packages": [
+        {
+          "name": "edit-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "glob": {
+      "description": "Find files matching glob patterns",
+      "packages": [
+        {
+          "name": "glob-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "grep": {
+      "description": "Search file contents using regular expressions",
+      "packages": [
+        {
+          "name": "grep-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "ls": {
+      "description": "List directory contents with tree formatting",
+      "packages": [
+        {
+          "name": "ls-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "multiedit": {
+      "description": "Multiple string replacements in a single file with fuzzy matching support",
+      "packages": [
+        {
+          "name": "multiedit-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "read-file": {
+      "description": "Read files or list directories",
+      "packages": [
+        {
+          "name": "read-file-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    },
+    "shell": {
+      "description": "Execute arbitrary shell commands",
+      "packages": [
+        {
+          "name": "shell-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": true
+    },
+    "todoread": {
+      "description": "Read the task list for the current session",
+      "packages": [
+        {
+          "name": "todoread-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
+    "todowrite": {
+      "description": "Write/replace the entire task list",
+      "packages": [
+        {
+          "name": "todowrite-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
+    "webfetch": {
+      "description": "Fetch content from a URL and convert to readable format",
+      "packages": [
+        {
+          "name": "webfetch-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "web"],
+      "dangerous": false
+    },
+    "write-file": {
+      "description": "Write content to a file",
+      "packages": [
+        {
+          "name": "write-file-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": null
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended", "core"],
+      "dangerous": false
+    }
+  },
+  "extensions": {},
+  "envConfig": {
+    "TODOS_DB_PATH": {
+      "description": "Custom path for the todos SQLite database. Must be an absolute path — tilde (~) is not expanded.",
+      "default": "~/.jean2/data/todos.db",
+      "configFile": "~/.jean2/.env",
+      "example": "TODOS_DB_PATH=~/.jean2/data/todos.db",
+      "usedBy": ["todoread", "todowrite"]
+    }
+  }
+}

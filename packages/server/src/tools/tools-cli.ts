@@ -27,6 +27,7 @@ import {
   getInstalledTools,
   isToolInstalled,
   getToolsBaseDir,
+  getInstalledManifest,
 } from './tool-installer';
 
 import {
@@ -138,6 +139,18 @@ async function formatRuntimeCheck(requiredRuntimes: string[], skipCheck: boolean
 
 function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural || `${singular}s`);
+}
+
+async function buildAvailableRuntimes(): Promise<Set<string>> {
+  const candidates = ['bun', 'node', 'python3', 'python', 'bash', 'go'];
+  const available = new Set<string>();
+  const results = await Promise.all(candidates.map((rt) => checkRuntime(rt)));
+  for (let i = 0; i < candidates.length; i++) {
+    if (results[i].found) {
+      available.add(candidates[i]);
+    }
+  }
+  return available;
 }
 
 /**
@@ -325,6 +338,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
     if (options.json) {
       const result = displayTools.map((t) => ({
         name: t.name,
+        packageName: t.packageName,
         version: t.version,
         installed: installedSet.has(t.name),
         description: t.description,
@@ -346,6 +360,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
     for (const tool of displayTools) {
       const installed = installedSet.has(tool.name);
       const status = installed ? '✔ installed' : '— available';
+      const variant = tool.packageName !== tool.name ? ` (${tool.packageName})` : '';
 
       const extHints: string[] = [];
       for (const extId of tool.extensions) {
@@ -366,7 +381,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
         desc += '  ' + extHints.join('  ');
       }
 
-      const namePad = tool.name.padEnd(14);
+      const namePad = (tool.name + variant).padEnd(14);
       const versionPad = (tool.version || '?').padEnd(8);
       const statusPad = status.padEnd(13);
       log.step(`  ${namePad}${versionPad}${statusPad}${desc}`);
@@ -417,7 +432,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
 
   try {
     s.start('Fetching tool registry...');
-    repoData = await fetchRepositoryWithVersions();
+    const availableRuntimes = await buildAvailableRuntimes();
+    repoData = await fetchRepositoryWithVersions({ availableRuntimes });
     s.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     s.stop('Failed to fetch tool registry');
@@ -529,36 +545,37 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     outro('✨ Done');
     return { success: true };
   }
-    if (!isInteractive) {
-      intro('jean2 tools · install');
-      log.step('');
-      for (const msg of runtimeCheck.messages) {
-        log.step(`  Runtime required: ${msg}`);
-      }
 
-      if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
-        for (const rt of runtimeCheck.missingWithSetup) {
-          const setup = getRuntimeSetup(rt);
-          const displayName = setup?.displayName ?? rt;
-          log.warn(`${displayName} is required but not found.`);
+  if (!isInteractive) {
+    intro('jean2 tools · install');
+    log.step('');
+    for (const msg of runtimeCheck.messages) {
+      log.step(`  Runtime required: ${msg}`);
+    }
 
-          const shouldOffer = await confirm({
-            message: `Would you like help installing ${displayName}?`,
-            active: 'Yes',
-            inactive: 'No',
-          });
+    if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
+      for (const rt of runtimeCheck.missingWithSetup) {
+        const setup = getRuntimeSetup(rt);
+        const displayName = setup?.displayName ?? rt;
+        log.warn(`${displayName} is required but not found.`);
 
-          if (isCancel(shouldOffer) || !shouldOffer) {
-            log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-            return { success: false, error: 'Required runtimes not found' };
-          }
+        const shouldOffer = await confirm({
+          message: `Would you like help installing ${displayName}?`,
+          active: 'Yes',
+          inactive: 'No',
+        });
 
-          const result = await offerRuntimeSetup(rt);
-          if (!result.success) {
-            log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-            return { success: false, error: 'Required runtimes not found' };
-          }
+        if (isCancel(shouldOffer) || !shouldOffer) {
+          log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+          return { success: false, error: 'Required runtimes not found' };
         }
+
+        const result = await offerRuntimeSetup(rt);
+        if (!result.success) {
+          log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
+          return { success: false, error: 'Required runtimes not found' };
+        }
+      }
       const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
       runtimeCheck.messages.length = 0;
       runtimeCheck.messages.push(...afterSetup.messages);
@@ -650,7 +667,15 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
 
   try {
     s.start('Fetching tool registry...');
-    repoData = await fetchRepositoryWithVersions();
+    const availableRuntimes = await buildAvailableRuntimes();
+    const installedPackages = new Map<string, string>();
+    for (const tool of getInstalledTools()) {
+      const manifest = getInstalledManifest(tool.name);
+      if (manifest?.packageName) {
+        installedPackages.set(tool.name, manifest.packageName);
+      }
+    }
+    repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
     s.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     s.stop('Failed to fetch tool registry');
@@ -897,7 +922,15 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
 
   try {
     s.start('Fetching tool registry...');
-    repoData = await fetchRepositoryWithVersions();
+    const availableRuntimes = await buildAvailableRuntimes();
+    const installedPackages = new Map<string, string>();
+    for (const tool of getInstalledTools()) {
+      const manifest = getInstalledManifest(tool.name);
+      if (manifest?.packageName) {
+        installedPackages.set(tool.name, manifest.packageName);
+      }
+    }
+    repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
     s.stop('Fetching tool registry... done');
   } catch (err: unknown) {
     s.stop('Failed to fetch tool registry');

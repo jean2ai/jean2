@@ -14,6 +14,7 @@ export interface InstallManifest {
   version: string;
   installedAt: string;
   downloadUrl: string;
+  packageName?: string;
 }
 
 export interface InstallOptions {
@@ -61,6 +62,19 @@ function getInstalledVersion(toolName: string): string | null {
   }
   try {
     return readFileSync(versionPath, 'utf-8').trim();
+  } catch {
+    return null;
+  }
+}
+
+export function getInstalledManifest(toolName: string): InstallManifest | null {
+  const manifestPath = getManifestPath(toolName);
+  if (!existsSync(manifestPath)) {
+    return null;
+  }
+  try {
+    const content = readFileSync(manifestPath, 'utf-8');
+    return JSON.parse(content) as InstallManifest;
   } catch {
     return null;
   }
@@ -178,7 +192,7 @@ export async function installTool(
   options: InstallOptions = {},
 ): Promise<InstallResult> {
   const toolDir = getToolDir(tool.name);
-  const downloadUrl = resolveDownloadUrl(registry, tool.name, tool.version);
+  const downloadUrl = resolveDownloadUrl(registry, tool.packageName, tool.version, tool.name);
 
   const installedVersion = getInstalledVersion(tool.name);
 
@@ -241,6 +255,7 @@ export async function installTool(
     version: tool.version,
     installedAt: new Date().toISOString(),
     downloadUrl,
+    packageName: tool.packageName,
   };
   saveManifest(tool.name, manifest);
 
