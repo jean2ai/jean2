@@ -21,6 +21,8 @@ import { runToolsCommand, type ToolsCommandArgs } from './tools/tools-cli';
 import { performUpdate, type UpdateOptions } from './update';
 import { VERSION } from './version';
 
+import './tools/clack-utils';
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 const command = args[0];

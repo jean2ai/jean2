@@ -35,6 +35,7 @@ export function restoreTerminalState(): void {
   if (process.platform === 'win32' && process.stdin.isTTY) {
     try {
       process.stdin.setRawMode(false);
+      process.stdout.write('\r');
     } catch {
       // Ignore — may fail if stdin was already restored or is not a TTY
     }
