@@ -8,21 +8,32 @@
  * leave stdin in raw mode on Windows (workaround for clack#176), which
  * further desyncs PSReadLine's cursor tracking.
  *
- * This module patches stdout to ensure \r\n line endings on Windows
- * and provides restoreTerminalState() to exit raw mode after prompts.
+ * This module patches both process.stdout.write AND console.log to ensure
+ * \r\n line endings on Windows, and provides restoreTerminalState() to
+ * exit raw mode after prompts.
  */
 
-// Patch stdout on Windows to translate \n → \r\n.
-// Only activates when stdout is a TTY (interactive terminal).
-// Uses lookbehind to avoid double-translating existing \r\n.
 if (process.platform === 'win32' && process.stdout.isTTY) {
-  type WriteFn = (data: string | Uint8Array, ...args: unknown[]) => boolean;
-  const _origWrite: WriteFn = process.stdout.write.bind(process.stdout) as unknown as WriteFn;
-  (process.stdout as unknown as { write: WriteFn }).write = (data: string | Uint8Array, ...args: unknown[]): boolean => {
+  // Patch process.stdout.write — covers @clack/prompts and direct calls
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _origStdoutWrite: (data: string | Uint8Array, ...args: any[]) => boolean =
+    process.stdout.write.bind(process.stdout);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patchedWrite = (data: string | Uint8Array, ...args: any[]): boolean => {
     if (typeof data === 'string') {
       data = data.replace(/(?<!\r)\n/g, '\r\n');
     }
-    return _origWrite(data, ...args);
+    return _origStdoutWrite(data, ...args);
+  };
+  (process.stdout as unknown as { write: typeof patchedWrite }).write = patchedWrite;
+
+  // Patch console.log — Bun's console.log writes directly to fd 1,
+  // bypassing process.stdout.write entirely, so we must intercept it
+  // separately to ensure \r\n line endings.
+  const _origLog = console.log;
+  (console as unknown as { log: typeof _origLog }).log = (...args: unknown[]): void => {
+    const msg = args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ');
+    process.stdout.write(msg + '\n');
   };
 }
 
