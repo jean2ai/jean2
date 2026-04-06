@@ -26,11 +26,6 @@ const RUNTIME_SETUPS: Record<string, RuntimeSetup> = {
             notes: 'Requires curl and a supported shell (bash/zsh/fish)',
           },
           {
-            name: 'npm',
-            command: 'npm install -g bun',
-            notes: 'Requires Node.js to be installed first',
-          },
-          {
             name: 'Homebrew',
             command: 'brew install oven-sh/bun/bun',
             notes: 'Requires Homebrew — https://brew.sh',
@@ -45,11 +40,6 @@ const RUNTIME_SETUPS: Record<string, RuntimeSetup> = {
             command: 'curl -fsSL https://bun.com/install | bash',
             notes: 'Requires curl and unzip',
           },
-          {
-            name: 'npm',
-            command: 'npm install -g bun',
-            notes: 'Requires Node.js to be installed first',
-          },
         ],
       },
       win32: {
@@ -58,16 +48,6 @@ const RUNTIME_SETUPS: Record<string, RuntimeSetup> = {
             name: 'PowerShell',
             command: 'powershell -c "irm bun.sh/install.ps1|iex"',
             notes: 'Requires Windows 10 version 1809 or later',
-          },
-          {
-            name: 'npm',
-            command: 'npm install -g bun',
-            notes: 'Requires Node.js to be installed first',
-          },
-          {
-            name: 'Scoop',
-            command: 'scoop install bun',
-            notes: 'Requires Scoop to be installed first',
           },
         ],
       },
