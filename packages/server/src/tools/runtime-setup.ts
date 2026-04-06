@@ -246,6 +246,8 @@ export async function offerRuntimeSetup(
     });
 
     proc.on('close', async (code) => {
+      restoreTerminalState();
+
       if (code !== 0) {
         done({
           success: false,
