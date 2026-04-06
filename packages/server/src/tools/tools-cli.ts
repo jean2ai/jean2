@@ -582,11 +582,8 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   }
 
 
-  // Run installs sequentially with individual spinners
   const results: TaskResult[] = [];
   for (const tool of selected) {
-    const toolSpinner = spinner();
-    toolSpinner.start(tool.name);
     try {
       const result = await installTool(tool, registry, {
         force: options.force,
@@ -595,23 +592,23 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
 
       if (result.success) {
         if (result.skipped) {
-          toolSpinner.stop(`${tool.name} already installed`);
+          log.step(`  ${tool.name} already installed`);
           results.push({ status: 'ok', value: 'skipped' });
         } else {
           let msg = `${tool.name} installed`;
           if (tool.postInstall) {
             msg += ` (post-install: ${tool.postInstall})`;
           }
-          toolSpinner.stop(`✔ ${msg}`);
+          log.step(`  ✔ ${msg}`);
           results.push({ status: 'ok', value: msg });
         }
       } else {
-        toolSpinner.stop(`✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
+        log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
         results.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      toolSpinner.stop(`✗ ${tool.name} failed: ${message}`);
+      log.error(`  ✗ ${tool.name} failed: ${message}`);
       results.push({ status: 'error', reason: message });
     }
   }
@@ -756,24 +753,22 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
 
   const updateResults: TaskResult[] = [];
   for (const { tool } of outdated) {
-    const toolSpinner = spinner();
-    toolSpinner.start(tool.name);
     try {
       const result = await installTool(tool, registry, { force: true });
       if (result.success) {
-        let msg = `✔ ${tool.name} updated`;
+        let msg = `${tool.name} updated`;
         if (tool.postInstall) {
           msg += ` (post-install: ${tool.postInstall})`;
         }
-        toolSpinner.stop(msg);
+        log.step(`  ✔ ${msg}`);
         updateResults.push({ status: 'ok', value: tool.name });
       } else {
-        toolSpinner.stop(`✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
+        log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
         updateResults.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      toolSpinner.stop(`✗ ${tool.name} failed: ${message}`);
+      log.error(`  ✗ ${tool.name} failed: ${message}`);
       updateResults.push({ status: 'error', reason: message });
     }
   }
