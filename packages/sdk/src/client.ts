@@ -1,4 +1,4 @@
-import type { ClientConfig, ClientMessage } from './types';
+import type { ClientConfig, ClientMessage, ConnectionState } from './types';
 import { TypedEventEmitter } from './emitter';
 import type { SdkEventMap } from './types/server-messages';
 import { routeServerMessage } from './types/server-messages';
@@ -9,18 +9,22 @@ import { ChatNamespace } from './namespaces/chat';
 import { PermissionsNamespace } from './namespaces/permissions';
 import { QueueNamespace } from './namespaces/queue';
 import { ProvidersNamespace } from './namespaces/providers';
+import { TerminalNamespace } from './namespaces/terminal';
+import { HttpNamespace } from './rest/http-namespace';
 
 export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   private config: ClientConfig;
   private transport: WebSocketTransport;
-  private http: HttpClient;
-  private _state: 'disconnected' | 'connecting' | 'connected' | 'disconnecting' = 'disconnected';
+  private _httpClient: HttpClient;
+  private _state: ConnectionState = 'disconnected';
 
   readonly sessions: SessionsNamespace;
   readonly chat: ChatNamespace;
   readonly permissions: PermissionsNamespace;
   readonly queue: QueueNamespace;
   readonly providers: ProvidersNamespace;
+  readonly http: HttpNamespace;
+  readonly terminal: TerminalNamespace;
 
   constructor(config: ClientConfig) {
     super();
@@ -29,8 +33,9 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
       url: config.url,
       token: config.token,
       wsConstructor: config.wsConstructor,
+      connectionTimeout: config.connectionTimeout,
     });
-    this.http = new HttpClient({
+    this._httpClient = new HttpClient({
       url: config.url,
       token: config.token,
       apiBase: config.apiBase,
@@ -42,6 +47,12 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     this.permissions = new PermissionsNamespace(send);
     this.queue = new QueueNamespace(send);
     this.providers = new ProvidersNamespace(send);
+    this.http = new HttpNamespace(this._httpClient);
+    this.terminal = new TerminalNamespace({
+      url: config.url,
+      token: config.token,
+      wsConstructor: config.wsConstructor,
+    });
 
     this.transport.onOpen = () => {
       this._state = 'connected';
@@ -81,12 +92,13 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     await this.transport.disconnect();
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
+    await this.disconnect();
     this.transport.dispose();
     this.removeAllListeners();
   }
 
-  get state(): 'disconnected' | 'connecting' | 'connected' | 'disconnecting' {
+  get state(): ConnectionState {
     return this._state;
   }
 
@@ -99,7 +111,7 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   }
 
   get httpClient(): HttpClient {
-    return this.http;
+    return this._httpClient;
   }
 
   send(message: ClientMessage): void {

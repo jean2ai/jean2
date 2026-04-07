@@ -5,6 +5,7 @@ export interface WebSocketTransportConfig {
   url: string;
   token: string;
   wsConstructor?: typeof WebSocket;
+  connectionTimeout?: number;
 }
 
 export type WsState = 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
@@ -31,10 +32,11 @@ export class WebSocketTransport {
       this._state = 'connecting';
       this._ws = new WsConstructor(wsUrl);
 
+      const timeoutMs = this.config.connectionTimeout ?? 10000;
       const timeoutId = setTimeout(() => {
         this._ws?.close(1001, 'Connection timeout');
-        reject(new ConnectionError('Connection timeout (10s)'));
-      }, 10000);
+        reject(new ConnectionError(`Connection timeout (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       this._ws.onopen = () => {
         clearTimeout(timeoutId);

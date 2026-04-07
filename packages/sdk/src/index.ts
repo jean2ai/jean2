@@ -29,4 +29,32 @@ export { PermissionsNamespace } from './namespaces/permissions';
 export { QueueNamespace } from './namespaces/queue';
 export { ProvidersNamespace } from './namespaces/providers';
 
+export {
+  TerminalConnection,
+  TerminalNamespace,
+  TERMINAL_OPCODES,
+} from './namespaces/terminal';
+export type {
+  TerminalEventMap,
+  TerminalConnectOptions,
+  TerminalConfig,
+  TerminalOpcode,
+} from './namespaces/terminal';
+
+export { SessionsRestNamespace } from './rest/sessions';
+export { WorkspacesRestNamespace } from './rest/workspaces';
+export { ToolsRestNamespace } from './rest/tools';
+export { PromptsRestNamespace } from './rest/prompts';
+export { ModelsRestNamespace } from './rest/models';
+export { PreconfigsRestNamespace } from './rest/preconfigs';
+export { ProvidersRestNamespace } from './rest/providers';
+export { FilesRestNamespace } from './rest/files';
+export { AttachmentsRestNamespace } from './rest/attachments';
+export { TerminalsRestNamespace } from './rest/terminals';
+export { McpRestNamespace } from './rest/mcp';
+export { ConfigRestNamespace } from './rest/config';
+export { ConfigModelsNamespace, ConfigPromptsNamespace } from './rest/config';
+export { HttpNamespace } from './rest/http-namespace';
+export type { LoadAllResult } from './rest/http-namespace';
+
 export type { ClientConfig, ConnectionState, SdkEvent } from './types';
