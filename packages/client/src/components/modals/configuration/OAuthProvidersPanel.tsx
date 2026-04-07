@@ -1,19 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { HttpClient } from '@jean2/sdk';
 import { Loader2, Unplug, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/shared';
-import { useApi } from '@/hooks/useApi';
 
 interface PanelProps {
-  serverUrl: string | null;
-  apiToken: string | null;
+  httpClient: HttpClient | null;
 }
 
-export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
-  const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
-
+export function OAuthProvidersPanel({ httpClient }: PanelProps) {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,22 +17,18 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
-    if (!apiToken || !apiUrl) return;
+    if (!httpClient) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/providers`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to load providers');
-      const data = await res.json();
+      const data = await httpClient.get<{ providers: ProviderStatus[] }>('/providers');
       setProviders(data.providers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load providers');
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [httpClient]);
 
   useEffect(() => {
     loadProviders();
@@ -45,21 +36,17 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
 
   const handleConnect = async (providerId: string) => {
     setConnectingId(providerId);
-    setAuthUrls(prev => ({ ...prev, [providerId]: '' }));
+    setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/providers/${providerId}/connect`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to connect provider');
-      const data = await res.json();
+      const data = await httpClient!.post<{ authorizationUrl?: string }>(`/providers/${providerId}/connect`);
       if (data.authorizationUrl) {
-        setAuthUrls(prev => ({ ...prev, [providerId]: data.authorizationUrl }));
+        const url = data.authorizationUrl;
+        setAuthUrls((prev) => ({ ...prev, [providerId]: url }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect provider');
-      setAuthUrls(prev => ({ ...prev, [providerId]: '' }));
+      setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
     } finally {
       setConnectingId(null);
     }
@@ -68,11 +55,7 @@ export function OAuthProvidersPanel({ serverUrl, apiToken }: PanelProps) {
   const handleDisconnect = async (providerId: string) => {
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/providers/${providerId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to disconnect provider');
+      await httpClient!.delete(`/providers/${providerId}`);
       await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect provider');

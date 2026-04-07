@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import type { HttpClient } from '@jean2/sdk';
 import type { ToolPermission } from '@jean2/shared';
 import {
   Dialog,
@@ -78,7 +79,7 @@ interface SettingsDialogProps {
   onChatFinishSoundEnabledChange: (enabled: boolean) => void;
   permissionSoundEnabled: boolean;
   onPermissionSoundEnabledChange: (enabled: boolean) => void;
-  serverUrl: string | null;
+  httpClient: HttpClient | null;
 }
 
 export function SettingsDialog({
@@ -94,7 +95,7 @@ export function SettingsDialog({
   onChatFinishSoundEnabledChange,
   permissionSoundEnabled,
   onPermissionSoundEnabledChange,
-  serverUrl,
+  httpClient,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
   const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
@@ -175,7 +176,7 @@ export function SettingsDialog({
 
               <Separator />
 
-              <VersionInfo serverUrl={serverUrl} enabled={open} />
+              <VersionInfo httpClient={httpClient} enabled={open} />
             </div>
           </TabsContent>
 

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { File, Folder, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
+import type { HttpClient } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
-import { useApi } from '@/hooks/useApi';
 
 interface FileAutocompleteProps {
   workspaceId: string;
@@ -11,8 +11,7 @@ interface FileAutocompleteProps {
   onSelect: (file: FileEntry) => void;
   onFilesChange: (files: FileEntry[]) => void;
   showHidden?: boolean;
-  serverUrl?: string;
-  apiToken?: string;
+  httpClient?: HttpClient | null;
 }
 
 export function FileAutocomplete({
@@ -22,16 +21,13 @@ export function FileAutocomplete({
   onSelect,
   onFilesChange,
   showHidden = true,
-  serverUrl,
-  apiToken,
+  httpClient,
 }: FileAutocompleteProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
-  const { fetchWithAuth } = useApi();
   const queryIdRef = useRef(0);
 
-  // Debounce the search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery);
@@ -40,9 +36,8 @@ export function FileAutocomplete({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch files when debounced query changes
   useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2) {
+    if (!debouncedQuery || debouncedQuery.length < 2 || !httpClient) {
       setFiles([]);
       onFilesChange([]);
       return;
@@ -53,12 +48,11 @@ export function FileAutocomplete({
 
     const controller = new AbortController();
 
-    fetchWithAuth(
-      `/api/workspaces/${workspaceId}/files?search=${encodeURIComponent(debouncedQuery)}&showHidden=${showHidden}`,
-      { signal: controller.signal },
-      { serverUrl, token: apiToken }
-    )
-      .then(res => res.json())
+    httpClient
+      .get<{ files: FileEntry[] }>(`/workspaces/${workspaceId}/files`, {
+        params: { search: debouncedQuery, showHidden: String(showHidden) },
+        signal: controller.signal,
+      })
       .then(data => {
         if (queryId !== queryIdRef.current) return;
         const newFiles = data.files || [];
@@ -66,7 +60,7 @@ export function FileAutocomplete({
         onFilesChange(newFiles);
       })
       .catch(err => {
-        if (err.name !== 'AbortError') {
+        if (err instanceof Error && err.name !== 'AbortError') {
           console.error('File search failed:', err);
         }
       })
@@ -75,7 +69,7 @@ export function FileAutocomplete({
       });
 
     return () => controller.abort();
-  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, fetchWithAuth, serverUrl, apiToken]);
+  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, httpClient]);
 
   if (!searchQuery || searchQuery.length < 2) {
     return (
@@ -126,7 +120,7 @@ export function FileAutocomplete({
         </button>
       ))}
       <div className="mt-1 pt-1 border-t text-xs text-muted-foreground px-2">
-        {files.length} result{files.length !== 1 ? 's' : ''} • 
+        {files.length} result{files.length !== 1 ? 's' : ''} &bull;
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">↑↓</kbd> navigate
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">↵</kbd> select
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">esc</kbd> close

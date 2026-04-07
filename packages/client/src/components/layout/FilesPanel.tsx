@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import type { FileEntry } from '@jean2/shared';
+import type { HttpClient } from '@jean2/sdk';
 import { X, RefreshCw } from 'lucide-react';
 import { FileTree, type FileTreeHandle } from '@/components/files';
 import { Button } from '@/components/ui/button';
@@ -24,8 +25,7 @@ import { useUIStore } from '@/stores/uiStore';
 
 interface FilesPanelProps {
   workspaceId: string | undefined;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  httpClient: HttpClient | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -35,7 +35,7 @@ export interface FilesPanelHandle {
 }
 
 export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
-  ({ workspaceId, serverUrl, apiToken, isOpen, onClose }, ref) => {
+  ({ workspaceId, httpClient, isOpen, onClose }, ref) => {
     const isMobile = useIsMobile();
     const fileTreeRef = useRef<FileTreeHandle>(null);
     const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
@@ -86,8 +86,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
                 ref={fileTreeRef}
                 key={workspaceId}
                 workspaceId={workspaceId}
-                serverUrl={serverUrl}
-                apiToken={apiToken}
+                httpClient={httpClient}
                 showHidden={true}
                 onFileSelect={handleFileSelect}
               />
@@ -121,8 +120,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
               ref={fileTreeRef}
               key={workspaceId}
               workspaceId={workspaceId}
-              serverUrl={serverUrl}
-              apiToken={apiToken}
+              httpClient={httpClient}
               showHidden={true}
               width={filesPanelWidth}
               onFileSelect={handleFileSelect}

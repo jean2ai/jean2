@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { HttpClient } from '@jean2/sdk';
 import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,8 +21,7 @@ interface MessageInputProps {
   onStopStreaming?: () => void;
   placeholder?: string;
   workspaceId?: string;
-  serverUrl?: string;
-  apiToken?: string;
+  httpClient?: HttpClient | null;
   prompts?: PromptInfo[];
   sessionId?: string;
   modelSupportsImage?: boolean;
@@ -70,8 +69,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   onStopStreaming,
   placeholder = 'Type a message...',
   workspaceId,
-  serverUrl,
-  apiToken,
+  httpClient,
   prompts = [],
   sessionId,
   modelSupportsImage,
@@ -199,40 +197,31 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [pendingAttachments, clearInput]);
 
   const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
-    if (!serverUrl || !apiToken || !sessionId) return null;
+    if (!httpClient || !sessionId) return null;
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(buildApiUrl(serverUrl, `/api/sessions/${sessionId}/attachments`), {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Upload failed' }));
-        console.error('Upload failed:', error.message);
-        return null;
-      }
-
-      const attachment = await response.json();
+      const attachment = await httpClient.post<{ id: string; kind: string; filename: string; size: number }>(
+        `/sessions/${sessionId}/attachments`,
+        formData,
+      );
 
       return {
         id: crypto.randomUUID(),
-        kind: attachment.kind,
+        kind: attachment.kind as AttachmentKind,
         filename: attachment.filename,
         size: attachment.size,
         previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
         uploadedId: attachment.id,
-        uploadedKind: attachment.kind,
+        uploadedKind: attachment.kind as AttachmentKind,
       };
     } catch (err) {
       console.error('Upload error:', err);
       return null;
     }
-  }, [serverUrl, apiToken, sessionId]);
+  }, [httpClient, sessionId]);
 
   const removeAttachment = useCallback((id: string) => {
     setPendingAttachments(prev => {
@@ -511,8 +500,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   selectedIndex={selectedIndex}
                   onSelect={handleFileSelectWrapper}
                   onFilesChange={handleFilesChange}
-                  serverUrl={serverUrl}
-                  apiToken={apiToken}
+                  httpClient={httpClient}
                 />
               ) : (
                 <PromptAutocomplete

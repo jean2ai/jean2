@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { HttpClient } from '@jean2/sdk';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import {
 } from '@/utils/githubVersion';
 
 interface VersionInfoProps {
-  serverUrl: string | null;
+  httpClient: HttpClient | null;
   enabled: boolean;
 }
 
@@ -57,7 +57,7 @@ function StatusBadge({ status }: { status: UpdateStatus }) {
   return <span className="text-xs text-muted-foreground">Unknown</span>;
 }
 
-export function VersionInfo({ serverUrl, enabled }: VersionInfoProps) {
+export function VersionInfo({ httpClient, enabled }: VersionInfoProps) {
   const fetchIdRef = useRef(0);
 
   const [state, setState] = useState<VersionState>({
@@ -77,10 +77,8 @@ export function VersionInfo({ serverUrl, enabled }: VersionInfoProps) {
 
     try {
       const results = await Promise.allSettled([
-        serverUrl
-          ? fetch(buildApiUrl(serverUrl, '/api/info'))
-              .then(r => r.ok ? r.json() : null)
-              .then(data => data?.version ?? null)
+        httpClient
+          ? httpClient.get<{ version: string }>('/info').then(data => data.version).catch(() => null)
           : Promise.resolve(null),
         fetchLatestServerVersion(),
         fetchLatestClientVersion(),
@@ -104,7 +102,7 @@ export function VersionInfo({ serverUrl, enabled }: VersionInfoProps) {
       if (fetchIdRef.current !== currentFetchId) return;
       setState(prev => ({ ...prev, loading: false, fetchError: 'Unable to check for updates' }));
     }
-  }, [serverUrl]);
+  }, [httpClient]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -112,7 +110,7 @@ export function VersionInfo({ serverUrl, enabled }: VersionInfoProps) {
   }, [fetchVersions, enabled]);
 
   const clientStatus = checkUpdate(CLIENT_VERSION, state.latestClient);
-  const serverStatus = serverUrl && state.serverVersion
+  const serverStatus = httpClient && state.serverVersion
     ? checkUpdate(state.serverVersion, state.latestServer)
     : 'unknown';
 

@@ -52,8 +52,6 @@ interface UseSessionCommandsReturn {
   updateSessionVariant: (variant: string | null) => void;
   handleNavigateBack: () => void;
   refreshPermissions: () => void;
-  connectProvider: (provider: string) => void;
-  disconnectProvider: (provider: string) => void;
   createSessionInWorkspace: (workspaceId: string) => void;
   revokePermission: (permissionId: string) => void;
   revokeAllPermissions: (workspaceId: string) => void;
@@ -263,20 +261,6 @@ export function useSessionCommands({
     }
   }, [clientRef, activeWorkspace]);
 
-  const connectProvider = useCallback((provider: string) => {
-    const client = clientRef.current;
-    if (client && client.connected) {
-      client.providers.connect(provider);
-    }
-  }, [clientRef]);
-
-  const disconnectProvider = useCallback((provider: string) => {
-    const client = clientRef.current;
-    if (client && client.connected) {
-      client.providers.disconnect(provider);
-    }
-  }, [clientRef]);
-
   const createSessionInWorkspace = useCallback((workspaceId: string) => {
     const client = clientRef.current;
     setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
@@ -327,8 +311,6 @@ export function useSessionCommands({
     updateSessionVariant,
     handleNavigateBack,
     refreshPermissions,
-    connectProvider,
-    disconnectProvider,
     createSessionInWorkspace,
     revokePermission,
     revokeAllPermissions,

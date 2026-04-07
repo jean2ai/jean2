@@ -7,6 +7,7 @@ import type {
   SavedServer,
   AttachmentKind,
 } from '@jean2/shared';
+import type { HttpClient } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
@@ -27,6 +28,7 @@ export interface AppMainContentProps {
   nextRetryIn: number;
   serverUrl: string | null;
   currentSession: Session | null;
+  httpClient: HttpClient | null;
   messagesWithParts: MessageWithParts[];
   queuedMessages: Record<string, QueuedMessage[]>;
   preconfigs: Preconfig[];
@@ -43,7 +45,6 @@ export interface AppMainContentProps {
   compactionSuccess: boolean;
   isPrimarySession: boolean;
   inputRef: React.RefObject<MessageInputHandle | null>;
-  apiToken: string | null;
   onFirstServerAdded: (server: SavedServer) => void;
   onRetry: () => void;
   onLogout: () => void;
@@ -92,7 +93,7 @@ export function AppMainContent({
   compactionSuccess,
   isPrimarySession,
   inputRef,
-  apiToken,
+  httpClient,
   onFirstServerAdded,
   onRetry,
   onLogout,
@@ -234,7 +235,7 @@ export function AppMainContent({
       compactionSuccess={compactionSuccess}
       onClearCompactionSuccess={onClearCompactionSuccess}
       serverUrl={serverUrl ?? undefined}
-      apiToken={apiToken ?? undefined}
+      httpClient={httpClient}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
     />

@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { HttpClient } from '@jean2/sdk';
 import { Key, Check, X, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useApi } from '@/hooks/useApi';
 
 interface PanelProps {
-  serverUrl: string | null;
-  apiToken: string | null;
+  httpClient: HttpClient | null;
 }
 
 interface ProviderCredentialStatus {
@@ -16,10 +14,7 @@ interface ProviderCredentialStatus {
   configured: boolean;
 }
 
-export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
-  const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
-
+export function ProviderCredentialsPanel({ httpClient }: PanelProps) {
   const [providers, setProviders] = useState<ProviderCredentialStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,22 +24,18 @@ export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
-    if (!apiToken || !apiUrl) return;
+    if (!httpClient) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/providers`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to load providers');
-      const data = await res.json();
+      const data = await httpClient.get<{ providers: ProviderCredentialStatus[] }>('/config/providers');
       setProviders(data.providers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load providers');
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [httpClient]);
 
   useEffect(() => {
     loadProviders();
@@ -54,18 +45,7 @@ export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
     if (!apiKeyInput.trim()) return;
     setActionLoading(provider);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/providers/${provider}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ apiKey: apiKeyInput.trim() }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to set key');
-      }
+      await httpClient!.put(`/config/providers/${provider}`, { apiKey: apiKeyInput.trim() });
       setEditingProvider(null);
       setApiKeyInput('');
       setShowKey(false);
@@ -80,14 +60,7 @@ export function ProviderCredentialsPanel({ serverUrl, apiToken }: PanelProps) {
   const handleClearKey = async (provider: string) => {
     setActionLoading(provider);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/providers/${provider}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to clear key');
-      }
+      await httpClient!.delete(`/config/providers/${provider}`);
       await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clear key');

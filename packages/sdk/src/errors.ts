@@ -56,7 +56,7 @@ export class ValidationError extends Jean2Error {
   readonly statusCode: number;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(message: string, statusCode: number, options?: any) {
+  constructor(message: string, statusCode: number = 400, options?: any) {
     super(message, options);
     this.name = 'ValidationError';
     this.statusCode = statusCode;

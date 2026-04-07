@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { HttpClient } from '@jean2/sdk';
 import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/shared';
 import {
   Plus,
@@ -25,11 +25,9 @@ import {
   CollapsibleContent,
 } from '@/components/ui/collapsible';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
-import { useApi } from '@/hooks/useApi';
 
 interface PanelProps {
-  serverUrl: string | null;
-  apiToken: string | null;
+  httpClient: HttpClient | null;
 }
 
 interface ProviderConfig {
@@ -104,15 +102,11 @@ interface ModelFormData {
 const emptyProviderForm: ProviderFormData = { id: '', name: '' };
 const emptyModelForm: ModelFormData = { id: '', name: '', contextWindow: 128000, maxOutputTokens: undefined, tier: 'standard' as Tier };
 
-export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
-  const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
-
+export function ModelsPanel({ httpClient }: PanelProps) {
   const [config, setConfig] = useState<ModelsConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Provider editing state
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [isCreatingProvider, setIsCreatingProvider] = useState(false);
   const [providerForm, setProviderForm] = useState<ProviderFormData>(emptyProviderForm);
@@ -120,7 +114,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
   const [deleteProviderTarget, setDeleteProviderTarget] = useState<string | null>(null);
   const [_deletingProvider, setDeletingProvider] = useState(false);
 
-  // Model editing state
   const [editingModel, setEditingModel] = useState<{ providerId: string; modelId: string } | null>(null);
   const [isCreatingModel, setIsCreatingModel] = useState<string | null>(null);
   const [modelForm, setModelForm] = useState<ModelFormData>(emptyModelForm);
@@ -129,14 +122,10 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
   const [_deletingModel, setDeletingModel] = useState(false);
   const [variantJsonErrors, setVariantJsonErrors] = useState<Record<string, boolean>>({});
 
-  // Defaults editing state
   const [isEditingDefaults, setIsEditingDefaults] = useState(false);
   const [defaultsForm, setDefaultsForm] = useState({ defaultProvider: '', defaultModel: '' });
   const [savingDefaults, setSavingDefaults] = useState(false);
 
-  // Collapsed state for providers
-
-  // Capabilities helper functions
   function updateCapabilities(
     form: ModelFormData,
     field: 'text' | 'image' | 'video',
@@ -161,7 +150,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     };
   }
 
-  // Variant helper functions
   const addVariant = () => {
     const variants = { ...(modelForm.variants || {}) };
     let key = 'new';
@@ -211,15 +199,11 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
 
   const loadConfig = useCallback(async () => {
-    if (!apiToken || !apiUrl) return;
+    if (!httpClient) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/models`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to load models config');
-      const data: ModelsConfigResponse = await res.json();
+      const data = await httpClient.get<ModelsConfigResponse>('/config/models');
       setConfig(data);
       setDefaultsForm({ defaultProvider: data.defaultProvider, defaultModel: data.defaultModel });
     } catch (err) {
@@ -227,13 +211,12 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [httpClient]);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
-  // Provider handlers
   const handleCreateProvider = () => {
     setIsCreatingProvider(true);
     setEditingProvider(null);
@@ -251,25 +234,14 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     setSavingProvider(true);
     setError(null);
     try {
-      const url = isCreatingProvider
-        ? `${apiUrl}/api/config/models/providers`
-        : `${apiUrl}/api/config/models/providers/${editingProvider}`;
-      const method = isCreatingProvider ? 'POST' : 'PUT';
       const body = isCreatingProvider
         ? { id: providerForm.id.trim(), name: providerForm.name.trim() }
         : { name: providerForm.name.trim() };
 
-      const res = await fetchWithAuth(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to save provider');
+      if (isCreatingProvider) {
+        await httpClient!.post('/config/models/providers', body);
+      } else {
+        await httpClient!.put(`/config/models/providers/${editingProvider}`, body);
       }
       setIsCreatingProvider(false);
       setEditingProvider(null);
@@ -286,14 +258,7 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     setDeletingProvider(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/models/providers/${deleteProviderTarget}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete provider');
-      }
+      await httpClient!.delete(`/config/models/providers/${deleteProviderTarget}`);
       setDeleteProviderTarget(null);
       await loadConfig();
     } catch (err) {
@@ -303,7 +268,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     }
   };
 
-  // Model handlers
   const handleCreateModel = (providerId: string) => {
     setIsCreatingModel(providerId);
     setEditingModel(null);
@@ -331,10 +295,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     setSavingModel(true);
     setError(null);
     try {
-      const url = isCreatingModel
-        ? `${apiUrl}/api/config/models/providers/${providerId}/models`
-        : `${apiUrl}/api/config/models/providers/${providerId}/models/${editingModel?.modelId}`;
-      const method = isCreatingModel ? 'POST' : 'PUT';
       const body = {
         ...(isCreatingModel ? { id: modelForm.id.trim() } : {}),
         name: modelForm.name.trim(),
@@ -345,17 +305,10 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
         capabilities: modelForm.capabilities,
       };
 
-      const res = await fetchWithAuth(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to save model');
+      if (isCreatingModel) {
+        await httpClient!.post(`/config/models/providers/${providerId}/models`, body);
+      } else {
+        await httpClient!.put(`/config/models/providers/${providerId}/models/${editingModel?.modelId}`, body);
       }
       setIsCreatingModel(null);
       setEditingModel(null);
@@ -372,17 +325,7 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     setDeletingModel(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(
-        `${apiUrl}/api/config/models/providers/${deleteModelTarget.providerId}/models/${deleteModelTarget.modelId}`,
-        {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${apiToken}` },
-        }
-      );
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete model');
-      }
+      await httpClient!.delete(`/config/models/providers/${deleteModelTarget.providerId}/models/${deleteModelTarget.modelId}`);
       setDeleteModelTarget(null);
       await loadConfig();
     } catch (err) {
@@ -392,26 +335,14 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     }
   };
 
-  // Defaults handlers
   const handleSaveDefaults = async () => {
     setSavingDefaults(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/models/defaults`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          defaultProvider: defaultsForm.defaultProvider,
-          defaultModel: defaultsForm.defaultModel,
-        }),
+      await httpClient!.put('/config/models/defaults', {
+        defaultProvider: defaultsForm.defaultProvider,
+        defaultModel: defaultsForm.defaultModel,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to save defaults');
-      }
       setIsEditingDefaults(false);
       await loadConfig();
     } catch (err) {
@@ -433,7 +364,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     });
   };
 
-  // Get all models for dropdown
   const allModels: { providerId: string; providerName: string; modelId: string; modelName: string }[] = [];
   config?.providers.forEach(provider => {
     provider.models.forEach(model => {
@@ -454,7 +384,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     );
   }
 
-  // Provider form (inline)
   if (isCreatingProvider || editingProvider) {
     const editing = config?.providers.find(p => p.id === editingProvider);
     return (
@@ -517,7 +446,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
     );
   }
 
-  // Model form (inline)
   if (isCreatingModel || editingModel) {
     const providerId = isCreatingModel || editingModel?.providerId || '';
     const provider = config?.providers.find(p => p.id === providerId);
@@ -707,7 +635,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
 
   return (
     <div className="p-4 space-y-4">
-      {/* Defaults Section */}
       <div className="border rounded-lg p-3 space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium flex items-center gap-2">
@@ -781,12 +708,10 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
         )}
       </div>
 
-      {/* Error display */}
       {error && (
         <div className="p-2 rounded bg-destructive/10 text-sm text-destructive">{error}</div>
       )}
 
-      {/* Providers header */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {config?.providers.length || 0} provider{(config?.providers.length || 0) !== 1 ? 's' : ''}
@@ -797,7 +722,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
         </Button>
       </div>
 
-      {/* Provider list */}
       {config?.providers.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">
           No providers configured. Add one to get started.
@@ -940,7 +864,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
         </div>
       )}
 
-      {/* Delete provider confirmation */}
       <ConfirmDialog
         open={deleteProviderTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteProviderTarget(null); }}
@@ -951,7 +874,6 @@ export function ModelsPanel({ serverUrl, apiToken }: PanelProps) {
         onConfirm={handleDeleteProvider}
       />
 
-      {/* Delete model confirmation */}
       <ConfirmDialog
         open={deleteModelTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteModelTarget(null); }}

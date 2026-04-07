@@ -1,3 +1,4 @@
+import type { HttpClient } from '@jean2/sdk';
 import { Key, Boxes, FileText, Layers, Link2 } from 'lucide-react';
 import {
   Dialog,
@@ -17,15 +18,13 @@ import { PreconfigsPanel } from './configuration/PreconfigsPanel';
 interface ConfigurationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  serverUrl: string | null;
-  apiToken: string | null;
+  httpClient: HttpClient | null;
 }
 
 export function ConfigurationDialog({
   open,
   onOpenChange,
-  serverUrl,
-  apiToken,
+  httpClient,
 }: ConfigurationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,46 +62,31 @@ export function ConfigurationDialog({
 
           <TabsContent value="providers" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <ProviderCredentialsPanel
-                serverUrl={serverUrl}
-                apiToken={apiToken}
-              />
+              <ProviderCredentialsPanel httpClient={httpClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="oauth" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <OAuthProvidersPanel
-                serverUrl={serverUrl}
-                apiToken={apiToken}
-              />
+              <OAuthProvidersPanel httpClient={httpClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="models" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <ModelsPanel
-                serverUrl={serverUrl}
-                apiToken={apiToken}
-              />
+              <ModelsPanel httpClient={httpClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="prompts" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <PromptsPanel
-                serverUrl={serverUrl}
-                apiToken={apiToken}
-              />
+              <PromptsPanel httpClient={httpClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="preconfigs" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <PreconfigsPanel
-                serverUrl={serverUrl}
-                apiToken={apiToken}
-              />
+              <PreconfigsPanel httpClient={httpClient} />
             </ScrollArea>
           </TabsContent>
         </Tabs>

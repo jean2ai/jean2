@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { FilePreviewResponse } from '@jean2/shared';
-import { useApi } from './useApi';
+import type { HttpClient } from '@jean2/sdk';
 
 interface UseFilePreviewOptions {
   workspaceId: string | undefined;
   path: string | undefined;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  httpClient: HttpClient | null;
   enabled: boolean;
 }
 
@@ -20,12 +19,9 @@ interface UseFilePreviewResult {
 export function useFilePreview({
   workspaceId,
   path,
-  serverUrl,
-  apiToken,
+  httpClient,
   enabled,
 }: UseFilePreviewOptions): UseFilePreviewResult {
-  const { fetchWithAuth } = useApi();
-
   const [data, setData] = useState<FilePreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +29,7 @@ export function useFilePreview({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchFilePreview = useCallback(async () => {
-    if (!enabled || !workspaceId || !path || !serverUrl || !apiToken) {
+    if (!enabled || !workspaceId || !path || !httpClient) {
       return;
     }
 
@@ -48,26 +44,10 @@ export function useFilePreview({
     setError(null);
 
     try {
-      const url = `/api/workspaces/${workspaceId}/file-preview?path=${encodeURIComponent(path)}`;
-      const response = await fetchWithAuth(url, {
-        signal: abortController.signal,
-      }, { serverUrl, token: apiToken });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to fetch file preview';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          errorMessage = response.statusText || errorMessage;
-        }
-        setError(errorMessage);
-        setData(null);
-        setLoading(false);
-        return;
-      }
-
-      const result: FilePreviewResponse = await response.json();
+      const result: FilePreviewResponse = await httpClient.get<FilePreviewResponse>(
+        `/workspaces/${workspaceId}/file-preview`,
+        { params: { path }, signal: abortController.signal }
+      );
       setData(result);
       setLoading(false);
     } catch (err: unknown) {
@@ -79,7 +59,7 @@ export function useFilePreview({
       setData(null);
       setLoading(false);
     }
-  }, [enabled, workspaceId, path, serverUrl, apiToken, fetchWithAuth]);
+  }, [enabled, workspaceId, path, httpClient]);
 
   const reload = useCallback(() => {
     fetchFilePreview();

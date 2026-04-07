@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
+import type { HttpClient } from '@jean2/sdk';
 import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/shared';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
@@ -80,7 +81,7 @@ interface ChatViewProps {
   compactionSuccess?: boolean;
   onClearCompactionSuccess?: () => void;
   serverUrl?: string;
-  apiToken?: string;
+  httpClient?: HttpClient | null;
   selectedVariant: string | null;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
   inputRef?: React.RefObject<MessageInputHandle | null>;
@@ -259,7 +260,7 @@ export function ChatView({
   compactionSuccess,
   onClearCompactionSuccess,
   serverUrl,
-  apiToken,
+  httpClient,
   selectedVariant,
   variants,
   inputRef,
@@ -381,14 +382,12 @@ export function ChatView({
         />
       )}
 
-      {session.status === 'active' && !session.parentId && (
-        <MessageInput
+      {session.status === 'active' && !session.parentId && (          <MessageInput
           ref={inputRef}
           onSendMessage={onSendMessage}
           disabled={isCompacting}
           workspaceId={session.workspaceId}
-          serverUrl={serverUrl}
-          apiToken={apiToken}
+          httpClient={httpClient}
           prompts={prompts}
           sessionId={session.id}
           modelSupportsImage={modelSupportsImage}

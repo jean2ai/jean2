@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { McpStatus, McpServerConfig } from '@jean2/shared';
-import { useApi } from '@/hooks/useApi';
+import type { HttpClient } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,7 @@ interface MCPManagementDialogProps {
   onOpenChange: (open: boolean) => void;
   workspaceId: string | undefined;
   workspacePath: string | undefined;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  httpClient: HttpClient | null;
 }
 
 function StatusBadge({ status }: { status: McpStatus }) {
@@ -50,27 +49,22 @@ export function MCPManagementDialog({
   onOpenChange,
   workspaceId,
   workspacePath,
-  serverUrl,
-  apiToken,
+  httpClient,
 }: MCPManagementDialogProps) {
-  // workspacePath can be used for future features like displaying path in UI
   void workspacePath;
-  const { fetchWithAuth } = useApi();
   const [servers, setServers] = useState<Record<string, ServerStatus>>({});
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
-    if (!workspaceId) return;
-    
+    if (!workspaceId || !httpClient) return;
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/status`, {}, { serverUrl, token: apiToken });
-      if (!res.ok) throw new Error('Failed to load MCP status');
-      const data = await res.json();
+      const data = await httpClient.get<{status: Record<string, ServerStatus>}>(`/workspaces/${workspaceId}/mcp/status`);
       setServers(data.status || {});
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -78,7 +72,7 @@ export function MCPManagementDialog({
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, fetchWithAuth, serverUrl, apiToken]);
+  }, [workspaceId, httpClient]);
 
   useEffect(() => {
     if (open && workspaceId) {
@@ -87,16 +81,11 @@ export function MCPManagementDialog({
   }, [open, workspaceId, loadStatus]);
 
   const handleConnect = async (name: string) => {
-    if (!workspaceId) return;
-    
+    if (!workspaceId || !httpClient) return;
+
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      }, { serverUrl, token: apiToken });
-      if (!res.ok) throw new Error('Failed to connect');
+      await httpClient.post(`/workspaces/${workspaceId}/mcp/connect`, { name });
       await loadStatus();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -107,16 +96,11 @@ export function MCPManagementDialog({
   };
 
   const handleDisconnect = async (name: string) => {
-    if (!workspaceId) return;
-    
+    if (!workspaceId || !httpClient) return;
+
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/disconnect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      }, { serverUrl, token: apiToken });
-      if (!res.ok) throw new Error('Failed to disconnect');
+      await httpClient.post(`/workspaces/${workspaceId}/mcp/disconnect`, { name });
       await loadStatus();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -127,18 +111,12 @@ export function MCPManagementDialog({
   };
 
   const handleAuth = async (name: string) => {
-    if (!workspaceId) return;
-    
+    if (!workspaceId || !httpClient) return;
+
     setActionLoading(name);
     try {
-      const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/mcp/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      }, { serverUrl, token: apiToken });
-      if (!res.ok) throw new Error('Failed to start auth');
-      const data = await res.json();
-      
+      const data = await httpClient.post<{authorizationUrl?: string}>(`/workspaces/${workspaceId}/mcp/auth`, { name });
+
       if (data.authorizationUrl) {
         window.open(data.authorizationUrl, '_blank');
       }
