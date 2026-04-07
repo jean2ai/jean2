@@ -82,10 +82,10 @@ export function useConnectionLifecycle({
       clearPendingPermissions();
 
       if (currentSessionIdRef.current) {
-        client.send({ type: 'session.resume', sessionId: currentSessionIdRef.current });
+        client.sessions.resume(currentSessionIdRef.current);
       }
 
-      client.send({ type: 'permissions.sync' });
+      client.permissions.sync();
     });
 
     client.on('disconnected', (payload) => {

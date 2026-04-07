@@ -4,26 +4,12 @@ import type {
   Session,
   Workspace,
   Preconfig,
+  AttachmentKind,
 } from '@jean2/shared';
-
-type ClientMessagePayload =
-  | { preconfigId?: string; title?: string; workspaceId?: string }
-  | { sessionId: string }
-  | { sessionId: string; content: string; attachments?: Array<{ id: string; kind: string }> }
-  | { toolCallId: string; approved: boolean }
-  | { sessionId: string; preconfigId?: string }
-  | { sessionId: string; modelId: string; providerId: string; variant?: string | null }
-  | { toolCallId: string; allowed: boolean; alwaysAllow: boolean }
-  | { workspaceId: string; includeRevoked?: boolean }
-  | { permissionId: string }
-  | { workspaceId: string }
-  | { sessionId: string; reason?: string }
-  | { queueId: string }
-  | { sessionId: string; messageId: string }
-  | { provider: string };
+import type { Jean2Client } from '@jean2/sdk';
 
 interface UseSessionCommandsParams {
-  ws: WebSocket | null;
+  client: Jean2Client | null;
   currentSession: Session | null;
   sessions: Session[];
   workspaces: Workspace[];
@@ -47,7 +33,6 @@ interface UseSessionCommandsParams {
 }
 
 interface UseSessionCommandsReturn {
-  sendMessage: (type: string, payload: ClientMessagePayload) => void;
   createSession: (preconfigId?: string, title?: string) => void;
   resumeSession: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
@@ -57,9 +42,9 @@ interface UseSessionCommandsReturn {
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
-  addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: string }>) => void;
+  addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
-  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: string }>) => void;
+  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -70,10 +55,12 @@ interface UseSessionCommandsReturn {
   connectProvider: (provider: string) => void;
   disconnectProvider: (provider: string) => void;
   createSessionInWorkspace: (workspaceId: string) => void;
+  revokePermission: (permissionId: string) => void;
+  revokeAllPermissions: (workspaceId: string) => void;
 }
 
 export function useSessionCommands({
-  ws,
+  client,
   currentSession,
   sessions,
   workspaces,
@@ -96,12 +83,6 @@ export function useSessionCommands({
   skipFinishSoundSessionIdsRef,
 }: UseSessionCommandsParams): UseSessionCommandsReturn {
 
-  const sendMessage = useCallback((type: string, payload: ClientMessagePayload) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type, ...payload }));
-    }
-  }, [ws]);
-
   const createSession = useCallback((preconfigId?: string, title?: string) => {
     pendingSessionCreateRef.current = true;
     if (partAppendRafRef.current !== null) {
@@ -109,9 +90,15 @@ export function useSessionCommands({
       partAppendRafRef.current = null;
     }
     pendingPartAppendsRef.current.clear();
-    sendMessage('session.create', { preconfigId, title, workspaceId: activeWorkspace?.id });
+    if (client && client.connected) {
+      client.sessions.create({
+        preconfigId,
+        title,
+        workspaceId: activeWorkspace?.id,
+      });
+    }
     setCompactionSuccess(false);
-  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, activeWorkspace, setCompactionSuccess]);
+  }, [client, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, activeWorkspace, setCompactionSuccess]);
 
   const resumeSession = useCallback((sessionId: string) => {
     removePendingPermissionsBySessionId(sessionId);
@@ -134,62 +121,77 @@ export function useSessionCommands({
     if (session) {
       setCurrentSession(session);
     }
-    sendMessage('session.resume', { sessionId });
-  }, [partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sendMessage, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
+    if (client && client.connected) {
+      client.sessions.resume(sessionId);
+    }
+  }, [client, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
 
   const closeSession = useCallback((sessionId: string) => {
-    sendMessage('session.close', { sessionId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.close(sessionId);
+    }
+  }, [client]);
 
   const revertSession = useCallback((sessionId: string, messageId: string) => {
-    sendMessage('session.revert', { sessionId, messageId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.revert(sessionId, messageId);
+    }
+  }, [client]);
 
   const forkSession = useCallback((sessionId: string, messageId: string) => {
-    sendMessage('session.fork', { sessionId, messageId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.fork(sessionId, messageId);
+    }
+  }, [client]);
 
   const compactSession = useCallback((sessionId: string) => {
-    sendMessage('session.compact', { sessionId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.compact(sessionId);
+    }
+  }, [client]);
 
   const reopenSession = useCallback((sessionId: string) => {
-    sendMessage('session.reopen', { sessionId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.reopen(sessionId);
+    }
+  }, [client]);
 
   const permanentlyDeleteSession = useCallback((sessionId: string) => {
-    sendMessage('session.delete', { sessionId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.delete(sessionId);
+    }
+  }, [client]);
 
   const updateSessionPreconfig = useCallback((preconfigId: string) => {
-    if (currentSession) {
-      sendMessage('session.update', { sessionId: currentSession.id, preconfigId });
+    if (client && client.connected && currentSession) {
+      client.sessions.update(currentSession.id, { preconfigId });
     }
-  }, [currentSession, sendMessage]);
+  }, [client, currentSession]);
 
   const updateSessionModel = useCallback((modelId: string, providerId: string) => {
     setCurrentModel(modelId);
     setSelectedVariant(null);
-    if (currentSession) {
-      sendMessage('session.update_model', { sessionId: currentSession.id, modelId, providerId });
+    if (client && client.connected && currentSession) {
+      client.sessions.updateModel(currentSession.id, { modelId, providerId });
     }
-  }, [currentSession, sendMessage, setCurrentModel, setSelectedVariant]);
+  }, [client, currentSession, setCurrentModel, setSelectedVariant]);
 
   const updateSessionVariant = useCallback((variant: string | null) => {
-    if (currentSession) {
-      sendMessage('session.update_model', {
-        sessionId: currentSession.id,
+    if (client && client.connected && currentSession) {
+      client.sessions.updateModel(currentSession.id, {
         modelId: currentSession.selectedModel || currentModel,
         providerId: currentSession.selectedProvider || 'openai',
-        variant,
+        variant: variant ?? undefined,
       });
       setSelectedVariant(variant);
     }
-  }, [currentSession, currentModel, sendMessage, setSelectedVariant]);
+  }, [client, currentSession, currentModel, setSelectedVariant]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
-    sendMessage('session.rename', { sessionId, title });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.sessions.rename(sessionId, title);
+    }
+  }, [client]);
 
   const handleNavigateBack = useCallback(() => {
     if (currentSession?.parentId) {
@@ -197,55 +199,63 @@ export function useSessionCommands({
     }
   }, [currentSession, resumeSession]);
 
-  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: string }>) => {
-    sendMessage('queue.add', { sessionId, content, ...(attachments && attachments.length > 0 ? { attachments } : {}) });
-  }, [sendMessage]);
+  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
+    if (client && client.connected) {
+      client.queue.add(sessionId, content, attachments);
+    }
+  }, [client]);
 
   const removeFromQueue = useCallback((queueId: string) => {
-    sendMessage('queue.remove', { queueId });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.queue.remove(queueId);
+    }
+  }, [client]);
 
-  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: string }>) => {
+  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
     if (!currentSession || isCompacting) return;
     if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
       addToQueue(currentSession.id, content, attachments);
     } else {
-      sendMessage('chat.message', {
-        sessionId: currentSession.id,
-        content,
-        ...(attachments && attachments.length > 0 ? { attachments } : {}),
-      });
+      if (client && client.connected) {
+        client.chat.send(
+          currentSession.id,
+          content,
+          attachments ? { attachments } : undefined,
+        );
+      }
     }
-  }, [currentSession, streamingSessionIds, isCompacting, sendMessage, addToQueue]);
+  }, [client, currentSession, streamingSessionIds, isCompacting, addToQueue]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     removePendingPermissionByToolCallId(toolCallId);
-    sendMessage('permission.response', {
-      toolCallId,
-      allowed,
-      alwaysAllow,
-    });
-  }, [sendMessage, removePendingPermissionByToolCallId]);
+    if (client && client.connected) {
+      client.permissions.respond(toolCallId, allowed, alwaysAllow);
+    }
+  }, [client, removePendingPermissionByToolCallId]);
 
   const handleInterruptSession = useCallback(() => {
-    if (currentSession) {
-      sendMessage('session.interrupt', { sessionId: currentSession.id });
+    if (client && client.connected && currentSession) {
+      client.sessions.interrupt(currentSession.id);
     }
-  }, [currentSession, sendMessage]);
+  }, [client, currentSession]);
 
   const refreshPermissions = useCallback(() => {
-    if (activeWorkspace) {
-      sendMessage('permission.list', { workspaceId: activeWorkspace.id });
+    if (client && client.connected && activeWorkspace) {
+      client.permissions.list(activeWorkspace.id);
     }
-  }, [activeWorkspace, sendMessage]);
+  }, [client, activeWorkspace]);
 
   const connectProvider = useCallback((provider: string) => {
-    sendMessage('provider.connect', { provider });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.providers.connect(provider);
+    }
+  }, [client]);
 
   const disconnectProvider = useCallback((provider: string) => {
-    sendMessage('provider.disconnect', { provider });
-  }, [sendMessage]);
+    if (client && client.connected) {
+      client.providers.disconnect(provider);
+    }
+  }, [client]);
 
   const createSessionInWorkspace = useCallback((workspaceId: string) => {
     setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
@@ -256,12 +266,25 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
     const primary = primaryPreconfigs[0]?.id;
-    sendMessage('session.create', { preconfigId: primary, workspaceId });
+    if (client && client.connected) {
+      client.sessions.create({ preconfigId: primary, workspaceId });
+    }
     setCompactionSuccess(false);
-  }, [partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, sendMessage, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
+  }, [client, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
+
+  const revokePermission = useCallback((permissionId: string) => {
+    if (client && client.connected) {
+      client.permissions.revoke(permissionId);
+    }
+  }, [client]);
+
+  const revokeAllPermissions = useCallback((workspaceId: string) => {
+    if (client && client.connected) {
+      client.permissions.revokeAll(workspaceId);
+    }
+  }, [client]);
 
   return {
-    sendMessage,
     createSession,
     resumeSession,
     closeSession,
@@ -284,5 +307,7 @@ export function useSessionCommands({
     connectProvider,
     disconnectProvider,
     createSessionInWorkspace,
+    revokePermission,
+    revokeAllPermissions,
   };
 }

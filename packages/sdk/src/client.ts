@@ -6,6 +6,9 @@ import { WebSocketTransport } from './transport/websocket';
 import { HttpClient } from './transport/http';
 import { SessionsNamespace } from './namespaces/sessions';
 import { ChatNamespace } from './namespaces/chat';
+import { PermissionsNamespace } from './namespaces/permissions';
+import { QueueNamespace } from './namespaces/queue';
+import { ProvidersNamespace } from './namespaces/providers';
 
 export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   private config: ClientConfig;
@@ -15,6 +18,9 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
 
   readonly sessions: SessionsNamespace;
   readonly chat: ChatNamespace;
+  readonly permissions: PermissionsNamespace;
+  readonly queue: QueueNamespace;
+  readonly providers: ProvidersNamespace;
 
   constructor(config: ClientConfig) {
     super();
@@ -33,6 +39,9 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     const send = this.transport.send.bind(this.transport);
     this.sessions = new SessionsNamespace(send);
     this.chat = new ChatNamespace(send);
+    this.permissions = new PermissionsNamespace(send);
+    this.queue = new QueueNamespace(send);
+    this.providers = new ProvidersNamespace(send);
 
     this.transport.onOpen = () => {
       this._state = 'connected';
@@ -63,7 +72,7 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     this._state = 'connecting';
     await this.transport.connect();
     if (this.config.autoSyncPermissions !== false) {
-      this.transport.send({ type: 'permissions.sync' });
+      this.permissions.sync();
     }
   }
 
@@ -87,6 +96,10 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
 
   get ws(): WebSocket | null {
     return this.transport.ws;
+  }
+
+  get httpClient(): HttpClient {
+    return this.http;
   }
 
   send(message: ClientMessage): void {

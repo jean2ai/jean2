@@ -890,7 +890,6 @@ function AppContent() {
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
 
   const {
-    sendMessage,
     createSession,
     resumeSession,
     closeSession,
@@ -910,8 +909,10 @@ function AppContent() {
     handleNavigateBack,
     refreshPermissions,
     createSessionInWorkspace,
+    revokePermission,
+    revokeAllPermissions,
   } = useSessionCommands({
-    ws: sdkClientRef.current?.ws ?? null,
+    client: sdkClientRef.current,
     currentSession,
     sessions,
     workspaces,
@@ -1113,11 +1114,11 @@ function AppContent() {
             onOpenChange={setShowSettings}
             permissions={permissions}
             onRefreshPermissions={refreshPermissions}
-            onRevokePermission={(permissionId) => {
-              sendMessage('permission.revoke', { permissionId });
-            }}
+            onRevokePermission={revokePermission}
             onRevokeAllPermissions={() => {
-              sendMessage('permission.revoke_all', { workspaceId: activeWorkspace?.id });
+              if (activeWorkspace?.id) {
+                revokeAllPermissions(activeWorkspace?.id);
+              }
             }}
             apiToken={apiToken}
             onLogout={handleLogout}
