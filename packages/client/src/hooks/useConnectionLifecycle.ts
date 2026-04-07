@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { Jean2Client } from '@jean2/sdk';
-import type { ClientMessage, ServerMessage } from '@jean2/shared';
+import type { SessionHandlersContext } from '@/handlers/serverMessage';
+import { subscribeToServerEvents } from './subscribeToServerEvents';
 
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
@@ -12,6 +13,7 @@ export interface ConnectionLifecycleParams {
   serverUrl: string | null;
   serverEpochRef: RefObject<number>;
   currentSessionIdRef: RefObject<string | null>;
+  handlerContextRef: React.RefObject<SessionHandlersContext | null>;
   clearPendingPermissions: () => void;
   handleLogout: () => void;
   setConnected: (connected: boolean) => void;
@@ -24,12 +26,11 @@ export interface ConnectionLifecycleParams {
   connected: boolean;
   connectionTimedOut: boolean;
   retryCount: number;
-  onMessage: (msg: ServerMessage) => void;
-  clientRef?: React.MutableRefObject<Jean2Client | null>;
+  clientRef?: React.RefObject<Jean2Client | null>;
 }
 
 export interface ConnectionLifecycleReturn {
-  clientRef: React.MutableRefObject<Jean2Client | null>;
+  clientRef: React.RefObject<Jean2Client | null>;
 }
 
 export function useConnectionLifecycle({
@@ -37,6 +38,7 @@ export function useConnectionLifecycle({
   serverUrl,
   serverEpochRef,
   currentSessionIdRef,
+  handlerContextRef,
   clearPendingPermissions,
   handleLogout,
   setConnected,
@@ -49,7 +51,6 @@ export function useConnectionLifecycle({
   connected,
   connectionTimedOut,
   retryCount,
-  onMessage,
   clientRef: externalClientRef,
 }: ConnectionLifecycleParams): ConnectionLifecycleReturn {
   const internalClientRef = useRef<Jean2Client | null>(null);
@@ -73,7 +74,6 @@ export function useConnectionLifecycle({
 
     client.on('connected', () => {
       if (serverEpochRef.current !== localEpoch) return;
-      lastMessageTimeRef.current = Date.now();
       setConnected(true);
       setAuthError(null);
       setRetryCount(0);
@@ -102,13 +102,12 @@ export function useConnectionLifecycle({
       console.error('WebSocket error:', error);
     });
 
-    client.on('*', (event) => {
+    client.on('*', () => {
       if (serverEpochRef.current !== localEpoch) return;
-      if (event.source === 'server') {
-        lastMessageTimeRef.current = Date.now();
-        onMessage(event.raw);
-      }
+      lastMessageTimeRef.current = Date.now();
     });
+
+    const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
 
     client.connect().catch((err) => {
       if (serverEpochRef.current !== localEpoch) return;
@@ -116,6 +115,7 @@ export function useConnectionLifecycle({
     });
 
     return () => {
+      unsubscribe();
       client.dispose();
       if (clientRef.current === client) {
         clientRef.current = null;

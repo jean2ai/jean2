@@ -26,10 +26,10 @@ interface UseSessionCommandsParams {
   removePendingPermissionByToolCallId: (toolCallId: string) => void;
   removePendingPermissionsBySessionId: (sessionId: string) => void;
   clearStreamingSessions: () => void;
-  pendingSessionCreateRef: React.MutableRefObject<boolean>;
-  partAppendRafRef: React.MutableRefObject<number | null>;
-  pendingPartAppendsRef: React.MutableRefObject<Map<string, string>>;
-  skipFinishSoundSessionIdsRef: React.MutableRefObject<Set<string>>;
+  pendingSessionCreateRef: React.RefObject<boolean>;
+  partAppendRafRef: React.RefObject<number | null>;
+  pendingPartAppendsRef: React.RefObject<Map<string, string>>;
+  skipFinishSoundSessionIdsRef: React.RefObject<Set<string>>;
 }
 
 interface UseSessionCommandsReturn {

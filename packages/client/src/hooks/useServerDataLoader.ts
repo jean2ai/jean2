@@ -1,8 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import { AuthError, type HttpClient } from '@jean2/sdk';
 import type { Preconfig, PromptInfo, Workspace, ProviderStatus, Session } from '@jean2/shared';
-
-const getApiUrl = (url: string | null) => url ? buildApiUrl(url, '/api') : null;
 
 export interface ModelInfo {
   id: string;
@@ -24,7 +22,7 @@ export interface UseServerDataLoaderParams {
   serverUrl: string | null;
   reconnectTrigger: number;
   serverEpochRef: RefObject<number>;
-  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
+  httpClient: HttpClient | null;
   clearSwitchingState: () => void;
   setSessions: (sessions: Session[]) => void;
   setPreconfigs: (preconfigs: Preconfig[]) => void;
@@ -45,7 +43,7 @@ export function useServerDataLoader({
   serverUrl,
   reconnectTrigger,
   serverEpochRef,
-  fetchWithAuth,
+  httpClient,
   clearSwitchingState,
   setSessions,
   setPreconfigs,
@@ -62,41 +60,32 @@ export function useServerDataLoader({
 }: UseServerDataLoaderParams) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Persist activeWorkspace to localStorage
   useEffect(() => {
     if (activeWorkspace) {
       localStorage.setItem('activeWorkspaceId', activeWorkspace.id);
     }
   }, [activeWorkspace]);
 
-  // Consolidated effect for fetching sessions, preconfigs, models, and workspaces
   useEffect(() => {
-    if (!apiToken || !serverUrl) return;
+    if (!apiToken || !serverUrl || !httpClient) return;
 
-    // Abort previous requests
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    const apiUrl = getApiUrl(serverUrl);
-    if (!apiUrl) return;
-
-    // Capture local epoch to detect stale fetch results
     const localEpoch = serverEpochRef.current;
 
-    // Show loading state
     setIsLoadingServerData(true);
 
     Promise.all([
-      fetchWithAuth(`${apiUrl}/sessions`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/preconfigs`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/prompts`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/models`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/workspaces`, { signal }).then(r => r.json()),
-      fetchWithAuth(`${apiUrl}/providers`, { signal }).then(r => r.json()),
+      httpClient.get<{ sessions: Session[] }>('/sessions', { signal }),
+      httpClient.get<{ preconfigs: Preconfig[] }>('/preconfigs', { signal }),
+      httpClient.get<{ prompts: PromptInfo[] }>('/prompts', { signal }),
+      httpClient.get<{ models: ModelInfo[]; defaultModel: string }>('/models', { signal }),
+      httpClient.get<{ workspaces: Workspace[] }>('/workspaces', { signal }),
+      httpClient.get<{ providers: ProviderStatus[] }>('/providers', { signal }),
     ])
       .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData, providersData]) => {
-        // Ignore stale results from previous connection epochs
         if (serverEpochRef.current !== localEpoch) return;
 
         setSessions(sessionsData.sessions || []);
@@ -106,11 +95,9 @@ export function useServerDataLoader({
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
         setProviderStatuses(providersData.providers || []);
 
-        // Handle workspace selection
         const workspaces = workspacesData.workspaces || [];
         setWorkspaces(workspaces);
 
-        // Apply pending workspace selection if any
         if (pendingWorkspaceIdRef.current) {
           const saved = workspaces.find((w: Workspace) => w.id === pendingWorkspaceIdRef.current);
           if (saved) setActiveWorkspace(saved);
@@ -121,18 +108,18 @@ export function useServerDataLoader({
           setActiveWorkspace(saved || workspaces[0]);
         }
 
-        // Clear switching state
         clearSwitchingState();
         setIsLoadingServerData(false);
       })
-      .catch(err => {
-        if (err.name === 'AbortError') {
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
           console.log('Fetch aborted due to server switch');
           return;
         }
         console.error('Failed to load server data:', err);
         setIsLoadingServerData(false);
-        if (!err.message?.includes('Unauthorized')) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!message.includes('Unauthorized') && !(err instanceof AuthError)) {
           setAuthError('Failed to connect to server');
         }
       });
@@ -145,7 +132,7 @@ export function useServerDataLoader({
     serverUrl,
     reconnectTrigger,
     serverEpochRef,
-    fetchWithAuth,
+    httpClient,
     clearSwitchingState,
     setSessions,
     setPreconfigs,

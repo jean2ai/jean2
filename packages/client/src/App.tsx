@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionMetaStore } from '@/stores/sessionMetaStore';
@@ -10,7 +10,6 @@ import type {
   Session,
   Message,
   MessageWithParts,
-  ServerMessage,
   Preconfig,
   PromptInfo,
   Workspace,
@@ -30,24 +29,16 @@ import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
-import { buildApiUrl } from '@/config/urls';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
-import { useServerDataLoader } from '@/hooks/useServerDataLoader';
+import { useServerDataLoader, type ModelInfo } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppKeyboardHandlersMount } from '@/hooks/useAppKeyboardHandlers';
 import { AppHeader, AppPanels, AppMainContent } from '@/components/app';
 import { FilesPanel, type FilesPanelHandle } from '@/components/layout/FilesPanel';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-import {
-  sessionHandlers,
-  messagePartHandlers,
-  permissionQueueHandlers,
-  providerHandlers,
-} from '@/handlers/serverMessage';
 import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
 
-const getApiUrl = (url: string | null) => url ? buildApiUrl(url, '/api') : null;
 
 function AppContent() {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
@@ -442,13 +433,8 @@ function AppContent() {
     sessionsRef.current = sessions;
   }, [sessions]);
 
-  const handleServerMessageRef = useRef<((msg: ServerMessage) => void) | null>(null);
   const pendingSessionCreateRef = useRef(false);
-
-  // Stable callback for handleServerMessage to pass to hook
-  const handleServerMessageCallback = useCallback((msg: ServerMessage) => {
-    handleServerMessageRef.current?.(msg);
-  }, []);
+  const handlerContextRef = useRef<SessionHandlersContext | null>(null);
 
   const handleFirstServerAdded = useCallback((server: SavedServer) => {
     // Setting flag before addServer so the effect can detect it
@@ -539,33 +525,6 @@ function AppContent() {
     }
   }, [activeServer, handleServerSwitch, isAddingServerRef]);
 
-  const fetchWithAuth = useCallback(async (
-    url: string,
-    options: RequestInit = {}
-  ): Promise<Response> => {
-    if (!apiToken) {
-      throw new Error('No API token available');
-    }
-
-    const headers = new Headers(options.headers || {});
-    headers.set('Authorization', `Bearer ${apiToken}`);
-
-    const response = await fetch(url, {
-      ...options,
-      signal: options.signal,
-      headers,
-    });
-
-    // Handle authentication errors
-    if (response.status === 401) {
-      setAuthError('Authentication failed. Your token may have been regenerated.');
-      handleLogout();
-      throw new Error('Unauthorized');
-    }
-
-    return response;
-  }, [apiToken, handleLogout]);
-
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     if (sessionId !== activeSessionId) {
       return [];
@@ -582,6 +541,7 @@ function AppContent() {
     serverUrl,
     serverEpochRef,
     currentSessionIdRef,
+    handlerContextRef,
     clearPendingPermissions,
     handleLogout,
     setConnected,
@@ -594,7 +554,6 @@ function AppContent() {
     connected,
     connectionTimedOut,
     retryCount,
-    onMessage: handleServerMessageCallback,
     clientRef: sdkClientRef,
   });
 
@@ -606,7 +565,7 @@ function AppContent() {
     serverUrl,
     reconnectTrigger,
     serverEpochRef,
-    fetchWithAuth,
+    httpClient: sdkClientRef.current?.httpClient ?? null,
     clearSwitchingState,
     setSessions,
     setPreconfigs,
@@ -625,30 +584,26 @@ function AppContent() {
   // Refresh models, prompts, and preconfigs when Configuration dialog closes
   useEffect(() => {
     if (!showConfiguration && apiToken && serverUrl) {
-      const apiUrl = buildApiUrl(serverUrl, '/api');
+      const http = sdkClientRef.current?.httpClient;
+      if (!http) return;
       Promise.all([
-        fetchWithAuth(`${apiUrl}/preconfigs`).then(r => r.json()),
-        fetchWithAuth(`${apiUrl}/prompts`).then(r => r.json()),
-        fetchWithAuth(`${apiUrl}/models`).then(r => r.json()),
+        http.get<{ preconfigs: Preconfig[] }>('/preconfigs'),
+        http.get<{ prompts: PromptInfo[] }>('/prompts'),
+        http.get<{ models: ModelInfo[]; defaultModel: string }>('/models'),
       ]).then(([preconfigsData, promptsData, modelsData]) => {
         setPreconfigs(preconfigsData.preconfigs || []);
         setPrompts(promptsData.prompts || []);
-        setModels((modelsData.models || []).filter((m: { runtimeStatus?: { usable: boolean } }) => m.runtimeStatus?.usable));
+        setModels((modelsData.models || []).filter((m) => m.runtimeStatus?.usable));
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
       }).catch(() => {});
     }
-  }, [showConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps -- Intentionally only depends on showConfiguration to refetch when dialog closes
+  }, [showConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
-    const apiUrl = getApiUrl(serverUrl);
-    if (!apiUrl) return;
+    const http = sdkClientRef.current?.httpClient;
+    if (!http) return;
 
-    const res = await fetchWithAuth(`${apiUrl}/workspaces`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, path, isVirtual }),
-    });
-    const data = await res.json();
+    const data = await http.post<{ workspace: Workspace }>('/workspaces', { name, path, isVirtual });
     const workspace = data.workspace;
     setWorkspaces(prev => [...prev, workspace]);
     setActiveWorkspace(workspace);
@@ -667,19 +622,18 @@ function AppContent() {
   };
 
   const deleteWorkspace = async (id: string) => {
-    const apiUrl = getApiUrl(serverUrl);
-    if (!apiUrl) return;
+    const http = sdkClientRef.current?.httpClient;
+    if (!http) return;
 
-    const response = await fetchWithAuth(`${apiUrl}/workspaces/${id}`, { method: 'DELETE' });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to delete workspace' }));
-      console.error('Failed to delete workspace:', error.message);
+    let deletedSessions: string[] = [];
+    try {
+      const data = await http.delete<{ deletedSessions: string[] }>(`/workspaces/${id}`);
+      deletedSessions = data.deletedSessions;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Failed to delete workspace:', message);
       return;
     }
-
-    // Parse server response for the list of deleted session IDs
-    const { deletedSessions }: { deletedSessions: string[] } = await response.json();
 
     // Remove quick connections referencing this workspace via context API
     // This updates both storage and reactive state
@@ -732,7 +686,7 @@ function AppContent() {
     await createWorkspace(name, path, false);
   };
 
-  const handlerContext = useMemo<SessionHandlersContext>(() => ({
+  handlerContextRef.current = {
     setSessions,
     setCurrentSession,
     setMessagesBySession,
@@ -777,114 +731,7 @@ function AppContent() {
     playPermissionSound,
     chatFinishSoundEnabledRef,
     playChatFinishSound,
-  }), [
-    setSessions,
-    setCurrentSession,
-    setMessagesBySession,
-    setPartsBySession,
-    setSessionUsage,
-    setCurrentModel,
-    setSelectedVariant,
-    addStreamingSession,
-    removeStreamingSession,
-    addInterruptedSession,
-    removeInterruptedSession,
-    setQueuedMessagesForSession,
-    addQueuedMessage,
-    removeQueuedMessageById,
-    clearPendingPermissions,
-    clearQueuedMessages,
-    setCompactionSuccess,
-    pendingSessionCreateRef,
-    sessionAccessTimesRef,
-    partIdIndexRef,
-    partAppendRafRef,
-    pendingPartAppendsRef,
-    lastPartAppendFlushAtRef,
-    partAppendTimeoutRef,
-    skipFinishSoundSessionIdsRef,
-    currentSessionIdRef,
-    models,
-    defaultModel,
-    interruptedSessions,
-    sessionsRef,
-    flushPendingPartAppends,
-    setProviderStatuses,
-    setPermissions,
-    mergePendingPermissions,
-    addPendingPermission,
-    removePendingPermissionByToolCallId,
-    notifiedToolCallIdsRef,
-    permissionSoundEnabledRef,
-    playPermissionSound,
-    setCompletion,
-    clearCompletion,
-    clearAllCompletions,
-    chatFinishSoundEnabledRef,
-    playChatFinishSound,
-  ]);
-
-  const handleServerMessage = useCallback((msg: ServerMessage) => {
-    switch (msg.type) {
-      case 'session.created':
-      case 'session.resumed':
-      case 'session.closed':
-      case 'session.reopened':
-      case 'session.deleted':
-      case 'session.updated':
-      case 'session.renamed':
-      case 'session.interrupted':
-      case 'session.reverted':
-      case 'session.forked':
-      case 'session.state':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sessionHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
-        break;
-
-      case 'message.created':
-      case 'message.updated':
-      case 'part.created':
-      case 'part.updated':
-      case 'part.append':
-      case 'chat.usage':
-      case 'compaction.complete':
-      case 'error':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (messagePartHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
-        break;
-
-      case 'permission.list':
-      case 'permissions.sync':
-      case 'permission.revoked':
-      case 'permission.all_revoked':
-      case 'permission.request':
-      case 'permission.granted':
-      case 'queue.list':
-      case 'queue.added':
-      case 'queue.removed':
-      case 'queue.sending':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (permissionQueueHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
-        break;
-
-      case 'provider.status':
-      case 'provider.connected':
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (providerHandlers as Record<string, (msg: any, ctx: SessionHandlersContext) => void>)[msg.type](msg, handlerContext);
-        break;
-
-      default: {
-        const _exhaustive: never = msg as never;
-        console.warn(`[handleServerMessage] Unknown message type: ${(msg as { type: string }).type}`);
-        void _exhaustive;
-        break;
-      }
-    }
-  }, [handlerContext]);
-
-  useEffect(() => {
-    handleServerMessageRef.current = handleServerMessage;
-  }, [handleServerMessage]);
+  };
 
   // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
