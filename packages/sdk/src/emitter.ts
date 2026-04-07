@@ -1,6 +1,7 @@
 export type EventMap = Record<string, unknown[]>;
 
 export class TypedEventEmitter<Events extends EventMap> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private listeners = new Map<string, Set<Function>>();
 
   on<K extends keyof Events & string>(

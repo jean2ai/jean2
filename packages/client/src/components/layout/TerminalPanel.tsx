@@ -64,6 +64,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const [tabs, setTabs] = useState<TerminalTab[]>([]);
   const [activeTabServerId, setActiveTabServerId] = useState<string | null>(null);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
+  const [connectionTarget, setConnectionTarget] = useState<CachedTerminal | null>(null);
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
@@ -273,8 +274,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     ));
   }, []);
 
-  const [connectionTarget, setConnectionTarget] = useState<CachedTerminal | null>(null);
-
   const { connect, disconnect, destroy } = useTerminalConnection(
     connectionTarget?.terminal ?? null,
     connectionTarget && serverUrl && apiToken && workspacePath && connectionTarget.serverSessionId ? {
@@ -405,7 +404,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
   useEffect(() => {
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       const cache = terminalCacheRef.current;
       cache.disposeAll();
     };
@@ -469,7 +467,8 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
   const shortName = workspaceName || workspacePath.split('/').pop() || 'ws';
   const activeTab = tabs.find(t => t.serverSessionId === activeTabServerId);
-   
+    
+  // eslint-disable-next-line react-hooks/refs
   const activeCached = activeTabServerId ? terminalCacheRef.current.get(activeTabServerId) : null;
 
   const statusIndicator = (status: TerminalStatus) => {

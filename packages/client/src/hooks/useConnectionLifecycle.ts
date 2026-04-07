@@ -13,7 +13,7 @@ export interface ConnectionLifecycleParams {
   serverUrl: string | null;
   serverEpochRef: RefObject<number>;
   currentSessionIdRef: RefObject<string | null>;
-  handlerContextRef: React.RefObject<SessionHandlersContext | null>;
+  handlerContextRef: RefObject<SessionHandlersContext | null>;
   clearPendingPermissions: () => void;
   handleLogout: () => void;
   setConnected: (connected: boolean) => void;
@@ -26,11 +26,11 @@ export interface ConnectionLifecycleParams {
   connected: boolean;
   connectionTimedOut: boolean;
   retryCount: number;
-  clientRef?: React.RefObject<Jean2Client | null>;
+  clientRef?: RefObject<Jean2Client | null>;
 }
 
 export interface ConnectionLifecycleReturn {
-  clientRef: React.RefObject<Jean2Client | null>;
+  clientRef: RefObject<Jean2Client | null>;
 }
 
 export function useConnectionLifecycle({
@@ -55,8 +55,9 @@ export function useConnectionLifecycle({
 }: ConnectionLifecycleParams): ConnectionLifecycleReturn {
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
-  const lastMessageTimeRef = useRef(Date.now());
+  const lastMessageTimeRef = useRef<number>(0);
 
+  // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
     if (!apiToken || !serverUrl) {
       return;
@@ -69,7 +70,7 @@ export function useConnectionLifecycle({
       token: apiToken,
       autoSyncPermissions: false,
     });
-
+    
     clientRef.current = client;
 
     client.on('connected', () => {
@@ -163,7 +164,7 @@ export function useConnectionLifecycle({
         clearTimeout(retryTimeout);
       };
     }
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn]);
+  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn, setRetryCount]);
 
   useEffect(() => {
     const localEpoch = serverEpochRef.current;
@@ -198,8 +199,7 @@ export function useConnectionLifecycle({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
-
-  useEffect(() => {
+ useEffect(() => {
     const localEpoch = serverEpochRef.current;
 
     const handleOnline = () => {
@@ -219,6 +219,5 @@ export function useConnectionLifecycle({
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
-
-  return { clientRef };
+ return { clientRef };
 }

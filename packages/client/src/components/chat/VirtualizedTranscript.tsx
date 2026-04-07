@@ -552,7 +552,8 @@ export function VirtualizedTranscript({
     return () => observer.disconnect();
   }, [displayItems.length]);
 
-  // Virtualizer config
+  // TanStack Virtual returns functions that cannot be memoized by React Compiler
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: displayItems.length,
     getScrollElement: () => scrollRef.current,
@@ -581,7 +582,6 @@ export function VirtualizedTranscript({
     // and is the proper API for programmatic scrolling in virtualized lists.
     rowVirtualizer.scrollToIndex(displayItems.length - 1, { align: 'end' });
     initialScrollDoneRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]); // Only depend on sessionId - rowVirtualizer is stable reference
 
   // Wheel handler: when in follow mode and user scrolls up, disable follow and notify parent

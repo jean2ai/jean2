@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { AuthError, type HttpClient } from '@jean2/sdk';
+import { AuthError } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import type { Preconfig, PromptInfo, Workspace, ProviderStatus, Session } from '@jean2/shared';
 
 export interface ModelInfo {
@@ -22,7 +23,7 @@ export interface UseServerDataLoaderParams {
   serverUrl: string | null;
   reconnectTrigger: number;
   serverEpochRef: RefObject<number>;
-  httpClient: HttpClient | null;
+  clientRef: RefObject<Jean2Client | null>;
   clearSwitchingState: () => void;
   setSessions: (sessions: Session[]) => void;
   setPreconfigs: (preconfigs: Preconfig[]) => void;
@@ -43,7 +44,7 @@ export function useServerDataLoader({
   serverUrl,
   reconnectTrigger,
   serverEpochRef,
-  httpClient,
+  clientRef,
   clearSwitchingState,
   setSessions,
   setPreconfigs,
@@ -67,6 +68,7 @@ export function useServerDataLoader({
   }, [activeWorkspace]);
 
   useEffect(() => {
+    const httpClient = clientRef.current?.httpClient ?? null;
     if (!apiToken || !serverUrl || !httpClient) return;
 
     abortControllerRef.current?.abort();
@@ -132,7 +134,7 @@ export function useServerDataLoader({
     serverUrl,
     reconnectTrigger,
     serverEpochRef,
-    httpClient,
+    clientRef,
     clearSwitchingState,
     setSessions,
     setPreconfigs,

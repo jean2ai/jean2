@@ -17,6 +17,7 @@ export function subscribeToServerEvents(
   const handlers: Array<{ event: string; handler: (...args: unknown[]) => void }> = [];
 
   function add(event: string, handler: (...args: unknown[]) => void) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     client.on(event as any, handler as any);
     handlers.push({ event, handler });
   }
@@ -124,6 +125,7 @@ export function subscribeToServerEvents(
 
   return () => {
     for (const { event, handler } of handlers) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- required for TypedEventEmitter compatibility
       client.off(event as any, handler as any);
     }
   };

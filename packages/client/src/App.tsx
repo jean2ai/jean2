@@ -513,7 +513,6 @@ function AppContent() {
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Effect to handle state clearing when activeServer changes from addServer
@@ -565,7 +564,7 @@ function AppContent() {
     serverUrl,
     reconnectTrigger,
     serverEpochRef,
-    httpClient: sdkClientRef.current?.httpClient ?? null,
+    clientRef: sdkClientRef,
     clearSwitchingState,
     setSessions,
     setPreconfigs,
@@ -597,7 +596,7 @@ function AppContent() {
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
       }).catch(() => {});
     }
-  }, [showConfiguration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showConfiguration]);
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const http = sdkClientRef.current?.httpClient;
@@ -686,52 +685,54 @@ function AppContent() {
     await createWorkspace(name, path, false);
   };
 
-  handlerContextRef.current = {
-    setSessions,
-    setCurrentSession,
-    setMessagesBySession,
-    setPartsBySession,
-    setSessionUsage,
-    setCurrentModel,
-    setSelectedVariant,
-    addStreamingSession,
-    removeStreamingSession,
-    addInterruptedSession,
-    removeInterruptedSession,
-    setQueuedMessagesForSession,
-    addQueuedMessage,
-    removeQueuedMessageById,
-    clearPendingPermissions,
-    clearQueuedMessages,
-    setCompactionSuccess,
-    setCompletion,
-    clearCompletion,
-    clearAllCompletions,
-    pendingSessionCreateRef,
-    sessionAccessTimesRef,
-    partIdIndexRef,
-    partAppendRafRef,
-    pendingPartAppendsRef,
-    lastPartAppendFlushAtRef,
-    partAppendTimeoutRef,
-    skipFinishSoundSessionIdsRef,
-    currentSessionIdRef,
-    models,
-    defaultModel,
-    interruptedSessions,
-    sessionsRef,
-    flushPendingPartAppends,
-    setProviderStatuses,
-    setPermissions,
-    mergePendingPermissions,
-    addPendingPermission,
-    removePendingPermissionByToolCallId,
-    notifiedToolCallIdsRef,
-    permissionSoundEnabledRef,
-    playPermissionSound,
-    chatFinishSoundEnabledRef,
-    playChatFinishSound,
-  };
+  useLayoutEffect(() => {
+    handlerContextRef.current = {
+      setSessions,
+      setCurrentSession,
+      setMessagesBySession,
+      setPartsBySession,
+      setSessionUsage,
+      setCurrentModel,
+      setSelectedVariant,
+      addStreamingSession,
+      removeStreamingSession,
+      addInterruptedSession,
+      removeInterruptedSession,
+      setQueuedMessagesForSession,
+      addQueuedMessage,
+      removeQueuedMessageById,
+      clearPendingPermissions,
+      clearQueuedMessages,
+      setCompactionSuccess,
+      setCompletion,
+      clearCompletion,
+      clearAllCompletions,
+      pendingSessionCreateRef,
+      sessionAccessTimesRef,
+      partIdIndexRef,
+      partAppendRafRef,
+      pendingPartAppendsRef,
+      lastPartAppendFlushAtRef,
+      partAppendTimeoutRef,
+      skipFinishSoundSessionIdsRef,
+      currentSessionIdRef,
+      models,
+      defaultModel,
+      interruptedSessions,
+      sessionsRef,
+      flushPendingPartAppends,
+      setProviderStatuses,
+      setPermissions,
+      mergePendingPermissions,
+      addPendingPermission,
+      removePendingPermissionByToolCallId,
+      notifiedToolCallIdsRef,
+      permissionSoundEnabledRef,
+      playPermissionSound,
+      chatFinishSoundEnabledRef,
+      playChatFinishSound,
+    };
+  });
 
   // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
@@ -759,7 +760,7 @@ function AppContent() {
     revokePermission,
     revokeAllPermissions,
   } = useSessionCommands({
-    client: sdkClientRef.current,
+    clientRef: sdkClientRef,
     currentSession,
     sessions,
     workspaces,
