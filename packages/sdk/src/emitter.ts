@@ -1,8 +1,7 @@
 export type EventMap = Record<string, unknown[]>;
 
 export class TypedEventEmitter<Events extends EventMap> {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  private listeners = new Map<string, Set<Function>>();
+  private listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   on<K extends keyof Events & string>(
     event: K,
@@ -13,7 +12,7 @@ export class TypedEventEmitter<Events extends EventMap> {
       set = new Set();
       this.listeners.set(event, set);
     }
-    set.add(handler);
+    set.add(handler as (...args: unknown[]) => void);
     return this;
   }
 
@@ -34,7 +33,7 @@ export class TypedEventEmitter<Events extends EventMap> {
   ): this {
     const set = this.listeners.get(event);
     if (set) {
-      set.delete(handler);
+      set.delete(handler as (...args: unknown[]) => void);
       if (set.size === 0) {
         this.listeners.delete(event);
       }
@@ -50,7 +49,7 @@ export class TypedEventEmitter<Events extends EventMap> {
     if (!set || set.size === 0) return false;
     for (const handler of set) {
       try {
-        handler(...args);
+        handler(...(args as unknown[]));
       } catch (err) {
         console.error(`Error in event handler for "${event}":`, err);
       }
