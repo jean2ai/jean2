@@ -18,6 +18,8 @@ import type {
   SavedServer,
   ProviderStatus,
 } from '@jean2/shared';
+import type { Jean2Client } from '@jean2/sdk';
+
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
@@ -93,8 +95,10 @@ function AppContent() {
   const SESSION_CACHE_MAX = 1;
   const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
   const prevSessionKeyCountRef = useRef(0);
-  const [ws, setWs] = useState<WebSocket | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+
+  // Stable ref for SDK client - created early so it's available in callbacks
+  const sdkClientRef = useRef<Jean2Client | null>(null);
+
   const currentSessionIdRef = useRef<string | null>(null);
   const chatInputRef = useRef<MessageInputHandle>(null);
   const terminalPanelRef = useRef<TerminalPanelHandle>(null);
@@ -424,11 +428,6 @@ function AppContent() {
   const apiToken = activeServer?.token ?? null;
   const serverUrl = activeServer?.url ?? null;
 
-  // Keep wsRef in sync with ws state
-  useEffect(() => {
-    wsRef.current = ws;
-  }, [ws]);
-
   // Keep currentSessionIdRef in sync with currentSession
   useEffect(() => {
     currentSessionIdRef.current = currentSession?.id ?? null;
@@ -461,15 +460,12 @@ function AppContent() {
     if (activeServer) {
       removeServer(activeServer.id);
     }
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    setWs(null);
+    sdkClientRef.current?.dispose();
     setConnected(false);
     setConnectionTimedOut(false);
     setRetryCount(0);
     setNextRetryIn(0);
-  }, [activeServer, removeServer]);
+  }, [activeServer, removeServer, sdkClientRef]);
 
   const handleRetry = useCallback(() => {
     setRetryCount(c => c + 1);
@@ -482,13 +478,8 @@ function AppContent() {
     // This ensures any in-flight handlers from the old connection are ignored
     serverEpochRef.current += 1;
 
-    // Close existing WebSocket connection
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    // Clear WebSocket state
-    setWs(null);
+    // Close existing client connection
+    sdkClientRef.current?.dispose();
     setConnected(false);
     setConnectionTimedOut(false);
     setRetryCount(0);
@@ -585,15 +576,14 @@ function AppContent() {
     }));
   }, [activeSessionId, activeSessionMessages, activeSessionPartsMap]);
 
+  // Pass our pre-created sdkClientRef so the hook uses it directly
   useConnectionLifecycle({
     apiToken,
     serverUrl,
-    wsRef,
     serverEpochRef,
     currentSessionIdRef,
     clearPendingPermissions,
     handleLogout,
-    setWs,
     setConnected,
     setAuthError,
     setConnectionTimedOut,
@@ -605,7 +595,10 @@ function AppContent() {
     connectionTimedOut,
     retryCount,
     onMessage: handleServerMessageCallback,
+    clientRef: sdkClientRef,
   });
+
+
 
   // Server data loading hook (handles fetch, abort, epoch guard, workspace persistence)
   useServerDataLoader({
@@ -918,7 +911,7 @@ function AppContent() {
     refreshPermissions,
     createSessionInWorkspace,
   } = useSessionCommands({
-    ws,
+    ws: sdkClientRef.current?.ws ?? null,
     currentSession,
     sessions,
     workspaces,

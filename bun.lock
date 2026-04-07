@@ -25,6 +25,7 @@
       },
       "dependencies": {
         "@fontsource-variable/geist": "^5.2.8",
+        "@jean2/sdk": "workspace:*",
         "@jean2/shared": "workspace:*",
         "@tanstack/react-virtual": "^3.13.2",
         "@tauri-apps/api": "^2.10.1",
