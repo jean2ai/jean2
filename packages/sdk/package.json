@@ -1,0 +1,12 @@
+{
+  "name": "@jean2/sdk",
+  "version": "0.1.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jean2/shared": "workspace:*"
+  }
+}

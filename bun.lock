@@ -19,7 +19,7 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "0.6.7",
+      "version": "0.7.2",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
@@ -61,9 +61,16 @@
         "vite": "^6.0.0",
       },
     },
+    "packages/sdk": {
+      "name": "@jean2/sdk",
+      "version": "0.1.0",
+      "dependencies": {
+        "@jean2/shared": "workspace:*",
+      },
+    },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "0.7.3",
+      "version": "0.8.2",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -279,6 +286,8 @@
     "@inquirer/type": ["@inquirer/type@3.0.10", "", { "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-BvziSRxfz5Ov8ch0z/n3oijRSEcEsHnhggm4xFZe93DHcUCTlutlq9Ox4SVENAfcRD22UQq7T/atg9Wr3k09eA=="],
 
     "@jean2/client": ["@jean2/client@workspace:packages/client"],
+
+    "@jean2/sdk": ["@jean2/sdk@workspace:packages/sdk"],
 
     "@jean2/server": ["@jean2/server@workspace:packages/server"],
 
