@@ -23,6 +23,10 @@ export class SessionsNamespace {
     this.send({ type: 'session.update', sessionId, ...options });
   }
 
+  updatePreconfig(sessionId: string, preconfigId: string): void {
+    this.update(sessionId, { preconfigId });
+  }
+
   updateModel(
     sessionId: string,
     options: { modelId: string; providerId: string; variant?: string },

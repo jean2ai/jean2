@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
 import type { RefObject } from 'react';
-import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, PermissionType } from '@jean2/shared';
+import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, PermissionType } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
 import { sessionHandlers } from '@/handlers/serverMessage';
 import { messagePartHandlers } from '@/handlers/serverMessage';

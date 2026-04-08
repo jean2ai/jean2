@@ -1,6 +1,6 @@
 import { FileEdit, Plus, Trash2, Search, FileText, Copy } from 'lucide-react';
 import { useState } from 'react';
-import type { FileListItem } from '@jean2/shared';
+import type { FileListItem } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 
 interface FileListGroup {

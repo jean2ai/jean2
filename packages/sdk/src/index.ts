@@ -57,4 +57,82 @@ export { ConfigModelsNamespace, ConfigPromptsNamespace } from './rest/config';
 export { HttpNamespace } from './rest/http-namespace';
 export type { LoadAllResult } from './rest/http-namespace';
 
-export type { ClientConfig, ConnectionState, SdkEvent } from './types';
+export type { ClientConfig, ConnectionState, SdkEvent, ReconnectOptions, HeartbeatOptions } from './types';
+
+// Re-export domain types from ./types for SDK consumers
+export type {
+  Session,
+  SessionStatus,
+  SubagentStatus,
+  Message,
+  UserMessage,
+  AssistantMessage,
+  SystemMessage,
+  MessageRole,
+  AssistantStatus,
+  Part,
+  TextPart,
+  ReasoningPart,
+  ToolPart,
+  FilePart,
+  ImagePart,
+  StepPart,
+  CompactionPart,
+  MessageWithParts,
+  QueuedMessage,
+  PartField,
+  MessageEvent,
+  Workspace,
+  Preconfig,
+  PreconfigMode,
+  PromptInfo,
+  ToolPermission,
+  PermissionType,
+  PermissionKey,
+  SessionInterruptResult,
+  InterruptReason,
+  InterruptState,
+  ToolDefinition,
+  ToolRuntime,
+  ProviderStatus,
+  AuthType,
+  ProviderDescriptor,
+  AttachmentKind,
+  FileEntry,
+  FilePreviewResponse,
+  AnyVisualization,
+  McpStatus,
+  McpServerConfig,
+  ModelWithStatus,
+  ModelRuntimeStatus,
+  TerminalEvent,
+  FileListItem,
+  TodoListItem,
+} from './types';
+
+export {
+  isTextPart,
+  isToolPart,
+  isReasoningPart,
+  isStepPart,
+  isImagePart,
+  isFilePart,
+  isCompactionPart,
+  isAssistantMessage,
+  isUserMessage,
+} from './types';
+
+// State management (Phase 4)
+export { SessionManager } from './state';
+export { MessageStore } from './state';
+export { PermissionTracker } from './state';
+
+export type {
+  SessionManagerOptions,
+  MessageStoreOptions,
+  PermissionTrackerOptions,
+  SessionManagerEventMap,
+  MessageStoreEventMap,
+  PermissionTrackerEventMap,
+  PendingPermissionRequest,
+} from './types';

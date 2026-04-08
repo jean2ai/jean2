@@ -1,12 +1,12 @@
+import type { SavedServer } from '@jean2/shared';
 import type {
   Session,
   MessageWithParts,
   Preconfig,
   PromptInfo,
   QueuedMessage,
-  SavedServer,
   AttachmentKind,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import type { HttpClient } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';

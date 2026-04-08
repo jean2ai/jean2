@@ -161,6 +161,7 @@ export {
 // Configuration types
 export type {
   ModelWithStatus,
+  ModelRuntimeStatus,
   ModelsConfigResponse,
   ProviderWithStatus,
   ProviderCredentialStatus,
@@ -197,10 +198,12 @@ export type {
   VisualizationType,
   ToolVisualization,
   AnyVisualization,
+  FileListItem,
+  TodoListItem,
 } from '@jean2/shared';
 
 // SDK-specific types
-export type { ClientConfig, ConnectionState, SdkEvent } from './sdk-types';
+export type { ClientConfig, ConnectionState, SdkEvent, ReconnectOptions, HeartbeatOptions } from './sdk-types';
 export type { SdkEventMap } from './server-messages';
 
 // REST response types
@@ -264,3 +267,14 @@ export type {
   UpdatePromptConfigResponse,
   DeletePromptConfigResponse,
 } from './rest-responses';
+
+// State management types
+export type {
+  SessionManagerOptions,
+  MessageStoreOptions,
+  PermissionTrackerOptions,
+  SessionManagerEventMap,
+  MessageStoreEventMap,
+  PermissionTrackerEventMap,
+  PendingPermissionRequest,
+} from './state-types';

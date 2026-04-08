@@ -5,7 +5,9 @@ import type {
   MessageWithParts,
   ToolPermission,
   ProviderStatus,
-} from '@jean2/shared';
+  QueuedMessage,
+  PermissionType,
+} from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { CompletionRecord } from '@/stores/uiStore';
 
@@ -56,8 +58,8 @@ export interface SessionHandlersContext {
   removeStreamingSession: (sessionId: string) => void;
   addInterruptedSession: (sessionId: string) => void;
   removeInterruptedSession: (sessionId: string) => void;
-  setQueuedMessagesForSession: (sessionId: string, messages: import('@jean2/shared').QueuedMessage[]) => void;
-  addQueuedMessage: (sessionId: string, message: import('@jean2/shared').QueuedMessage) => void;
+  setQueuedMessagesForSession: (sessionId: string, messages: QueuedMessage[]) => void;
+  addQueuedMessage: (sessionId: string, message: QueuedMessage) => void;
   removeQueuedMessageById: (sessionId: string, queueId: string) => void;
   clearPendingPermissions: () => void;
   clearQueuedMessages: () => void;
@@ -116,13 +118,13 @@ export type MessagePartHandlers = {
 
 export type PermissionQueueHandlers = {
   'permission.list': (msg: { type: 'permission.list'; workspaceId: string; permissions: ToolPermission[] }, ctx: SessionHandlersContext) => void;
-  'permissions.sync': (msg: { type: 'permissions.sync'; approvals: Array<{ sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: import('@jean2/shared').PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }> }, ctx: SessionHandlersContext) => void;
+  'permissions.sync': (msg: { type: 'permissions.sync'; approvals: Array<{ sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }> }, ctx: SessionHandlersContext) => void;
   'permission.revoked': (msg: { type: 'permission.revoked'; permissionId: string }, ctx: SessionHandlersContext) => void;
   'permission.all_revoked': (msg: { type: 'permission.all_revoked'; workspaceId: string; count: number }, ctx: SessionHandlersContext) => void;
-  'permission.request': (msg: { type: 'permission.request'; sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: import('@jean2/shared').PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }, ctx: SessionHandlersContext) => void;
+  'permission.request': (msg: { type: 'permission.request'; sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }, ctx: SessionHandlersContext) => void;
   'permission.granted': (msg: { type: 'permission.granted'; toolCallId: string; cached: boolean }, ctx: SessionHandlersContext) => void;
-  'queue.list': (msg: { type: 'queue.list'; sessionId: string; messages: import('@jean2/shared').QueuedMessage[] }, ctx: SessionHandlersContext) => void;
-  'queue.added': (msg: { type: 'queue.added'; sessionId: string; message: import('@jean2/shared').QueuedMessage }, ctx: SessionHandlersContext) => void;
+  'queue.list': (msg: { type: 'queue.list'; sessionId: string; messages: QueuedMessage[] }, ctx: SessionHandlersContext) => void;
+  'queue.added': (msg: { type: 'queue.added'; sessionId: string; message: QueuedMessage }, ctx: SessionHandlersContext) => void;
   'queue.removed': (msg: { type: 'queue.removed'; sessionId: string; queueId: string }, ctx: SessionHandlersContext) => void;
   'queue.sending': (msg: { type: 'queue.sending'; sessionId: string; queueId: string }, ctx: SessionHandlersContext) => void;
 };

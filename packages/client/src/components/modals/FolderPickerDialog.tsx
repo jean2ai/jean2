@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, Folder, Loader2, Check, Search, HardDrive } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 import type { HttpClient } from '@jean2/sdk';
 import { join } from '@/lib/path';
 import {

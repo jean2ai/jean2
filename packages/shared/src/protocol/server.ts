@@ -327,6 +327,14 @@ export interface ProviderConnectedMessage {
   accountId?: string;
 }
 
+// =============================================================================
+// Heartbeat Messages
+// =============================================================================
+
+export interface PongMessage {
+  type: 'pong';
+}
+
 export type ServerMessage =
   | MessageCreatedMessage
   | MessageUpdatedMessage
@@ -368,4 +376,5 @@ export type ServerMessage =
   | InvalidRequestErrorMessage
   | ContextOverflowErrorMessage
   | ProviderStatusMessage
-  | ProviderConnectedMessage;
+  | ProviderConnectedMessage
+  | PongMessage;

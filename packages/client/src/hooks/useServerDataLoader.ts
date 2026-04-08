@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { AuthError } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import type { Preconfig, PromptInfo, Workspace, ProviderStatus, Session } from '@jean2/shared';
+import type { Preconfig, PromptInfo, Workspace, ProviderStatus, Session } from '@jean2/sdk';
 
 export interface ModelInfo {
   id: string;

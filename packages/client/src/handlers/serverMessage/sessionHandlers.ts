@@ -1,4 +1,4 @@
-import type { Session, MessageWithParts } from '@jean2/shared';
+import type { Session, MessageWithParts, Part } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 
 export function handleSessionCreated(
@@ -73,7 +73,7 @@ export function handleSessionResumed(
   if (messages) {
     setMessagesBySession({ [session.id]: messages.map(mwp => mwp.message) });
     setPartsBySession(() => {
-      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
+      const newParts: Record<string, Record<string, Part[]>> = {};
       newParts[session.id] = {};
       for (const mwp of messages) {
         newParts[session.id][mwp.message.id] = mwp.parts;
@@ -297,7 +297,7 @@ export function handleSessionForked(
   setSessions(prev => [forkedSession, ...prev]);
   setMessagesBySession({ [forkedSession.id]: forkedMessages.map(mwp => mwp.message) });
   setPartsBySession(() => {
-    const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
+    const newParts: Record<string, Record<string, Part[]>> = {};
     newParts[forkedSession.id] = {};
     for (const mwp of forkedMessages) {
       newParts[forkedSession.id][mwp.message.id] = mwp.parts;
@@ -351,7 +351,7 @@ export function handleSessionState(
   if (currentSessionIdRef.current === sessionId) {
     setMessagesBySession({ [sessionId]: messages.map(mwp => mwp.message) });
     setPartsBySession(() => {
-      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
+      const newParts: Record<string, Record<string, Part[]>> = {};
       newParts[sessionId] = {};
       for (const mwp of messages) {
         newParts[sessionId][mwp.message.id] = mwp.parts;

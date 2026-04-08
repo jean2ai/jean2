@@ -870,6 +870,11 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
 
+    case 'ping': {
+      send(ws, { type: 'pong' });
+      break;
+    }
+
     default:
       send(ws, { type: 'error', code: 'unknown_message', message: 'Unknown message type' });
   }

@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 import type { HttpClient } from '@jean2/sdk';
 import { X, RefreshCw } from 'lucide-react';
 import { FileTree, type FileTreeHandle } from '@/components/files';

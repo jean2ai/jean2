@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 import type { HttpClient } from '@jean2/sdk';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';

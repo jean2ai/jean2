@@ -3,7 +3,7 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useUIStore } from '@/stores/uiStore';
 import type { AppSidebarHandle } from '@/components/layout/AppSidebar';
-import type { Preconfig, Workspace } from '@jean2/shared';
+import type { Preconfig, Workspace } from '@jean2/sdk';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 

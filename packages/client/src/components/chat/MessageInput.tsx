@@ -4,7 +4,7 @@ import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/shared';
+import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/sdk';
 import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';

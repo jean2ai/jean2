@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import type { McpStatus, McpServerConfig } from '@jean2/shared';
+import type { McpStatus, McpServerConfig } from '@jean2/sdk';
 import type { HttpClient } from '@jean2/sdk';
 import {
   Dialog,

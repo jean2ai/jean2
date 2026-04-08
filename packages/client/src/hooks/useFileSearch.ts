@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 
 interface UseFileSearchOptions {
   workspaceId: string;

@@ -50,6 +50,7 @@ export interface SdkEventMap {
 
   'connected': [];
   'disconnected': [payload: { code: number; reason: string; wasClean: boolean }];
+  'reconnecting': [payload: { attempt: number; maxRetries: number }];
   'error.connection': [error: Error];
 
   'session.created': [session: SessionCreatedMessage['session']];
@@ -316,6 +317,8 @@ export function routeServerMessage(
       break;
     case 'provider.connected':
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);
+      break;
+    case 'pong':
       break;
     case 'subagent.started':
       emitter.emit('subagent.started', msg.parentSessionId, msg.childSessionId, msg.subagentType, msg.description);

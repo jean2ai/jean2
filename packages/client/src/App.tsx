@@ -14,9 +14,9 @@ import type {
   PromptInfo,
   Workspace,
   ToolPermission,
-  SavedServer,
   ProviderStatus,
-} from '@jean2/shared';
+} from '@jean2/sdk';
+import type { SavedServer } from '@jean2/shared';
 import type { Jean2Client } from '@jean2/sdk';
 
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
