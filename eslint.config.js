@@ -88,6 +88,35 @@ export default tseslint.config(
     },
   },
   
+  // SDK React package - React rules
+  {
+    files: ['packages/sdk-react/**/*.tsx', 'packages/sdk-react/**/*.ts'],
+    ...react.configs.flat.recommended,
+    ...react.configs.flat['jsx-runtime'],
+    plugins: {
+      'react-hooks': reactHooks,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/refs': 'off', // Intentional lazy initialization pattern
+    },
+  },
+  
   // Server package - Node/Bun globals
   {
     files: ['packages/server/**/*.ts'],
