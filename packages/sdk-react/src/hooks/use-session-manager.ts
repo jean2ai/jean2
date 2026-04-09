@@ -13,19 +13,27 @@ export interface UseSessionManagerOptions extends SessionManagerOptions {
 }
 
 export interface UseSessionManagerReturn extends SessionManagerSnapshot {
-  manager: SessionManager;
+  manager: SessionManager | null;
+  version: number;
 }
 
 export function useSessionManager(options?: UseSessionManagerOptions): UseSessionManagerReturn {
   const client = useClientFromContext();
   const enabled = options?.enabled !== false;
   const managerRef = useRef<SessionManager | null>(null);
+  const clientRef = useRef(client);
   const versionRef = useRef(0);
 
-  if (enabled && !managerRef.current) {
+  if (enabled && client && client !== clientRef.current && managerRef.current) {
+    managerRef.current.dispose();
+    managerRef.current = null;
+  }
+
+  if (enabled && client && !managerRef.current) {
     managerRef.current = new SessionManager(client, options);
   }
 
+  clientRef.current = client ?? clientRef.current;
   const manager = managerRef.current;
 
   const subscribe = (onStoreChange: () => void): (() => void) => {
@@ -53,7 +61,9 @@ export function useSessionManager(options?: UseSessionManagerOptions): UseSessio
 
   useEffect(() => {
     return () => {
-      manager?.dispose();
+      managerRef.current?.dispose();
+      managerRef.current = null;
+      clientRef.current = null;
     };
   }, []);
 
@@ -61,7 +71,8 @@ export function useSessionManager(options?: UseSessionManagerOptions): UseSessio
     return {
       sessions: [],
       active: null,
-      manager: manager!,
+      manager: null,
+      version: 0,
     };
   }
 
@@ -69,5 +80,6 @@ export function useSessionManager(options?: UseSessionManagerOptions): UseSessio
     sessions: manager.list(),
     active: manager.active,
     manager,
+    version: manager.version,
   };
 }

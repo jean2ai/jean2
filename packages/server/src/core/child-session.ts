@@ -38,6 +38,7 @@ export async function executeChildSession(options: {
       sessionId: childSessionId,
       role: 'user',
       createdAt: Date.now(),
+      partIds: [],
     };
     const textPart: TextPart = {
       id: randomUUID(),
@@ -55,6 +56,7 @@ export async function executeChildSession(options: {
       sessionId: childSessionId,
       role: 'user',
       createdAt: Date.now(),
+      partIds: [],
     };
     const textPart: TextPart = {
       id: randomUUID(),

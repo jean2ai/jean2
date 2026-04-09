@@ -1044,16 +1044,19 @@ async function runSingleChatTurn(
   attachments?: Array<{ id: string; kind: string }>,
 ): Promise<ChatTurnResult> {
   const userMsgId = crypto.randomUUID();
+  const partIds: string[] = [];
 
   const userMessage = {
     id: userMsgId,
     sessionId,
     role: 'user' as const,
     createdAt: Date.now(),
+    partIds,
   };
   createMessage(userMessage);
 
   const textPartId = crypto.randomUUID();
+  partIds.push(textPartId);
   const textPart = {
     id: textPartId,
     messageId: userMsgId,
@@ -1063,7 +1066,7 @@ async function runSingleChatTurn(
   };
   createPart(textPart, sessionId);
 
-  broadcast({ type: 'message.created', message: userMessage });
+  broadcast({ type: 'message.created', message: { ...userMessage, partIds } });
   broadcast({ type: 'part.created', sessionId, part: textPart });
 
   if (attachments && attachments.length > 0) {
@@ -1072,6 +1075,7 @@ async function runSingleChatTurn(
       if (!attachmentRecord) continue;
 
       const partId = crypto.randomUUID();
+      partIds.push(partId);
       const serverUrl = `/api/sessions/${sessionId}/attachments/${attachmentRecord.id}/content?key=${attachmentRecord.accessKey}`;
 
       if (attachmentRecord.kind === 'image') {

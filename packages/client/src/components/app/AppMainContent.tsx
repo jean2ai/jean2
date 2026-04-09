@@ -6,10 +6,10 @@ import type {
   PromptInfo,
   QueuedMessage,
   AttachmentKind,
+  PendingPermissionRequest,
+  HttpClient,
 } from '@jean2/sdk';
-import type { HttpClient } from '@jean2/sdk';
-import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
-import type { ModelInfo } from '@/handlers/serverMessage/types';
+import type { ModelInfo } from '@/hooks/useServerDataLoader';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
 import FirstServerScreen from '@/components/FirstServerScreen';

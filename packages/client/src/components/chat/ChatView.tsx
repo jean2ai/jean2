@@ -35,7 +35,7 @@ interface Model {
       text?: boolean;
       image?: boolean;
       video?: boolean;
-      file?: boolean;
+      file?: string[];
     };
   };
 }
@@ -129,6 +129,7 @@ function mergeMessagesWithQueue(
         role: 'user' as const,
         sessionId: qm.sessionId,
         createdAt: qm.createdAt,
+        partIds: attachmentParts.map(p => p.id),
       },
       parts: [
         ...attachmentParts,

@@ -215,6 +215,7 @@ export function createCompactionTrigger(
     sessionId,
     role: 'user' as const,
     createdAt: now,
+    partIds: [],
   };
 
   createMessage(triggerMessage);
@@ -525,6 +526,7 @@ export async function processCompactionTask(
     parentId: triggerMessageId,
     createdAt: now,
     completedAt: now,
+    partIds: [],
   };
 
   createMessage(assistantMessage);
@@ -592,6 +594,7 @@ export function persistCompactionFailure(
     createdAt: now,
     completedAt: now,
     error: errorMessage,
+    partIds: [],
   };
 
   createMessage(assistantMessage);

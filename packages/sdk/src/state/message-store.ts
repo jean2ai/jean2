@@ -22,6 +22,8 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
   private readonly partSessionIndex: Map<string, Set<string>> = new Map();
   private readonly streamingSessions: Set<string> = new Set();
   private subscriptions: Array<{ event: string; handler: EventHandler }> = [];
+  private _disposed = false;
+  private _version = 0;
 
   constructor(client: Jean2Client, options: MessageStoreOptions = {}) {
     super();
@@ -98,15 +100,21 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
   }
 
   private handleResumed(sessionId: string, messagesWithParts: MessageWithParts[]): void {
+    if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
+    this.bumpVersion();
   }
 
   private handleState(sessionId: string, messagesWithParts: MessageWithParts[]): void {
+    if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
+    this.bumpVersion();
   }
 
   private handleForked(sessionId: string, messagesWithParts: MessageWithParts[]): void {
+    if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
+    this.bumpVersion();
   }
 
   private replaceSessionMessages(sessionId: string, messagesWithParts: MessageWithParts[]): void {
@@ -114,7 +122,12 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
 
     const messages: Message[] = [];
     for (const { message, parts } of messagesWithParts) {
-      messages.push(message);
+      // Populate partIds on the message for later lookups
+      const messageWithParts = {
+        ...message,
+        partIds: parts.map(p => p.id),
+      };
+      messages.push(messageWithParts);
       for (const part of parts) {
         this.indexPart(sessionId, part);
       }
@@ -133,23 +146,32 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
   }
 
   private handleReverted(sessionId: string): void {
+    if (this._disposed) return;
     this.clearSessionParts(sessionId);
     this.sessionMessages.delete(sessionId);
     this.emit('session:cleared', sessionId);
+    this.bumpVersion();
   }
 
   private handleInterrupted(sessionId: string): void {
+    if (this._disposed) return;
     this.streamingSessions.delete(sessionId);
+    this.bumpVersion();
   }
 
   private handleMessageCreated(message: Message): void {
+    if (this._disposed) return;
     const sessionId = message.sessionId;
     let messages = this.sessionMessages.get(sessionId);
     if (!messages) {
       messages = [];
       this.sessionMessages.set(sessionId, messages);
     }
-    messages.push(message);
+    const messageWithParts = {
+      ...message,
+      partIds: message.partIds ?? [],
+    };
+    messages.push(messageWithParts);
 
     if (message.role === 'assistant') {
       const assistantMessage = message as AssistantMessage;
@@ -157,16 +179,25 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
         this.streamingSessions.add(sessionId);
       }
     }
+
+    this.emit('message:created', message, sessionId);
+    this.bumpVersion();
   }
 
   private handleMessageUpdated(message: Message): void {
+    if (this._disposed) return;
     const sessionId = message.sessionId;
     const messages = this.sessionMessages.get(sessionId);
     if (!messages) return;
 
     const index = messages.findIndex((m) => m.id === message.id);
     if (index !== -1) {
-      messages[index] = message;
+      const existingMessage = messages[index];
+      const updatedMessage = {
+        ...message,
+        partIds: message.partIds?.length ? message.partIds : existingMessage.partIds,
+      };
+      messages[index] = updatedMessage;
     }
 
     if (message.role === 'assistant') {
@@ -175,14 +206,28 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
         this.streamingSessions.delete(sessionId);
       }
     }
+
+    this.emit('message:updated', message, sessionId);
+    this.bumpVersion();
   }
 
   private handlePartCreated(sessionId: string, part: Part): void {
+    if (this._disposed) return;
     this.indexPart(sessionId, part);
+    const messages = this.sessionMessages.get(sessionId);
+    if (messages) {
+      const targetMessage = messages.find((m) => m.id === part.messageId);
+      if (targetMessage && !targetMessage.partIds.includes(part.id)) {
+        targetMessage.partIds.push(part.id);
+      }
+    }
+    this.bumpVersion();
   }
 
   private handlePartUpdated(sessionId: string, part: Part): void {
+    if (this._disposed) return;
     this.parts.set(part.id, part);
+    this.bumpVersion();
   }
 
   private handlePartAppend(
@@ -191,6 +236,7 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
     field: PartField,
     delta: string,
   ): void {
+    if (this._disposed) return;
     const part = this.parts.get(partId);
     if (!part) return;
 
@@ -201,6 +247,7 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
     }
 
     this.emit('message:appended', sessionId, partId, field, delta);
+    this.bumpVersion();
   }
 
   private onEvict(sessionId: string): void {
@@ -246,6 +293,14 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
     return this.sessionMessages.has(sessionId);
   }
 
+  get version(): number {
+    return this._version;
+  }
+
+  private bumpVersion(): void {
+    this._version++;
+  }
+
   clearSession(sessionId: string): boolean {
     if (!this.sessionMessages.has(sessionId)) return false;
     this.clearSessionParts(sessionId);
@@ -263,6 +318,7 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
   }
 
   dispose(): void {
+    this._disposed = true;
     for (const { event, handler } of this.subscriptions) {
       this.client.off(event as keyof SdkEventMap & string, handler as (...args: unknown[]) => void);
     }

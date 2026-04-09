@@ -1,23 +1,20 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useUIStore } from '@/stores/uiStore';
-import { useSessionMetaStore } from '@/stores/sessionMetaStore';
-import { useStreamStateStore } from '@/stores/streamStateStore';
-import { useSessionStore } from '@/stores/sessionStore';
-import { useSessionContentStore } from '@/stores/sessionContentStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type {
   Session,
-  Message,
   MessageWithParts,
   Preconfig,
   PromptInfo,
   Workspace,
   ToolPermission,
   ProviderStatus,
+  Part,
 } from '@jean2/sdk';
 import type { SavedServer } from '@jean2/shared';
 import type { Jean2Client } from '@jean2/sdk';
+import { Jean2ClientProvider, usePermissionTracker, useMessageStore, useSessionManager } from '@jean2/sdk-react';
 
 import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
@@ -30,6 +27,7 @@ import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
+import { useEventSideEffects } from '@/hooks/useEventSideEffects';
 import { useServerDataLoader, type ModelInfo } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppKeyboardHandlersMount } from '@/hooks/useAppKeyboardHandlers';
@@ -37,58 +35,38 @@ import { AppHeader, AppPanels, AppMainContent } from '@/components/app';
 import { FilesPanel, type FilesPanelHandle } from '@/components/layout/FilesPanel';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
-
 
 function AppContent() {
+  const sdkClientRef = useRef<Jean2Client | null>(null);
+  const [clientInstance, setClientInstance] = useState<Jean2Client | null>(null);
+  const handleClientChange = useCallback((client: Jean2Client | null) => {
+    setClientInstance(client);
+  }, []);
+
+  return (
+    <Jean2ClientProvider client={clientInstance}>
+      <AppInner sdkClientRef={sdkClientRef} onClientChange={handleClientChange} />
+    </Jean2ClientProvider>
+  );
+}
+
+function AppInner({ sdkClientRef, onClientChange }: { sdkClientRef: React.RefObject<Jean2Client | null>; onClientChange: (client: Jean2Client | null) => void }) {
   const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
 
-  // Session state managed by Zustand store
-  const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore(
-    useShallow((s) => ({
-      sessions: s.sessions,
-      currentSession: s.currentSession,
-      setSessions: s.setSessions,
-      setCurrentSession: s.setCurrentSession,
-      clearSessionState: s.clearSessionState,
-    })),
-  );
+  // SDK session manager (replaces sessionStore for sessions/active)
+  const { sessions: sdkSessions, active: sdkActiveSession, manager: sessionManager } = useSessionManager();
+
+  // Local state for UI selection - which session the user is viewing
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const currentSession = currentSessionId
+    ? sdkSessions.find(s => s.id === currentSessionId) ?? null
+    : null;
 
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
 
-  // Session content stored in Zustand for cross-component access
-  const { setMessagesBySession, setPartsBySession } =
-    useSessionContentStore(
-      useShallow((state) => ({
-        setMessagesBySession: state.setMessagesBySession,
-        setPartsBySession: state.setPartsBySession,
-      })),
-    );
-
-  // Derived state for active session only (prevents full-map subscription in render path)
-  const activeSessionId = currentSession?.id;
-  const activeSessionMessages = useSessionContentStore(
-    useShallow((state) => activeSessionId ? state.messagesBySession[activeSessionId] || [] : [])
-  );
-  const activeSessionPartsMap = useSessionContentStore(
-    useShallow((state) => activeSessionId ? state.partsBySession[activeSessionId] || {} : {})
-  );
-
-  // Ref for LRU eviction to access full store without render-path subscription
-  const messagesBySessionRef = useRef<Record<string, Message[]>>({});
-  useLayoutEffect(() => {
-    messagesBySessionRef.current = useSessionContentStore.getState().messagesBySession;
-  });
-
-  // LRU cache eviction for session data
-  // Only keep current session data in memory; no multi-session caching
-  const SESSION_CACHE_MAX = 1;
-  const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
-  const prevSessionKeyCountRef = useRef(0);
-
-  // Stable ref for SDK client - created early so it's available in callbacks
-  const sdkClientRef = useRef<Jean2Client | null>(null);
+  // Message store from SDK (replaces sessionContentStore)
+  const { sessionIds: streamingSessionIdsFromStore, getForSession, getPart } = useMessageStore();
 
   const currentSessionIdRef = useRef<string | null>(null);
   const chatInputRef = useRef<MessageInputHandle>(null);
@@ -100,27 +78,27 @@ function AppContent() {
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
 
-  const {
-    streamingSessionIds,
-    interruptedSessions,
-    clearStreamingSessions,
-    clearInterruptedSessions,
-    addStreamingSession,
-    removeStreamingSession,
-    addInterruptedSession,
-    removeInterruptedSession,
-  } = useStreamStateStore(
-    useShallow((s) => ({
-      streamingSessionIds: s.streamingSessionIds,
-      interruptedSessions: s.interruptedSessions,
-      clearStreamingSessions: s.clearStreamingSessions,
-      clearInterruptedSessions: s.clearInterruptedSessions,
-      addStreamingSession: s.addStreamingSession,
-      removeStreamingSession: s.removeStreamingSession,
-      addInterruptedSession: s.addInterruptedSession,
-      removeInterruptedSession: s.removeInterruptedSession,
-    })),
-  );
+  // Streaming state from SDK's MessageStore (replaces streamStateStore)
+  const streamingSessionIds = useMemo(() => new Set(streamingSessionIdsFromStore), [streamingSessionIdsFromStore]);
+
+  // Local state for interrupted sessions (SDK doesn't track this)
+  // Track interrupted sessions locally (state maintained for callbacks)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- State maintained for clearInterruptedSessions to work
+  const [interruptedSessions, setInterruptedSessions] = useState<Set<string>>(new Set());
+  const addInterruptedSession = useCallback((id: string) => {
+    setInterruptedSessions(prev => new Set(prev).add(id));
+  }, []);
+  const removeInterruptedSession = useCallback((id: string) => {
+    setInterruptedSessions(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+  const clearInterruptedSessions = useCallback(() => {
+    setInterruptedSessions(new Set());
+  }, []);
+
   const [sessionUsage, setSessionUsage] = useState<{
     promptTokens: number;
     completionTokens: number;
@@ -141,7 +119,7 @@ function AppContent() {
         text?: boolean;
         image?: boolean;
         video?: boolean;
-        file?: boolean;
+        file?: string[];
       };
     };
     runtimeStatus: {
@@ -229,33 +207,11 @@ function AppContent() {
   const [permissions, setPermissions] = useState<ToolPermission[]>([]);
   const [_providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
+  // Permission tracker from SDK (replaces sessionMetaStore)
   const {
-    pendingPermissions,
-    queuedMessages,
-    clearPendingPermissions,
-    clearQueuedMessages,
-    mergePendingPermissions,
-    addPendingPermission,
-    removePendingPermissionByToolCallId,
-    removePendingPermissionsBySessionId,
-    setQueuedMessagesForSession,
-    addQueuedMessage,
-    removeQueuedMessageById,
-  } = useSessionMetaStore(
-    useShallow((s) => ({
-      pendingPermissions: s.pendingPermissions,
-      queuedMessages: s.queuedMessages,
-      clearPendingPermissions: s.clearPendingPermissions,
-      clearQueuedMessages: s.clearQueuedMessages,
-      mergePendingPermissions: s.mergePendingPermissions,
-      addPendingPermission: s.addPendingPermission,
-      removePendingPermissionByToolCallId: s.removePendingPermissionByToolCallId,
-      removePendingPermissionsBySessionId: s.removePendingPermissionsBySessionId,
-      setQueuedMessagesForSession: s.setQueuedMessagesForSession,
-      addQueuedMessage: s.addQueuedMessage,
-      removeQueuedMessageById: s.removeQueuedMessageById,
-    })),
-  );
+    pendingRequests,
+    getQueue,
+  } = usePermissionTracker();
 
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -269,71 +225,6 @@ function AppContent() {
 
   // Track toolCallIds that have already triggered the permission sound notification
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
-
-  // Epoch for stale-event protection: prevents old async events from mutating current state
-  const serverEpochRef = useRef(0);
-
-  // Index for O(1) part lookup: partId -> { sessionId, messageId, index }
-  type PartIndexEntry = { sessionId: string; messageId: string; index: number };
-  const partIdIndexRef = useRef<Map<string, PartIndexEntry>>(new Map());
-
-  // Batching refs for part.append updates to reduce UI thrash
-  const pendingPartAppendsRef = useRef<Map<string, string>>(new Map());
-  const partAppendRafRef = useRef<number | null>(null);
-  const lastPartAppendFlushAtRef = useRef<number>(0);
-  const partAppendTimeoutRef = useRef<number | null>(null);
-
-  // Flush all pending part appends in a single update
-  const flushPendingPartAppends = useCallback(() => {
-    // Clear refs first to prevent stale callbacks from interfering
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    if (partAppendTimeoutRef.current !== null) {
-      clearTimeout(partAppendTimeoutRef.current);
-      partAppendTimeoutRef.current = null;
-    }
-
-    if (pendingPartAppendsRef.current.size === 0) return;
-
-    const pending = new Map(pendingPartAppendsRef.current);
-    pendingPartAppendsRef.current.clear();
-    lastPartAppendFlushAtRef.current = Date.now();
-
-    setPartsBySession(prev => {
-      const newState = { ...prev };
-      let hasChanges = false;
-
-      for (const [partId, delta] of pending) {
-        const location = partIdIndexRef.current.get(partId);
-        if (!location) continue;
-
-        const sessionParts = newState[location.sessionId];
-        if (!sessionParts) continue;
-
-        const messageParts = sessionParts[location.messageId];
-        if (!messageParts) continue;
-
-        const part = messageParts[location.index];
-        if (!part || (part.type !== 'text' && part.type !== 'reasoning')) continue;
-
-        hasChanges = true;
-        const updatedMessageParts = [...messageParts];
-        updatedMessageParts[location.index] = {
-          ...part,
-          text: part.text + delta,
-        };
-
-        newState[location.sessionId] = {
-          ...sessionParts,
-          [location.messageId]: updatedMessageParts,
-        };
-      }
-
-      return hasChanges ? newState : prev;
-    });
-  }, [setPartsBySession]);
 
 
 
@@ -356,54 +247,6 @@ function AppContent() {
     localStorage.setItem('jean2_sound_permission_enabled', String(permissionSoundEnabled));
   }, [permissionSoundEnabled]);
 
-  // LRU eviction for session data - runs when session count increases beyond limit
-  // Uses ref-based access to avoid full-content subscription in render path
-  useLayoutEffect(() => {
-    const currentCount = useSessionContentStore.getState().getMessagesBySessionKeysCount();
-    if (currentCount <= prevSessionKeyCountRef.current) {
-      prevSessionKeyCountRef.current = currentCount;
-      return;
-    }
-    prevSessionKeyCountRef.current = currentCount;
-
-    if (currentCount <= SESSION_CACHE_MAX) return;
-
-    const messagesBySession = messagesBySessionRef.current;
-    const keys = Object.keys(messagesBySession);
-    while (keys.length > SESSION_CACHE_MAX) {
-      let oldestKey: string | null = null;
-      let oldestTime = Infinity;
-      for (const key of keys) {
-        if (key === currentSession?.id) continue;
-        const time = sessionAccessTimesRef.current.get(key);
-        if (time !== undefined && time < oldestTime) {
-          oldestTime = time;
-          oldestKey = key;
-        }
-      }
-      if (!oldestKey) break;
-      sessionAccessTimesRef.current.delete(oldestKey);
-      for (const [partId, entry] of partIdIndexRef.current) {
-        if (entry.sessionId === oldestKey) {
-          partIdIndexRef.current.delete(partId);
-        }
-      }
-      keys.splice(keys.indexOf(oldestKey), 1);
-      setMessagesBySession(prev => {
-        if (!(oldestKey! in prev)) return prev;
-        const next = { ...prev };
-        delete next[oldestKey!];
-        return next;
-      });
-      setPartsBySession(prev => {
-        if (!(oldestKey! in prev)) return prev;
-        const next = { ...prev };
-        delete next[oldestKey!];
-        return next;
-      });
-    }
-  }, [currentSession, setMessagesBySession, setPartsBySession]);
-
   // Connection timeout constants (moved to useConnectionLifecycle hook)
 
   // Refs for abort controller (now handled in useServerDataLoader hook) and deferred workspace selection
@@ -423,22 +266,26 @@ function AppContent() {
   // eslint-disable-next-line react-hooks/refs -- sdkClientRef is stable and only set once per server connection
   const httpClient = sdkClientRef.current?.httpClient ?? null;
 
-  // Keep currentSessionIdRef in sync with currentSession
+  // Keep currentSessionIdRef in sync with currentSessionId
   useEffect(() => {
-    currentSessionIdRef.current = currentSession?.id ?? null;
-  }, [currentSession]);
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  // Auto-set currentSessionId when a new session is created/resumed via SDK events
+  useEffect(() => {
+    if (sdkActiveSession && !currentSessionId) {
+      setCurrentSessionId(sdkActiveSession.id);
+    }
+  }, [sdkActiveSession, currentSessionId]);
 
   useEffect(() => {
     notifiedToolCallIdsRef.current.clear();
   }, [currentSession?.id]);
 
-  // Keep sessionsRef in sync with session store
+  // Keep sessionsRef in sync with sdkSessions
   useLayoutEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
-
-  const pendingSessionCreateRef = useRef(false);
-  const handlerContextRef = useRef<SessionHandlersContext | null>(null);
+    sessionsRef.current = sdkSessions;
+  }, [sdkSessions]);
 
   const handleFirstServerAdded = useCallback((server: SavedServer) => {
     // Setting flag before addServer so the effect can detect it
@@ -464,10 +311,6 @@ function AppContent() {
   }, []);
 
   const handleServerSwitch = useCallback(() => {
-    // Increment epoch FIRST before any state mutation or reconnect
-    // This ensures any in-flight handlers from the old connection are ignored
-    serverEpochRef.current += 1;
-
     // Close existing client connection
     sdkClientRef.current?.dispose();
     setConnected(false);
@@ -476,15 +319,11 @@ function AppContent() {
     setNextRetryIn(0);
 
     // Clear all session and message state
-    clearSessionState();
+    sessionManager?.clear();
+    setCurrentSessionId(null);
     setPreconfigs([]);
-    setMessagesBySession({});
-    setPartsBySession({});
-    sessionAccessTimesRef.current.clear();
-    prevSessionKeyCountRef.current = 0;
-    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    skipFinishSoundSessionIdsRef.current = new Set(streamingSessionIdsFromStore);
     notifiedToolCallIdsRef.current.clear();
-    clearStreamingSessions();
     clearInterruptedSessions();
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
     setCurrentModel('gpt-4o');
@@ -492,32 +331,12 @@ function AppContent() {
     setWorkspaces([]);
     setActiveWorkspace(null);
     setPermissions([]);
-    clearPendingPermissions();
-    clearQueuedMessages();
     clearAllCompletions();
-
-    // Clear any open popovers/sheets by forcing a re-render
-    // (the callback will be called after state is cleared)
-
-    // Clear part index on server switch
-    partIdIndexRef.current.clear();
-
-    // Cancel pending RAF, timeout, and clear pending appends on server switch
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    if (partAppendTimeoutRef.current !== null) {
-      clearTimeout(partAppendTimeoutRef.current);
-      partAppendTimeoutRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
-    lastPartAppendFlushAtRef.current = 0;
 
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
-  }, []);
+  }, [sessionManager, streamingSessionIdsFromStore, clearInterruptedSessions, clearAllCompletions]);
 
   // Effect to handle state clearing when activeServer changes from addServer
   useEffect(() => {
@@ -529,23 +348,22 @@ function AppContent() {
   }, [activeServer, handleServerSwitch, isAddingServerRef]);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
-    if (sessionId !== activeSessionId) {
-      return [];
-    }
-    return activeSessionMessages.map(message => ({
+    const messages = getForSession(sessionId);
+    if (!messages) return [];
+    return messages.map(message => ({
       message,
-      parts: (activeSessionPartsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
+      parts: message.partIds
+        .map(id => getPart(id))
+        .filter((p): p is Part => p !== undefined)
+        .sort((a, b) => a.createdAt - b.createdAt),
     }));
-  }, [activeSessionId, activeSessionMessages, activeSessionPartsMap]);
+  }, [getForSession, getPart]);
 
   // Pass our pre-created sdkClientRef so the hook uses it directly
   useConnectionLifecycle({
     apiToken,
     serverUrl,
-    serverEpochRef,
     currentSessionIdRef,
-    handlerContextRef,
-    clearPendingPermissions,
     handleLogout,
     setConnected,
     setAuthError,
@@ -558,19 +376,50 @@ function AppContent() {
     connectionTimedOut,
     retryCount,
     clientRef: sdkClientRef,
+    onClientChange,
+  });
+
+  // Subscribe to server events for side effects (sounds, UI state updates)
+  useEventSideEffects({
+    clientRef: sdkClientRef,
+    currentSessionIdRef,
+    notifiedToolCallIdsRef,
+    skipFinishSoundSessionIdsRef,
+    permissionSoundEnabledRef,
+    chatFinishSoundEnabledRef,
+    playChatFinishSound,
+    playPermissionSound,
+    setSessionUsage,
+    setCurrentModel,
+    setSelectedVariant,
+    setCompactionSuccess,
+    setCompletion,
+    clearCompletion,
+    clearAllCompletions,
+    setProviderStatuses,
+    setPermissions,
+    addInterruptedSession,
+    removeInterruptedSession,
+    models,
+    defaultModel,
+    sessions: sdkSessions,
   });
 
 
 
-  // Server data loading hook (handles fetch, abort, epoch guard, workspace persistence)
+  // Wrapper to load sessions into SessionManager
+  const loadSessions = useCallback((newSessions: Session[]) => {
+    sessionManager?.load(newSessions);
+  }, [sessionManager]);
+
+  // Server data loading hook (handles fetch, abort, workspace persistence)
   useServerDataLoader({
     apiToken,
     serverUrl,
     reconnectTrigger,
-    serverEpochRef,
     clientRef: sdkClientRef,
     clearSwitchingState,
-    setSessions,
+    loadSessions,
     setPreconfigs,
     setPrompts,
     setModels,
@@ -582,6 +431,7 @@ function AppContent() {
     setIsLoadingServerData,
     setAuthError,
     pendingWorkspaceIdRef,
+    sessionManager,
   });
 
   // Refresh models, prompts, and preconfigs when Configuration dialog closes
@@ -610,13 +460,13 @@ function AppContent() {
     const workspace = data.workspace;
     setWorkspaces(prev => [...prev, workspace]);
     setActiveWorkspace(workspace);
-    setCurrentSession(null);
+    setCurrentSessionId(null);
     return workspace;
   };
 
   const selectWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace);
-    setCurrentSession(null);
+    setCurrentSessionId(null);
   };
 
   const handleQuickSwitchWorkspaceSelect = (workspaceId: string) => {
@@ -628,10 +478,8 @@ function AppContent() {
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
 
-    let deletedSessions: string[] = [];
     try {
-      const data = await http.delete<{ deletedSessions: string[] }>(`/workspaces/${id}`);
-      deletedSessions = data.deletedSessions;
+      await http.delete(`/workspaces/${id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to delete workspace:', message);
@@ -643,30 +491,8 @@ function AppContent() {
     removeFromQuickConnectionsByWorkspace(id);
 
     // Clear current session if it belonged to the deleted workspace
-    if (currentSession && (currentSession.workspaceId === id || deletedSessions.includes(currentSession.id))) {
-      setCurrentSession(null);
-    }
-
-    // Clean up sessions, messages, and parts for deleted sessions using server's response
-    setSessions(prev => prev.filter(s => !deletedSessions.includes(s.id)));
-
-    setMessagesBySession(prev => {
-      const next = { ...prev };
-      deletedSessions.forEach(sessionId => delete next[sessionId]);
-      return next;
-    });
-    setPartsBySession(prev => {
-      const next = { ...prev };
-      deletedSessions.forEach(sessionId => delete next[sessionId]);
-      return next;
-    });
-    deletedSessions.forEach(sessionId => sessionAccessTimesRef.current.delete(sessionId));
-
-    // Clean up part index entries for deleted sessions
-    for (const [partId, entry] of partIdIndexRef.current) {
-      if (deletedSessions.includes(entry.sessionId)) {
-        partIdIndexRef.current.delete(partId);
-      }
+    if (currentSessionId && currentSession?.workspaceId === id) {
+      setCurrentSessionId(null);
     }
 
     setWorkspaces(prev => {
@@ -689,57 +515,14 @@ function AppContent() {
     await createWorkspace(name, path, false);
   };
 
-  useLayoutEffect(() => {
-    handlerContextRef.current = {
-      setSessions,
-      setCurrentSession,
-      setMessagesBySession,
-      setPartsBySession,
-      setSessionUsage,
-      setCurrentModel,
-      setSelectedVariant,
-      addStreamingSession,
-      removeStreamingSession,
-      addInterruptedSession,
-      removeInterruptedSession,
-      setQueuedMessagesForSession,
-      addQueuedMessage,
-      removeQueuedMessageById,
-      clearPendingPermissions,
-      clearQueuedMessages,
-      setCompactionSuccess,
-      setCompletion,
-      clearCompletion,
-      clearAllCompletions,
-      pendingSessionCreateRef,
-      sessionAccessTimesRef,
-      partIdIndexRef,
-      partAppendRafRef,
-      pendingPartAppendsRef,
-      lastPartAppendFlushAtRef,
-      partAppendTimeoutRef,
-      skipFinishSoundSessionIdsRef,
-      currentSessionIdRef,
-      models,
-      defaultModel,
-      interruptedSessions,
-      sessionsRef,
-      flushPendingPartAppends,
-      setProviderStatuses,
-      setPermissions,
-      mergePendingPermissions,
-      addPendingPermission,
-      removePendingPermissionByToolCallId,
-      notifiedToolCallIdsRef,
-      permissionSoundEnabledRef,
-      playPermissionSound,
-      chatFinishSoundEnabledRef,
-      playChatFinishSound,
-    };
-  });
-
   // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
+
+  // No-op for streaming sessions - SDK's MessageStore manages this internally
+  const clearStreamingSessions = useCallback(() => {}, []);
+
+  // Ref for tracking pending session creation (used by useSessionCommands for SDK session creation)
+  const pendingSessionCreateRef = useRef(false);
 
   const {
     createSession,
@@ -766,28 +549,24 @@ function AppContent() {
   } = useSessionCommands({
     clientRef: sdkClientRef,
     currentSession,
-    sessions,
+    sessions: sdkSessions,
     workspaces,
     activeWorkspace,
     currentModel,
     streamingSessionIds,
     isCompacting,
     primaryPreconfigs,
-    setCurrentSession,
+    setCurrentSessionId,
     setActiveWorkspace,
     setCompactionSuccess,
     setCurrentModel,
     setSelectedVariant,
-    removePendingPermissionByToolCallId,
-    removePendingPermissionsBySessionId,
     clearStreamingSessions,
     pendingSessionCreateRef,
-    partAppendRafRef,
-    pendingPartAppendsRef,
     skipFinishSoundSessionIdsRef,
   });
 
-  const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
+  const workspaceSessions = sdkSessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
   const favoritedWorkspaceIds = quickConnections
     .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
@@ -834,11 +613,11 @@ function AppContent() {
       {isLoggedIn && (
         <AppSidebar
           ref={sidebarRef}
-          allSessions={sessions}
+          allSessions={sdkSessions}
           favoritedWorkspaceIds={favoritedWorkspaceIds}
           sessions={workspaceSessions}
           currentSession={currentSession}
-          currentSessionId={currentSession?.id ?? null}
+          currentSessionId={currentSessionId}
           streamingSessionIds={streamingSessionIds}
           connected={connected}
           workspaces={workspaces}
@@ -864,7 +643,7 @@ function AppContent() {
             }
           }}
           onCreateSessionInWorkspace={createSessionInWorkspace}
-          pendingPermissions={pendingPermissions}
+          pendingPermissions={pendingRequests}
           // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
           httpClient={httpClient}
         />
@@ -906,14 +685,14 @@ function AppContent() {
           serverUrl={serverUrl}
           currentSession={currentSession}
           messagesWithParts={messagesWithParts}
-          queuedMessages={queuedMessages}
+          queuedMessages={currentSession ? { [currentSession.id]: getQueue(currentSession.id) } : {}}
           preconfigs={preconfigs}
           primaryPreconfigs={primaryPreconfigs}
           prompts={prompts}
           models={models}
           defaultModel={defaultModel}
           selectedVariant={selectedVariant}
-          pendingPermissions={pendingPermissions}
+          pendingPermissions={pendingRequests}
           sessionUsage={sessionUsage}
           currentModel={currentModel}
           streamingSessionIds={streamingSessionIds}

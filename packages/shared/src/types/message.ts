@@ -133,6 +133,7 @@ interface MessageBase {
   sessionId: string;
   role: MessageRole;
   createdAt: number; // Unix timestamp in ms
+  partIds: string[]; // IDs of all parts belonging to this message
 }
 
 export interface UserMessage extends MessageBase {

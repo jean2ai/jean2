@@ -19,6 +19,7 @@ export class SessionManager extends TypedEventEmitter<SessionManagerEventMap> {
   private sessions: LruMap<string, Session>;
   private _activeSessionId: string | null = null;
   private _disposed = false;
+  private _version = 0;
   private _client: Jean2Client;
   private _handlers: Array<{
     event: keyof SessionClientEvents;
@@ -82,13 +83,17 @@ export class SessionManager extends TypedEventEmitter<SessionManagerEventMap> {
   private handleCreated(session: Session): void {
     if (this._disposed) return;
     this.sessions.set(session.id, session);
-    this.setActive(session.id);
+    if (!this._activeSessionId) {
+      this.setActive(session.id);
+    }
+    this.bumpVersion();
     this.emit('session:created', session);
   }
 
   private handleUpdated(session: Session): void {
     if (this._disposed) return;
     this.sessions.set(session.id, session);
+    this.bumpVersion();
     this.emit('session:updated', session);
   }
 
@@ -98,6 +103,7 @@ export class SessionManager extends TypedEventEmitter<SessionManagerEventMap> {
     if (session) {
       session.status = 'closed';
       this.sessions.set(sessionId, session);
+      this.bumpVersion();
       this.emit('session:updated', session);
     }
   }
@@ -109,11 +115,31 @@ export class SessionManager extends TypedEventEmitter<SessionManagerEventMap> {
       this._activeSessionId = null;
       this.emit('session:active', null);
     }
+    this.bumpVersion();
     this.emit('session:removed', sessionId);
   }
 
+  private bumpVersion(): void {
+    this._version++;
+  }
+
+  get version(): number {
+    return this._version;
+  }
+
+  load(sessions: Session[]): void {
+    if (this._disposed) return;
+    this.sessions.clear();
+    for (const session of sessions) {
+      this.sessions.set(session.id, session);
+    }
+    this.bumpVersion();
+  }
+
   list(): Session[] {
-    return Array.from(this.sessions.values());
+    return Array.from(this.sessions.values()).sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
   }
 
   get(id: string): Session | undefined {

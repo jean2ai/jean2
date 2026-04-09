@@ -8,7 +8,7 @@ interface ConnectionStateSnapshot {
   reconnecting: boolean;
 }
 
-function subscribe(client: ReturnType<typeof useClientFromContext>, callback: () => void): () => void {
+function subscribe(client: NonNullable<ReturnType<typeof useClientFromContext>>, callback: () => void): () => void {
   client.on('connected', callback);
   client.on('disconnected', callback);
   client.on('reconnecting', callback);
@@ -19,7 +19,7 @@ function subscribe(client: ReturnType<typeof useClientFromContext>, callback: ()
   };
 }
 
-function getSnapshot(client: ReturnType<typeof useClientFromContext>): ConnectionStateSnapshot {
+function getSnapshot(client: NonNullable<ReturnType<typeof useClientFromContext>>): ConnectionStateSnapshot {
   return {
     state: client.state,
     connected: client.connected,
@@ -34,8 +34,8 @@ function getServerSnapshot(): ConnectionStateSnapshot {
 export function useConnectionState(): ConnectionStateSnapshot {
   const client = useClientFromContext();
   return useSyncExternalStore(
-    (callback) => subscribe(client, callback),
-    () => getSnapshot(client),
+    (callback) => client ? subscribe(client, callback) : () => {},
+    () => client ? getSnapshot(client) : getServerSnapshot(),
     getServerSnapshot,
   );
 }

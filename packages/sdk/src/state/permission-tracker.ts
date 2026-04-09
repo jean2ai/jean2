@@ -140,8 +140,9 @@ export class PermissionTracker extends TypedEventEmitter<PermissionTrackerEventM
     this.client.on('queue.removed', onQueueRemoved as Parameters<Jean2Client['on']>[1]);
     this.subscriptions.push({ event: 'queue.removed', handler: onQueueRemoved as unknown as (...args: unknown[]) => void });
 
-    const onQueueSending = (sessionId: string, _queueId: string) => {
-      const queue = this.queues.get(sessionId) ?? [];
+    const onQueueSending = (sessionId: string, queueId: string) => {
+      const queue = (this.queues.get(sessionId) ?? []).filter(m => m.id !== queueId);
+      this.queues.set(sessionId, queue);
       this.emit('queue:updated', sessionId, queue);
     };
     this.client.on('queue.sending', onQueueSending as Parameters<Jean2Client['on']>[1]);

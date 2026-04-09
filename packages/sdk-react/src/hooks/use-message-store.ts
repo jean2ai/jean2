@@ -12,7 +12,7 @@ export interface UseMessageStoreOptions extends MessageStoreOptions {
 }
 
 export interface UseMessageStoreReturn extends MessageStoreSnapshot {
-  manager: MessageStore;
+  manager: MessageStore | null;
   getForSession(sessionId: string): Message[] | undefined;
   getPart(partId: string): Part | undefined;
   isStreaming(sessionId: string): boolean;
@@ -22,12 +22,19 @@ export function useMessageStore(options?: UseMessageStoreOptions): UseMessageSto
   const client = useClientFromContext();
   const enabled = options?.enabled !== false;
   const managerRef = useRef<MessageStore | null>(null);
+  const clientRef = useRef(client);
   const versionRef = useRef(0);
 
-  if (enabled && !managerRef.current) {
+  if (enabled && client && client !== clientRef.current && managerRef.current) {
+    managerRef.current.dispose();
+    managerRef.current = null;
+  }
+
+  if (enabled && client && !managerRef.current) {
     managerRef.current = new MessageStore(client, options);
   }
 
+  clientRef.current = client ?? clientRef.current;
   const manager = managerRef.current;
 
   const subscribe = (onStoreChange: () => void): (() => void) => {
@@ -55,14 +62,16 @@ export function useMessageStore(options?: UseMessageStoreOptions): UseMessageSto
 
   useEffect(() => {
     return () => {
-      manager?.dispose();
+      managerRef.current?.dispose();
+      managerRef.current = null;
+      clientRef.current = null;
     };
   }, []);
 
   if (!manager) {
     return {
       sessionIds: [],
-      manager: manager!,
+      manager: null,
       getForSession: (_sessionId: string) => undefined,
       getPart: (_partId: string) => undefined,
       isStreaming: (_sessionId: string) => false,

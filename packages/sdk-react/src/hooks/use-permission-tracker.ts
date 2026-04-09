@@ -14,7 +14,7 @@ export interface UsePermissionTrackerOptions {
 }
 
 export interface UsePermissionTrackerReturn extends PermissionTrackerSnapshot {
-  manager: PermissionTracker;
+  manager: PermissionTracker | null;
   getPermissions(workspaceId: string): ToolPermission[];
   getQueue(sessionId: string): QueuedMessage[];
 }
@@ -23,12 +23,19 @@ export function usePermissionTracker(options?: UsePermissionTrackerOptions): Use
   const client = useClientFromContext();
   const enabled = options?.enabled !== false;
   const managerRef = useRef<PermissionTracker | null>(null);
+  const clientRef = useRef(client);
   const versionRef = useRef(0);
 
-  if (enabled && !managerRef.current) {
+  if (enabled && client && client !== clientRef.current && managerRef.current) {
+    managerRef.current.dispose();
+    managerRef.current = null;
+  }
+
+  if (enabled && client && !managerRef.current) {
     managerRef.current = new PermissionTracker(client);
   }
 
+  clientRef.current = client ?? clientRef.current;
   const manager = managerRef.current;
 
   const subscribe = (onStoreChange: () => void): (() => void) => {
@@ -56,7 +63,9 @@ export function usePermissionTracker(options?: UsePermissionTrackerOptions): Use
 
   useEffect(() => {
     return () => {
-      manager?.dispose();
+      managerRef.current?.dispose();
+      managerRef.current = null;
+      clientRef.current = null;
     };
   }, []);
 
@@ -64,7 +73,7 @@ export function usePermissionTracker(options?: UsePermissionTrackerOptions): Use
     return {
       pendingRequests: [],
       hasPending: false,
-      manager: manager!,
+      manager: null,
       getPermissions: (_workspaceId: string) => [],
       getQueue: (_sessionId: string) => [],
     };

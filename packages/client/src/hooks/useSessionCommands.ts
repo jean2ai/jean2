@@ -1,12 +1,7 @@
 import { useCallback } from 'react';
-import { useStreamStateStore } from '@/stores/streamStateStore';
-import type {
-  Session,
-  Workspace,
-  Preconfig,
-  AttachmentKind,
-} from '@jean2/sdk';
+import type { Session, Workspace, Preconfig } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { useChat, type ChatAttachment } from '@jean2/sdk-react';
 
 interface UseSessionCommandsParams {
   clientRef: React.RefObject<Jean2Client | null>;
@@ -18,17 +13,13 @@ interface UseSessionCommandsParams {
   streamingSessionIds: Set<string>;
   isCompacting: boolean;
   primaryPreconfigs: Preconfig[];
-  setCurrentSession: (session: Session | null) => void;
+  setCurrentSessionId: (id: string | null) => void;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setCompactionSuccess: (success: boolean) => void;
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
-  removePendingPermissionByToolCallId: (toolCallId: string) => void;
-  removePendingPermissionsBySessionId: (sessionId: string) => void;
   clearStreamingSessions: () => void;
   pendingSessionCreateRef: React.RefObject<boolean>;
-  partAppendRafRef: React.RefObject<number | null>;
-  pendingPartAppendsRef: React.RefObject<Map<string, string>>;
   skipFinishSoundSessionIdsRef: React.RefObject<Set<string>>;
 }
 
@@ -42,9 +33,9 @@ interface UseSessionCommandsReturn {
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
-  addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
+  addToQueue: (sessionId: string, content: string, attachments?: ChatAttachment[]) => void;
   removeFromQueue: (queueId: string) => void;
-  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
+  sendChatMessage: (content: string, attachments?: ChatAttachment[]) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -67,28 +58,24 @@ export function useSessionCommands({
   streamingSessionIds,
   isCompacting,
   primaryPreconfigs,
-  setCurrentSession,
+  setCurrentSessionId,
   setActiveWorkspace,
   setCompactionSuccess,
   setCurrentModel,
   setSelectedVariant,
-  removePendingPermissionByToolCallId,
-  removePendingPermissionsBySessionId,
   clearStreamingSessions,
   pendingSessionCreateRef,
-  partAppendRafRef,
-  pendingPartAppendsRef,
   skipFinishSoundSessionIdsRef,
 }: UseSessionCommandsParams): UseSessionCommandsReturn {
+
+  const chat = useChat(currentSession?.id ?? '', {
+    isStreaming: streamingSessionIds.has(currentSession?.id ?? ''),
+  });
+  const { send: chatSend, interrupt: chatInterrupt } = chat;
 
   const createSession = useCallback((preconfigId?: string, title?: string) => {
     const client = clientRef.current;
     pendingSessionCreateRef.current = true;
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
     if (client && client.connected) {
       client.sessions.create({
         preconfigId,
@@ -97,34 +84,30 @@ export function useSessionCommands({
       });
     }
     setCompactionSuccess(false);
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, activeWorkspace, setCompactionSuccess]);
+  }, [clientRef, pendingSessionCreateRef, activeWorkspace, setCompactionSuccess]);
 
   const resumeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
-    removePendingPermissionsBySessionId(sessionId);
-    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    const session = sessions.find(s => s.id === sessionId);
+
+    skipFinishSoundSessionIdsRef.current = new Set(streamingSessionIds);
     clearStreamingSessions();
     setCompactionSuccess(false);
-    const session = sessions.find(s => s.id === sessionId);
+
     if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
       const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
       if (targetWorkspace) {
         setActiveWorkspace(targetWorkspace);
       }
     }
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
 
     if (session) {
-      setCurrentSession(session);
+      setCurrentSessionId(session.id);
     }
     if (client && client.connected) {
       client.sessions.resume(sessionId);
     }
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
+  }, [clientRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setCurrentSessionId, setActiveWorkspace, clearStreamingSessions, setCompactionSuccess]);
 
   const closeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
@@ -209,7 +192,7 @@ export function useSessionCommands({
     }
   }, [currentSession, resumeSession]);
 
-  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
+  const addToQueue = useCallback((sessionId: string, content: string, attachments?: ChatAttachment[]) => {
     const client = clientRef.current;
     if (client && client.connected) {
       client.queue.add(sessionId, content, attachments);
@@ -223,36 +206,27 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
-  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
-    const client = clientRef.current;
+  const sendChatMessage = useCallback((content: string, attachments?: ChatAttachment[]) => {
     if (!currentSession || isCompacting) return;
     if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
       addToQueue(currentSession.id, content, attachments);
     } else {
-      if (client && client.connected) {
-        client.chat.send(
-          currentSession.id,
-          content,
-          attachments ? { attachments } : undefined,
-        );
-      }
+      chatSend(content, attachments);
     }
-  }, [clientRef, currentSession, streamingSessionIds, isCompacting, addToQueue]);
+  }, [currentSession, streamingSessionIds, isCompacting, addToQueue, chatSend]);
 
   const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
     const client = clientRef.current;
-    removePendingPermissionByToolCallId(toolCallId);
     if (client && client.connected) {
       client.permissions.respond(toolCallId, allowed, alwaysAllow);
     }
-  }, [clientRef, removePendingPermissionByToolCallId]);
+  }, [clientRef]);
 
   const handleInterruptSession = useCallback(() => {
-    const client = clientRef.current;
-    if (client && client.connected && currentSession) {
-      client.sessions.interrupt(currentSession.id);
+    if (currentSession) {
+      chatInterrupt();
     }
-  }, [clientRef, currentSession]);
+  }, [currentSession, chatInterrupt]);
 
   const refreshPermissions = useCallback(() => {
     const client = clientRef.current;
@@ -265,17 +239,12 @@ export function useSessionCommands({
     const client = clientRef.current;
     setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
     pendingSessionCreateRef.current = true;
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
     const primary = primaryPreconfigs[0]?.id;
     if (client && client.connected) {
       client.sessions.create({ preconfigId: primary, workspaceId });
     }
     setCompactionSuccess(false);
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
+  }, [clientRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
 
   const revokePermission = useCallback((permissionId: string) => {
     const client = clientRef.current;

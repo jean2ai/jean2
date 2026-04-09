@@ -1,20 +1,14 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { Jean2Client } from '@jean2/sdk';
-import type { SessionHandlersContext } from '@/handlers/serverMessage';
-import { subscribeToServerEvents } from './subscribeToServerEvents';
 
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
 const INITIAL_RETRY_DELAY = 1000;
-const STALE_THRESHOLD = 30_000;
 
 export interface ConnectionLifecycleParams {
   apiToken: string | null;
   serverUrl: string | null;
-  serverEpochRef: RefObject<number>;
   currentSessionIdRef: RefObject<string | null>;
-  handlerContextRef: RefObject<SessionHandlersContext | null>;
-  clearPendingPermissions: () => void;
   handleLogout: () => void;
   setConnected: (connected: boolean) => void;
   setAuthError: (error: string | null) => void;
@@ -27,6 +21,7 @@ export interface ConnectionLifecycleParams {
   connectionTimedOut: boolean;
   retryCount: number;
   clientRef?: RefObject<Jean2Client | null>;
+  onClientChange?: (client: Jean2Client | null) => void;
 }
 
 export interface ConnectionLifecycleReturn {
@@ -36,10 +31,7 @@ export interface ConnectionLifecycleReturn {
 export function useConnectionLifecycle({
   apiToken,
   serverUrl,
-  serverEpochRef,
   currentSessionIdRef,
-  handlerContextRef,
-  clearPendingPermissions,
   handleLogout,
   setConnected,
   setAuthError,
@@ -52,35 +44,35 @@ export function useConnectionLifecycle({
   connectionTimedOut,
   retryCount,
   clientRef: externalClientRef,
+  onClientChange,
 }: ConnectionLifecycleParams): ConnectionLifecycleReturn {
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
-  const lastMessageTimeRef = useRef<number>(0);
+  const handleLogoutRef = useRef(handleLogout);
+  // eslint-disable-next-line react-hooks/refs -- intentionally updating ref during render to avoid effect re-connection
+  handleLogoutRef.current = handleLogout;
 
-  // eslint-disable-next-line react-hooks/immutability
+  // eslint-disable-next-line react-hooks/immutability -- clientRef is intentionally mutable to share client instance
   useEffect(() => {
     if (!apiToken || !serverUrl) {
+      onClientChange?.(null);
       return;
     }
-
-    const localEpoch = serverEpochRef.current;
 
     const client = new Jean2Client({
       url: serverUrl,
       token: apiToken,
       autoSyncPermissions: false,
     });
-    
+
     clientRef.current = client;
+    onClientChange?.(client);
 
     client.on('connected', () => {
-      if (serverEpochRef.current !== localEpoch) return;
       setConnected(true);
       setAuthError(null);
       setRetryCount(0);
       setConnectionTimedOut(false);
-
-      clearPendingPermissions();
 
       if (currentSessionIdRef.current) {
         client.sessions.resume(currentSessionIdRef.current);
@@ -90,39 +82,29 @@ export function useConnectionLifecycle({
     });
 
     client.on('disconnected', (payload) => {
-      if (serverEpochRef.current !== localEpoch) return;
       setConnected(false);
 
       if (payload.code === 1008 || payload.code === 401) {
-        handleLogout();
+        handleLogoutRef.current();
       }
     });
 
     client.on('error.connection', (error) => {
-      if (serverEpochRef.current !== localEpoch) return;
       console.error('WebSocket error:', error);
     });
 
-    client.on('*', () => {
-      if (serverEpochRef.current !== localEpoch) return;
-      lastMessageTimeRef.current = Date.now();
-    });
-
-    const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
-
     client.connect().catch((err) => {
-      if (serverEpochRef.current !== localEpoch) return;
       console.error('Connection failed:', err);
     });
 
     return () => {
-      unsubscribe();
+      onClientChange?.(null);
       client.dispose();
       if (clientRef.current === client) {
         clientRef.current = null;
       }
     };
-  }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
+  }, [apiToken, serverUrl, reconnectTrigger, onClientChange]);
 
   useEffect(() => {
     if (apiToken && serverUrl && !connected && !connectionTimedOut) {
@@ -137,8 +119,6 @@ export function useConnectionLifecycle({
   }, [apiToken, serverUrl, connected, connectionTimedOut, setConnectionTimedOut]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     if (connectionTimedOut && !connected && apiToken && serverUrl) {
       const delay = Math.min(
         INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
@@ -154,7 +134,6 @@ export function useConnectionLifecycle({
       }, 1000);
 
       const retryTimeout = setTimeout(() => {
-        if (serverEpochRef.current !== localEpoch) return;
         setRetryCount(c => c + 1);
         setReconnectTrigger(t => t + 1);
       }, delay);
@@ -164,47 +143,31 @@ export function useConnectionLifecycle({
         clearTimeout(retryTimeout);
       };
     }
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn, setRetryCount]);
+  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, setReconnectTrigger, setNextRetryIn, setRetryCount]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     const handleVisibilityChange = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (document.visibilityState !== 'visible') return;
 
       const client = clientRef.current;
       if (!client || !apiToken || !serverUrl) return;
 
       if (client.connected) {
-        const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
-        if (timeSinceLastMessage < STALE_THRESHOLD) {
-          return;
-        }
-        client.dispose();
-        clientRef.current = null;
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
-      } else if (!client.connected) {
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
+        return;
       }
+
+      setConnected(false);
+      setRetryCount(0);
+      setConnectionTimedOut(false);
+      setReconnectTrigger(t => t + 1);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
- useEffect(() => {
-    const localEpoch = serverEpochRef.current;
+  }, [apiToken, serverUrl, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
 
+  useEffect(() => {
     const handleOnline = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (!apiToken || !serverUrl) return;
 
       const client = clientRef.current;
@@ -218,6 +181,7 @@ export function useConnectionLifecycle({
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
- return { clientRef };
+  }, [apiToken, serverUrl, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
+
+  return { clientRef };
 }

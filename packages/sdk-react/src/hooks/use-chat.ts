@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { AttachmentKind, Jean2Client } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { useJean2Client } from './use-client';
-import { useMessageStore } from './use-message-store';
 
 export interface UseChatOptions {
   onError?: (error: unknown) => void;
+  isStreaming?: boolean;
 }
 
 export interface UseChatReturn {
@@ -15,13 +15,12 @@ export interface UseChatReturn {
 
 export type ChatAttachment = {
   id: string;
-  kind: AttachmentKind;
+  kind: import('@jean2/sdk').AttachmentKind;
 };
 
 export function useChat(sessionId: string, options?: UseChatOptions): UseChatReturn {
   const client = useJean2Client();
-  const { isStreaming } = useMessageStore();
-  const clientRef = useRef<Jean2Client>(client);
+  const clientRef = useRef<Jean2Client | null>(client);
   const onErrorRef = useRef(options?.onError);
 
   useEffect(() => {
@@ -34,7 +33,7 @@ export function useChat(sessionId: string, options?: UseChatOptions): UseChatRet
 
   const send = useCallback((content: string, attachments?: ChatAttachment[]) => {
     try {
-      clientRef.current.chat.send(sessionId, content, { attachments });
+      clientRef.current?.chat.send(sessionId, content, { attachments });
     } catch (err: unknown) {
       onErrorRef.current?.(err);
     }
@@ -42,7 +41,7 @@ export function useChat(sessionId: string, options?: UseChatOptions): UseChatRet
 
   const interrupt = useCallback(() => {
     try {
-      clientRef.current.sessions.interrupt(sessionId);
+      clientRef.current?.sessions.interrupt(sessionId);
     } catch (err: unknown) {
       onErrorRef.current?.(err);
     }
@@ -50,7 +49,7 @@ export function useChat(sessionId: string, options?: UseChatOptions): UseChatRet
 
   return {
     send,
-    isStreaming: isStreaming(sessionId),
+    isStreaming: options?.isStreaming ?? false,
     interrupt,
   };
 }

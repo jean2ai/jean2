@@ -181,6 +181,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     providerId: providerId || 'openai',
     tokens: { prompt: 0, completion: 0 },
     cost: 0,
+    partIds: [],
   };
 
   // Store the assistant message in DB - pass the full message object
