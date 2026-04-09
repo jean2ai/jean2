@@ -32,6 +32,7 @@ export interface MessageStoreEventMap {
   'message:updated': [message: Message, sessionId: string];
   'message:appended': [sessionId: string, partId: string, field: PartField, delta: string];
   'session:cleared': [sessionId: string];
+  'messages:replaced': [sessionId: string];
 }
 
 export interface PermissionTrackerEventMap {

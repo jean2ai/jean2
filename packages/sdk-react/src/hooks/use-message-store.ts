@@ -49,12 +49,14 @@ export function useMessageStore(options?: UseMessageStoreOptions): UseMessageSto
     manager.on('message:updated', handler);
     manager.on('message:appended', handler);
     manager.on('session:cleared', handler);
+    manager.on('messages:replaced', handler);
 
     return () => {
       manager.off('message:created', handler);
       manager.off('message:updated', handler);
       manager.off('message:appended', handler);
       manager.off('session:cleared', handler);
+      manager.off('messages:replaced', handler);
     };
   };
 

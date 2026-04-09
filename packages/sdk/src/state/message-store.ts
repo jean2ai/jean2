@@ -103,18 +103,21 @@ export class MessageStore extends TypedEventEmitter<MessageStoreEventMap> {
     if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
     this.bumpVersion();
+    this.emit('messages:replaced', sessionId);
   }
 
   private handleState(sessionId: string, messagesWithParts: MessageWithParts[]): void {
     if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
     this.bumpVersion();
+    this.emit('messages:replaced', sessionId);
   }
 
   private handleForked(sessionId: string, messagesWithParts: MessageWithParts[]): void {
     if (this._disposed) return;
     this.replaceSessionMessages(sessionId, messagesWithParts);
     this.bumpVersion();
+    this.emit('messages:replaced', sessionId);
   }
 
   private replaceSessionMessages(sessionId: string, messagesWithParts: MessageWithParts[]): void {
