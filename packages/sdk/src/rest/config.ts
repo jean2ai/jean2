@@ -22,7 +22,7 @@ import type {
   SetDefaultsRequest,
   CreatePromptRequest,
   UpdatePromptRequest,
-} from '@jean2/shared';
+} from '../types';
 
 // =============================================================================
 // Config Models Namespace

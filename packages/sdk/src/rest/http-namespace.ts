@@ -1,4 +1,4 @@
-import type { Session, Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus } from '@jean2/shared';
+import type { Session, Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus } from '../types';
 import type { HttpClient } from '../transport/http';
 import { SessionsRestNamespace } from './sessions';
 import { WorkspacesRestNamespace } from './workspaces';

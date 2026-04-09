@@ -1,4 +1,4 @@
-import type { Session, Message, Part, MessageWithParts } from '@jean2/shared';
+import type { Session, Message, Part, MessageWithParts } from '@jean2/sdk';
 import {
   listMessagesWithParts,
   createSession,

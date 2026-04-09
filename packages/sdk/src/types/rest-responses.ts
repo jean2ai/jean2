@@ -1,4 +1,16 @@
-import type { Session, Message } from '@jean2/shared';
+import type { Session } from './session';
+import type { Message } from './message';
+import type { Workspace } from './workspace';
+import type { ToolDefinition } from './tool';
+import type { PromptInfo } from './prompt';
+import type { Preconfig } from './preconfig';
+import type { ProviderStatus } from './provider';
+import type { ProviderCredentialStatus } from './configuration';
+import type { ModelWithStatus, ModelsConfigResponse } from './configuration';
+import type { ModelsConfig } from './model';
+import type { McpServerConfig, McpStatus } from './mcp';
+import type { FileEntry, FilePreviewResponse } from './file';
+import type { TerminalSessionInfo } from '../protocol/terminal';
 
 /**
  * GET /api/sessions
@@ -46,28 +58,28 @@ export interface ListMessagesResponse {
  * GET /api/workspaces
  */
 export interface ListWorkspacesResponse {
-  workspaces: import('@jean2/shared').Workspace[];
+  workspaces: Workspace[];
 }
 
 /**
  * POST /api/workspaces
  */
 export interface CreateWorkspaceResponse {
-  workspace: import('@jean2/shared').Workspace;
+  workspace: Workspace;
 }
 
 /**
  * GET /api/workspaces/:id
  */
 export interface GetWorkspaceResponse {
-  workspace: import('@jean2/shared').Workspace;
+  workspace: Workspace;
 }
 
 /**
  * PATCH /api/workspaces/:id
  */
 export interface UpdateWorkspaceResponse {
-  workspace: import('@jean2/shared').Workspace;
+  workspace: Workspace;
 }
 
 /**
@@ -89,28 +101,28 @@ export interface ListWorkspaceSessionsResponse {
  * GET /api/tools
  */
 export interface ListToolsResponse {
-  tools: import('@jean2/shared').ToolDefinition[];
+  tools: ToolDefinition[];
 }
 
 /**
  * GET /api/tools/:name
  */
 export interface GetToolResponse {
-  tool: import('@jean2/shared').ToolDefinition;
+  tool: ToolDefinition;
 }
 
 /**
  * GET /api/prompts
  */
 export interface ListPromptsResponse {
-  prompts: import('@jean2/shared').PromptInfo[];
+  prompts: PromptInfo[];
 }
 
 /**
  * GET /api/models
  */
 export interface ListModelsResponse {
-  models: import('@jean2/shared').ModelWithStatus[];
+  models: ModelWithStatus[];
   defaultModel: string;
   defaultProvider: string;
 }
@@ -119,28 +131,28 @@ export interface ListModelsResponse {
  * GET /api/preconfigs
  */
 export interface ListPreconfigsResponse {
-  preconfigs: import('@jean2/shared').Preconfig[];
+  preconfigs: Preconfig[];
 }
 
 /**
  * POST /api/preconfigs
  */
 export interface CreatePreconfigResponse {
-  preconfig: import('@jean2/shared').Preconfig;
+  preconfig: Preconfig;
 }
 
 /**
  * GET /api/preconfigs/:id
  */
 export interface GetPreconfigResponse {
-  preconfig: import('@jean2/shared').Preconfig;
+  preconfig: Preconfig;
 }
 
 /**
  * PUT /api/preconfigs/:id
  */
 export interface UpdatePreconfigResponse {
-  preconfig: import('@jean2/shared').Preconfig;
+  preconfig: Preconfig;
 }
 
 /**
@@ -154,14 +166,14 @@ export interface DeletePreconfigResponse {
  * GET /api/providers
  */
 export interface ListProvidersResponse {
-  providers: import('@jean2/shared').ProviderStatus[];
+  providers: ProviderStatus[];
 }
 
 /**
  * GET /api/providers/:providerId/status
  */
 export interface GetProviderStatusResponse {
-  status: import('@jean2/shared').ProviderStatus;
+  status: ProviderStatus;
 }
 
 /**
@@ -169,7 +181,7 @@ export interface GetProviderStatusResponse {
  */
 export interface ConnectProviderResponse {
   authorizationUrl: string;
-  status: import('@jean2/shared').ProviderStatus;
+  status: ProviderStatus;
 }
 
 /**
@@ -183,7 +195,7 @@ export interface DisconnectProviderResponse {
  * GET /api/config/providers
  */
 export interface ListCredentialsResponse {
-  providers: import('@jean2/shared').ProviderCredentialStatus[];
+  providers: ProviderCredentialStatus[];
 }
 
 /**
@@ -210,49 +222,49 @@ export interface ClearCredentialResponse {
  * GET /api/config/models
  * Returns full models config with runtime status per model.
  */
-export type GetModelsConfigResponse = import('@jean2/shared').ModelsConfigResponse;
+export type GetModelsConfigResponse = ModelsConfigResponse;
 
 /**
  * POST /api/config/models/providers
  * Returns the updated full models config after provider creation.
  */
-export type CreateProviderResponse = import('@jean2/shared').ModelsConfig;
+export type CreateProviderResponse = ModelsConfig;
 
 /**
  * PUT /api/config/models/providers/:id
  * Returns the updated full models config after provider update.
  */
-export type UpdateProviderResponse = import('@jean2/shared').ModelsConfig;
+export type UpdateProviderResponse = ModelsConfig;
 
 /**
  * DELETE /api/config/models/providers/:id
  * Returns the updated full models config after provider deletion.
  */
-export type DeleteProviderResponse = import('@jean2/shared').ModelsConfig;
+export type DeleteProviderResponse = ModelsConfig;
 
 /**
  * POST /api/config/models/providers/:id/models
  * Returns the updated full models config after model creation.
  */
-export type CreateModelResponse = import('@jean2/shared').ModelsConfig;
+export type CreateModelResponse = ModelsConfig;
 
 /**
  * PUT /api/config/models/providers/:providerId/models/:modelId
  * Returns the updated full models config after model update.
  */
-export type UpdateModelResponse = import('@jean2/shared').ModelsConfig;
+export type UpdateModelResponse = ModelsConfig;
 
 /**
  * DELETE /api/config/models/providers/:providerId/models/:modelId
  * Returns the updated full models config after model deletion.
  */
-export type DeleteModelResponse = import('@jean2/shared').ModelsConfig;
+export type DeleteModelResponse = ModelsConfig;
 
 /**
  * PUT /api/config/models/defaults
  * Returns the updated full models config after setting defaults.
  */
-export type SetDefaultsResponse = import('@jean2/shared').ModelsConfig;
+export type SetDefaultsResponse = ModelsConfig;
 
 // =============================================================================
 // Config: Prompts Responses
@@ -263,26 +275,26 @@ export type SetDefaultsResponse = import('@jean2/shared').ModelsConfig;
  * Returns a list of all prompt configurations.
  */
 export interface ListPromptConfigsResponse {
-  prompts: import('@jean2/shared').PromptInfo[];
+  prompts: PromptInfo[];
 }
 
 /**
  * GET /api/config/prompts/:name
  * Returns a single prompt configuration.
  */
-export type GetPromptConfigResponse = import('@jean2/shared').PromptInfo;
+export type GetPromptConfigResponse = PromptInfo;
 
 /**
  * POST /api/config/prompts
  * Returns the created prompt configuration.
  */
-export type CreatePromptConfigResponse = import('@jean2/shared').PromptInfo;
+export type CreatePromptConfigResponse = PromptInfo;
 
 /**
  * PUT /api/config/prompts/:name
  * Returns the updated prompt configuration.
  */
-export type UpdatePromptConfigResponse = import('@jean2/shared').PromptInfo;
+export type UpdatePromptConfigResponse = PromptInfo;
 
 /**
  * DELETE /api/config/prompts/:name
@@ -319,7 +331,7 @@ export type UploadAttachmentResponse = AttachmentItem;
  * GET /api/workspaces/:id/files (browse mode)
  */
 export interface BrowseFilesResponse {
-  files: import('@jean2/shared').FileEntry[];
+  files: FileEntry[];
   currentPath: string;
   mode: 'browse';
 }
@@ -328,7 +340,7 @@ export interface BrowseFilesResponse {
  * GET /api/workspaces/:id/files (search mode)
  */
 export interface SearchFilesResponse {
-  files: import('@jean2/shared').FileEntry[];
+  files: FileEntry[];
   currentPath: string;
   mode: 'search';
 }
@@ -336,13 +348,13 @@ export interface SearchFilesResponse {
 /**
  * GET /api/workspaces/:id/file-preview
  */
-export type PreviewFileResponse = import('@jean2/shared').FilePreviewResponse;
+export type PreviewFileResponse = FilePreviewResponse;
 
 /**
  * GET /api/fs/browse
  */
 export interface BrowseFsResponse {
-  files: import('@jean2/shared').FileEntry[];
+  files: FileEntry[];
   currentPath: string;
   mode: 'browse';
   isRoot: boolean;
@@ -352,7 +364,7 @@ export interface BrowseFsResponse {
  * GET /api/fs/parent
  */
 export interface FsParentResponse {
-  files: import('@jean2/shared').FileEntry[];
+  files: FileEntry[];
   currentPath: string;
   mode: 'browse';
   isRoot: boolean;
@@ -369,20 +381,20 @@ export interface ListDrivesResponse {
  * GET /api/workspaces/:id/terminals
  */
 export interface ListTerminalSessionsResponse {
-  sessions: import('@jean2/shared').TerminalSessionInfo[];
+  sessions: TerminalSessionInfo[];
 }
 
 /**
  * POST /api/workspaces/:id/terminals
  */
 export interface CreateTerminalSessionResponse {
-  session: import('@jean2/shared').TerminalSessionInfo;
+  session: TerminalSessionInfo;
 }
 
 /**
  * GET /api/workspaces/:id/terminals/:sessionId
  */
-export type GetTerminalSessionResponse = import('@jean2/shared').TerminalSessionInfo;
+export type GetTerminalSessionResponse = TerminalSessionInfo;
 
 /**
  * DELETE /api/workspaces/:id/terminals/:sessionId
@@ -400,14 +412,14 @@ export interface DeleteTerminalSessionResponse {
  * Returns a keyed record of server name -> { config, status }
  */
 export interface GetMcpStatusResponse {
-  status: Record<string, { config: import('@jean2/shared').McpServerConfig | undefined; status: import('@jean2/shared').McpStatus }>;
+  status: Record<string, { config: McpServerConfig | undefined; status: McpStatus }>;
 }
 
 /**
  * POST /api/workspaces/:id/mcp/connect
  */
 export interface ConnectMcpServerResponse {
-  status: import('@jean2/shared').McpStatus;
+  status: McpStatus;
 }
 
 /**
@@ -428,5 +440,5 @@ export interface StartMcpAuthResponse {
  * POST /api/workspaces/:id/mcp/auth/callback
  */
 export interface FinishMcpAuthResponse {
-  status: import('@jean2/shared').McpStatus;
+  status: McpStatus;
 }

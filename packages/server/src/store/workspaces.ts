@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { Workspace } from '@jean2/shared';
+import type { Workspace } from '@jean2/sdk';
 
 // Interface for raw database row from workspaces table
 interface WorkspaceRow {

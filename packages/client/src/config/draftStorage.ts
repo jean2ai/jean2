@@ -1,5 +1,5 @@
-import { DRAFT_KEY_PREFIX, DRAFT_TTL_MS, cleanupExpiredDrafts as cleanupExpiredDraftsShared } from '@jean2/shared';
-import type { SavedDraft } from '@jean2/shared';
+import { DRAFT_KEY_PREFIX, DRAFT_TTL_MS, cleanupExpiredDrafts as cleanupExpiredDraftsShared } from '@/types/client';
+import type { SavedDraft } from '@/types/client';
 
 export function getDraftKey(sessionId: string): string {
   return `${DRAFT_KEY_PREFIX}${sessionId}`;

@@ -1,4 +1,4 @@
-import type { SavedServer } from '@jean2/shared';
+import type { SavedServer } from '@/types/client';
 import type {
   Session,
   MessageWithParts,

@@ -41,7 +41,7 @@ import type {
   AuthErrorMessage,
   InvalidRequestErrorMessage,
   ContextOverflowErrorMessage,
-} from '@jean2/shared';
+} from '../protocol/server';
 import type { TypedEventEmitter } from '../emitter';
 import type { SdkEvent } from './sdk-types';
 

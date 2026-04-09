@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { ToolExecution } from '@jean2/shared';
+import type { ToolExecution } from '@jean2/sdk';
 
 // Interface for raw database row from tool_executions table
 interface ToolExecutionRow {
@@ -31,9 +31,9 @@ export function createToolExecution(execution: Omit<ToolExecution, 'completedAt'
     e.toolName,
     JSON.stringify(e.args),
     e.result !== undefined ? JSON.stringify(e.result) : null,
-    e.error,
+    e.error ?? null,
     e.startedAt,
-    e.completedAt
+    e.completedAt ?? null
   ]);
   
   return e;
@@ -84,8 +84,8 @@ function mapRowToToolExecution(row: ToolExecutionRow): ToolExecution {
     toolName: row.tool_name,
     args: JSON.parse(row.args),
     result: row.result ? JSON.parse(row.result) : undefined,
-    error: row.error,
+    error: row.error ?? undefined,
     startedAt: row.started_at,
-    completedAt: row.completed_at,
+    completedAt: row.completed_at ?? undefined,
   };
 }

@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { ToolApproval, ToolApprovalStatus } from '@jean2/shared';
+import type { ToolApproval, ToolApprovalStatus } from '@jean2/sdk';
 
 // Interface for raw database row from tool_approvals table
 interface ToolApprovalRow {
@@ -93,6 +93,6 @@ function mapRowToToolApproval(row: ToolApprovalRow): ToolApproval {
     details: row.details ? JSON.parse(row.details) : undefined,
     status: row.status as ToolApprovalStatus,
     requestedAt: row.requested_at,
-    respondedAt: row.responded_at,
+    respondedAt: row.responded_at ?? undefined,
   };
 }

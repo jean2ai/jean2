@@ -6,7 +6,7 @@ import type {
   UpdatePreconfigResponse,
   DeletePreconfigResponse,
 } from '../types/rest-responses';
-import type { PreconfigMode } from '@jean2/shared';
+import type { PreconfigMode } from '../types';
 
 interface ListOptions {
   signal?: AbortSignal;

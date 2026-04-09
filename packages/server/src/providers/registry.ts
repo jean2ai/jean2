@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { ProviderDescriptor, ProviderStatus } from '@jean2/shared';
+import type { ProviderDescriptor, ProviderStatus } from '@jean2/sdk';
 
 export interface ModelFactoryOptions {
   modelId: string;

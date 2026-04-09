@@ -1,4 +1,4 @@
-import type { PromptInfo, CreatePromptRequest, UpdatePromptRequest } from '@jean2/shared';
+import type { PromptInfo, CreatePromptRequest, UpdatePromptRequest } from '@jean2/sdk';
 import { homedir } from 'os';
 import { join } from 'path';
 import { unlink } from 'fs/promises';

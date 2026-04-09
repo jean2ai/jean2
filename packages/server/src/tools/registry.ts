@@ -2,7 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import matter from 'gray-matter';
 import { join, resolve } from 'path';
-import type { ToolDefinition } from '@jean2/shared';
+import type { ToolDefinition } from '@jean2/sdk';
 import type { DiscoveredTool } from './types';
 import { resolveToolsPath } from '../config';
 

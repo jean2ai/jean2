@@ -1,6 +1,6 @@
 import { stat, readFile } from 'fs/promises';
 import { basename, extname, join, resolve } from 'path';
-import type { FilePreviewResponse } from '@jean2/shared';
+import type { FilePreviewResponse } from '@jean2/sdk';
 import {
   FILE_PREVIEW_MAX_BYTES,
   isBinaryExtension,

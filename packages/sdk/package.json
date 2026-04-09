@@ -13,8 +13,5 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "version:sync": "echo \"export const version: string = '$npm_package_version';\" > src/version.ts"
-  },
-  "dependencies": {
-    "@jean2/shared": "workspace:*"
   }
 }

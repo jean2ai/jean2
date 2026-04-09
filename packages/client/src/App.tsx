@@ -12,7 +12,7 @@ import type {
   ProviderStatus,
   Part,
 } from '@jean2/sdk';
-import type { SavedServer } from '@jean2/shared';
+import type { SavedServer } from '@/types/client';
 import type { Jean2Client } from '@jean2/sdk';
 import { Jean2ClientProvider, usePermissionTracker, useMessageStore, useSessionManager } from '@jean2/sdk-react';
 

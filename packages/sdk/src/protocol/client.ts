@@ -1,3 +1,5 @@
+import type { AttachmentKind } from '../types/model';
+
 export interface SessionCreateMessage {
   type: 'session.create';
   workspaceId?: string;
@@ -9,8 +11,6 @@ export interface SessionResumeMessage {
   type: 'session.resume';
   sessionId: string;
 }
-
-import type { AttachmentKind } from '../types/model';
 
 export interface ChatMessageAttachment {
   id: string;

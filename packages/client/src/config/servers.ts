@@ -1,6 +1,6 @@
 // packages/client/src/config/servers.ts
 
-import type { SavedServer, QuickConnection } from '@jean2/shared';
+import type { SavedServer, QuickConnection } from '@/types/client';
 
 const STORAGE_KEYS = {
   SERVERS: 'jean2_servers',

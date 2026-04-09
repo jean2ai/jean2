@@ -1,4 +1,4 @@
-import type { InterruptReason, SessionInterruptResult } from '@jean2/shared';
+import type { InterruptReason, SessionInterruptResult } from '@jean2/sdk';
 import { getSession, getChildSessions, updateSession } from '@/store';
 
 interface SessionAbortContext {

@@ -1,4 +1,5 @@
-import type { ClientMessage, ServerMessage } from '@jean2/shared';
+import type { ClientMessage } from '../protocol/client';
+import type { ServerMessage } from '../protocol/server';
 import { ConnectionError } from '../errors';
 import type { ReconnectOptions, HeartbeatOptions } from '../types/sdk-types';
 

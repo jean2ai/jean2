@@ -1,4 +1,6 @@
-import type { ClientMessage, ChatMessageAttachment, AttachmentKind } from '@jean2/shared';
+import type { ClientMessage } from '../protocol/client';
+import type { ChatMessageAttachment } from '../protocol/client';
+import type { AttachmentKind } from '../types';
 
 export class QueueNamespace {
   constructor(private send: (msg: ClientMessage) => void) {}

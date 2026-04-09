@@ -89,6 +89,8 @@ export type {
   ToolPermission,
   PermissionType,
   PermissionKey,
+  SecurityCheckInput,
+  SecurityCheckResult,
   SessionInterruptResult,
   InterruptReason,
   InterruptState,
@@ -108,6 +110,47 @@ export type {
   TerminalEvent,
   FileListItem,
   TodoListItem,
+  // Protocol types
+  ServerMessage,
+  ClientMessage,
+  // Configuration types
+  ModelsConfigResponse,
+  CreateProviderRequest,
+  UpdateProviderRequest,
+  CreateModelRequest,
+  UpdateModelRequest,
+  SetDefaultsRequest,
+  CreatePromptRequest,
+  UpdatePromptRequest,
+  ProviderCredentialStatus,
+  ProviderCredentialsResponse,
+  ProviderWithStatus,
+  // Terminal types
+  TerminalSessionInfo,
+  // Error message types
+  ErrorMessage,
+  RateLimitErrorMessage,
+  ServerErrorMessage,
+  TimeoutErrorMessage,
+  AuthErrorMessage,
+  InvalidRequestErrorMessage,
+  ContextOverflowErrorMessage,
+  // MCP types
+  McpConfig,
+  McpOAuthConfig,
+  McpLocalServerConfig,
+  McpRemoteServerConfig,
+  McpServerInfo,
+  // Server-specific types
+  ToolExecutionContext,
+  RuntimeSetup,
+  RuntimeSetupResult,
+  PlatformRuntimeSetup,
+  ToolApproval,
+  ToolApprovalStatus,
+  ToolExecution,
+  SkillInfo,
+  CodexProviderConfig,
 } from './types';
 
 export {

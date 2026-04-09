@@ -1,4 +1,4 @@
-import type { ClientMessage } from '@jean2/shared';
+import type { ClientMessage } from '../protocol/client';
 
 export class SessionsNamespace {
   constructor(private send: (msg: ClientMessage) => void) {}

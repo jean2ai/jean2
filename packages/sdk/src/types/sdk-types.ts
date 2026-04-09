@@ -1,4 +1,4 @@
-import type { ServerMessage } from '@jean2/shared';
+import type { ServerMessage } from '../protocol/server';
 
 export interface HeartbeatOptions {
   /** Enable heartbeat. Defaults to true. */

@@ -1,4 +1,5 @@
-import type { PermissionType, PermissionKey, QueuedMessage, ToolPermission } from '@jean2/shared';
+import type { PermissionType, PermissionKey, ToolPermission } from '../types/permission';
+import type { QueuedMessage } from '../types/message';
 import type {
   PendingPermissionRequest,
   PermissionTrackerEventMap,

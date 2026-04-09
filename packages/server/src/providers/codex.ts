@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { CodexProviderConfig, ProviderStatus } from '@jean2/shared';
+import type { CodexProviderConfig, ProviderStatus } from '@jean2/sdk';
 import { registerProvider } from './registry';
 import type { ConnectableProvider } from './registry';
 import { loadProviderConfig, saveProviderConfig, deleteProviderConfig } from './storage';

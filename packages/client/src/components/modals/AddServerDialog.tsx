@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useServerContext } from '@/contexts/ServerContext';
-import type { SavedServer } from '@jean2/shared';
+import type { SavedServer } from '@/types/client';
 import { isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
 
 interface AddServerDialogProps {
@@ -40,7 +40,7 @@ export function AddServerDialog({
     if (editServer) {
       setName(editServer.name);
       setUrl(editServer.url);
-      setToken(editServer.token);
+      setToken(editServer.token ?? '');
     } else {
       setName('');
       setUrl('localhost:8742');

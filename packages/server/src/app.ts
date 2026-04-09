@@ -16,7 +16,7 @@ import { join, dirname, resolve } from 'path';
 // Import types from shared
 import type {
   SessionStatus,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 
 // Import store operations
 import {

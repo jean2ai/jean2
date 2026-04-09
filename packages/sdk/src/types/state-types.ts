@@ -1,12 +1,6 @@
-import type {
-  Session,
-  Message,
-  PartField,
-  QueuedMessage,
-  ToolPermission,
-  PermissionType,
-  PermissionKey,
-} from '@jean2/shared';
+import type { Session } from './session';
+import type { Message, PartField, QueuedMessage } from './message';
+import type { ToolPermission, PermissionType, PermissionKey } from './permission';
 
 export interface SessionManagerOptions {
   maxSessions?: number;

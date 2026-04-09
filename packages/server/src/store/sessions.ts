@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
+import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/sdk';
 import { getWorkspace } from './workspaces';
 import { deleteAttachmentsForSession, deleteAttachmentsForWorkspace } from './attachments';
 import { rmSync, existsSync } from 'fs';

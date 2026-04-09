@@ -1,4 +1,4 @@
-import type { ToolDefinition, TextPart, Session } from '@jean2/shared';
+import type { ToolDefinition, TextPart, Session } from '@jean2/sdk';
 import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './child-session';

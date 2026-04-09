@@ -21,7 +21,7 @@ import {
   removeQuickConnectionForWorkspace,
   reorderQuickConnections,
 } from '@/config/servers';
-import type { SavedServer, QuickConnection } from '@jean2/shared';
+import type { SavedServer, QuickConnection } from '@/types/client';
 import { normalizeServerUrl } from '@/config/auth';
 
 interface ServerContextValue {
@@ -33,7 +33,7 @@ interface ServerContextValue {
 
   // Server actions
   prepareForServerAdd: () => void;
-  addServer: (name: string, url: string, token: string) => SavedServer;
+  addServer: (name: string, url: string, token?: string) => SavedServer;
   editServer: (
     id: string,
     updates: { name?: string; url?: string; token?: string },
@@ -86,7 +86,7 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     isAddingServerRef.current = true;
   };
 
-  const addServer = (name: string, url: string, token: string): SavedServer => {
+  const addServer = (name: string, url: string, token?: string): SavedServer => {
     const normalizedUrl = normalizeServerUrl(url);
 
     const newServer: SavedServer = {
@@ -191,6 +191,7 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
   ): void => {
     addQuickConnection({
       serverId,
+      name: serverName,
       serverName,
       workspaceId,
       workspaceName,

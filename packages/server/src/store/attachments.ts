@@ -2,7 +2,7 @@ import { getDatabase } from './index';
 import { mkdirSync, writeFileSync, unlinkSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import type { AttachmentKind } from '@jean2/shared';
+import type { AttachmentKind } from '@jean2/sdk';
 import { listSessionsByWorkspace } from './sessions';
 
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;

@@ -1,4 +1,4 @@
-import type { MessageEvent, StepPart } from '@jean2/shared';
+import type { MessageEvent, StepPart } from '@jean2/sdk';
 import { createPart, updatePart } from '@/store';
 import { createStepPart } from './part-utils';
 import { randomUUID } from 'crypto';

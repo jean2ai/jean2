@@ -3,7 +3,7 @@ export type {
   Session,
   SessionStatus,
   SubagentStatus,
-} from '@jean2/shared';
+} from './session';
 
 export type {
   Message,
@@ -24,44 +24,30 @@ export type {
   QueuedMessage,
   PartField,
   MessageEvent,
-} from '@jean2/shared';
+} from './message';
 
-export type { Workspace } from '@jean2/shared';
-export type { Preconfig, PreconfigMode } from '@jean2/shared';
-export type { PromptInfo } from '@jean2/shared';
+export type { Workspace } from './workspace';
+export type { Preconfig, PreconfigMode } from './preconfig';
+export type { PromptInfo } from './prompt';
 
 export type {
   ToolPermission,
   PermissionType,
   PermissionKey,
-} from '@jean2/shared';
+  SecurityCheckInput,
+  SecurityCheckResult,
+} from './permission';
 
 export type {
   SessionInterruptResult,
   InterruptReason,
   InterruptState,
-} from '@jean2/shared';
+} from './interrupt';
 
 export type {
   ToolDefinition,
   ToolRuntime,
-} from '@jean2/shared';
-
-export type {
-  ModelDefinition,
-  ModelTier,
-  ProviderDefinition,
-  ModelWithProvider,
-  ModelsConfig,
-  AttachmentKind,
-  ModelCapabilities,
-} from '@jean2/shared';
-
-export type {
-  ProviderStatus,
-  AuthType,
-  ProviderDescriptor,
-} from '@jean2/shared';
+} from './tool';
 
 // Protocol types
 export type {
@@ -90,8 +76,11 @@ export type {
   ProviderConnectMessage,
   ProviderDisconnectMessage,
   ToolApprovalMessage,
+} from '../protocol/client';
+
+export type {
   ServerMessage,
-} from '@jean2/shared';
+} from '../protocol/server';
 
 // Individual server message types
 export type {
@@ -136,14 +125,14 @@ export type {
   AuthErrorMessage,
   InvalidRequestErrorMessage,
   ContextOverflowErrorMessage,
-} from '@jean2/shared';
+} from '../protocol/server';
 
 // Terminal types
 export type {
   TerminalSessionInfo,
   TerminalSessionInit,
   TerminalEvent,
-} from '@jean2/shared';
+} from '../protocol/terminal';
 
 // Type guards
 export {
@@ -156,7 +145,7 @@ export {
   isCompactionPart,
   isAssistantMessage,
   isUserMessage,
-} from '@jean2/shared';
+} from './message';
 
 // Configuration types
 export type {
@@ -173,7 +162,7 @@ export type {
   SetDefaultsRequest,
   CreatePromptRequest,
   UpdatePromptRequest,
-} from '@jean2/shared';
+} from './configuration';
 
 // File types
 export type {
@@ -183,15 +172,18 @@ export type {
   FilePreviewKind,
   FilePreviewResponse,
   FilePreviewContentResponse,
-} from '@jean2/shared';
+} from './file';
 
 // MCP types
 export type {
   McpServerConfig,
   McpConfig,
+  McpOAuthConfig,
+  McpLocalServerConfig,
+  McpRemoteServerConfig,
   McpStatus,
   McpServerInfo,
-} from '@jean2/shared';
+} from './mcp';
 
 // Visualization types
 export type {
@@ -200,7 +192,24 @@ export type {
   AnyVisualization,
   FileListItem,
   TodoListItem,
-} from '@jean2/shared';
+} from './visualization';
+
+// Utils
+export type {
+  ModelDefinition,
+  ModelTier,
+  ProviderDefinition,
+  ModelWithProvider,
+  ModelsConfig,
+  AttachmentKind,
+  ModelCapabilities,
+} from './model';
+
+export type {
+  ProviderStatus,
+  AuthType,
+  ProviderDescriptor,
+} from './provider';
 
 // SDK-specific types
 export type { ClientConfig, ConnectionState, SdkEvent, ReconnectOptions, HeartbeatOptions } from './sdk-types';
@@ -278,3 +287,16 @@ export type {
   PermissionTrackerEventMap,
   PendingPermissionRequest,
 } from './state-types';
+
+// Server-specific types
+export type {
+  ToolExecutionContext,
+  RuntimeSetup,
+  RuntimeSetupResult,
+  PlatformRuntimeSetup,
+  ToolApproval,
+  ToolApprovalStatus,
+  ToolExecution,
+  SkillInfo,
+  CodexProviderConfig,
+} from './server-types';

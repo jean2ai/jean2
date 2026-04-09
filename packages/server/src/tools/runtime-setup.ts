@@ -8,7 +8,7 @@ import type {
   RuntimeSetup,
   RuntimeSetupResult,
   PlatformRuntimeSetup,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 
 const RUNTIME_SETUPS: Record<string, RuntimeSetup> = {
   bun: {

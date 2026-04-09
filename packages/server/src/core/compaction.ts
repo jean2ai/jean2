@@ -10,7 +10,7 @@ import {
   buildEffectiveContextHistory,
 } from '@/store';
 import { broadcastEvent } from './broadcast';
-import type { MessageWithParts, CompactionPart, TextPart, AssistantMessage, ToolPart } from '@jean2/shared';
+import type { MessageWithParts, CompactionPart, TextPart, AssistantMessage, ToolPart } from '@jean2/sdk';
 import { randomUUID } from 'crypto';
 import {
   getCompactionModel,
