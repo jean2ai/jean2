@@ -1,15 +1,14 @@
-import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server, SlidersHorizontal} from 'lucide-react';
+import {Plus, ChevronRight} from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Session, Workspace } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { ServerSwitcher } from './ServerSwitcher';
+
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -59,11 +58,6 @@ interface AppSidebarProps {
 
   onCreateSessionInWorkspace: (workspaceId: string) => void;
 
-  onOpenSettings: () => void;
-  onOpenMCP: () => void;
-  onOpenAddServer: () => void;
-  onOpenConfiguration: () => void;
-  onServerSwitch?: () => void;
   onEscape?: () => void;
   sdkClient: Jean2Client | null;
 }
@@ -95,11 +89,6 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onCreatePhysicalWorkspace,
     onDeleteWorkspace,
     onCreateSessionInWorkspace,
-    onOpenSettings,
-    onOpenMCP,
-    onOpenAddServer,
-    onOpenConfiguration,
-    onServerSwitch,
     onEscape,
     sdkClient,
   } = props;
@@ -287,11 +276,9 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     <Sidebar collapsible="offcanvas">
       {/* Sessions panel resize handle — desktop only, right edge */}
       <SessionsResizeHandle />
-      {/* Header: Workspace + New Chat */}
-      <SidebarHeader>
-        <div className="p-2 space-y-2">
-          <ServerSwitcher onOpenAddServer={onOpenAddServer} onServerSwitch={onServerSwitch} />
-          {viewMode !== 'overview' && (
+      {viewMode !== 'overview' && (
+        <SidebarHeader>
+          <div className="p-2 space-y-2">
             <WorkspaceSwitcher
               workspaces={workspaces}
               activeWorkspace={activeWorkspace}
@@ -303,9 +290,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
               onDeleteWorkspace={onDeleteWorkspace}
               sdkClient={sdkClient}
             />
-          )}
-        </div>
-        {viewMode !== 'overview' && (
+          </div>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -318,8 +303,8 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-        )}
-      </SidebarHeader>
+        </SidebarHeader>
+      )}
 
       {/* Content: Session lists */}
       <SidebarContent
@@ -436,45 +421,6 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
           </>
         )}
       </SidebarContent>
-
-      {/* Footer: Status + Settings */}
-      {/*<SidebarFooter style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>*/}
-      <SidebarFooter className='pb-4'>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center gap-2 px-2 py-1.5">
-              {connected ? (
-                <Wifi className="size-3.5 text-success" />
-              ) : (
-                <WifiOff className="size-3.5 text-destructive" />
-              )}
-              <span className="text-xs text-muted-foreground">
-                {connected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={onOpenMCP}>
-              <Server className="size-4" data-icon="inline-start" />
-              <span>MCP Servers</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={onOpenConfiguration}>
-              <SlidersHorizontal className="size-4" data-icon="inline-start" />
-              <span>Configuration</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <div className="flex items-center gap-1">
-              <SidebarMenuButton onClick={onOpenSettings}>
-                <Settings className="size-4" data-icon="inline-start" />
-                <span>Settings</span>
-              </SidebarMenuButton>
-            </div>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 });

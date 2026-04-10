@@ -618,11 +618,6 @@ function AppContent() {
     setCurrentSession(null);
   };
 
-  const handleQuickSwitchWorkspaceSelect = (workspaceId: string) => {
-    // Store the pending selection - it will be applied when data loads
-    pendingWorkspaceIdRef.current = workspaceId;
-  };
-
   const deleteWorkspace = async (id: string) => {
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
@@ -817,7 +812,135 @@ function AppContent() {
   const isLoggedIn = !!(activeServer);
 
   return (
-    <SidebarProvider panelId="sessions" defaultOpen={true} style={{ '--sidebar-width': `${sessionsPanelWidth}px` } as React.CSSProperties}>
+    <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '3.5rem' } as React.CSSProperties}>
+      <AppHeader
+        headerTitle={headerTitle}
+        isLoggedIn={isLoggedIn}
+        activeWorkspace={activeWorkspace}
+        onServerSwitch={handleServerSwitch}
+        onSidebarViewModeChange={handleSidebarViewModeChange}
+        connected={connected}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenMCP={() => setShowMCPDialog(true)}
+        onOpenConfiguration={() => setShowConfiguration(true)}
+        onOpenAddServer={() => setShowAddServer(true)}
+      />
+
+      <div className="flex flex-1 min-h-0">
+        {isLoggedIn && (
+          <AppSidebar
+            ref={sidebarRef}
+            allSessions={sessions}
+            favoritedWorkspaceIds={favoritedWorkspaceIds}
+            sessions={workspaceSessions}
+            currentSession={currentSession}
+            currentSessionId={currentSession?.id ?? null}
+            streamingSessionIds={streamingSessionIds}
+            connected={connected}
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
+            onResumeSession={resumeSession}
+            onCloseSession={closeSession}
+            onReopenSession={reopenSession}
+            onDeleteSession={permanentlyDeleteSession}
+            onRenameSession={handleRenameSession}
+            onSelectWorkspace={selectWorkspace}
+            onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
+            onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
+            onDeleteWorkspace={deleteWorkspace}
+            onEscape={() => {
+              if (currentSession) {
+                chatInputRef.current?.focus();
+              }
+            }}
+            onCreateSessionInWorkspace={createSessionInWorkspace}
+            pendingPermissions={pendingPermissions}
+            sdkClient={sdkClient}
+          />
+        )}
+
+        <main className="flex-1 flex flex-col overflow-hidden min-h-0" style={{
+          paddingTop: 'env(safe-area-inset-top, 0)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        }}>
+          <AppMainContent
+            servers={servers}
+            activeServer={activeServer}
+            isSwitching={isSwitching}
+            connected={connected}
+            authError={authError}
+            connectionTimedOut={connectionTimedOut}
+            retryCount={retryCount}
+            nextRetryIn={nextRetryIn}
+            serverUrl={serverUrl}
+            currentSession={currentSession}
+            messagesWithParts={messagesWithParts}
+            queuedMessages={queuedMessages}
+            preconfigs={preconfigs}
+            primaryPreconfigs={primaryPreconfigs}
+            prompts={prompts}
+            models={models}
+            defaultModel={defaultModel}
+            selectedVariant={selectedVariant}
+            pendingPermissions={pendingPermissions}
+            sessionUsage={sessionUsage}
+            currentModel={currentModel}
+            streamingSessionIds={streamingSessionIds}
+            isCompacting={isCompacting}
+            compactionSuccess={compactionSuccess}
+            isPrimarySession={isPrimarySession}
+            inputRef={chatInputRef}
+            sdkClient={sdkClient}
+            onFirstServerAdded={handleFirstServerAdded}
+            onRetry={handleRetry}
+            onLogout={handleLogout}
+            onSendMessage={sendChatMessage}
+            onRemoveFromQueue={removeFromQueue}
+            onChangePreconfig={updateSessionPreconfig}
+            onChangeModel={updateSessionModel}
+            onChangeVariant={updateSessionVariant}
+            onPermissionResponse={handlePermissionResponse}
+            onRename={handleRenameSession}
+            onNavigateToSubagent={resumeSession}
+            onNavigateBack={handleNavigateBack}
+            onInterrupt={handleInterruptSession}
+            onRevert={revertSession}
+            onFork={forkSession}
+            onCompact={compactSession}
+            onClearCompactionSuccess={() => setCompactionSuccess(false)}
+            scrollToBottomRef={scrollToBottomRef}
+            autoFollowToggleRef={autoFollowToggleRef}
+          />
+
+          <AppPanels
+            workspaceId={activeWorkspace?.id}
+            workspacePath={activeWorkspace?.path}
+            workspaceName={activeWorkspace?.name}
+            sdkClient={sdkClient}
+            terminalPanelRef={terminalPanelRef}
+          />
+        </main>
+
+        {isLoggedIn && (
+          <FilesPanel
+            ref={filesPanelRef}
+            workspaceId={activeWorkspace?.id}
+            sdkClient={sdkClient}
+            isOpen={showFilesPanel}
+            onClose={() => setShowFilesPanel(false)}
+          />
+        )}
+
+        {isLoggedIn && (
+          <div
+            data-panel-gap="files"
+            className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
+            style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
+          />
+        )}
+      </div>
+
       <AppKeyboardHandlersMount
         sidebarRef={sidebarRef}
         terminalPanelRef={terminalPanelRef}
@@ -830,132 +953,6 @@ function AppContent() {
         createSession={createSession}
         onToggleAutoFollow={() => autoFollowToggleRef.current?.toggle()}
       />
-      {isLoggedIn && (
-        <AppSidebar
-          ref={sidebarRef}
-          allSessions={sessions}
-          favoritedWorkspaceIds={favoritedWorkspaceIds}
-          sessions={workspaceSessions}
-          currentSession={currentSession}
-          currentSessionId={currentSession?.id ?? null}
-          streamingSessionIds={streamingSessionIds}
-          connected={connected}
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
-          onResumeSession={resumeSession}
-          onCloseSession={closeSession}
-          onReopenSession={reopenSession}
-          onDeleteSession={permanentlyDeleteSession}
-          onRenameSession={handleRenameSession}
-          onSelectWorkspace={selectWorkspace}
-          onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
-          onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
-          onDeleteWorkspace={deleteWorkspace}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenMCP={() => setShowMCPDialog(true)}
-          onOpenAddServer={() => setShowAddServer(true)}
-          onOpenConfiguration={() => setShowConfiguration(true)}
-          onServerSwitch={handleServerSwitch}
-          onEscape={() => {
-            if (currentSession) {
-              chatInputRef.current?.focus();
-            }
-          }}
-          onCreateSessionInWorkspace={createSessionInWorkspace}
-          pendingPermissions={pendingPermissions}
-          sdkClient={sdkClient}
-        />
-      )}
-
-      {isLoggedIn && (
-        <FilesPanel
-          ref={filesPanelRef}
-          workspaceId={activeWorkspace?.id}
-          sdkClient={sdkClient}
-          isOpen={showFilesPanel}
-          onClose={() => setShowFilesPanel(false)}
-        />
-      )}
-
-      <main className="flex-1 flex flex-col overflow-hidden" style={{
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
-        <AppHeader
-          headerTitle={headerTitle}
-          isLoggedIn={isLoggedIn}
-          activeWorkspace={activeWorkspace}
-          onServerSwitch={handleServerSwitch}
-          onSelectWorkspace={handleQuickSwitchWorkspaceSelect}
-          onSidebarViewModeChange={handleSidebarViewModeChange}
-        />
-
-        <AppMainContent
-          servers={servers}
-          activeServer={activeServer}
-          isSwitching={isSwitching}
-          connected={connected}
-          authError={authError}
-          connectionTimedOut={connectionTimedOut}
-          retryCount={retryCount}
-          nextRetryIn={nextRetryIn}
-          serverUrl={serverUrl}
-          currentSession={currentSession}
-          messagesWithParts={messagesWithParts}
-          queuedMessages={queuedMessages}
-          preconfigs={preconfigs}
-          primaryPreconfigs={primaryPreconfigs}
-          prompts={prompts}
-          models={models}
-          defaultModel={defaultModel}
-          selectedVariant={selectedVariant}
-          pendingPermissions={pendingPermissions}
-          sessionUsage={sessionUsage}
-          currentModel={currentModel}
-          streamingSessionIds={streamingSessionIds}
-          isCompacting={isCompacting}
-          compactionSuccess={compactionSuccess}
-          isPrimarySession={isPrimarySession}
-          inputRef={chatInputRef}
-          sdkClient={sdkClient}
-          onFirstServerAdded={handleFirstServerAdded}
-          onRetry={handleRetry}
-          onLogout={handleLogout}
-          onSendMessage={sendChatMessage}
-          onRemoveFromQueue={removeFromQueue}
-          onChangePreconfig={updateSessionPreconfig}
-          onChangeModel={updateSessionModel}
-          onChangeVariant={updateSessionVariant}
-          onPermissionResponse={handlePermissionResponse}
-          onRename={handleRenameSession}
-          onNavigateToSubagent={resumeSession}
-          onNavigateBack={handleNavigateBack}
-          onInterrupt={handleInterruptSession}
-          onRevert={revertSession}
-          onFork={forkSession}
-          onCompact={compactSession}
-          onClearCompactionSuccess={() => setCompactionSuccess(false)}
-          scrollToBottomRef={scrollToBottomRef}
-          autoFollowToggleRef={autoFollowToggleRef}
-        />
-
-        <AppPanels
-          workspaceId={activeWorkspace?.id}
-          workspacePath={activeWorkspace?.path}
-          workspaceName={activeWorkspace?.name}
-          sdkClient={sdkClient}
-          terminalPanelRef={terminalPanelRef}
-        />
-      </main>
-
-      {isLoggedIn && (
-        <div
-          data-panel-gap="files"
-          className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
-          style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
-        />
-      )}
 
       {isLoggedIn && (
         <>

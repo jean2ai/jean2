@@ -238,9 +238,9 @@ function Sidebar({
           className
         )}
         style={{
-          top: 'env(safe-area-inset-top, 0)',
-          bottom: 'env(safe-area-inset-bottom, 0)',
-          height: 'calc(100vh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0))',
+          top: 'calc(var(--header-height, 0px) + env(safe-area-inset-top, 0px))',
+          bottom: 'env(safe-area-inset-bottom, 0px)',
+          height: 'calc(100vh - var(--header-height, 0px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
         }}
         {...props}
       >
