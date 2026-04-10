@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Key, Check, X, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 interface PanelProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface ProviderCredentialStatus {
@@ -14,7 +14,7 @@ interface ProviderCredentialStatus {
   configured: boolean;
 }
 
-export function ProviderCredentialsPanel({ httpClient }: PanelProps) {
+export function ProviderCredentialsPanel({ sdkClient }: PanelProps) {
   const [providers, setProviders] = useState<ProviderCredentialStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,18 +24,18 @@ export function ProviderCredentialsPanel({ httpClient }: PanelProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
-    if (!httpClient) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await httpClient.get<{ providers: ProviderCredentialStatus[] }>('/config/providers');
+      const data = await sdkClient.http.providers.listCredentials();
       setProviders(data.providers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load providers');
     } finally {
       setLoading(false);
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadProviders();
@@ -45,7 +45,7 @@ export function ProviderCredentialsPanel({ httpClient }: PanelProps) {
     if (!apiKeyInput.trim()) return;
     setActionLoading(provider);
     try {
-      await httpClient!.put(`/config/providers/${provider}`, { apiKey: apiKeyInput.trim() });
+      await sdkClient!.http.providers.setCredential(provider, { apiKey: apiKeyInput.trim() });
       setEditingProvider(null);
       setApiKeyInput('');
       setShowKey(false);
@@ -60,7 +60,7 @@ export function ProviderCredentialsPanel({ httpClient }: PanelProps) {
   const handleClearKey = async (provider: string) => {
     setActionLoading(provider);
     try {
-      await httpClient!.delete(`/config/providers/${provider}`);
+      await sdkClient!.http.providers.clearCredential(provider);
       await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clear key');

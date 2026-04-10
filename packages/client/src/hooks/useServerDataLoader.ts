@@ -68,8 +68,8 @@ export function useServerDataLoader({
   }, [activeWorkspace]);
 
   useEffect(() => {
-    const httpClient = clientRef.current?.httpClient ?? null;
-    if (!apiToken || !serverUrl || !httpClient) return;
+    const sdkClient = clientRef.current;
+    if (!apiToken || !serverUrl || !sdkClient) return;
 
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
@@ -79,25 +79,18 @@ export function useServerDataLoader({
 
     setIsLoadingServerData(true);
 
-    Promise.all([
-      httpClient.get<{ sessions: Session[] }>('/sessions', { signal }),
-      httpClient.get<{ preconfigs: Preconfig[] }>('/preconfigs', { signal }),
-      httpClient.get<{ prompts: PromptInfo[] }>('/prompts', { signal }),
-      httpClient.get<{ models: ModelInfo[]; defaultModel: string }>('/models', { signal }),
-      httpClient.get<{ workspaces: Workspace[] }>('/workspaces', { signal }),
-      httpClient.get<{ providers: ProviderStatus[] }>('/providers', { signal }),
-    ])
-      .then(([sessionsData, preconfigsData, promptsData, modelsData, workspacesData, providersData]) => {
+    sdkClient.http.loadAll({ signal })
+      .then((data) => {
         if (serverEpochRef.current !== localEpoch) return;
 
-        setSessions(sessionsData.sessions || []);
-        setPreconfigs(preconfigsData.preconfigs || []);
-        setPrompts(promptsData.prompts || []);
-        setModels((modelsData.models || []).filter((m: ModelInfo) => m.runtimeStatus?.usable));
-        setDefaultModel(modelsData.defaultModel || 'gpt-4o');
-        setProviderStatuses(providersData.providers || []);
+        setSessions(data.sessions);
+        setPreconfigs(data.preconfigs);
+        setPrompts(data.prompts);
+        setModels((data.models || []).filter((m) => m.runtimeStatus?.usable) as ModelInfo[]);
+        setDefaultModel(data.defaultModel || 'gpt-4o');
+        setProviderStatuses(data.providers);
 
-        const workspaces = workspacesData.workspaces || [];
+        const workspaces = data.workspaces;
         setWorkspaces(workspaces);
 
         if (pendingWorkspaceIdRef.current) {

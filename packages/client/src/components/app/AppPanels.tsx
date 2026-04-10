@@ -1,6 +1,7 @@
 import { TerminalPanel } from '@/components/layout/TerminalPanel';
 import { useUIStore } from '@/stores/uiStore';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
+import type { Jean2Client } from '@jean2/sdk';
 
 interface AppPanelsProps {
   workspaceId?: string;
@@ -8,6 +9,7 @@ interface AppPanelsProps {
   workspaceName?: string;
   serverUrl?: string;
   apiToken?: string;
+  sdkClient: Jean2Client | null;
   terminalPanelRef: React.RefObject<TerminalPanelHandle | null>;
 }
 
@@ -17,6 +19,7 @@ export function AppPanels({
   workspaceName,
   serverUrl,
   apiToken,
+  sdkClient,
   terminalPanelRef,
 }: AppPanelsProps) {
   const showTerminalPanel = useUIStore((s) => s.showTerminalPanel);
@@ -30,6 +33,7 @@ export function AppPanels({
       workspaceName={workspaceName}
       serverUrl={serverUrl}
       apiToken={apiToken}
+      sdkClient={sdkClient}
       isOpen={showTerminalPanel}
       onClose={() => setShowTerminalPanel(false)}
     />

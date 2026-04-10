@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +21,7 @@ interface MessageInputProps {
   onStopStreaming?: () => void;
   placeholder?: string;
   workspaceId?: string;
-  httpClient?: HttpClient | null;
+  sdkClient?: Jean2Client | null;
   prompts?: PromptInfo[];
   sessionId?: string;
   modelSupportsImage?: boolean;
@@ -69,7 +69,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   onStopStreaming,
   placeholder = 'Type a message...',
   workspaceId,
-  httpClient,
+  sdkClient,
   prompts = [],
   sessionId,
   modelSupportsImage,
@@ -197,16 +197,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }, [pendingAttachments, clearInput]);
 
   const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
-    if (!httpClient || !sessionId) return null;
+    if (!sdkClient || !sessionId) return null;
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const attachment = await httpClient.post<{ id: string; kind: string; filename: string; size: number }>(
-        `/sessions/${sessionId}/attachments`,
-        formData,
-      );
+      const attachment = await sdkClient?.http.attachments.upload(sessionId, file);
 
       return {
         id: crypto.randomUUID(),
@@ -221,7 +215,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       console.error('Upload error:', err);
       return null;
     }
-  }, [httpClient, sessionId]);
+  }, [sdkClient, sessionId]);
 
   const removeAttachment = useCallback((id: string) => {
     setPendingAttachments(prev => {
@@ -500,7 +494,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   selectedIndex={selectedIndex}
                   onSelect={handleFileSelectWrapper}
                   onFilesChange={handleFilesChange}
-                  httpClient={httpClient}
+                  sdkClient={sdkClient}
                 />
               ) : (
                 <PromptAutocomplete

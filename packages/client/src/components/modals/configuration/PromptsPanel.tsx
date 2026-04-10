@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { FileText, Plus, Pencil, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 
 interface PanelProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface PromptInfo {
@@ -15,7 +15,7 @@ interface PromptInfo {
   content: string;
 }
 
-export function PromptsPanel({ httpClient }: PanelProps) {
+export function PromptsPanel({ sdkClient }: PanelProps) {
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,18 +29,18 @@ export function PromptsPanel({ httpClient }: PanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const loadPrompts = useCallback(async () => {
-    if (!httpClient) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await httpClient.get<{ prompts: PromptInfo[] }>('/config/prompts');
+      const data = await sdkClient.http.config.prompts.list();
       setPrompts(data.prompts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load prompts');
     } finally {
       setLoading(false);
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadPrompts();
@@ -66,9 +66,9 @@ export function PromptsPanel({ httpClient }: PanelProps) {
     setError(null);
     try {
       if (isCreating) {
-        await httpClient!.post('/config/prompts', { name: editName.trim(), content: editContent });
+        await sdkClient!.http.config.prompts.create({ name: editName.trim(), content: editContent });
       } else if (editingPrompt) {
-        await httpClient!.put(`/config/prompts/${editingPrompt.name}`, { content: editContent });
+        await sdkClient!.http.config.prompts.update(editingPrompt.name, { content: editContent });
       }
       setIsCreating(false);
       setEditingPrompt(null);
@@ -83,7 +83,7 @@ export function PromptsPanel({ httpClient }: PanelProps) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await httpClient!.delete(`/config/prompts/${deleteTarget}`);
+      await sdkClient!.http.config.prompts.delete(deleteTarget);
       setDeleteTarget(null);
       await loadPrompts();
     } catch (err) {

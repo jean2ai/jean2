@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
@@ -12,7 +12,7 @@ interface FileTreeNodeProps {
   depth: number;
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
-  httpClient?: HttpClient | null;
+  sdkClient?: Jean2Client | null;
 }
 
 const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
@@ -33,7 +33,7 @@ export function FileTreeNode({
   depth,
   onFileSelect,
   showHidden = true,
-  httpClient,
+  sdkClient,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[]>([]);
@@ -44,14 +44,12 @@ export function FileTreeNode({
   const isDirectory = entry.type === 'directory';
 
   const loadChildren = async () => {
-    if (hasLoaded || isLoading || !httpClient) return;
+    if (hasLoaded || isLoading || !sdkClient) return;
 
     setIsLoading(true);
 
     try {
-      const data = await httpClient.get<{ files: FileEntry[] }>(`/workspaces/${workspaceId}/files`, {
-        params: { path: fullPath, showHidden: String(showHidden) },
-      });
+      const data = await sdkClient.http.files.browse(workspaceId, fullPath, { showHidden });
       setChildren(data.files || []);
       setHasLoaded(true);
     } catch (err) {
@@ -148,7 +146,7 @@ export function FileTreeNode({
             depth={depth + 1}
             onFileSelect={onFileSelect}
             showHidden={showHidden}
-            httpClient={httpClient}
+            sdkClient={sdkClient}
           />
         ))}
       </CollapsibleContent>

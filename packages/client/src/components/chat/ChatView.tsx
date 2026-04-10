@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/shared';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
@@ -81,7 +81,7 @@ interface ChatViewProps {
   compactionSuccess?: boolean;
   onClearCompactionSuccess?: () => void;
   serverUrl?: string;
-  httpClient?: HttpClient | null;
+  sdkClient?: Jean2Client | null;
   selectedVariant: string | null;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
   inputRef?: React.RefObject<MessageInputHandle | null>;
@@ -91,7 +91,8 @@ interface ChatViewProps {
 
 function mergeMessagesWithQueue(
   messagesWithParts: MessageWithParts[],
-  queuedMessages: QueuedMessage[]
+  queuedMessages: QueuedMessage[],
+  getUrl: (sessionId: string, attachmentId: string, key: string) => string
 ): DisplayItem[] {
   const regularItems: DisplayItem[] = messagesWithParts.map(mwp => ({
     message: mwp.message,
@@ -101,7 +102,7 @@ function mergeMessagesWithQueue(
 
   const queuedItems: DisplayItem[] = queuedMessages.map(qm => {
     const attachmentParts = (qm.attachments || []).map(att => {
-      const url = `/api/sessions/${qm.sessionId}/attachments/${att.id}/content?key=${att.accessKey}`;
+      const url = getUrl(qm.sessionId, att.id, att.accessKey ?? '');
       if (att.kind === 'image') {
         return {
           id: `${qm.id}-att-${att.id}`,
@@ -260,7 +261,7 @@ export function ChatView({
   compactionSuccess,
   onClearCompactionSuccess,
   serverUrl,
-  httpClient,
+  sdkClient,
   selectedVariant,
   variants,
   inputRef,
@@ -294,8 +295,14 @@ export function ChatView({
   }, [autoFollowToggleRef, handleToggleAutoFollow]);
 
   const displayItems = useMemo(
-    () => mergeMessagesWithQueue(messagesWithParts, queuedMessages),
-    [messagesWithParts, queuedMessages]
+    () => mergeMessagesWithQueue(
+      messagesWithParts,
+      queuedMessages,
+      sdkClient?.http.attachments.getUrl ?? ((sessionId, attachmentId, key) =>
+        `/api/sessions/${encodeURIComponent(sessionId)}/attachments/${encodeURIComponent(attachmentId)}/content?key=${encodeURIComponent(key)}`
+      )
+    ),
+    [messagesWithParts, queuedMessages, sdkClient]
   );
 
   // Permission requests that don't have matching tool parts in the transcript
@@ -387,7 +394,7 @@ export function ChatView({
           onSendMessage={onSendMessage}
           disabled={isCompacting}
           workspaceId={session.workspaceId}
-          httpClient={httpClient}
+          sdkClient={sdkClient}
           prompts={prompts}
           sessionId={session.id}
           modelSupportsImage={modelSupportsImage}

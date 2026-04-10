@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/shared';
 import {
   Plus,
@@ -27,7 +27,7 @@ import {
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 
 interface PanelProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface ProviderConfig {
@@ -102,7 +102,7 @@ interface ModelFormData {
 const emptyProviderForm: ProviderFormData = { id: '', name: '' };
 const emptyModelForm: ModelFormData = { id: '', name: '', contextWindow: 128000, maxOutputTokens: undefined, tier: 'standard' as Tier };
 
-export function ModelsPanel({ httpClient }: PanelProps) {
+export function ModelsPanel({ sdkClient }: PanelProps) {
   const [config, setConfig] = useState<ModelsConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,11 +199,11 @@ export function ModelsPanel({ httpClient }: PanelProps) {
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
 
   const loadConfig = useCallback(async () => {
-    if (!httpClient) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await httpClient.get<ModelsConfigResponse>('/config/models');
+      const data = await sdkClient.http.config.models.get();
       setConfig(data);
       setDefaultsForm({ defaultProvider: data.defaultProvider, defaultModel: data.defaultModel });
     } catch (err) {
@@ -211,7 +211,7 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadConfig();
@@ -234,14 +234,12 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     setSavingProvider(true);
     setError(null);
     try {
-      const body = isCreatingProvider
-        ? { id: providerForm.id.trim(), name: providerForm.name.trim() }
-        : { name: providerForm.name.trim() };
-
       if (isCreatingProvider) {
-        await httpClient!.post('/config/models/providers', body);
+        const body = { id: providerForm.id.trim(), name: providerForm.name.trim() };
+        await sdkClient!.http.config.models.createProvider(body);
       } else {
-        await httpClient!.put(`/config/models/providers/${editingProvider}`, body);
+        const body = { name: providerForm.name.trim() };
+        await sdkClient!.http.config.models.updateProvider(editingProvider!, body);
       }
       setIsCreatingProvider(false);
       setEditingProvider(null);
@@ -258,7 +256,7 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     setDeletingProvider(true);
     setError(null);
     try {
-      await httpClient!.delete(`/config/models/providers/${deleteProviderTarget}`);
+      await sdkClient!.http.config.models.deleteProvider(deleteProviderTarget);
       setDeleteProviderTarget(null);
       await loadConfig();
     } catch (err) {
@@ -295,20 +293,27 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     setSavingModel(true);
     setError(null);
     try {
-      const body = {
-        ...(isCreatingModel ? { id: modelForm.id.trim() } : {}),
-        name: modelForm.name.trim(),
-        contextWindow: modelForm.contextWindow,
-        maxOutputTokens: modelForm.maxOutputTokens,
-        tier: modelForm.tier,
-        variants: modelForm.variants,
-        capabilities: modelForm.capabilities,
-      };
-
       if (isCreatingModel) {
-        await httpClient!.post(`/config/models/providers/${providerId}/models`, body);
+        const body = {
+          id: modelForm.id.trim(),
+          name: modelForm.name.trim(),
+          contextWindow: modelForm.contextWindow,
+          maxOutputTokens: modelForm.maxOutputTokens,
+          tier: modelForm.tier,
+          variants: modelForm.variants,
+          capabilities: modelForm.capabilities,
+        };
+        await sdkClient!.http.config.models.createModel(providerId, body);
       } else {
-        await httpClient!.put(`/config/models/providers/${providerId}/models/${editingModel?.modelId}`, body);
+        const body = {
+          name: modelForm.name.trim(),
+          contextWindow: modelForm.contextWindow,
+          maxOutputTokens: modelForm.maxOutputTokens,
+          tier: modelForm.tier,
+          variants: modelForm.variants,
+          capabilities: modelForm.capabilities,
+        };
+        await sdkClient!.http.config.models.updateModel(providerId, editingModel!.modelId, body);
       }
       setIsCreatingModel(null);
       setEditingModel(null);
@@ -325,7 +330,7 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     setDeletingModel(true);
     setError(null);
     try {
-      await httpClient!.delete(`/config/models/providers/${deleteModelTarget.providerId}/models/${deleteModelTarget.modelId}`);
+      await sdkClient!.http.config.models.deleteModel(deleteModelTarget.providerId, deleteModelTarget.modelId);
       setDeleteModelTarget(null);
       await loadConfig();
     } catch (err) {
@@ -339,7 +344,7 @@ export function ModelsPanel({ httpClient }: PanelProps) {
     setSavingDefaults(true);
     setError(null);
     try {
-      await httpClient!.put('/config/models/defaults', {
+      await sdkClient!.http.config.models.setDefaults({
         defaultProvider: defaultsForm.defaultProvider,
         defaultModel: defaultsForm.defaultModel,
       });

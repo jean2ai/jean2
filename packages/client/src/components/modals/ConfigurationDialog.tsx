@@ -1,4 +1,4 @@
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Key, Boxes, FileText, Layers, Link2 } from 'lucide-react';
 import {
   Dialog,
@@ -18,13 +18,13 @@ import { PreconfigsPanel } from './configuration/PreconfigsPanel';
 interface ConfigurationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 export function ConfigurationDialog({
   open,
   onOpenChange,
-  httpClient,
+  sdkClient,
 }: ConfigurationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,31 +62,31 @@ export function ConfigurationDialog({
 
           <TabsContent value="providers" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <ProviderCredentialsPanel httpClient={httpClient} />
+              <ProviderCredentialsPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="oauth" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <OAuthProvidersPanel httpClient={httpClient} />
+              <OAuthProvidersPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="models" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <ModelsPanel httpClient={httpClient} />
+              <ModelsPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="prompts" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <PromptsPanel httpClient={httpClient} />
+              <PromptsPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="preconfigs" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
-              <PreconfigsPanel httpClient={httpClient} />
+              <PreconfigsPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
         </Tabs>

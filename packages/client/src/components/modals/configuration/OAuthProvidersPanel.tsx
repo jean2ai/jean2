@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Loader2, Unplug, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/shared';
 
 interface PanelProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
-export function OAuthProvidersPanel({ httpClient }: PanelProps) {
+export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,18 +17,18 @@ export function OAuthProvidersPanel({ httpClient }: PanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const loadProviders = useCallback(async () => {
-    if (!httpClient) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await httpClient.get<{ providers: ProviderStatus[] }>('/providers');
+      const data = await sdkClient.http.providers.list();
       setProviders(data.providers || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load providers');
     } finally {
       setLoading(false);
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadProviders();
@@ -39,7 +39,7 @@ export function OAuthProvidersPanel({ httpClient }: PanelProps) {
     setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
     setError(null);
     try {
-      const data = await httpClient!.post<{ authorizationUrl?: string }>(`/providers/${providerId}/connect`);
+      const data = await sdkClient!.http.providers.connect(providerId);
       if (data.authorizationUrl) {
         const url = data.authorizationUrl;
         setAuthUrls((prev) => ({ ...prev, [providerId]: url }));
@@ -55,7 +55,7 @@ export function OAuthProvidersPanel({ httpClient }: PanelProps) {
   const handleDisconnect = async (providerId: string) => {
     setError(null);
     try {
-      await httpClient!.delete(`/providers/${providerId}`);
+      await sdkClient!.http.providers.disconnect(providerId);
       await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect provider');

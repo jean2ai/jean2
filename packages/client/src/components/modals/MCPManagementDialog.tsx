@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { McpStatus, McpServerConfig } from '@jean2/shared';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ interface MCPManagementDialogProps {
   onOpenChange: (open: boolean) => void;
   workspaceId: string | undefined;
   workspacePath: string | undefined;
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 function StatusBadge({ status }: { status: McpStatus }) {
@@ -49,7 +49,7 @@ export function MCPManagementDialog({
   onOpenChange,
   workspaceId,
   workspacePath,
-  httpClient,
+  sdkClient,
 }: MCPManagementDialogProps) {
   void workspacePath;
   const [servers, setServers] = useState<Record<string, ServerStatus>>({});
@@ -58,13 +58,13 @@ export function MCPManagementDialog({
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
-    if (!workspaceId || !httpClient) return;
+    if (!workspaceId || !sdkClient) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const data = await httpClient.get<{status: Record<string, ServerStatus>}>(`/workspaces/${workspaceId}/mcp/status`);
+      const data = await sdkClient.http.mcp.getStatus(workspaceId);
       setServers(data.status || {});
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -72,7 +72,7 @@ export function MCPManagementDialog({
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, httpClient]);
+  }, [workspaceId, sdkClient]);
 
   useEffect(() => {
     if (open && workspaceId) {
@@ -81,11 +81,11 @@ export function MCPManagementDialog({
   }, [open, workspaceId, loadStatus]);
 
   const handleConnect = async (name: string) => {
-    if (!workspaceId || !httpClient) return;
+    if (!workspaceId || !sdkClient) return;
 
     setActionLoading(name);
     try {
-      await httpClient.post(`/workspaces/${workspaceId}/mcp/connect`, { name });
+      await sdkClient.http.mcp.connect(workspaceId, name);
       await loadStatus();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -96,11 +96,11 @@ export function MCPManagementDialog({
   };
 
   const handleDisconnect = async (name: string) => {
-    if (!workspaceId || !httpClient) return;
+    if (!workspaceId || !sdkClient) return;
 
     setActionLoading(name);
     try {
-      await httpClient.post(`/workspaces/${workspaceId}/mcp/disconnect`, { name });
+      await sdkClient.http.mcp.disconnect(workspaceId, name);
       await loadStatus();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -111,11 +111,11 @@ export function MCPManagementDialog({
   };
 
   const handleAuth = async (name: string) => {
-    if (!workspaceId || !httpClient) return;
+    if (!workspaceId || !sdkClient) return;
 
     setActionLoading(name);
     try {
-      const data = await httpClient.post<{authorizationUrl?: string}>(`/workspaces/${workspaceId}/mcp/auth`, { name });
+      const data = await sdkClient.http.mcp.startAuth(workspaceId, name);
 
       if (data.authorizationUrl) {
         window.open(data.authorizationUrl, '_blank');

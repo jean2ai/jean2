@@ -419,9 +419,8 @@ function AppContent() {
   const apiToken = activeServer?.token ?? null;
   const serverUrl = activeServer?.url ?? null;
 
-  // Derive httpClient from sdkClientRef for use in child components
   // eslint-disable-next-line react-hooks/refs -- sdkClientRef is stable and only set once per server connection
-  const httpClient = sdkClientRef.current?.httpClient ?? null;
+  const sdkClient = sdkClientRef.current;
 
   // Keep currentSessionIdRef in sync with currentSession
   useEffect(() => {
@@ -865,8 +864,7 @@ function AppContent() {
           }}
           onCreateSessionInWorkspace={createSessionInWorkspace}
           pendingPermissions={pendingPermissions}
-          // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-          httpClient={httpClient}
+          sdkClient={sdkClient}
         />
       )}
 
@@ -874,8 +872,7 @@ function AppContent() {
         <FilesPanel
           ref={filesPanelRef}
           workspaceId={activeWorkspace?.id}
-          // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-          httpClient={httpClient}
+          sdkClient={sdkClient}
           isOpen={showFilesPanel}
           onClose={() => setShowFilesPanel(false)}
         />
@@ -921,8 +918,7 @@ function AppContent() {
           compactionSuccess={compactionSuccess}
           isPrimarySession={isPrimarySession}
           inputRef={chatInputRef}
-          // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-          httpClient={httpClient}
+          sdkClient={sdkClient}
           onFirstServerAdded={handleFirstServerAdded}
           onRetry={handleRetry}
           onLogout={handleLogout}
@@ -950,6 +946,7 @@ function AppContent() {
           workspaceName={activeWorkspace?.name}
           serverUrl={serverUrl ?? undefined}
           apiToken={apiToken ?? undefined}
+          sdkClient={sdkClient}
           terminalPanelRef={terminalPanelRef}
         />
       </main>
@@ -981,8 +978,7 @@ function AppContent() {
             onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
             permissionSoundEnabled={permissionSoundEnabled}
             onPermissionSoundEnabledChange={setPermissionSoundEnabled}
-            // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-            httpClient={httpClient}
+            sdkClient={sdkClient}
           />
 
           <MCPManagementDialog
@@ -990,15 +986,13 @@ function AppContent() {
             onOpenChange={setShowMCPDialog}
             workspaceId={activeWorkspace?.id}
             workspacePath={activeWorkspace?.path}
-            // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-            httpClient={httpClient}
+            sdkClient={sdkClient}
           />
 
           <ConfigurationDialog
             open={showConfiguration}
             onOpenChange={setShowConfiguration}
-            // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-            httpClient={httpClient}
+            sdkClient={sdkClient}
           />
         </>
       )}
@@ -1016,8 +1010,7 @@ function AppContent() {
         <FilePreviewOverlay
           workspaceId={activeWorkspace?.id}
           target={filePreviewTarget}
-          // eslint-disable-next-line react-hooks/refs -- httpClient derived from stable sdkClientRef
-          httpClient={httpClient}
+          sdkClient={sdkClient}
           open={filePreviewTarget !== null}
           onOpenChange={(open) => {
             if (!open) closeFilePreview();

@@ -12,6 +12,10 @@ interface ListOptions {
 
 interface CreateOptions {
   signal?: AbortSignal;
+  body?: {
+    cwd?: string;
+    shell?: string;
+  };
 }
 
 interface GetOptions {
@@ -32,8 +36,8 @@ export class TerminalsRestNamespace {
   }
 
   async create(workspaceId: string, options?: CreateOptions): Promise<CreateTerminalSessionResponse> {
-    const { signal } = options ?? {};
-    return this.http.post(`/workspaces/${encodeURIComponent(workspaceId)}/terminals`, {}, { signal });
+    const { signal, body } = options ?? {};
+    return this.http.post(`/workspaces/${encodeURIComponent(workspaceId)}/terminals`, body ?? {}, { signal });
   }
 
   async get(workspaceId: string, sessionId: string, options?: GetOptions): Promise<GetTerminalSessionResponse> {

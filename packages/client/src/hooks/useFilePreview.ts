@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { FilePreviewResponse } from '@jean2/shared';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 
 interface UseFilePreviewOptions {
   workspaceId: string | undefined;
   path: string | undefined;
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
   enabled: boolean;
 }
 
@@ -19,7 +19,7 @@ interface UseFilePreviewResult {
 export function useFilePreview({
   workspaceId,
   path,
-  httpClient,
+  sdkClient,
   enabled,
 }: UseFilePreviewOptions): UseFilePreviewResult {
   const [data, setData] = useState<FilePreviewResponse | null>(null);
@@ -29,7 +29,7 @@ export function useFilePreview({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchFilePreview = useCallback(async () => {
-    if (!enabled || !workspaceId || !path || !httpClient) {
+    if (!enabled || !workspaceId || !path || !sdkClient) {
       return;
     }
 
@@ -44,10 +44,7 @@ export function useFilePreview({
     setError(null);
 
     try {
-      const result: FilePreviewResponse = await httpClient.get<FilePreviewResponse>(
-        `/workspaces/${workspaceId}/file-preview`,
-        { params: { path }, signal: abortController.signal }
-      );
+      const result = await sdkClient.http.files.preview(workspaceId, path, { signal: abortController.signal });
       setData(result);
       setLoading(false);
     } catch (err: unknown) {
@@ -59,7 +56,7 @@ export function useFilePreview({
       setData(null);
       setLoading(false);
     }
-  }, [enabled, workspaceId, path, httpClient]);
+  }, [enabled, workspaceId, path, sdkClient]);
 
   const reload = useCallback(() => {
     fetchFilePreview();

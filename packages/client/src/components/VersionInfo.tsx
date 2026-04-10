@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import {
 } from '@/utils/githubVersion';
 
 interface VersionInfoProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
   enabled: boolean;
 }
 
@@ -57,7 +57,7 @@ function StatusBadge({ status }: { status: UpdateStatus }) {
   return <span className="text-xs text-muted-foreground">Unknown</span>;
 }
 
-export function VersionInfo({ httpClient, enabled }: VersionInfoProps) {
+export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
   const fetchIdRef = useRef(0);
 
   const [state, setState] = useState<VersionState>({
@@ -77,8 +77,8 @@ export function VersionInfo({ httpClient, enabled }: VersionInfoProps) {
 
     try {
       const results = await Promise.allSettled([
-        httpClient
-          ? httpClient.get<{ version: string }>('/info').then(data => data.version).catch(() => null)
+        sdkClient
+          ? sdkClient.httpClient.get<{ version: string }>('/info').then(data => data.version).catch(() => null)
           : Promise.resolve(null),
         fetchLatestServerVersion(),
         fetchLatestClientVersion(),
@@ -102,7 +102,7 @@ export function VersionInfo({ httpClient, enabled }: VersionInfoProps) {
       if (fetchIdRef.current !== currentFetchId) return;
       setState(prev => ({ ...prev, loading: false, fetchError: 'Unable to check for updates' }));
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -110,7 +110,7 @@ export function VersionInfo({ httpClient, enabled }: VersionInfoProps) {
   }, [fetchVersions, enabled]);
 
   const clientStatus = checkUpdate(CLIENT_VERSION, state.latestClient);
-  const serverStatus = httpClient && state.serverVersion
+  const serverStatus = sdkClient && state.serverVersion
     ? checkUpdate(state.serverVersion, state.latestServer)
     : 'unknown';
 

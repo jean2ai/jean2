@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { File, Folder, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 
 interface FileAutocompleteProps {
@@ -11,7 +11,7 @@ interface FileAutocompleteProps {
   onSelect: (file: FileEntry) => void;
   onFilesChange: (files: FileEntry[]) => void;
   showHidden?: boolean;
-  httpClient?: HttpClient | null;
+  sdkClient?: Jean2Client | null;
 }
 
 export function FileAutocomplete({
@@ -21,7 +21,7 @@ export function FileAutocomplete({
   onSelect,
   onFilesChange,
   showHidden = true,
-  httpClient,
+  sdkClient,
 }: FileAutocompleteProps) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export function FileAutocomplete({
   }, [searchQuery]);
 
   useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2 || !httpClient) {
+    if (!debouncedQuery || debouncedQuery.length < 2 || !sdkClient) {
       setFiles([]);
       onFilesChange([]);
       return;
@@ -48,7 +48,7 @@ export function FileAutocomplete({
 
     const controller = new AbortController();
 
-    httpClient
+    sdkClient?.httpClient
       .get<{ files: FileEntry[] }>(`/workspaces/${workspaceId}/files`, {
         params: { search: debouncedQuery, showHidden: String(showHidden) },
         signal: controller.signal,
@@ -69,7 +69,7 @@ export function FileAutocomplete({
       });
 
     return () => controller.abort();
-  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, httpClient]);
+  }, [workspaceId, debouncedQuery, onFilesChange, showHidden, sdkClient]);
 
   if (!searchQuery || searchQuery.length < 2) {
     return (

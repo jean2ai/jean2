@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 
 interface PanelProps {
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface Preconfig {
@@ -67,7 +67,7 @@ const emptyForm: PreconfigForm = {
   isDefault: false,
 };
 
-export function PreconfigsPanel({ httpClient }: PanelProps) {
+export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,29 +85,29 @@ export function PreconfigsPanel({ httpClient }: PanelProps) {
   const [skillInput, setSkillInput] = useState('');
 
   const loadPreconfigs = useCallback(async () => {
-    if (!httpClient) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await httpClient.get<{ preconfigs: Preconfig[] }>('/preconfigs');
+      const data = await sdkClient.http.preconfigs.list();
       setPreconfigs(data.preconfigs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load preconfigs');
     } finally {
       setLoading(false);
     }
-  }, [httpClient]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadPreconfigs();
   }, [loadPreconfigs]);
 
   useEffect(() => {
-    if (!httpClient) return;
-    httpClient.get<{ tools: { name: string; description: string }[] }>('/tools')
+    if (!sdkClient) return;
+    sdkClient.http.tools.list()
       .then(data => setAvailableTools(data.tools || []))
       .catch(() => {});
-  }, [httpClient]);
+  }, [sdkClient]);
 
   const handleCreate = () => {
     setIsCreating(true);
@@ -191,9 +191,9 @@ export function PreconfigsPanel({ httpClient }: PanelProps) {
       };
 
       if (isCreating) {
-        await httpClient!.post('/preconfigs', body);
+        await sdkClient!.http.preconfigs.create(body);
       } else if (editingPreconfig) {
-        await httpClient!.put(`/preconfigs/${editingPreconfig.id}`, body);
+        await sdkClient!.http.preconfigs.update(editingPreconfig.id, body);
       }
       setIsCreating(false);
       setEditingPreconfig(null);
@@ -209,7 +209,7 @@ export function PreconfigsPanel({ httpClient }: PanelProps) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await httpClient!.delete(`/preconfigs/${deleteTarget}`);
+      await sdkClient!.http.preconfigs.delete(deleteTarget);
       setDeleteTarget(null);
       await loadPreconfigs();
     } catch (err) {

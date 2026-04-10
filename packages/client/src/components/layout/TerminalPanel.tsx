@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { buildWsUrl, buildApiUrl } from '@/config/urls';
+import { buildWsUrl } from '@/config/urls';
 import { X, Plus, Terminal } from 'lucide-react';
 import { TerminalView } from './TerminalView';
 import {
@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 
 export interface TerminalPanelHandle {
@@ -41,6 +42,7 @@ interface TerminalPanelProps {
   workspaceName: string | undefined;
   serverUrl: string | undefined;
   apiToken: string | undefined;
+  sdkClient: Jean2Client | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -55,6 +57,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   workspaceName,
   serverUrl,
   apiToken,
+  sdkClient,
   isOpen,
   onClose,
 }, ref) {
@@ -341,34 +344,21 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   }, [isOpen, activeTabServerId, attachActiveTerminal]);
 
   const addTab = useCallback(async () => {
-    if (!workspaceId || !workspacePath || !serverUrl || !apiToken) return;
+    if (!workspaceId || !workspacePath || !sdkClient) return;
 
     try {
-      const response = await fetch(
-        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals`),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiToken}`,
-          },
-          body: JSON.stringify({ cwd: workspacePath }),
-        }
-      );
-      if (!response.ok) {
-        console.error('[TerminalPanel] Failed to create terminal:', response.statusText);
-      }
+      await sdkClient.http.terminals.create(workspaceId, { body: { cwd: workspacePath } });
     } catch (err) {
       console.error('[TerminalPanel] Failed to create terminal:', err);
     }
-  }, [workspaceId, workspacePath, serverUrl, apiToken]);
+  }, [workspaceId, workspacePath, sdkClient]);
 
   useEffect(() => {
     addTabRef.current = addTab;
   }, [addTab]);
 
   const closeTab = useCallback(async (serverSessionId: string) => {
-    if (!workspaceId || !serverUrl || !apiToken) return;
+    if (!workspaceId || !sdkClient) return;
 
     if (activeConnectionRef.current?.serverSessionId === serverSessionId) {
       activeConnectionRef.current.destroy();
@@ -379,17 +369,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     terminalCacheRef.current.dispose(serverSessionId);
 
     try {
-      await fetch(
-        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals/${serverSessionId}`),
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${apiToken}` },
-        }
-      );
+      await sdkClient.http.terminals.delete(workspaceId, serverSessionId);
     } catch (err) {
       console.error('[TerminalPanel] Failed to destroy terminal:', err);
     }
-  }, [workspaceId, serverUrl, apiToken]);
+  }, [workspaceId, sdkClient]);
 
   useEffect(() => {
     if (autoCreateResetRef.current !== workspaceId) {

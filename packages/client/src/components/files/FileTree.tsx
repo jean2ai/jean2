@@ -1,14 +1,14 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/shared';
-import type { HttpClient } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeNode } from './FileTreeNode';
 
 interface FileTreeProps {
   workspaceId: string;
-  httpClient: HttpClient | null;
+  sdkClient: Jean2Client | null;
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
   width?: number;
@@ -20,7 +20,7 @@ export interface FileTreeHandle {
 }
 
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
-  ({ workspaceId, httpClient, onFileSelect, showHidden = true, width }, ref) => {
+  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width }, ref) => {
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [currentPath, setCurrentPath] = useState('');
     const [loading, setLoading] = useState(true);
@@ -28,25 +28,22 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
     const containerRef = useRef<HTMLDivElement>(null);
 
     const loadRoot = useCallback(async () => {
-      if (!httpClient) return;
+      if (!sdkClient) return;
 
       setLoading(true);
       setError(null);
 
       try {
-        const data = await httpClient.get<{ files: FileEntry[]; currentPath: string }>(
-          `/workspaces/${workspaceId}/files`,
-          { params: { showHidden: String(showHidden) } }
-        );
+        const data = await sdkClient.http.files.browse(workspaceId, undefined, { showHidden });
 
         setFiles(data.files);
-        setCurrentPath(data.currentPath);
+        setCurrentPath(data.currentPath || '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load files');
       } finally {
         setLoading(false);
       }
-    }, [workspaceId, showHidden, httpClient]);
+    }, [workspaceId, showHidden, sdkClient]);
 
     useEffect(() => {
       loadRoot();
@@ -187,7 +184,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                   depth={0}
                   onFileSelect={onFileSelect}
                   showHidden={showHidden}
-                  httpClient={httpClient}
+                  sdkClient={sdkClient}
                 />
               ))}
             </div>
