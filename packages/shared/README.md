@@ -217,7 +217,6 @@ The client and server communicate over WebSocket using typed message unions.
 | `session.revert` | Revert session to a specific message |
 | `session.fork` | Fork a session at a specific message |
 | `session.interrupt` | Interrupt a running session |
-| `tool.approval` | Respond to a tool approval request |
 | `permission.response` | Respond to a permission request |
 | `permission.list` | List granted permissions for a workspace |
 | `permission.revoke` | Revoke a specific permission |
@@ -246,15 +245,11 @@ The client and server communicate over WebSocket using typed message unions.
 | `part.updated` | Part state changed |
 | `part.append` | Streaming text/reasoning delta |
 | `chat.usage` | Token usage and cost update |
-| `tool.approval_required` | Tool needs user approval |
 | `permission.request` | Permission required for tool execution |
 | `permission.granted` | Permission granted (with cache flag) |
 | `permission.list` | List of granted permissions |
 | `permission.revoked` | Permission revoked |
 | `permission.all_revoked` | All permissions revoked |
-| `subagent.started` | Subagent session spawned |
-| `subagent.completed` | Subagent finished (with result or error) |
-| `subagent.progress` | Subagent real-time progress |
 | `compaction.complete` | Message compaction finished |
 | `error` | Server error |
 | `queue.list` | Current message queue |

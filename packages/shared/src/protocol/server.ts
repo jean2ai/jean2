@@ -50,14 +50,6 @@ export interface PartAppendMessage {
   delta: string;
 }
 
-export interface ToolApprovalRequiredMessage {
-  type: 'tool.approval_required';
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  dangerous: boolean;
-}
-
 // code can be: 'rate_limit' | 'server_error' | 'timeout' | 'authentication' | 'invalid_request' | 'chat_error' | 'parse_error' | 'not_found' | etc.
 export interface ErrorMessage {
   type: 'error';
@@ -155,32 +147,6 @@ export interface PermissionsSyncResponseMessage {
     details?: Record<string, unknown>;
     dangerous?: boolean;
   }>;
-}
-
-export interface SubagentStartedMessage {
-  type: 'subagent.started';
-  parentSessionId: string;
-  childSessionId: string;
-  subagentType: string;
-  description: string;
-}
-
-export interface SubagentCompletedMessage {
-  type: 'subagent.completed';
-  parentSessionId: string;
-  childSessionId: string;
-  subagentType: string;
-  result: string;
-  error?: string;
-}
-
-export interface SubagentProgressMessage {
-  type: 'subagent.progress';
-  parentSessionId: string;
-  childSessionId: string;
-  status: 'thinking' | 'tool_call' | 'tool_result';
-  toolName?: string;
-  delta?: string;
 }
 
 // =============================================================================
@@ -342,16 +308,12 @@ export type ServerMessage =
   | SessionReopenedMessage
   | SessionDeletedMessage
   | SessionRenamedMessage
-  | ToolApprovalRequiredMessage
   | PermissionRequestMessage
   | PermissionGrantedMessage
   | PermissionListMessage
   | PermissionRevokedMessage
   | PermissionAllRevokedMessage
   | PermissionsSyncResponseMessage
-  | SubagentStartedMessage
-  | SubagentCompletedMessage
-  | SubagentProgressMessage
   | CompactionCompleteMessage
   | SessionRevertedMessage
   | SessionStateMessage

@@ -89,7 +89,6 @@ export type {
   QueueRemoveMessage,
   ProviderConnectMessage,
   ProviderDisconnectMessage,
-  ToolApprovalMessage,
   ServerMessage,
 } from '@jean2/shared';
 
@@ -119,14 +118,10 @@ export type {
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
   PermissionsSyncResponseMessage,
-  ToolApprovalRequiredMessage,
   QueueListMessage,
   QueueAddedMessage,
   QueueRemovedMessage,
   QueueSendingMessage,
-  SubagentStartedMessage,
-  SubagentCompletedMessage,
-  SubagentProgressMessage,
   ProviderStatusMessage,
   ProviderConnectedMessage,
   ErrorMessage,

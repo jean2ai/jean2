@@ -26,8 +26,4 @@ export class PermissionsNamespace {
   sync(): void {
     this.send({ type: 'permissions.sync' });
   }
-
-  toolApproval(toolCallId: string, approved: boolean): void {
-    this.send({ type: 'tool.approval', toolCallId, approved });
-  }
 }

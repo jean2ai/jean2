@@ -24,12 +24,6 @@ export interface ChatMessage {
   attachments?: ChatMessageAttachment[];
 }
 
-export interface ToolApprovalMessage {
-  type: 'tool.approval';
-  toolCallId: string;
-  approved: boolean;
-}
-
 export interface SessionCloseMessage {
   type: 'session.close';
   sessionId: string;
@@ -161,8 +155,7 @@ export interface ProviderDisconnectMessage {
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage 
-  | ChatMessage 
-  | ToolApprovalMessage 
+  | ChatMessage
   | SessionCloseMessage
   | SessionUpdateMessage
   | SessionUpdateModelMessage

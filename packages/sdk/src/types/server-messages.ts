@@ -24,14 +24,10 @@ import type {
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
   PermissionsSyncResponseMessage,
-  ToolApprovalRequiredMessage,
   QueueListMessage,
   QueueAddedMessage,
   QueueRemovedMessage,
   QueueSendingMessage,
-  SubagentStartedMessage,
-  SubagentCompletedMessage,
-  SubagentProgressMessage,
   ProviderStatusMessage,
   ProviderConnectedMessage,
   ErrorMessage,
@@ -132,12 +128,6 @@ export interface SdkEventMap {
     count: PermissionAllRevokedMessage['count'],
   ];
   'permissions.sync': [approvals: PermissionsSyncResponseMessage['approvals']];
-  'tool.approval_required': [
-    toolCallId: ToolApprovalRequiredMessage['toolCallId'],
-    toolName: ToolApprovalRequiredMessage['toolName'],
-    args: ToolApprovalRequiredMessage['args'],
-    dangerous: ToolApprovalRequiredMessage['dangerous'],
-  ];
 
   'queue.list': [sessionId: QueueListMessage['sessionId'], messages: QueueListMessage['messages']];
   'queue.added': [sessionId: QueueAddedMessage['sessionId'], message: QueueAddedMessage['message']];
@@ -155,27 +145,6 @@ export interface SdkEventMap {
     connected: ProviderConnectedMessage['connected'],
     connectedAt: ProviderConnectedMessage['connectedAt'],
     accountId: ProviderConnectedMessage['accountId'],
-  ];
-
-  'subagent.started': [
-    parentSessionId: SubagentStartedMessage['parentSessionId'],
-    childSessionId: SubagentStartedMessage['childSessionId'],
-    subagentType: SubagentStartedMessage['subagentType'],
-    description: SubagentStartedMessage['description'],
-  ];
-  'subagent.completed': [
-    parentSessionId: SubagentCompletedMessage['parentSessionId'],
-    childSessionId: SubagentCompletedMessage['childSessionId'],
-    subagentType: SubagentCompletedMessage['subagentType'],
-    result: SubagentCompletedMessage['result'],
-    error: SubagentCompletedMessage['error'],
-  ];
-  'subagent.progress': [
-    parentSessionId: SubagentProgressMessage['parentSessionId'],
-    childSessionId: SubagentProgressMessage['childSessionId'],
-    status: SubagentProgressMessage['status'],
-    toolName: SubagentProgressMessage['toolName'],
-    delta: SubagentProgressMessage['delta'],
   ];
 
   'error': [code: ErrorMessage['code'], message: ErrorMessage['message']];
@@ -296,9 +265,6 @@ export function routeServerMessage(
     case 'permissions.sync':
       emitter.emit('permissions.sync', msg.approvals);
       break;
-    case 'tool.approval_required':
-      emitter.emit('tool.approval_required', msg.toolCallId, msg.toolName, msg.args, msg.dangerous);
-      break;
     case 'queue.list':
       emitter.emit('queue.list', msg.sessionId, msg.messages);
       break;
@@ -316,15 +282,6 @@ export function routeServerMessage(
       break;
     case 'provider.connected':
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);
-      break;
-    case 'subagent.started':
-      emitter.emit('subagent.started', msg.parentSessionId, msg.childSessionId, msg.subagentType, msg.description);
-      break;
-    case 'subagent.completed':
-      emitter.emit('subagent.completed', msg.parentSessionId, msg.childSessionId, msg.subagentType, msg.result, msg.error);
-      break;
-    case 'subagent.progress':
-      emitter.emit('subagent.progress', msg.parentSessionId, msg.childSessionId, msg.status, msg.toolName, msg.delta);
       break;
     case 'error':
       emitter.emit('error', msg.code, msg.message);
