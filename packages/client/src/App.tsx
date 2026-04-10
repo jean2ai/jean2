@@ -944,8 +944,6 @@ function AppContent() {
           workspaceId={activeWorkspace?.id}
           workspacePath={activeWorkspace?.path}
           workspaceName={activeWorkspace?.name}
-          serverUrl={serverUrl ?? undefined}
-          apiToken={apiToken ?? undefined}
           sdkClient={sdkClient}
           terminalPanelRef={terminalPanelRef}
         />

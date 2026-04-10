@@ -31,14 +31,17 @@ export { ProvidersNamespace } from './namespaces/providers';
 
 export {
   TerminalConnection,
+  TerminalEventsConnection,
   TerminalNamespace,
   TERMINAL_OPCODES,
 } from './namespaces/terminal';
 export type {
   TerminalEventMap,
+  TerminalEventsEventMap,
   TerminalConnectOptions,
   TerminalConfig,
   TerminalOpcode,
+  TerminalEventsSubscription,
 } from './namespaces/terminal';
 
 export { SessionsRestNamespace } from './rest/sessions';

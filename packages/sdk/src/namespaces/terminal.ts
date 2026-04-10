@@ -1,4 +1,4 @@
-import type { TerminalSessionInit } from '@jean2/shared';
+import type { TerminalEvent, TerminalSessionInit, TerminalSessionInfo } from '@jean2/shared';
 import { ConnectionError } from '../errors';
 import { TypedEventEmitter } from '../emitter';
 
@@ -25,6 +25,19 @@ export interface TerminalEventMap {
   error: [error: Error];
 }
 
+export interface TerminalEventsEventMap {
+  [key: string]: unknown[];
+
+  snapshot: [sessions: TerminalSessionInfo[]];
+  created: [session: TerminalSessionInfo];
+  destroyed: [sessionId: string];
+  exited: [sessionId: string, exitCode: number];
+  title_changed: [sessionId: string, title: string];
+  status_changed: [sessionId: string, status: 'running' | 'exited'];
+  close: [];
+  error: [error: Error];
+}
+
 function encodeFrame(opcode: number, payload: Uint8Array): Uint8Array {
   const frame = new Uint8Array(1 + payload.length);
   frame[0] = opcode;
@@ -37,11 +50,15 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
   private _session: TerminalSessionInit;
   private _closed = false;
   private _disposed = false;
+  private _preInitOutput: Uint8Array[] = [];
 
-  constructor(ws: WebSocket, session: TerminalSessionInit) {
+  constructor(ws: WebSocket, session: TerminalSessionInit, preInitOutput?: Uint8Array[]) {
     super();
     this.ws = ws;
     this._session = session;
+    if (preInitOutput) {
+      this._preInitOutput = preInitOutput;
+    }
 
     this.ws.binaryType = 'arraybuffer';
     this.ws.onmessage = this.handleMessage.bind(this);
@@ -49,7 +66,28 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
     this.ws.onerror = this.handleError.bind(this);
   }
 
-  private handleMessage(event: MessageEvent): void {
+  override on<K extends keyof TerminalEventMap & string>(
+    event: K,
+    handler: (...args: TerminalEventMap[K]) => void
+  ): this {
+    const result = super.on(event, handler);
+    if (event === 'output') {
+      this.flushPreInitOutput();
+    }
+    return result;
+  }
+
+  private flushPreInitOutput(): void {
+    if (this._preInitOutput.length === 0) return;
+    const frames = this._preInitOutput;
+    this._preInitOutput = [];
+    for (const payload of frames) {
+      if (this._closed) break;
+      this.emit('output', payload);
+    }
+  }
+
+  protected handleMessage(event: MessageEvent): void {
     if (this._closed) return;
 
     const data = new Uint8Array(event.data);
@@ -141,6 +179,10 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
     this.ws.onmessage = null;
     this.ws.onclose = null;
     this.ws.onerror = null;
+  }
+
+  dispatchFrame(data: Uint8Array): void {
+    this.handleMessage({ data: data.buffer as ArrayBuffer } as MessageEvent);
   }
 
   write(data: string | Uint8Array): void {
@@ -236,6 +278,114 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
   }
 }
 
+export class TerminalEventsConnection extends TypedEventEmitter<TerminalEventsEventMap> {
+  private ws: WebSocket;
+  private _closed = false;
+  private _disposed = false;
+
+  constructor(ws: WebSocket) {
+    super();
+    this.ws = ws;
+
+    this.ws.onmessage = this.handleMessage.bind(this);
+    this.ws.onclose = this.handleClose.bind(this);
+    this.ws.onerror = this.handleError.bind(this);
+  }
+
+  private handleMessage(event: MessageEvent): void {
+    if (this._closed) return;
+
+    const data = event.data;
+    if (typeof data !== 'string') return;
+
+    let parsed: TerminalEvent;
+    try {
+      parsed = JSON.parse(data) as TerminalEvent;
+    } catch {
+      return;
+    }
+
+    switch (parsed.type) {
+      case 'snapshot':
+        this.emit('snapshot', parsed.sessions);
+        break;
+
+      case 'created':
+        this.emit('created', parsed.session);
+        break;
+
+      case 'destroyed':
+        this.emit('destroyed', parsed.sessionId);
+        break;
+
+      case 'exited':
+        this.emit('exited', parsed.sessionId, parsed.exitCode);
+        break;
+
+      case 'title_changed':
+        this.emit('title_changed', parsed.sessionId, parsed.title);
+        break;
+
+      case 'status_changed':
+        this.emit('status_changed', parsed.sessionId, parsed.status);
+        break;
+    }
+  }
+
+  private handleClose(_event: CloseEvent): void {
+    if (!this._closed) {
+      this._closed = true;
+      this.emit('close');
+    }
+  }
+
+  private handleError(): void {
+    if (!this._closed) {
+      const error = new Error('WebSocket error');
+      this.emit('error', error);
+    }
+  }
+
+  close(): void {
+    if (this._closed) return;
+    this._closed = true;
+    try {
+      this.ws.close(1000, 'Client close');
+    } catch {
+      // Ignore close errors
+    }
+    this.cleanupHandlers();
+  }
+
+  dispose(): void {
+    this.cleanupHandlers();
+    if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+      try {
+        this.ws.close(1000, 'Disposed');
+      } catch {
+        // Ignore close errors
+      }
+    }
+    if (!this._closed) {
+      this._closed = true;
+      this.emit('close');
+    }
+    this.removeAllListeners();
+  }
+
+  private cleanupHandlers(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.ws.onmessage = null;
+    this.ws.onclose = null;
+    this.ws.onerror = null;
+  }
+
+  get closed(): boolean {
+    return this._closed;
+  }
+}
+
 export interface TerminalConnectOptions {
   workspaceId: string;
   cwd: string;
@@ -248,6 +398,11 @@ export interface TerminalConfig {
   token: string;
   wsConstructor?: typeof WebSocket;
   connectTimeout?: number;
+}
+
+export interface TerminalEventsSubscription {
+  conn: TerminalEventsConnection;
+  initialSessions: TerminalSessionInfo[];
 }
 
 export class TerminalNamespace {
@@ -307,17 +462,36 @@ export class TerminalNamespace {
         // Waiting for INIT_ACK or ERROR
       };
 
+      // Buffer all frames received before INIT_ACK
+      const preInitFrames: Array<{ opcode: number; data: Uint8Array }> = [];
+
       ws.onmessage = (event: MessageEvent) => {
         const data = new Uint8Array(event.data);
         if (data.length < 1) return;
-
         const opcode = data[0];
+        const payload = data.slice(1);
+
         if (opcode === TERMINAL_OPCODES.INIT_ACK) {
           try {
             const init = JSON.parse(
-              new TextDecoder().decode(data.slice(1)),
+              new TextDecoder().decode(payload),
             ) as TerminalSessionInit;
-            doResolve(new TerminalConnection(ws, init));
+
+            // Extract OUTPUT payloads to pass to connection (flushed lazily on 'output' listener)
+            const outputPayloads = preInitFrames
+              .filter(f => f.opcode === TERMINAL_OPCODES.OUTPUT)
+              .map(f => f.data);
+
+            const conn = new TerminalConnection(ws, init, outputPayloads);
+
+            // Dispatch non-OUTPUT buffered frames through handleMessage directly
+            for (const frame of preInitFrames) {
+              if (frame.opcode !== TERMINAL_OPCODES.OUTPUT) {
+                conn.dispatchFrame(frame.data);
+              }
+            }
+
+            doResolve(conn);
           } catch (err: unknown) {
             ws.close();
             const message = err instanceof Error ? err.message : String(err);
@@ -327,12 +501,15 @@ export class TerminalNamespace {
           ws.close();
           let errorMessage = 'Terminal connection failed';
           try {
-            const parsed = JSON.parse(new TextDecoder().decode(data.slice(1))) as { message?: string };
+            const parsed = JSON.parse(new TextDecoder().decode(payload)) as { message?: string };
             errorMessage = parsed.message || errorMessage;
           } catch {
             // Use default message
           }
           doReject(new ConnectionError(errorMessage));
+        } else {
+          // Buffer ALL other frames for replay after TerminalConnection is created
+          preInitFrames.push({ opcode, data });
         }
       };
 
@@ -343,6 +520,84 @@ export class TerminalNamespace {
 
       ws.onclose = () => {
         doReject(new ConnectionError('Terminal connection closed before init'));
+      };
+    });
+  }
+
+  async subscribeEvents(workspaceId: string): Promise<TerminalEventsSubscription> {
+    const WsConstructor = this.config.wsConstructor ?? globalThis.WebSocket;
+    const proto = this.config.url.startsWith('https') ? 'wss' : 'ws';
+    const clean = this.config.url.replace(/^https?:\/\//, '');
+
+    const params = new URLSearchParams({
+      token: this.config.token,
+      workspaceId,
+    });
+
+    const wsUrl = `${proto}://${clean}/ws/terminal/events?${params.toString()}`;
+
+    return new Promise((resolve, reject) => {
+      const ws = new WsConstructor(wsUrl);
+      const timeout = this.config.connectTimeout ?? 10000;
+      let resolved = false;
+
+      const doResolve = (subscription: TerminalEventsSubscription) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          resolve(subscription);
+        }
+      };
+
+      const doReject = (err: Error) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          reject(err);
+        }
+      };
+
+      const timeoutId = setTimeout(() => {
+        ws.close();
+        doReject(new ConnectionError(`Terminal events subscription timeout (${timeout}ms)`));
+      }, timeout);
+
+      ws.onopen = () => {
+        // Waiting for first snapshot message
+      };
+
+      let conn: TerminalEventsConnection | null = null;
+
+      ws.onmessage = (event: MessageEvent) => {
+        if (resolved) return;
+
+        const data = event.data;
+        if (typeof data !== 'string') return;
+
+        let parsed: TerminalEvent;
+        try {
+          parsed = JSON.parse(data) as TerminalEvent;
+        } catch {
+          return;
+        }
+
+        if (parsed.type === 'snapshot') {
+          if (!conn) {
+            conn = new TerminalEventsConnection(ws);
+          }
+          doResolve({ conn, initialSessions: parsed.sessions });
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+        doReject(new ConnectionError('Terminal events WebSocket error'));
+      };
+
+      ws.onclose = () => {
+        if (!resolved) {
+          doReject(new ConnectionError('Terminal events connection closed before snapshot'));
+        }
       };
     });
   }
