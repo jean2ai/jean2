@@ -75,7 +75,7 @@ export class HttpClient {
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
       try {
-        const errorBody = await response.json();
+        const errorBody = await response.json() as { message?: string };
         if (errorBody.message) errorMessage = errorBody.message;
       } catch {
         // Ignore parse error for error body

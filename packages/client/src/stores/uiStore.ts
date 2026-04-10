@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { SavedServer } from '@jean2/shared';
+import type { SavedServer } from '@jean2/sdk';
 import {
   PANEL_DEFAULT_WIDTH,
   clampPanelWidth,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import {
   getSessionsPanelWidth,
   saveSessionsPanelWidth,

@@ -1,6 +1,6 @@
 // packages/client/src/components/FirstServerScreen.tsx
 import { useState } from 'react';
-import type { SavedServer } from '@jean2/shared';
+import type { SavedServer } from '@jean2/sdk';
 import { isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
 
 interface FirstServerScreenProps {

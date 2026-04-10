@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import { Loader2, Unplug, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ProviderStatus } from '@jean2/shared';
+import type { ProviderStatus } from '@jean2/sdk';
 
 interface PanelProps {
   sdkClient: Jean2Client | null;

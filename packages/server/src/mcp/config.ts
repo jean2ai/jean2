@@ -5,7 +5,7 @@ import type {
   McpServerConfig,
   McpLocalServerConfig,
   McpRemoteServerConfig,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 
 const MCP_CONFIG_PATH = '.jean2/mcp.json';
 

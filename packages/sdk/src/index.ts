@@ -1,3 +1,6 @@
+// Re-export everything from shared
+export * from './shared';
+
 export { Jean2Client } from './client';
 export { TypedEventEmitter } from './emitter';
 export type { EventMap } from './emitter';

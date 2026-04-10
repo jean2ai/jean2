@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Settings, Cog } from 'lucide-react';
-import type { Preconfig } from '@jean2/shared';
+import type { Preconfig } from '@jean2/sdk';
 
 interface PreconfigSelectorProps {
   preconfigs: Preconfig[];

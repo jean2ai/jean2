@@ -1,4 +1,4 @@
-import type { ToolRuntime } from '@jean2/shared';
+import type { ToolRuntime } from '@jean2/sdk';
 
 /**
  * Tool Repository Manager

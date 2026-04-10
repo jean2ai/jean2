@@ -1,4 +1,4 @@
-import type { Preconfig, PreconfigMode } from '@jean2/shared';
+import type { Preconfig, PreconfigMode } from '@jean2/sdk';
 import {
   listPreconfigs,
   getPreconfig,

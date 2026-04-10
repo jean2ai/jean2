@@ -1,6 +1,6 @@
 import { getDatabase } from './index';
 import { getAttachment } from './attachments';
-import type { QueuedMessage } from '@jean2/shared';
+import type { QueuedMessage } from '@jean2/sdk';
 
 interface QueuedMessageRow {
   id: string;

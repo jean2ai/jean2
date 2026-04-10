@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { join } from 'path';
-import type { SecurityCheckInput, SecurityCheckResult } from '@jean2/shared';
+import type { SecurityCheckInput, SecurityCheckResult } from '@jean2/sdk';
 import type { DiscoveredTool } from './types';
 import { RUNTIME_COMMANDS } from './executor';
 import { getToolEnv } from '../env';

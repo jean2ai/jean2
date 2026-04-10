@@ -1,4 +1,4 @@
-import type { ClientMessage, ChatMessage, AttachmentKind } from '@jean2/shared';
+import type { ClientMessage, ChatMessage, AttachmentKind } from '../shared';
 
 export class ChatNamespace {
   constructor(private _send: (msg: ClientMessage) => void) {}

@@ -10,7 +10,7 @@ import {
   type SessionInitData,
   type TerminalCache,
 } from '@/hooks/useTerminal';
-import type { TerminalEvent } from '@jean2/shared';
+import type { TerminalEvent } from '@jean2/sdk';
 import type { TerminalEventsConnection } from '@jean2/sdk';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useVisualViewport } from '@/hooks/useVisualViewport';

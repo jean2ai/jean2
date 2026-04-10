@@ -4,7 +4,7 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
-import { clampPanelWidth } from "@jean2/shared"
+import { clampPanelWidth } from "@jean2/sdk"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useUIStore } from "@/stores/uiStore"
 import { cn } from "@/lib/utils"

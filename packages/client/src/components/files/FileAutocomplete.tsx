@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { File, Folder, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 

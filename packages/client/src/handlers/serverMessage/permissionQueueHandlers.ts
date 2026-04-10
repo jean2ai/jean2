@@ -1,4 +1,4 @@
-import type { ToolPermission, QueuedMessage, PermissionType } from '@jean2/shared';
+import type { ToolPermission, QueuedMessage, PermissionType } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 
 interface PendingPermissionRequest {

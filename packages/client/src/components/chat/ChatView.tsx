@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/shared';
+import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/sdk';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
@@ -41,8 +41,8 @@ interface Model {
 }
 
 interface DisplayItem {
-  message: import('@jean2/shared').Message;
-  parts: import('@jean2/shared').Part[];
+  message: import('@jean2/sdk').Message;
+  parts: import('@jean2/sdk').Part[];
   isQueued?: boolean;
   queueId?: string;
 }
@@ -52,7 +52,7 @@ interface ChatViewProps {
   messagesWithParts: MessageWithParts[];
   queuedMessages: QueuedMessage[];
   preconfigs: Preconfig[];
-  prompts?: import('@jean2/shared').PromptInfo[];
+  prompts?: import('@jean2/sdk').PromptInfo[];
   models: Model[];
   defaultModel: string;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;

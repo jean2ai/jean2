@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session } from '@jean2/shared';
+import type { Session } from '@jean2/sdk';
 
 interface SessionState {
   sessions: Session[];

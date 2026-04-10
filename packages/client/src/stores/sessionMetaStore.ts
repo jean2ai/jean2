@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { QueuedMessage } from '@jean2/shared';
+import type { QueuedMessage } from '@jean2/sdk';
 
 export interface PendingPermissionRequest {
   toolCallId: string;

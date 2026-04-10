@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { ToolPermission, PermissionType } from '@jean2/shared';
+import type { ToolPermission, PermissionType } from '@jean2/sdk';
 
 interface ToolPermissionRow {
   id: string;

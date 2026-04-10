@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { ToolPermission } from '@jean2/shared';
+import type { ToolPermission } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,

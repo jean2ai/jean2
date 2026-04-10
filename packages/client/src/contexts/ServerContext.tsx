@@ -21,7 +21,7 @@ import {
   removeQuickConnectionForWorkspace,
   reorderQuickConnections,
 } from '@/config/servers';
-import type { SavedServer, QuickConnection } from '@jean2/shared';
+import type { SavedServer, QuickConnection } from '@jean2/sdk';
 import { normalizeServerUrl } from '@/config/auth';
 
 interface ServerContextValue {

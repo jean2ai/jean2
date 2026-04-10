@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Archive, Square, Minimize2 } from 'lucide-react';
-import type { Session, Preconfig } from '@jean2/shared';
+import type { Session, Preconfig } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';

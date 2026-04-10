@@ -7,9 +7,9 @@ import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/shared';
+import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/sdk';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
-import type { PermissionType } from '@jean2/shared';
+import type { PermissionType } from '@jean2/sdk';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
   createSession,

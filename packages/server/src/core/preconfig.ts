@@ -3,7 +3,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
 import matter from 'gray-matter';
-import type { Preconfig, PreconfigMode } from '@jean2/shared';
+import type { Preconfig, PreconfigMode } from '@jean2/sdk';
 import { getPreconfigsPath } from '../env';
 import { DEFAULT_PREAMBLES } from './defaults';
 

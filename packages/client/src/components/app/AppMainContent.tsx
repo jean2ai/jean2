@@ -6,7 +6,7 @@ import type {
   QueuedMessage,
   SavedServer,
   AttachmentKind,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';

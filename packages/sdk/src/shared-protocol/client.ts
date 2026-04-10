@@ -10,7 +10,7 @@ export interface SessionResumeMessage {
   sessionId: string;
 }
 
-import type { AttachmentKind } from '../types/model';
+import type { AttachmentKind } from '../shared-types/model';
 
 export interface ChatMessageAttachment {
   id: string;
@@ -154,7 +154,7 @@ export interface ProviderDisconnectMessage {
 
 export type ClientMessage = 
   | SessionCreateMessage 
-  | SessionResumeMessage 
+  | SessionResumeMessage
   | ChatMessage
   | SessionCloseMessage
   | SessionUpdateMessage

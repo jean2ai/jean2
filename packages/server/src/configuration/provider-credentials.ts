@@ -7,7 +7,7 @@ import {
   ConfigurationPersistenceError,
   ConfigurationValidationError,
 } from './errors';
-import type { ProviderCredentialStatus, ProviderCredentialsResponse } from '@jean2/shared';
+import type { ProviderCredentialStatus, ProviderCredentialsResponse } from '@jean2/sdk';
 
 const ENV_FILE_PATH = join(homedir(), '.jean2', '.env');
 

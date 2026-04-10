@@ -1,4 +1,4 @@
-import type { AnyVisualization } from '@jean2/shared';
+import type { AnyVisualization } from '@jean2/sdk';
 
 /**
  * Recursively strip _visualization fields from any object.

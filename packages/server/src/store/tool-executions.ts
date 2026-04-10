@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { ToolExecution } from '@jean2/shared';
+import type { ToolExecution } from '@jean2/sdk';
 
 // Interface for raw database row from tool_executions table
 interface ToolExecutionRow {

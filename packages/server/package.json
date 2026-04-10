@@ -27,7 +27,7 @@
     "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/openai": "^3.0.41",
     "@clack/prompts": "^0.10.0",
-    "@jean2/shared": "workspace:*",
+    "@jean2/sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@openrouter/ai-sdk-provider": "^2.3.3",
     "ai": "^6.0.116",

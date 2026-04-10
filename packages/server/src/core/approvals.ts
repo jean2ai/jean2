@@ -1,4 +1,4 @@
-import type { ToolPart } from '@jean2/shared';
+import type { ToolPart } from '@jean2/sdk';
 
 interface PendingApproval {
   toolPart: ToolPart;

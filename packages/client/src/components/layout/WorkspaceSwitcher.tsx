@@ -1,7 +1,7 @@
 import type { Jean2Client } from '@jean2/sdk';
 import { useState } from 'react';
 import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2 } from 'lucide-react';
-import type { Workspace } from '@jean2/shared';
+import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';

@@ -1,6 +1,6 @@
 import {Plus, Settings, Wifi, WifiOff, ChevronRight, Server, SlidersHorizontal} from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
-import type { Session, Workspace } from '@jean2/shared';
+import type { Session, Workspace } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';

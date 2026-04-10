@@ -5,7 +5,7 @@ import type {
   Workspace,
   Preconfig,
   AttachmentKind,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 
 interface UseSessionCommandsParams {

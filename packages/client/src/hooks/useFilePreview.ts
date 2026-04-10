@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { FilePreviewResponse } from '@jean2/shared';
+import type { FilePreviewResponse } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 
 interface UseFilePreviewOptions {

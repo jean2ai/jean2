@@ -1,4 +1,4 @@
-import type { TerminalEvent, TerminalSessionInit, TerminalSessionInfo } from '@jean2/shared';
+import type { TerminalEvent, TerminalSessionInit, TerminalSessionInfo } from '../shared';
 import { ConnectionError } from '../errors';
 import { TypedEventEmitter } from '../emitter';
 

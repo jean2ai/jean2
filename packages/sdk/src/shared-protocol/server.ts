@@ -1,7 +1,7 @@
-import type { Session } from '../types/session';
-import type { Message, Part, MessageWithParts, QueuedMessage } from '../types/message';
-import type { PermissionType, ToolPermission } from '../types/permission';
-import type { SessionInterruptResult } from '../types/interrupt';
+import type { Session } from '../shared-types/session';
+import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-types/message';
+import type { PermissionType, ToolPermission } from '../shared-types/permission';
+import type { SessionInterruptResult } from '../shared-types/interrupt';
 
 export interface SessionCreatedMessage {
   type: 'session.created';

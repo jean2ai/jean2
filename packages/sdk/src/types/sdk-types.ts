@@ -1,4 +1,4 @@
-import type { ServerMessage } from '@jean2/shared';
+import type { ServerMessage } from '../shared';
 
 export interface ClientConfig {
   url: string;

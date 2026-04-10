@@ -3,7 +3,7 @@ export type {
   Session,
   SessionStatus,
   SubagentStatus,
-} from '@jean2/shared';
+} from '../shared';
 
 export type {
   Message,
@@ -24,28 +24,28 @@ export type {
   QueuedMessage,
   PartField,
   MessageEvent,
-} from '@jean2/shared';
+} from '../shared';
 
-export type { Workspace } from '@jean2/shared';
-export type { Preconfig, PreconfigMode } from '@jean2/shared';
-export type { PromptInfo } from '@jean2/shared';
+export type { Workspace } from '../shared';
+export type { Preconfig, PreconfigMode } from '../shared';
+export type { PromptInfo } from '../shared';
 
 export type {
   ToolPermission,
   PermissionType,
   PermissionKey,
-} from '@jean2/shared';
+} from '../shared';
 
 export type {
   SessionInterruptResult,
   InterruptReason,
   InterruptState,
-} from '@jean2/shared';
+} from '../shared';
 
 export type {
   ToolDefinition,
   ToolRuntime,
-} from '@jean2/shared';
+} from '../shared';
 
 export type {
   ModelDefinition,
@@ -55,13 +55,13 @@ export type {
   ModelsConfig,
   AttachmentKind,
   ModelCapabilities,
-} from '@jean2/shared';
+} from '../shared';
 
 export type {
   ProviderStatus,
   AuthType,
   ProviderDescriptor,
-} from '@jean2/shared';
+} from '../shared';
 
 // Protocol types
 export type {
@@ -90,7 +90,7 @@ export type {
   ProviderConnectMessage,
   ProviderDisconnectMessage,
   ServerMessage,
-} from '@jean2/shared';
+} from '../shared';
 
 // Individual server message types
 export type {
@@ -131,14 +131,14 @@ export type {
   AuthErrorMessage,
   InvalidRequestErrorMessage,
   ContextOverflowErrorMessage,
-} from '@jean2/shared';
+} from '../shared';
 
 // Terminal types
 export type {
   TerminalSessionInfo,
   TerminalSessionInit,
   TerminalEvent,
-} from '@jean2/shared';
+} from '../shared';
 
 // Type guards
 export {
@@ -151,7 +151,7 @@ export {
   isCompactionPart,
   isAssistantMessage,
   isUserMessage,
-} from '@jean2/shared';
+} from '../shared';
 
 // Configuration types
 export type {
@@ -167,7 +167,7 @@ export type {
   SetDefaultsRequest,
   CreatePromptRequest,
   UpdatePromptRequest,
-} from '@jean2/shared';
+} from '../shared';
 
 // File types
 export type {
@@ -177,7 +177,7 @@ export type {
   FilePreviewKind,
   FilePreviewResponse,
   FilePreviewContentResponse,
-} from '@jean2/shared';
+} from '../shared';
 
 // MCP types
 export type {
@@ -185,14 +185,14 @@ export type {
   McpConfig,
   McpStatus,
   McpServerInfo,
-} from '@jean2/shared';
+} from '../shared';
 
 // Visualization types
 export type {
   VisualizationType,
   ToolVisualization,
   AnyVisualization,
-} from '@jean2/shared';
+} from '../shared';
 
 // SDK-specific types
 export type { ClientConfig, ConnectionState, SdkEvent } from './sdk-types';

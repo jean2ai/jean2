@@ -1,7 +1,7 @@
 import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
-import type { Session } from '@jean2/shared';
+import type { Session } from '@jean2/sdk';
 import {
   SidebarMenuItem,
   SidebarMenuButton,

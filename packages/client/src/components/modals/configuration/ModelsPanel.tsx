@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/shared';
+import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/sdk';
 import {
   Plus,
   Pencil,

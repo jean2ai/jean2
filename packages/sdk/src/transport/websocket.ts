@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from '@jean2/shared';
+import type { ClientMessage, ServerMessage } from '../shared';
 import { ConnectionError } from '../errors';
 
 export interface WebSocketTransportConfig {

@@ -11,8 +11,8 @@ import type {
   Message,
   CompactionPart,
   AssistantMessage,
-} from '@jean2/shared';
-import { isAssistantMessage } from '@jean2/shared';
+} from '@jean2/sdk';
+import { isAssistantMessage } from '@jean2/sdk';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';

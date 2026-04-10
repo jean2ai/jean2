@@ -1,4 +1,4 @@
-import type { Message, Part } from '@jean2/shared';
+import type { Message, Part } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 
 export function handleMessageCreated(

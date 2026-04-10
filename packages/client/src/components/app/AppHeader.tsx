@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { QuickSwitcher } from '@/components/layout/QuickSwitcher';
 import { SidebarLayoutToggle } from '@/components/layout/SidebarLayoutToggle';
 import { useUIStore } from '@/stores/uiStore';
-import type { Workspace } from '@jean2/shared';
+import type { Workspace } from '@jean2/sdk';
 
 interface AppHeaderProps {
   headerTitle: string;

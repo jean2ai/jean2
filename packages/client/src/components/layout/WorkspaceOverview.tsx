@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Folder, Box, ChevronRight, Plus } from 'lucide-react';
-import type { Session, Workspace } from '@jean2/shared';
+import type { Session, Workspace } from '@jean2/sdk';
 import {
   SidebarGroup,
   SidebarGroupContent,

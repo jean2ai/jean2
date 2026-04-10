@@ -1,7 +1,7 @@
 import { readdir } from 'fs/promises';
 import { extname, resolve } from 'path';
 import fg from 'fast-glob';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
 
 const IGNORE_PATTERNS = [
   'node_modules/**',

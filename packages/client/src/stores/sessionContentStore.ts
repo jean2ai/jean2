@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, Part } from '@jean2/shared';
+import type { Message, Part } from '@jean2/sdk';
 
 type MessagesBySessionState = Record<string, Message[]>;
 type PartsBySessionState = Record<string, Record<string, Part[]>>;

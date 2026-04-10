@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Workspace } from '@jean2/shared';
+import type { Workspace } from '@jean2/sdk';
 
 interface WorkspaceState {
   activeWorkspace: Workspace | null;
