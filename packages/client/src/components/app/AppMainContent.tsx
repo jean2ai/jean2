@@ -4,7 +4,6 @@ import type {
   Preconfig,
   PromptInfo,
   QueuedMessage,
-  SavedServer,
   AttachmentKind,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
@@ -12,14 +11,11 @@ import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
-import FirstServerScreen from '@/components/FirstServerScreen';
 import { ChatView } from '@/components/chat/ChatView';
 import { Button } from '@/components/ui/button';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 
 export interface AppMainContentProps {
-  servers: SavedServer[];
-  activeServer: SavedServer | null;
   connected: boolean;
   authError: string | null;
   connectionTimedOut: boolean;
@@ -65,8 +61,6 @@ export interface AppMainContentProps {
 }
 
 export function AppMainContent({
-  servers,
-  activeServer,
   connected,
   authError,
   connectionTimedOut,
@@ -110,8 +104,6 @@ export function AppMainContent({
   scrollToBottomRef,
   autoFollowToggleRef,
 }: AppMainContentProps) {
-  const isLoggedIn = !!(activeServer);
-
   const handleChangePreconfig = (preconfigId: string) => {
     onChangePreconfig(preconfigId);
   };
@@ -124,15 +116,7 @@ export function AppMainContent({
     onInterrupt();
   };
 
-  if (servers.length === 0) {
-    return <FirstServerScreen error={authError || undefined} />;
-  }
-
-  if (!isLoggedIn) {
-    return <FirstServerScreen error={authError || undefined} />;
-  }
-
-  if (!connected && servers.length > 0) {
+  if (!connected) {
     if (connectionTimedOut) {
       return (
         <div className="flex w-full h-full items-center justify-center bg-background">

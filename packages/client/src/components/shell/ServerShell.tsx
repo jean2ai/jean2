@@ -623,9 +623,7 @@ export default function ServerShell() {
 
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
-  const headerTitle = currentSession ? (activeWorkspace?.name ?? 'Jean2') : 'Jean2';
-
-  const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
+   const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
   const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
 
   const handleSidebarViewModeChange = useCallback((
@@ -643,13 +641,9 @@ export default function ServerShell() {
 
   const isPrimarySession = !currentSession?.parentId;
 
-  const isLoggedIn = !!(activeServer);
-
   return (
     <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '3.5rem' } as React.CSSProperties}>
       <AppHeader
-        headerTitle={headerTitle}
-        isLoggedIn={isLoggedIn}
         activeWorkspace={activeWorkspace}
         onSidebarViewModeChange={handleSidebarViewModeChange}
         connected={connected}
@@ -660,43 +654,39 @@ export default function ServerShell() {
       />
 
       <div className="flex flex-1 min-h-0">
-        {isLoggedIn && (
-          <AppSidebar
-            ref={sidebarRef}
-            allSessions={sessions}
-            favoritedWorkspaceIds={favoritedWorkspaceIds}
-            sessions={workspaceSessions}
-            currentSession={currentSession}
-            currentSessionId={currentSession?.id ?? null}
-            streamingSessionIds={streamingSessionIds}
-            connected={connected}
-            workspaces={workspaces}
-            activeWorkspace={activeWorkspace}
-            activeServer={activeServer}
-            onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
-            onResumeSession={resumeSession}
-            onCloseSession={closeSession}
-            onReopenSession={reopenSession}
-            onDeleteSession={permanentlyDeleteSession}
-            onRenameSession={handleRenameSession}
-            onSelectWorkspace={selectWorkspace}
-            onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
-            onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
-            onDeleteWorkspace={deleteWorkspace}
-            onEscape={() => {
-              if (currentSession) {
-                chatInputRef.current?.focus();
-              }
-            }}
-            onCreateSessionInWorkspace={createSessionInWorkspace}
-            pendingPermissions={pendingPermissions}
-            sdkClient={sdkClient}
-          />
-        )}
+        <AppSidebar
+          ref={sidebarRef}
+          allSessions={sessions}
+          favoritedWorkspaceIds={favoritedWorkspaceIds}
+          sessions={workspaceSessions}
+          currentSession={currentSession}
+          currentSessionId={currentSession?.id ?? null}
+          streamingSessionIds={streamingSessionIds}
+          connected={connected}
+          workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+          activeServer={activeServer}
+          onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
+          onResumeSession={resumeSession}
+          onCloseSession={closeSession}
+          onReopenSession={reopenSession}
+          onDeleteSession={permanentlyDeleteSession}
+          onRenameSession={handleRenameSession}
+          onSelectWorkspace={selectWorkspace}
+          onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
+          onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
+          onDeleteWorkspace={deleteWorkspace}
+          onEscape={() => {
+            if (currentSession) {
+              chatInputRef.current?.focus();
+            }
+          }}
+          onCreateSessionInWorkspace={createSessionInWorkspace}
+          pendingPermissions={pendingPermissions}
+          sdkClient={sdkClient}
+        />
 
         <ShellContent
-          servers={servers}
-          activeServer={activeServer}
           connected={connected}
           authError={authError}
           connectionTimedOut={connectionTimedOut}
@@ -745,23 +735,19 @@ export default function ServerShell() {
           autoFollowToggleRef={autoFollowToggleRef}
         />
 
-        {isLoggedIn && (
-          <FilesPanel
-            ref={filesPanelRef}
-            workspaceId={activeWorkspace?.id}
-            sdkClient={sdkClient}
-            isOpen={showFilesPanel}
-            onClose={() => setShowFilesPanel(false)}
-          />
-        )}
+        <FilesPanel
+          ref={filesPanelRef}
+          workspaceId={activeWorkspace?.id}
+          sdkClient={sdkClient}
+          isOpen={showFilesPanel}
+          onClose={() => setShowFilesPanel(false)}
+        />
 
-        {isLoggedIn && (
-          <div
-            data-panel-gap="files"
-            className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
-            style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
-          />
-        )}
+        <div
+          data-panel-gap="files"
+          className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
+          style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
+        />
       </div>
 
       <AppKeyboardHandlersMount
@@ -777,48 +763,44 @@ export default function ServerShell() {
         onToggleAutoFollow={() => autoFollowToggleRef.current?.toggle()}
       />
 
-      {isLoggedIn && (
-        <>
-          <SettingsDialog
-            open={showSettings}
-            onOpenChange={setShowSettings}
-            permissions={permissions}
-            onRefreshPermissions={refreshPermissions}
-            onRevokePermission={revokePermission}
-            onRevokeAllPermissions={() => {
-              if (activeWorkspace?.id) {
-                revokeAllPermissions(activeWorkspace?.id);
-              }
-            }}
-            apiToken={apiToken}
-            onLogout={handleLogout}
-            chatFinishSoundEnabled={chatFinishSoundEnabled}
-            onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
-            permissionSoundEnabled={permissionSoundEnabled}
-            onPermissionSoundEnabledChange={setPermissionSoundEnabled}
-            sdkClient={sdkClient}
-          />
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        permissions={permissions}
+        onRefreshPermissions={refreshPermissions}
+        onRevokePermission={revokePermission}
+        onRevokeAllPermissions={() => {
+          if (activeWorkspace?.id) {
+            revokeAllPermissions(activeWorkspace?.id);
+          }
+        }}
+        apiToken={apiToken}
+        onLogout={handleLogout}
+        chatFinishSoundEnabled={chatFinishSoundEnabled}
+        onChatFinishSoundEnabledChange={setChatFinishSoundEnabled}
+        permissionSoundEnabled={permissionSoundEnabled}
+        onPermissionSoundEnabledChange={setPermissionSoundEnabled}
+        sdkClient={sdkClient}
+      />
 
-          <MCPManagementDialog
-            open={showMCPDialog}
-            onOpenChange={setShowMCPDialog}
-            workspaceId={activeWorkspace?.id}
-            workspacePath={activeWorkspace?.path}
-            sdkClient={sdkClient}
-          />
+      <MCPManagementDialog
+        open={showMCPDialog}
+        onOpenChange={setShowMCPDialog}
+        workspaceId={activeWorkspace?.id}
+        workspacePath={activeWorkspace?.path}
+        sdkClient={sdkClient}
+      />
 
-          <ConfigurationDialog
-            open={showConfiguration}
-            onOpenChange={(open) => {
-              setShowConfiguration(open);
-              if (!open) {
-                router.invalidate();
-              }
-            }}
-            sdkClient={sdkClient}
-          />
-        </>
-      )}
+      <ConfigurationDialog
+        open={showConfiguration}
+        onOpenChange={(open) => {
+          setShowConfiguration(open);
+          if (!open) {
+            router.invalidate();
+          }
+        }}
+        sdkClient={sdkClient}
+      />
 
       <AddServerDialog
         open={showAddServer}
@@ -829,17 +811,15 @@ export default function ServerShell() {
         editServer={editServerData}
       />
 
-      {isLoggedIn && (
-        <FilePreviewOverlay
-          workspaceId={activeWorkspace?.id}
-          target={filePreviewTarget}
-          sdkClient={sdkClient}
-          open={filePreviewTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) closeFilePreview();
-          }}
-        />
-      )}
+      <FilePreviewOverlay
+        workspaceId={activeWorkspace?.id}
+        target={filePreviewTarget}
+        sdkClient={sdkClient}
+        open={filePreviewTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) closeFilePreview();
+        }}
+      />
     </SidebarProvider>
   );
 }
