@@ -30,6 +30,7 @@ import { SessionMenuButton, type ChildrenMap } from './SessionMenuButton';
 import { WorkspaceOverview } from './WorkspaceOverview';
 import { Badge } from '@/components/ui/badge';
 import { useServerContext } from '@/contexts/ServerContext';
+import type { SavedServer } from '@jean2/sdk';
 
 interface AppSidebarProps {
   sessions: Session[];
@@ -40,6 +41,7 @@ interface AppSidebarProps {
   connected: boolean;
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
+  activeServer: SavedServer | null;
 
   allSessions: Session[];
   favoritedWorkspaceIds: string[];
@@ -91,10 +93,11 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onCreateSessionInWorkspace,
     onEscape,
     sdkClient,
+    activeServer,
   } = props;
 
   const viewMode = useUIStore((s) => s.sidebarViewMode);
-  const { quickConnections, addToQuickConnections, removeFromQuickConnections, activeServer } = useServerContext();
+  const { quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
   useSidebar(); // Keep hook call to maintain sidebar context
 
   const sessionListRef = useRef<HTMLDivElement>(null);

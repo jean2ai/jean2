@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,8 @@ export function AddServerDialog({
   onOpenChange,
   editServer,
 }: AddServerDialogProps) {
-  const { prepareForServerAdd, addServer, editServer: updateServer } = useServerContext();
+  const navigate = useNavigate();
+  const { addServer, editServer: updateServer } = useServerContext();
 
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
@@ -86,12 +88,13 @@ export function AddServerDialog({
         url: normalizedUrl,
         token: trimmedToken,
       });
+      onOpenChange(false);
     } else {
-      prepareForServerAdd();
-      addServer(trimmedName, normalizedUrl, trimmedToken);
+      const newServer = addServer(trimmedName, normalizedUrl, trimmedToken);
+      // Navigate to the new server
+      navigate({ to: '/server/$serverId', params: { serverId: newServer.id } });
+      onOpenChange(false);
     }
-
-    onOpenChange(false);
   };
 
   return (

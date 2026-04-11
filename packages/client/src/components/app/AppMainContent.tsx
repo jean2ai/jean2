@@ -20,7 +20,6 @@ import type { MessageInputHandle } from '@/components/chat/MessageInput';
 export interface AppMainContentProps {
   servers: SavedServer[];
   activeServer: SavedServer | null;
-  isSwitching: boolean;
   connected: boolean;
   authError: string | null;
   connectionTimedOut: boolean;
@@ -45,7 +44,6 @@ export interface AppMainContentProps {
   compactionSuccess: boolean;
   isPrimarySession: boolean;
   inputRef: React.RefObject<MessageInputHandle | null>;
-  onFirstServerAdded: (server: SavedServer) => void;
   onRetry: () => void;
   onLogout: () => void;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
@@ -69,7 +67,6 @@ export interface AppMainContentProps {
 export function AppMainContent({
   servers,
   activeServer,
-  isSwitching,
   connected,
   authError,
   connectionTimedOut,
@@ -94,7 +91,6 @@ export function AppMainContent({
   isPrimarySession,
   inputRef,
   sdkClient,
-  onFirstServerAdded,
   onRetry,
   onLogout,
   onSendMessage,
@@ -129,29 +125,11 @@ export function AppMainContent({
   };
 
   if (servers.length === 0) {
-    return (
-      <FirstServerScreen
-        onServerAdded={onFirstServerAdded}
-        error={authError || undefined}
-      />
-    );
+    return <FirstServerScreen error={authError || undefined} />;
   }
 
   if (!isLoggedIn) {
-    return (
-      <FirstServerScreen
-        onServerAdded={onFirstServerAdded}
-        error={authError || undefined}
-      />
-    );
-  }
-
-  if (isSwitching) {
-    return (
-      <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
-        <ConnectingState message={`Connecting to ${activeServer?.name || 'server'}...`} />
-      </div>
-    );
+    return <FirstServerScreen error={authError || undefined} />;
   }
 
   if (!connected && servers.length > 0) {

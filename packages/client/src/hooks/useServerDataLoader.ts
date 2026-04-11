@@ -24,7 +24,6 @@ export interface UseServerDataLoaderParams {
   reconnectTrigger: number;
   serverEpochRef: RefObject<number>;
   clientRef: RefObject<Jean2Client | null>;
-  clearSwitchingState: () => void;
   setSessions: (sessions: Session[]) => void;
   setPreconfigs: (preconfigs: Preconfig[]) => void;
   setPrompts: (prompts: PromptInfo[]) => void;
@@ -45,7 +44,6 @@ export function useServerDataLoader({
   reconnectTrigger,
   serverEpochRef,
   clientRef,
-  clearSwitchingState,
   setSessions,
   setPreconfigs,
   setPrompts,
@@ -103,7 +101,6 @@ export function useServerDataLoader({
           setActiveWorkspace(saved || workspaces[0]);
         }
 
-        clearSwitchingState();
         setIsLoadingServerData(false);
       })
       .catch((err: unknown) => {
@@ -128,7 +125,6 @@ export function useServerDataLoader({
     reconnectTrigger,
     serverEpochRef,
     clientRef,
-    clearSwitchingState,
     setSessions,
     setPreconfigs,
     setPrompts,

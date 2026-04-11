@@ -17,7 +17,6 @@ interface AppHeaderProps {
   headerTitle: string;
   isLoggedIn: boolean;
   activeWorkspace: Workspace | null;
-  onServerSwitch: () => void;
   onSidebarViewModeChange: (mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')) => void;
   connected: boolean;
   onOpenSettings: () => void;
@@ -30,7 +29,6 @@ export function AppHeader({
   headerTitle,
   isLoggedIn,
   activeWorkspace,
-  onServerSwitch,
   onSidebarViewModeChange,
   connected,
   onOpenSettings,
@@ -56,7 +54,6 @@ export function AppHeader({
               <ServerSwitcher
                 compact
                 onOpenAddServer={onOpenAddServer}
-                onServerSwitch={onServerSwitch}
               />
               <button
                 className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
@@ -162,7 +159,6 @@ export function AppHeader({
               <ServerSwitcher
                 compact
                 onOpenAddServer={onOpenAddServer}
-                onServerSwitch={onServerSwitch}
               />
               <button
                 className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"

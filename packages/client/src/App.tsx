@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useParams, useNavigate } from '@tanstack/react-router';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionMetaStore } from '@/stores/sessionMetaStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
@@ -14,12 +15,11 @@ import type {
   PromptInfo,
   Workspace,
   ToolPermission,
-  SavedServer,
   ProviderStatus,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 
-import { ServerProvider, useServerContext } from '@/contexts/ServerContext';
+import { useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
@@ -41,7 +41,19 @@ import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
 
 
 function AppContent() {
-  const { servers, activeServer, addServer, removeServer, isSwitching, clearSwitchingState, quickConnections, isAddingServerRef, prepareForServerAdd, removeFromQuickConnectionsByWorkspace } = useServerContext();
+  const navigate = useNavigate();
+  const params = useParams({ from: '/server/$serverId' });
+  const serverId = params.serverId;
+
+  const {
+    servers,
+    removeServer,
+    quickConnections,
+    removeFromQuickConnectionsByWorkspace,
+  } = useServerContext();
+
+  // Derive activeServer from route param + servers registry (source of truth)
+  const activeServer = servers.find(s => s.id === serverId) ?? null;
 
   // Session state managed by Zustand store
   const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore(
@@ -99,6 +111,9 @@ function AppContent() {
   const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
+
+  // Ref to hold handleServerSwitch callback so useEffect can access it
+  const handleServerSwitchRef = useRef<(() => void) | null>(null);
 
   const {
     streamingSessionIds,
@@ -404,13 +419,15 @@ function AppContent() {
     }
   }, [currentSession, setMessagesBySession, setPartsBySession]);
 
-  // Connection timeout constants (moved to useConnectionLifecycle hook)
-
-  // Refs for abort controller (now handled in useServerDataLoader hook) and deferred workspace selection
-
-  // Track if activeServer change was triggered by addServer (for state clearing)
-  // Now managed by ServerContext via isAddingServerRef
-  const prevActiveServerIdRef = useRef<string | null>(null);
+  // React to route server changes for reset/reconnect logic
+  const prevServerIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // Only trigger reset when serverId actually changes (not on initial mount)
+    if (prevServerIdRef.current !== undefined && prevServerIdRef.current !== serverId) {
+      handleServerSwitchRef.current?.();
+    }
+    prevServerIdRef.current = serverId;
+  }, [serverId]);
 
   // Loading state for server data fetching (unused locally, passed to hook)
   const [, setIsLoadingServerData] = useState(false);
@@ -419,8 +436,7 @@ function AppContent() {
   const apiToken = activeServer?.token ?? null;
   const serverUrl = activeServer?.url ?? null;
 
-  // eslint-disable-next-line react-hooks/refs -- sdkClientRef is stable and only set once per server connection
-  const sdkClient = sdkClientRef.current;
+  const sdkClient = sdkClientRef.current; // eslint-disable-line react-hooks/refs -- sdkClientRef is intentionally accessed during render to provide a stable reference
 
   // Keep currentSessionIdRef in sync with currentSession
   useEffect(() => {
@@ -439,22 +455,18 @@ function AppContent() {
   const pendingSessionCreateRef = useRef(false);
   const handlerContextRef = useRef<SessionHandlersContext | null>(null);
 
-  const handleFirstServerAdded = useCallback((server: SavedServer) => {
-    // Setting flag before addServer so the effect can detect it
-    prepareForServerAdd();
-    addServer(server.name, server.url, server.token);
-  }, [addServer, prepareForServerAdd]);
-
   const handleLogout = useCallback(() => {
     if (activeServer) {
       removeServer(activeServer.id);
+      // Navigate to landing page after server removal
+      navigate({ to: '/' });
     }
     sdkClientRef.current?.dispose();
     setConnected(false);
     setConnectionTimedOut(false);
     setRetryCount(0);
     setNextRetryIn(0);
-  }, [activeServer, removeServer, sdkClientRef]);
+  }, [activeServer, removeServer, navigate, sdkClientRef]);
 
   const handleRetry = useCallback(() => {
     setRetryCount(c => c + 1);
@@ -495,9 +507,6 @@ function AppContent() {
     clearQueuedMessages();
     clearAllCompletions();
 
-    // Clear any open popovers/sheets by forcing a re-render
-    // (the callback will be called after state is cleared)
-
     // Clear part index on server switch
     partIdIndexRef.current.clear();
 
@@ -516,16 +525,12 @@ function AppContent() {
     // Force reconnection with the new server credentials
     // The reconnectTrigger will cause the useEffect to reconnect
     setReconnectTrigger(t => t + 1);
-  }, []);
+  }, [clearSessionState, setMessagesBySession, setPartsBySession, clearStreamingSessions, clearInterruptedSessions, clearPendingPermissions, clearQueuedMessages, clearAllCompletions]);
 
-  // Effect to handle state clearing when activeServer changes from addServer
-  useEffect(() => {
-    if (activeServer?.id !== prevActiveServerIdRef.current && isAddingServerRef.current) {
-      isAddingServerRef.current = false;
-      prevActiveServerIdRef.current = activeServer?.id ?? null;
-      handleServerSwitch();
-    }
-  }, [activeServer, handleServerSwitch, isAddingServerRef]);
+  // Keep the ref in sync with the callback
+  useLayoutEffect(() => {
+    handleServerSwitchRef.current = handleServerSwitch;
+  }, [handleServerSwitch]);
 
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     if (sessionId !== activeSessionId) {
@@ -568,7 +573,6 @@ function AppContent() {
     reconnectTrigger,
     serverEpochRef,
     clientRef: sdkClientRef,
-    clearSwitchingState,
     setSessions,
     setPreconfigs,
     setPrompts,
@@ -599,7 +603,7 @@ function AppContent() {
         setDefaultModel(modelsData.defaultModel || 'gpt-4o');
       }).catch(() => {});
     }
-  }, [showConfiguration]);
+  }, [showConfiguration, apiToken, serverUrl]);
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const http = sdkClientRef.current?.httpClient;
@@ -817,7 +821,6 @@ function AppContent() {
         headerTitle={headerTitle}
         isLoggedIn={isLoggedIn}
         activeWorkspace={activeWorkspace}
-        onServerSwitch={handleServerSwitch}
         onSidebarViewModeChange={handleSidebarViewModeChange}
         connected={connected}
         onOpenSettings={() => setShowSettings(true)}
@@ -839,6 +842,7 @@ function AppContent() {
             connected={connected}
             workspaces={workspaces}
             activeWorkspace={activeWorkspace}
+            activeServer={activeServer}
             onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
             onResumeSession={resumeSession}
             onCloseSession={closeSession}
@@ -867,7 +871,6 @@ function AppContent() {
           <AppMainContent
             servers={servers}
             activeServer={activeServer}
-            isSwitching={isSwitching}
             connected={connected}
             authError={authError}
             connectionTimedOut={connectionTimedOut}
@@ -892,7 +895,6 @@ function AppContent() {
             isPrimarySession={isPrimarySession}
             inputRef={chatInputRef}
             sdkClient={sdkClient}
-            onFirstServerAdded={handleFirstServerAdded}
             onRetry={handleRetry}
             onLogout={handleLogout}
             onSendMessage={sendChatMessage}
@@ -1016,12 +1018,6 @@ function AppContent() {
   );
 }
 
-function App() {
-  return (
-    <ServerProvider>
-      <AppContent />
-    </ServerProvider>
-  );
+export default function App() {
+  return <AppContent />;
 }
-
-export default App;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, ChevronsUpDown, Server, Plus } from 'lucide-react';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -21,12 +22,21 @@ import { useServerContext } from '@/contexts/ServerContext';
 interface ServerSwitcherProps {
   compact?: boolean;
   onOpenAddServer: () => void;
-  onServerSwitch?: () => void;
 }
 
-export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: ServerSwitcherProps) {
+export function ServerSwitcher({ compact, onOpenAddServer }: ServerSwitcherProps) {
   const [open, setOpen] = useState(false);
-  const { servers, activeServer, switchServer } = useServerContext();
+  const navigate = useNavigate();
+  const { servers } = useServerContext();
+
+  // Get current serverId from TanStack Router params
+  const params = useParams({ from: '/server/$serverId' });
+  const currentServerId = params.serverId ?? null;
+
+  const handleSelectServer = (serverId: string) => {
+    navigate({ to: '/server/$serverId', params: { serverId } });
+    setOpen(false);
+  };
 
   if (compact) {
     return (
@@ -42,7 +52,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
           >
             <Server className="size-4 flex-shrink-0 text-muted-foreground" />
             <span className="truncate">
-              {activeServer?.name || 'Select server'}
+              {servers.find(s => s.id === currentServerId)?.name || 'Select server'}
             </span>
             <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
           </Button>
@@ -56,11 +66,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
                 {servers.map((server) => (
                   <CommandItem
                     key={server.id}
-                    onSelect={() => {
-                      switchServer(server.id);
-                      onServerSwitch?.();
-                      setOpen(false);
-                    }}
+                    onSelect={() => handleSelectServer(server.id)}
                     className="justify-between"
                   >
                     <div className="flex items-center gap-2">
@@ -70,7 +76,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
                     <Check
                       className={cn(
                         'size-4',
-                        activeServer?.id === server.id
+                        currentServerId === server.id
                           ? 'opacity-100'
                           : 'opacity-0'
                       )}
@@ -110,7 +116,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
           <div className="flex items-center gap-2 overflow-hidden">
             <Server className="size-4 flex-shrink-0 text-muted-foreground" />
             <span className="truncate">
-              {activeServer?.name || 'Select server'}
+              {servers.find(s => s.id === currentServerId)?.name || 'Select server'}
             </span>
           </div>
           <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
@@ -125,11 +131,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
               {servers.map((server) => (
                 <CommandItem
                   key={server.id}
-                  onSelect={() => {
-                    switchServer(server.id);
-                    onServerSwitch?.();
-                    setOpen(false);
-                  }}
+                  onSelect={() => handleSelectServer(server.id)}
                   className="justify-between"
                 >
                   <div className="flex items-center gap-2">
@@ -139,7 +141,7 @@ export function ServerSwitcher({ compact, onOpenAddServer, onServerSwitch }: Ser
                   <Check
                     className={cn(
                       'size-4',
-                      activeServer?.id === server.id
+                      currentServerId === server.id
                         ? 'opacity-100'
                         : 'opacity-0'
                     )}
