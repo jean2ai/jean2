@@ -11,7 +11,6 @@ const STALE_THRESHOLD = 30_000;
 export interface ConnectionLifecycleParams {
   apiToken: string | null;
   serverUrl: string | null;
-  serverEpochRef: RefObject<number>;
   currentSessionIdRef: RefObject<string | null>;
   handlerContextRef: RefObject<SessionHandlersContext | null>;
   clearPendingPermissions: () => void;
@@ -21,8 +20,6 @@ export interface ConnectionLifecycleParams {
   setConnectionTimedOut: (timedOut: boolean) => void;
   setRetryCount: React.Dispatch<React.SetStateAction<number>>;
   setNextRetryIn: React.Dispatch<React.SetStateAction<number>>;
-  setReconnectTrigger: React.Dispatch<React.SetStateAction<number>>;
-  reconnectTrigger: number;
   connected: boolean;
   connectionTimedOut: boolean;
   retryCount: number;
@@ -36,7 +33,6 @@ export interface ConnectionLifecycleReturn {
 export function useConnectionLifecycle({
   apiToken,
   serverUrl,
-  serverEpochRef,
   currentSessionIdRef,
   handlerContextRef,
   clearPendingPermissions,
@@ -46,8 +42,6 @@ export function useConnectionLifecycle({
   setConnectionTimedOut,
   setRetryCount,
   setNextRetryIn,
-  setReconnectTrigger,
-  reconnectTrigger,
   connected,
   connectionTimedOut,
   retryCount,
@@ -63,18 +57,15 @@ export function useConnectionLifecycle({
       return;
     }
 
-    const localEpoch = serverEpochRef.current;
-
     const client = new Jean2Client({
       url: serverUrl,
       token: apiToken,
       autoSyncPermissions: false,
     });
-    
+
     clientRef.current = client;
 
     client.on('connected', () => {
-      if (serverEpochRef.current !== localEpoch) return;
       setConnected(true);
       setAuthError(null);
       setRetryCount(0);
@@ -90,7 +81,6 @@ export function useConnectionLifecycle({
     });
 
     client.on('disconnected', (payload) => {
-      if (serverEpochRef.current !== localEpoch) return;
       setConnected(false);
 
       if (payload.code === 1008 || payload.code === 401) {
@@ -99,19 +89,16 @@ export function useConnectionLifecycle({
     });
 
     client.on('error.connection', (error) => {
-      if (serverEpochRef.current !== localEpoch) return;
       console.error('WebSocket error:', error);
     });
 
     client.on('*', () => {
-      if (serverEpochRef.current !== localEpoch) return;
       lastMessageTimeRef.current = Date.now();
     });
 
     const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
 
     client.connect().catch((err) => {
-      if (serverEpochRef.current !== localEpoch) return;
       console.error('Connection failed:', err);
     });
 
@@ -122,7 +109,7 @@ export function useConnectionLifecycle({
         clientRef.current = null;
       }
     };
-  }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
+  }, [apiToken, serverUrl]);
 
   useEffect(() => {
     if (apiToken && serverUrl && !connected && !connectionTimedOut) {
@@ -137,8 +124,6 @@ export function useConnectionLifecycle({
   }, [apiToken, serverUrl, connected, connectionTimedOut, setConnectionTimedOut]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     if (connectionTimedOut && !connected && apiToken && serverUrl) {
       const delay = Math.min(
         INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
@@ -154,9 +139,7 @@ export function useConnectionLifecycle({
       }, 1000);
 
       const retryTimeout = setTimeout(() => {
-        if (serverEpochRef.current !== localEpoch) return;
         setRetryCount(c => c + 1);
-        setReconnectTrigger(t => t + 1);
       }, delay);
 
       return () => {
@@ -164,14 +147,10 @@ export function useConnectionLifecycle({
         clearTimeout(retryTimeout);
       };
     }
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn, setRetryCount]);
+  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, setNextRetryIn, setRetryCount]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     const handleVisibilityChange = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (document.visibilityState !== 'visible') return;
 
       const client = clientRef.current;
@@ -187,24 +166,19 @@ export function useConnectionLifecycle({
         setConnected(false);
         setRetryCount(0);
         setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
       } else if (!client.connected) {
         setConnected(false);
         setRetryCount(0);
         setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
- useEffect(() => {
-    const localEpoch = serverEpochRef.current;
+  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
 
+  useEffect(() => {
     const handleOnline = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (!apiToken || !serverUrl) return;
 
       const client = clientRef.current;
@@ -213,11 +187,11 @@ export function useConnectionLifecycle({
       setConnected(false);
       setRetryCount(0);
       setConnectionTimedOut(false);
-      setReconnectTrigger(t => t + 1);
     };
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
- return { clientRef };
+  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut]);
+
+  return { clientRef };
 }

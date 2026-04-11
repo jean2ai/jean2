@@ -1,18 +1,17 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import { useParams, useNavigate, useRouter } from '@tanstack/react-router';
 import { useUIStore } from '@/stores/uiStore';
 import { useSessionMetaStore } from '@/stores/sessionMetaStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionContentStore } from '@/stores/sessionContentStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import type {
   Session,
   Message,
   MessageWithParts,
-  Preconfig,
-  PromptInfo,
   Workspace,
   ToolPermission,
   ProviderStatus,
@@ -21,6 +20,7 @@ import type { Jean2Client } from '@jean2/sdk';
 
 import { useServerContext } from '@/contexts/ServerContext';
 import { AppSidebar, type AppSidebarHandle } from '@/components/layout/AppSidebar';
+import { AppHeader } from '@/components/app';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
@@ -30,19 +30,18 @@ import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
-import { useServerDataLoader, type ModelInfo } from '@/hooks/useServerDataLoader';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { AppKeyboardHandlersMount } from '@/hooks/useAppKeyboardHandlers';
-import { AppHeader, AppPanels, AppMainContent } from '@/components/app';
 import { FilesPanel, type FilesPanelHandle } from '@/components/layout/FilesPanel';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-import type { SessionHandlersContext } from '@/handlers/serverMessage/types';
+import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage/types';
+import { ShellContent } from './ShellContent';
 
-
-function AppContent() {
+export default function ServerShell() {
+  const router = useRouter();
   const navigate = useNavigate();
-  const params = useParams({ from: '/server/$serverId' });
+  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const serverId = params.serverId;
 
   const {
@@ -52,24 +51,17 @@ function AppContent() {
     removeFromQuickConnectionsByWorkspace,
   } = useServerContext();
 
-  // Derive activeServer from route param + servers registry (source of truth)
   const activeServer = servers.find(s => s.id === serverId) ?? null;
 
-  // Session state managed by Zustand store
-  const { sessions, currentSession, setSessions, setCurrentSession, clearSessionState } = useSessionStore(
+  const { sessions, currentSession, setSessions, setCurrentSession } = useSessionStore(
     useShallow((s) => ({
       sessions: s.sessions,
       currentSession: s.currentSession,
       setSessions: s.setSessions,
       setCurrentSession: s.setCurrentSession,
-      clearSessionState: s.clearSessionState,
     })),
   );
 
-  const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
-  const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-
-  // Session content stored in Zustand for cross-component access
   const { setMessagesBySession, setPartsBySession } =
     useSessionContentStore(
       useShallow((state) => ({
@@ -78,7 +70,6 @@ function AppContent() {
       })),
     );
 
-  // Derived state for active session only (prevents full-map subscription in render path)
   const activeSessionId = currentSession?.id;
   const activeSessionMessages = useSessionContentStore(
     useShallow((state) => activeSessionId ? state.messagesBySession[activeSessionId] || [] : [])
@@ -87,19 +78,15 @@ function AppContent() {
     useShallow((state) => activeSessionId ? state.partsBySession[activeSessionId] || {} : {})
   );
 
-  // Ref for LRU eviction to access full store without render-path subscription
   const messagesBySessionRef = useRef<Record<string, Message[]>>({});
   useLayoutEffect(() => {
     messagesBySessionRef.current = useSessionContentStore.getState().messagesBySession;
   });
 
-  // LRU cache eviction for session data
-  // Only keep current session data in memory; no multi-session caching
   const SESSION_CACHE_MAX = 1;
   const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
   const prevSessionKeyCountRef = useRef(0);
 
-  // Stable ref for SDK client - created early so it's available in callbacks
   const sdkClientRef = useRef<Jean2Client | null>(null);
 
   const currentSessionIdRef = useRef<string | null>(null);
@@ -112,14 +99,10 @@ function AppContent() {
   const [connected, setConnected] = useState(false);
   const sessionsRef = useRef<Session[]>([]);
 
-  // Ref to hold handleServerSwitch callback so useEffect can access it
-  const handleServerSwitchRef = useRef<(() => void) | null>(null);
-
   const {
     streamingSessionIds,
     interruptedSessions,
     clearStreamingSessions,
-    clearInterruptedSessions,
     addStreamingSession,
     removeStreamingSession,
     addInterruptedSession,
@@ -129,7 +112,6 @@ function AppContent() {
       streamingSessionIds: s.streamingSessionIds,
       interruptedSessions: s.interruptedSessions,
       clearStreamingSessions: s.clearStreamingSessions,
-      clearInterruptedSessions: s.clearInterruptedSessions,
       addStreamingSession: s.addStreamingSession,
       removeStreamingSession: s.removeStreamingSession,
       addInterruptedSession: s.addInterruptedSession,
@@ -143,31 +125,26 @@ function AppContent() {
   }>({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   const [currentModel, setCurrentModel] = useState<string>('gpt-4o');
   const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
-  const [models, setModels] = useState<Array<{
-    id: string;
-    name: string;
-    contextWindow: number;
-    tier: 'budget' | 'standard' | 'premium';
-    providerId: string;
-    providerName: string;
-    variants?: Record<string, { providerOptions: Record<string, unknown> }>;
-    capabilities?: {
-      input?: {
-        text?: boolean;
-        image?: boolean;
-        video?: boolean;
-        file?: boolean;
-      };
-    };
-    runtimeStatus: {
-      providerSupported: boolean;
-      providerConfigured: boolean;
-      usable: boolean;
-    };
-  }>>([]);
-  const [defaultModel, setDefaultModel] = useState<string>('gpt-4o');
 
-  // Auto-clear variant when current model doesn't support it
+  const {
+    workspaces,
+    preconfigs,
+    prompts,
+    models: storeModels,
+    defaultModel: storeDefaultModel,
+  } = useServerDataStore(useShallow((s) => ({
+    workspaces: s.workspaces,
+    preconfigs: s.preconfigs,
+    prompts: s.prompts,
+    models: s.models,
+    defaultModel: s.defaultModel,
+  })));
+
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+
+  const models = storeModels as ModelInfo[];
+  const defaultModel = storeDefaultModel;
+
   useEffect(() => {
     const modelVariants = models.find(m => m.id === currentModel)?.variants;
     if (selectedVariant && modelVariants && !modelVariants[selectedVariant]) {
@@ -175,16 +152,6 @@ function AppContent() {
     }
   }, [currentModel, selectedVariant, models]);
 
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null);
-
-  const setActiveWorkspaceStore = useWorkspaceStore((s) => s.setActiveWorkspace);
-
-  useLayoutEffect(() => {
-    setActiveWorkspaceStore(activeWorkspace);
-  }, [activeWorkspace, setActiveWorkspaceStore]);
-
-  // UI state managed by Zustand store (dialog-related only; header/panel state extracted to sub-components)
   const {
     showSettings,
     showMCPDialog,
@@ -225,7 +192,6 @@ function AppContent() {
     closeFilePreview: s.closeFilePreview,
   })));
 
-  // Notification sound settings
   const [chatFinishSoundEnabled, setChatFinishSoundEnabled] = useState<boolean>(() => {
     const stored = localStorage.getItem('jean2_sound_chat_finish_enabled');
     return stored !== null ? stored === 'true' : true;
@@ -235,7 +201,6 @@ function AppContent() {
     return stored !== null ? stored === 'true' : true;
   });
 
-  // Ref for permission sound enablement to avoid stale closures in async handlers
   const permissionSoundEnabledRef = useRef(permissionSoundEnabled);
   useLayoutEffect(() => {
     permissionSoundEnabledRef.current = permissionSoundEnabled;
@@ -274,33 +239,23 @@ function AppContent() {
 
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Connection offline handling
   const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [nextRetryIn, setNextRetryIn] = useState(0);
-  const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isCompacting = currentSession?.compacting ?? false;
   const [compactionSuccess, setCompactionSuccess] = useState(false);
 
-  // Track toolCallIds that have already triggered the permission sound notification
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
 
-  // Epoch for stale-event protection: prevents old async events from mutating current state
-  const serverEpochRef = useRef(0);
-
-  // Index for O(1) part lookup: partId -> { sessionId, messageId, index }
   type PartIndexEntry = { sessionId: string; messageId: string; index: number };
   const partIdIndexRef = useRef<Map<string, PartIndexEntry>>(new Map());
 
-  // Batching refs for part.append updates to reduce UI thrash
   const pendingPartAppendsRef = useRef<Map<string, string>>(new Map());
   const partAppendRafRef = useRef<number | null>(null);
   const lastPartAppendFlushAtRef = useRef<number>(0);
   const partAppendTimeoutRef = useRef<number | null>(null);
 
-  // Flush all pending part appends in a single update
   const flushPendingPartAppends = useCallback(() => {
-    // Clear refs first to prevent stale callbacks from interfering
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
       partAppendRafRef.current = null;
@@ -350,14 +305,9 @@ function AppContent() {
     });
   }, [setPartsBySession]);
 
-
-
-  // Notification sound hook
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
   const skipFinishSoundSessionIdsRef = useRef<Set<string>>(new Set());
-  const pendingWorkspaceIdRef = useRef<string | null>(null);
 
-  // Ref for chat finish sound enablement - kept for server switch logic
   const chatFinishSoundEnabledRef = useRef(chatFinishSoundEnabled);
   useLayoutEffect(() => {
     chatFinishSoundEnabledRef.current = chatFinishSoundEnabled;
@@ -371,8 +321,6 @@ function AppContent() {
     localStorage.setItem('jean2_sound_permission_enabled', String(permissionSoundEnabled));
   }, [permissionSoundEnabled]);
 
-  // LRU eviction for session data - runs when session count increases beyond limit
-  // Uses ref-based access to avoid full-content subscription in render path
   useLayoutEffect(() => {
     const currentCount = useSessionContentStore.getState().getMessagesBySessionKeysCount();
     if (currentCount <= prevSessionKeyCountRef.current) {
@@ -419,26 +367,11 @@ function AppContent() {
     }
   }, [currentSession, setMessagesBySession, setPartsBySession]);
 
-  // React to route server changes for reset/reconnect logic
-  const prevServerIdRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    // Only trigger reset when serverId actually changes (not on initial mount)
-    if (prevServerIdRef.current !== undefined && prevServerIdRef.current !== serverId) {
-      handleServerSwitchRef.current?.();
-    }
-    prevServerIdRef.current = serverId;
-  }, [serverId]);
-
-  // Loading state for server data fetching (unused locally, passed to hook)
-  const [, setIsLoadingServerData] = useState(false);
-
-  // Derive connection info from activeServer
   const apiToken = activeServer?.token ?? null;
   const serverUrl = activeServer?.url ?? null;
 
   const sdkClient = sdkClientRef.current; // eslint-disable-line react-hooks/refs -- sdkClientRef is intentionally accessed during render to provide a stable reference
 
-  // Keep currentSessionIdRef in sync with currentSession
   useEffect(() => {
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession]);
@@ -447,7 +380,6 @@ function AppContent() {
     notifiedToolCallIdsRef.current.clear();
   }, [currentSession?.id]);
 
-  // Keep sessionsRef in sync with session store
   useLayoutEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
@@ -458,7 +390,6 @@ function AppContent() {
   const handleLogout = useCallback(() => {
     if (activeServer) {
       removeServer(activeServer.id);
-      // Navigate to landing page after server removal
       navigate({ to: '/' });
     }
     sdkClientRef.current?.dispose();
@@ -474,64 +405,6 @@ function AppContent() {
     setNextRetryIn(0);
   }, []);
 
-  const handleServerSwitch = useCallback(() => {
-    // Increment epoch FIRST before any state mutation or reconnect
-    // This ensures any in-flight handlers from the old connection are ignored
-    serverEpochRef.current += 1;
-
-    // Close existing client connection
-    sdkClientRef.current?.dispose();
-    setConnected(false);
-    setConnectionTimedOut(false);
-    setRetryCount(0);
-    setNextRetryIn(0);
-
-    // Clear all session and message state
-    clearSessionState();
-    setPreconfigs([]);
-    setMessagesBySession({});
-    setPartsBySession({});
-    sessionAccessTimesRef.current.clear();
-    prevSessionKeyCountRef.current = 0;
-    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
-    notifiedToolCallIdsRef.current.clear();
-    clearStreamingSessions();
-    clearInterruptedSessions();
-    setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-    setCurrentModel('gpt-4o');
-    setModels([]);
-    setWorkspaces([]);
-    setActiveWorkspace(null);
-    setPermissions([]);
-    clearPendingPermissions();
-    clearQueuedMessages();
-    clearAllCompletions();
-
-    // Clear part index on server switch
-    partIdIndexRef.current.clear();
-
-    // Cancel pending RAF, timeout, and clear pending appends on server switch
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    if (partAppendTimeoutRef.current !== null) {
-      clearTimeout(partAppendTimeoutRef.current);
-      partAppendTimeoutRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
-    lastPartAppendFlushAtRef.current = 0;
-
-    // Force reconnection with the new server credentials
-    // The reconnectTrigger will cause the useEffect to reconnect
-    setReconnectTrigger(t => t + 1);
-  }, [clearSessionState, setMessagesBySession, setPartsBySession, clearStreamingSessions, clearInterruptedSessions, clearPendingPermissions, clearQueuedMessages, clearAllCompletions]);
-
-  // Keep the ref in sync with the callback
-  useLayoutEffect(() => {
-    handleServerSwitchRef.current = handleServerSwitch;
-  }, [handleServerSwitch]);
-
   const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
     if (sessionId !== activeSessionId) {
       return [];
@@ -542,11 +415,9 @@ function AppContent() {
     }));
   }, [activeSessionId, activeSessionMessages, activeSessionPartsMap]);
 
-  // Pass our pre-created sdkClientRef so the hook uses it directly
   useConnectionLifecycle({
     apiToken,
     serverUrl,
-    serverEpochRef,
     currentSessionIdRef,
     handlerContextRef,
     clearPendingPermissions,
@@ -556,54 +427,11 @@ function AppContent() {
     setConnectionTimedOut,
     setRetryCount,
     setNextRetryIn,
-    setReconnectTrigger,
-    reconnectTrigger,
     connected,
     connectionTimedOut,
     retryCount,
     clientRef: sdkClientRef,
   });
-
-
-
-  // Server data loading hook (handles fetch, abort, epoch guard, workspace persistence)
-  useServerDataLoader({
-    apiToken,
-    serverUrl,
-    reconnectTrigger,
-    serverEpochRef,
-    clientRef: sdkClientRef,
-    setSessions,
-    setPreconfigs,
-    setPrompts,
-    setModels,
-    setDefaultModel,
-    setProviderStatuses,
-    setWorkspaces,
-    setActiveWorkspace,
-    activeWorkspace,
-    setIsLoadingServerData,
-    setAuthError,
-    pendingWorkspaceIdRef,
-  });
-
-  // Refresh models, prompts, and preconfigs when Configuration dialog closes
-  useEffect(() => {
-    if (!showConfiguration && apiToken && serverUrl) {
-      const http = sdkClientRef.current?.httpClient;
-      if (!http) return;
-      Promise.all([
-        http.get<{ preconfigs: Preconfig[] }>('/preconfigs'),
-        http.get<{ prompts: PromptInfo[] }>('/prompts'),
-        http.get<{ models: ModelInfo[]; defaultModel: string }>('/models'),
-      ]).then(([preconfigsData, promptsData, modelsData]) => {
-        setPreconfigs(preconfigsData.preconfigs || []);
-        setPrompts(promptsData.prompts || []);
-        setModels((modelsData.models || []).filter((m) => m.runtimeStatus?.usable));
-        setDefaultModel(modelsData.defaultModel || 'gpt-4o');
-      }).catch(() => {});
-    }
-  }, [showConfiguration, apiToken, serverUrl]);
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const http = sdkClientRef.current?.httpClient;
@@ -611,14 +439,16 @@ function AppContent() {
 
     const data = await http.post<{ workspace: Workspace }>('/workspaces', { name, path, isVirtual });
     const workspace = data.workspace;
-    setWorkspaces(prev => [...prev, workspace]);
-    setActiveWorkspace(workspace);
+    useServerDataStore.getState().setWorkspaces([...useServerDataStore.getState().workspaces, workspace]);
+    useWorkspaceStore.getState().setActiveWorkspace(workspace);
+    localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
     return workspace;
   };
 
   const selectWorkspace = (workspace: Workspace) => {
-    setActiveWorkspace(workspace);
+    useWorkspaceStore.getState().setActiveWorkspace(workspace);
+    localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
   };
 
@@ -636,16 +466,12 @@ function AppContent() {
       return;
     }
 
-    // Remove quick connections referencing this workspace via context API
-    // This updates both storage and reactive state
     removeFromQuickConnectionsByWorkspace(id);
 
-    // Clear current session if it belonged to the deleted workspace
     if (currentSession && (currentSession.workspaceId === id || deletedSessions.includes(currentSession.id))) {
       setCurrentSession(null);
     }
 
-    // Clean up sessions, messages, and parts for deleted sessions using server's response
     setSessions(prev => prev.filter(s => !deletedSessions.includes(s.id)));
 
     setMessagesBySession(prev => {
@@ -660,20 +486,25 @@ function AppContent() {
     });
     deletedSessions.forEach(sessionId => sessionAccessTimesRef.current.delete(sessionId));
 
-    // Clean up part index entries for deleted sessions
     for (const [partId, entry] of partIdIndexRef.current) {
       if (deletedSessions.includes(entry.sessionId)) {
         partIdIndexRef.current.delete(partId);
       }
     }
 
-    setWorkspaces(prev => {
-      const next = prev.filter(w => w.id !== id);
-      if (activeWorkspace?.id === id) {
-        setActiveWorkspace(next[0] || null);
+    const currentWorkspaces = useServerDataStore.getState().workspaces;
+    useServerDataStore.getState().setWorkspaces(currentWorkspaces.filter(w => w.id !== id));
+    const currentActive = useWorkspaceStore.getState().activeWorkspace;
+    if (currentActive?.id === id) {
+      const remaining = currentWorkspaces.filter(w => w.id !== id);
+      const newActive = remaining[0] || null;
+      useWorkspaceStore.getState().setActiveWorkspace(newActive);
+      if (newActive) {
+        localStorage.setItem('activeWorkspaceId', newActive.id);
+      } else {
+        localStorage.removeItem('activeWorkspaceId');
       }
-      return next;
-    });
+    }
   };
 
   const handleCreateVirtualWorkspace = async () => {
@@ -718,8 +549,8 @@ function AppContent() {
       partAppendTimeoutRef,
       skipFinishSoundSessionIdsRef,
       currentSessionIdRef,
-      models,
-      defaultModel,
+      models: useServerDataStore.getState().models as ModelInfo[],
+      defaultModel: useServerDataStore.getState().defaultModel,
       interruptedSessions,
       sessionsRef,
       flushPendingPartAppends,
@@ -736,7 +567,6 @@ function AppContent() {
     };
   });
 
-  // Filter out subagent-only preconfigs for primary sessions
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
 
   const {
@@ -772,7 +602,7 @@ function AppContent() {
     isCompacting,
     primaryPreconfigs,
     setCurrentSession,
-    setActiveWorkspace,
+    setActiveWorkspace: (ws: Workspace | null) => useWorkspaceStore.getState().setActiveWorkspace(ws),
     setCompactionSuccess,
     setCurrentModel,
     setSelectedVariant,
@@ -864,65 +694,56 @@ function AppContent() {
           />
         )}
 
-        <main className="flex-1 flex flex-col overflow-hidden min-h-0" style={{
-          paddingTop: 'env(safe-area-inset-top, 0)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0)',
-        }}>
-          <AppMainContent
-            servers={servers}
-            activeServer={activeServer}
-            connected={connected}
-            authError={authError}
-            connectionTimedOut={connectionTimedOut}
-            retryCount={retryCount}
-            nextRetryIn={nextRetryIn}
-            serverUrl={serverUrl}
-            currentSession={currentSession}
-            messagesWithParts={messagesWithParts}
-            queuedMessages={queuedMessages}
-            preconfigs={preconfigs}
-            primaryPreconfigs={primaryPreconfigs}
-            prompts={prompts}
-            models={models}
-            defaultModel={defaultModel}
-            selectedVariant={selectedVariant}
-            pendingPermissions={pendingPermissions}
-            sessionUsage={sessionUsage}
-            currentModel={currentModel}
-            streamingSessionIds={streamingSessionIds}
-            isCompacting={isCompacting}
-            compactionSuccess={compactionSuccess}
-            isPrimarySession={isPrimarySession}
-            inputRef={chatInputRef}
-            sdkClient={sdkClient}
-            onRetry={handleRetry}
-            onLogout={handleLogout}
-            onSendMessage={sendChatMessage}
-            onRemoveFromQueue={removeFromQueue}
-            onChangePreconfig={updateSessionPreconfig}
-            onChangeModel={updateSessionModel}
-            onChangeVariant={updateSessionVariant}
-            onPermissionResponse={handlePermissionResponse}
-            onRename={handleRenameSession}
-            onNavigateToSubagent={resumeSession}
-            onNavigateBack={handleNavigateBack}
-            onInterrupt={handleInterruptSession}
-            onRevert={revertSession}
-            onFork={forkSession}
-            onCompact={compactSession}
-            onClearCompactionSuccess={() => setCompactionSuccess(false)}
-            scrollToBottomRef={scrollToBottomRef}
-            autoFollowToggleRef={autoFollowToggleRef}
-          />
-
-          <AppPanels
-            workspaceId={activeWorkspace?.id}
-            workspacePath={activeWorkspace?.path}
-            workspaceName={activeWorkspace?.name}
-            sdkClient={sdkClient}
-            terminalPanelRef={terminalPanelRef}
-          />
-        </main>
+        <ShellContent
+          servers={servers}
+          activeServer={activeServer}
+          connected={connected}
+          authError={authError}
+          connectionTimedOut={connectionTimedOut}
+          retryCount={retryCount}
+          nextRetryIn={nextRetryIn}
+          serverUrl={serverUrl}
+          currentSession={currentSession}
+          messagesWithParts={messagesWithParts}
+          queuedMessages={queuedMessages}
+          preconfigs={preconfigs}
+          primaryPreconfigs={primaryPreconfigs}
+          prompts={prompts}
+          models={models}
+          defaultModel={defaultModel}
+          selectedVariant={selectedVariant}
+          pendingPermissions={pendingPermissions}
+          sessionUsage={sessionUsage}
+          currentModel={currentModel}
+          streamingSessionIds={streamingSessionIds}
+          isCompacting={isCompacting}
+          compactionSuccess={compactionSuccess}
+          isPrimarySession={isPrimarySession}
+          inputRef={chatInputRef}
+          sdkClient={sdkClient}
+          terminalPanelRef={terminalPanelRef}
+          workspaceId={activeWorkspace?.id}
+          workspacePath={activeWorkspace?.path}
+          workspaceName={activeWorkspace?.name}
+          onRetry={handleRetry}
+          onLogout={handleLogout}
+          onSendMessage={sendChatMessage}
+          onRemoveFromQueue={removeFromQueue}
+          onChangePreconfig={updateSessionPreconfig}
+          onChangeModel={updateSessionModel}
+          onChangeVariant={updateSessionVariant}
+          onPermissionResponse={handlePermissionResponse}
+          onRename={handleRenameSession}
+          onNavigateToSubagent={resumeSession}
+          onNavigateBack={handleNavigateBack}
+          onInterrupt={handleInterruptSession}
+          onRevert={revertSession}
+          onFork={forkSession}
+          onCompact={compactSession}
+          onClearCompactionSuccess={() => setCompactionSuccess(false)}
+          scrollToBottomRef={scrollToBottomRef}
+          autoFollowToggleRef={autoFollowToggleRef}
+        />
 
         {isLoggedIn && (
           <FilesPanel
@@ -988,7 +809,12 @@ function AppContent() {
 
           <ConfigurationDialog
             open={showConfiguration}
-            onOpenChange={setShowConfiguration}
+            onOpenChange={(open) => {
+              setShowConfiguration(open);
+              if (!open) {
+                router.invalidate();
+              }
+            }}
             sdkClient={sdkClient}
           />
         </>
@@ -1016,8 +842,4 @@ function AppContent() {
       )}
     </SidebarProvider>
   );
-}
-
-export default function App() {
-  return <AppContent />;
 }

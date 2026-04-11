@@ -1,17 +1,24 @@
 import {
   createRouter,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   Outlet,
   RouterProvider,
-  useNavigate,
+  redirect,
   useParams,
 } from '@tanstack/react-router';
-import { useEffect } from 'react';
 import { ServerProvider } from '@/contexts/ServerContext';
-import { useServerContext } from '@/contexts/ServerContext';
-import App from './App';
-import { LandingPage } from './components/router/LandingPage';
+import { serverRegistry, type ServerRegistry } from '@/lib/serverRegistry';
+import { fetchServerData, type ServerData } from '@/lib/fetchServerData';
+import { LandingPage } from '@/components/router/LandingPage';
+import ServerRouteComponent from '@/components/router/ServerRouteComponent';
+import { deleteServer, getSavedServers } from '@/config/servers';
+
+interface RouterContext {
+  serverRegistry: ServerRegistry;
+}
+
+const createRootRoute = createRootRouteWithContext<RouterContext>();
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -31,39 +38,122 @@ const indexRoute = createRoute({
   component: LandingPage,
 });
 
-function ServerRouteGuard({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
-  const params = useParams({ from: '/server/$serverId' });
-  const { servers, isHydrated } = useServerContext();
+function ServerErrorComponent({
+  error,
+  reset,
+}: {
+  error: unknown;
+  reset: () => void;
+}) {
+  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const serverId = params.serverId;
 
-  useEffect(() => {
-    if (!isHydrated || !serverId) return;
+  const savedServers = getSavedServers();
+  const otherServers = savedServers.filter((s) => s.id !== serverId);
+  const hasOtherServers = otherServers.length > 0;
 
-    const serverExists = servers.some(s => s.id === serverId);
-    if (!serverExists) {
-      if (servers.length > 0) {
-        navigate({ to: '/server/$serverId', params: { serverId: servers[0].id }, replace: true });
-      } else {
-        navigate({ to: '/', replace: true });
-      }
+  const handleRemoveServer = () => {
+    if (serverId) {
+      deleteServer(serverId);
     }
-  }, [serverId, servers, isHydrated, navigate]);
+    router.navigate({ to: '/', replace: true });
+  };
 
-  if (!isHydrated) {
-    return null;
-  }
+  const handleSwitchServer = () => {
+    if (otherServers.length > 0) {
+      router.navigate({ to: '/server/$serverId', params: { serverId: otherServers[0].id }, replace: true });
+    } else {
+      router.navigate({ to: '/', replace: true });
+    }
+  };
 
-  return <>{children}</>;
+  const handleGoHome = () => {
+    router.navigate({ to: '/', replace: true });
+  };
+
+  return (
+    <div className="flex w-full items-center justify-center min-h-screen bg-background text-foreground">
+      <div className="text-center space-y-4 p-8 max-w-lg w-full">
+        <h2 className="text-lg font-semibold">Server Connection Error</h2>
+        <p className="text-muted-foreground text-sm">
+          {error instanceof Error ? error.message : 'An unknown error occurred'}
+        </p>
+        <div className="space-y-2 pt-2">
+          <button
+            onClick={() => reset()}
+            className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+          >
+            Retry
+          </button>
+          {hasOtherServers && (
+            <button
+              onClick={handleSwitchServer}
+              className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground text-sm font-medium hover:bg-accent"
+            >
+              Switch Server
+            </button>
+          )}
+          <button
+            onClick={handleRemoveServer}
+            className="w-full px-4 py-2 rounded-md border border-destructive/50 text-destructive text-sm font-medium hover:bg-destructive/10"
+          >
+            Remove This Server
+          </button>
+          <button
+            onClick={handleGoHome}
+            className="w-full px-4 py-2 rounded-md text-muted-foreground text-sm font-medium hover:text-foreground hover:bg-accent"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const serverRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/server/$serverId',
-  component: () => (
-    <ServerRouteGuard>
-      <App />
-    </ServerRouteGuard>
+  beforeLoad: ({ params, context }) => {
+    const server = context.serverRegistry.getServer(params.serverId);
+    if (!server) {
+      const servers = context.serverRegistry.getServers();
+      if (servers.length > 0) {
+        throw redirect({
+          to: '/server/$serverId',
+          params: { serverId: servers[0].id },
+          replace: true,
+          throw: true,
+        });
+      }
+      throw redirect({ to: '/', replace: true, throw: true });
+    }
+    return { server };
+  },
+  loader: async ({ params, context, abortController }): Promise<ServerData> => {
+    const server = context.serverRegistry.getServer(params.serverId);
+    if (!server) {
+      throw redirect({ to: '/', replace: true, throw: true });
+    }
+    try {
+      return await fetchServerData(server.url, server.token, abortController.signal);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to connect to server: ${message}`, { cause: err });
+    }
+  },
+  component: ServerRouteComponent,
+  errorComponent: ServerErrorComponent,
+  pendingComponent: () => (
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+      <div className="text-center space-y-2">
+        <div className="h-8 w-8 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin mx-auto" />
+        <p className="text-sm text-muted-foreground">Connecting to server...</p>
+      </div>
+    </div>
   ),
 });
 
@@ -71,7 +161,13 @@ const routeTree = rootRoute.addChildren([indexRoute, serverRoute]);
 
 export const router = createRouter({
   routeTree,
+  context: { serverRegistry },
   defaultPreload: 'intent',
+  defaultPendingComponent: () => (
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="h-8 w-8 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+    </div>
+  ),
 });
 
 declare module '@tanstack/react-router' {

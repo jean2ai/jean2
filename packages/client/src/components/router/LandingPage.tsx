@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useServerContext } from '@/contexts/ServerContext';
 import FirstServerScreen from '@/components/FirstServerScreen';
 import type { SavedServer } from '@jean2/sdk';
@@ -8,11 +8,13 @@ import { Server } from 'lucide-react';
 export function LandingPage() {
   const navigate = useNavigate();
   const { servers, isHydrated } = useServerContext();
+  const location = useRouterState({ select: (s) => s.location });
 
   useEffect(() => {
     if (!isHydrated || servers.length === 0) return;
+    if (location.pathname !== '/') return;
     navigate({ to: '/server/$serverId', params: { serverId: servers[0].id } });
-  }, [servers, isHydrated, navigate]);
+  }, [servers, isHydrated, navigate, location.pathname]);
 
   const handleSelectServer = (server: SavedServer) => {
     navigate({ to: '/server/$serverId', params: { serverId: server.id } });
