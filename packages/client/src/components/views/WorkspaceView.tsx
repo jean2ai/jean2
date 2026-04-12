@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
@@ -80,6 +81,14 @@ export default function WorkspaceView() {
     </SidebarHeader>
   );
 
+  const handleBulkCloseSessions = useCallback((sessionIds: Set<string>) => {
+    sessionIds.forEach(id => closeSession(id));
+  }, [closeSession]);
+
+  const handleBulkDeleteSessions = useCallback((sessionIds: Set<string>) => {
+    sessionIds.forEach(id => permanentlyDeleteSession(id));
+  }, [permanentlyDeleteSession]);
+
   const sidebarContent = (
     <WorkspaceSessionContent
       activeSessions={sidebarData.activeSessions}
@@ -92,6 +101,8 @@ export default function WorkspaceView() {
       onReopenSession={reopenSession}
       onDeleteSession={permanentlyDeleteSession}
       onRenameSession={handleRenameSession}
+      onBulkCloseSessions={handleBulkCloseSessions}
+      onBulkDeleteSessions={handleBulkDeleteSessions}
     />
   );
 

@@ -1,4 +1,5 @@
-import { ChevronRight } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ChevronRight, CheckSquare, X, Archive, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Session } from '@jean2/sdk';
 import {
   SidebarGroup,
@@ -12,7 +13,15 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 
 interface WorkspaceSessionContentProps {
   activeSessions: Session[];
@@ -25,6 +34,8 @@ interface WorkspaceSessionContentProps {
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onBulkCloseSessions: (sessionIds: Set<string>) => void;
+  onBulkDeleteSessions: (sessionIds: Set<string>) => void;
 }
 
 export function WorkspaceSessionContent({
@@ -38,58 +49,209 @@ export function WorkspaceSessionContent({
   onReopenSession,
   onDeleteSession,
   onRenameSession,
+  onBulkCloseSessions,
+  onBulkDeleteSessions,
 }: WorkspaceSessionContentProps) {
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode(prev => !prev);
+    setSelectedIds(new Set());
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(activeSessions.map(s => s.id)));
+  }, [activeSessions]);
+
+  const deselectAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkArchive = useCallback(() => {
+    if (selectedIds.size > 0) {
+      onBulkCloseSessions(selectedIds);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+    }
+  }, [selectedIds, onBulkCloseSessions]);
+
+  const handleCancel = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleDeleteAllArchived = useCallback(() => {
+    const ids = new Set(archivedSessions.map(s => s.id));
+    if (ids.size > 0) {
+      onBulkDeleteSessions(ids);
+    }
+    setDeleteAllDialogOpen(false);
+  }, [archivedSessions, onBulkDeleteSessions]);
+
+  useEffect(() => {
+    if (!selectionMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectionMode, handleCancel]);
+
+  const renderActiveSection = () => (
+    <Collapsible defaultOpen className="group/collapsible">
+      <SidebarGroup>
+        <SidebarGroupLabel asChild>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between w-full">
+              <span className="flex items-center gap-2">
+                <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                Active
+              </span>
+              <div className="flex items-center gap-2">
+              {selectionMode && (
+                <span className="text-xs text-muted-foreground">
+                  {selectedIds.size > 0 ? (
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (selectedIds.size === activeSessions.length) {
+                          deselectAll();
+                        } else {
+                          selectAll();
+                        }
+                      }}
+                      className="hover:underline cursor-pointer"
+                    >
+                      {selectedIds.size === activeSessions.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        selectAll();
+                      }}
+                      className="hover:underline cursor-pointer"
+                    >
+                      Select all
+                    </button>
+                  )}
+                </span>
+              )}
+              <Badge variant="secondary">{activeSessions.length}</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={e => e.stopPropagation()}
+                    className="p-1 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    title="Session actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48">
+                  {selectionMode ? (
+                    <DropdownMenuItem onClick={e => { e.stopPropagation(); handleCancel(); }}>
+                      <X className="size-4" />
+                      Cancel selection
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={e => { e.stopPropagation(); toggleSelectionMode(); }}>
+                      <CheckSquare className="size-4" />
+                      Select to archive
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            </div>
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {activeSessions.map(session => (
+                <SessionMenuButton
+                  key={session.id}
+                  session={session}
+                  childrenMap={childrenMap}
+                  sessionDerivedValues={sessionDerivedValues}
+                  isActive={currentSessionId === session.id}
+                  currentSessionId={currentSessionId}
+                  onResumeSession={onResumeSession}
+                  onCloseSession={onCloseSession}
+                  onReopenSession={onReopenSession}
+                  onDeleteSession={onDeleteSession}
+                  onRename={onRenameSession}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(session.id)}
+                  onToggleSelect={handleToggleSelect}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
+  );
+
   return (
     <>
-      {/* Active Sessions */}
-      {activeSessions.length > 0 && (
-        <Collapsible defaultOpen className="group/collapsible">
-          <SidebarGroup>
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full">
-                <span className="flex items-center gap-2">
-                  <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  Active
-                </span>
-                <Badge variant="secondary">{activeSessions.length}</Badge>
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {activeSessions.map(session => (
-                    <SessionMenuButton
-                      key={session.id}
-                      session={session}
-                      childrenMap={childrenMap}
-                      sessionDerivedValues={sessionDerivedValues}
-                      isActive={currentSessionId === session.id}
-                      currentSessionId={currentSessionId}
-                      onResumeSession={onResumeSession}
-                      onCloseSession={onCloseSession}
-                      onReopenSession={onReopenSession}
-                      onDeleteSession={onDeleteSession}
-                      onRename={onRenameSession}
-                    />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
-      )}
+      {renderActiveSection()}
 
       {/* Archived Sessions */}
       {archivedSessions.length > 0 && (
         <Collapsible defaultOpen className="group/collapsible">
           <SidebarGroup>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full">
-                <span className="flex items-center gap-2">
-                  <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                  Archived
-                </span>
-                <Badge variant="secondary">{archivedSessions.length}</Badge>
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between w-full">
+                  <span className="flex items-center gap-2">
+                    <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    Archived
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{archivedSessions.length}</Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={e => e.stopPropagation()}
+                          className="p-1 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                          title="Archived actions"
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-48">
+                        <DropdownMenuItem
+                          onClick={e => { e.stopPropagation(); setDeleteAllDialogOpen(true); }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          Delete all
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
@@ -125,6 +287,35 @@ export function WorkspaceSessionContent({
           Start a new chat to begin.
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="sticky bottom-0 bg-sidebar border-t p-2 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleBulkArchive}>
+              <Archive className="size-4 mr-1" />
+              Archive
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleCancel}>
+              <X className="size-4 mr-1" />
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmationDialog
+        open={deleteAllDialogOpen}
+        onOpenChange={setDeleteAllDialogOpen}
+        title="Delete all archived sessions?"
+        description={`This will permanently delete ${archivedSessions.length} archived session${archivedSessions.length === 1 ? '' : 's'}. This action cannot be undone.`}
+        confirmLabel="Delete all"
+        variant="destructive"
+        onConfirm={handleDeleteAllArchived}
+      />
     </>
   );
 }
