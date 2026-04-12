@@ -1,33 +1,12 @@
-import { useParams, useRouter } from '@tanstack/react-router';
-
-import { useServerContext } from '@/contexts/ServerContext';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
-import { useServerSessionManager } from '@/hooks/useServerSessionManager';
+import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { AppMainContent } from '@/components/app/AppMainContent';
 import { AppPanels } from '@/components/app/AppPanels';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 
 export default function WorkspaceView() {
-  const router = useRouter();
-  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
-  const serverId = params.serverId;
-
-  const {
-    servers,
-    removeFromQuickConnectionsByWorkspace,
-    quickConnections,
-  } = useServerContext();
-
-  const activeServer = servers.find(s => s.id === serverId) ?? null;
-
-  const sessionManager = useServerSessionManager({
-    serverId,
-    activeServer,
-    navigate: (opts: { to: string }) => router.navigate({ to: opts.to }),
-    removeFromQuickConnectionsByWorkspace,
-    quickConnections,
-  });
+  const sessionManager = useSessionManager();
 
   const { sidebarRef, chatInputRef, terminalPanelRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
 

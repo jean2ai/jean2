@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { useServerContext } from '@/contexts/ServerContext';
 import { ViewRefsContext } from '@/contexts/ViewRefsContext';
+import { SessionManagerContext } from '@/contexts/SessionManagerContext';
 import { useServerSessionManager } from '@/hooks/useServerSessionManager';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -68,9 +69,11 @@ export default function ServerShell() {
       <AppHeader />
 
       <div className="flex flex-1 min-h-0">
-        <ViewRefsContext.Provider value={viewRefs}>
-          <Outlet />
-        </ViewRefsContext.Provider>
+        <SessionManagerContext.Provider value={sessionManager}>
+          <ViewRefsContext.Provider value={viewRefs}>
+            <Outlet />
+          </ViewRefsContext.Provider>
+        </SessionManagerContext.Provider>
 
         <FilesPanel
           ref={filesPanelRef}
