@@ -1,5 +1,4 @@
-import { FolderOpen, TerminalSquare, Settings, Server, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,32 +10,25 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ServerSwitcher } from '@/components/layout/ServerSwitcher';
 import { useUIStore } from '@/stores/uiStore';
-import type { Workspace } from '@jean2/sdk';
+
+
 
 interface AppHeaderProps {
-  activeWorkspace: Workspace | null;
   onSidebarViewModeChange: (mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')) => void;
   connected: boolean;
   onOpenSettings: () => void;
-  onOpenMCP: () => void;
   onOpenConfiguration: () => void;
   onOpenAddServer: () => void;
 }
 
 export function AppHeader({
-  activeWorkspace,
   onSidebarViewModeChange,
   connected,
   onOpenSettings,
-  onOpenMCP,
   onOpenConfiguration,
   onOpenAddServer,
 }: AppHeaderProps) {
   const sidebarViewMode = useUIStore((s) => s.sidebarViewMode);
-  const showFilesPanel = useUIStore((s) => s.showFilesPanel);
-  const showTerminalPanel = useUIStore((s) => s.showTerminalPanel);
-  const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
-  const setShowTerminalPanel = useUIStore((s) => s.setShowTerminalPanel);
 
   const isOverview = sidebarViewMode === 'overview';
 
@@ -48,16 +40,13 @@ export function AppHeader({
             <ServerSwitcher
               compact
               onOpenAddServer={onOpenAddServer}
-            />
-            <button
-              className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
-              title={connected ? 'Connected' : 'Disconnected'}
-            >
-              <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
-            </button>
-          </div>
-          <div className="h-4 w-px bg-border mx-0.5" />
-          <SidebarTrigger />
+            />              <button
+                className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
+                title={connected ? 'Connected' : 'Disconnected'}
+              >
+                <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
+              </button>
+            </div>
         </div>
         <TooltipProvider>
           <div className="flex items-center gap-1">
@@ -83,62 +72,29 @@ export function AppHeader({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {activeWorkspace && (
-              <>
-                <div className="h-4 w-px bg-border mx-0.5" />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowFilesPanel(!showFilesPanel)}
-                    >
-                      <FolderOpen className="w-4 h-4" />
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm">
+                      <Ellipsis className="w-4 h-4" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                    >
-                      <TerminalSquare className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}</TooltipContent>
-                </Tooltip>
-                <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <Ellipsis className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>More</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent align="end" className="w-48 min-w-48">
-                    <DropdownMenuItem onClick={onOpenMCP}>
-                      <Server className="mr-2 h-4 w-4" />
-                      MCP Servers
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={onOpenConfiguration}>
-                      <SlidersHorizontal className="mr-2 h-4 w-4" />
-                      Configuration
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onOpenSettings}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48 min-w-48">
+                <DropdownMenuItem onClick={onOpenConfiguration}>
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Configuration
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onOpenSettings}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </TooltipProvider>
       </header>
@@ -157,8 +113,6 @@ export function AppHeader({
               <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
             </button>
           </div>
-          <div className="h-4 w-px bg-border mx-1" />
-          <SidebarTrigger />
         </div>
         <TooltipProvider>
           <div className="flex items-center gap-2">
@@ -190,62 +144,29 @@ export function AppHeader({
                 <TooltipContent>Overview</TooltipContent>
               </Tooltip>
             </>
-            {activeWorkspace && (
-              <>
-                <div className="h-4 w-px bg-border mx-1" />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowFilesPanel(!showFilesPanel)}
-                    >
-                      <FolderOpen className="w-4 h-4" />
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm">
+                      <Ellipsis className="w-4 h-4" />
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                    >
-                      <TerminalSquare className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}</TooltipContent>
-                </Tooltip>
-                <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <Ellipsis className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>More</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent align="end" className="w-48 min-w-48">
-                    <DropdownMenuItem onClick={onOpenMCP}>
-                      <Server className="mr-2 h-4 w-4" />
-                      MCP Servers
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={onOpenConfiguration}>
-                      <SlidersHorizontal className="mr-2 h-4 w-4" />
-                      Configuration
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onOpenSettings}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            )}
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48 min-w-48">
+                <DropdownMenuItem onClick={onOpenConfiguration}>
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Configuration
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onOpenSettings}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </TooltipProvider>
       </header>

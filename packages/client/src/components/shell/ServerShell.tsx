@@ -644,11 +644,9 @@ export default function ServerShell() {
   return (
     <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '3.5rem' } as React.CSSProperties}>
       <AppHeader
-        activeWorkspace={activeWorkspace}
         onSidebarViewModeChange={handleSidebarViewModeChange}
         connected={connected}
         onOpenSettings={() => setShowSettings(true)}
-        onOpenMCP={() => setShowMCPDialog(true)}
         onOpenConfiguration={() => setShowConfiguration(true)}
         onOpenAddServer={() => setShowAddServer(true)}
       />
@@ -715,6 +713,8 @@ export default function ServerShell() {
           workspaceId={activeWorkspace?.id}
           workspacePath={activeWorkspace?.path}
           workspaceName={activeWorkspace?.name}
+          activeWorkspace={activeWorkspace}
+          onOpenMCP={() => setShowMCPDialog(true)}
           onRetry={handleRetry}
           onLogout={handleLogout}
           onSendMessage={sendChatMessage}

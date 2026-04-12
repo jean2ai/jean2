@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
-import { AppMainContent, AppPanels } from '@/components/app';
+import type { Workspace } from '@jean2/sdk';
+import { AppMainContent, AppPanels, WorkspaceHeader } from '@/components/app';
 import type { AppMainContentProps } from '@/components/app';
 
 export interface ShellContentProps extends AppMainContentProps {
@@ -8,6 +9,8 @@ export interface ShellContentProps extends AppMainContentProps {
   workspaceId?: string;
   workspacePath?: string;
   workspaceName?: string;
+  activeWorkspace: Workspace | null;
+  onOpenMCP: () => void;
 }
 
 export function ShellContent(props: ShellContentProps) {
@@ -17,6 +20,8 @@ export function ShellContent(props: ShellContentProps) {
     workspaceName,
     terminalPanelRef,
     sdkClient,
+    activeWorkspace,
+    onOpenMCP,
     ...mainContentProps
   } = props;
 
@@ -25,6 +30,7 @@ export function ShellContent(props: ShellContentProps) {
       paddingTop: 'env(safe-area-inset-top, 0)',
       paddingBottom: 'env(safe-area-inset-bottom, 0)',
     }}>
+      <WorkspaceHeader activeWorkspace={activeWorkspace} onOpenMCP={onOpenMCP} />
       <AppMainContent {...mainContentProps} sdkClient={sdkClient} />
       <AppPanels
         workspaceId={workspaceId}
