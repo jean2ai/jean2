@@ -27,7 +27,6 @@ interface WorkspaceOverviewProps {
   favoritedWorkspaceIds: string[];
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
-  onSelectWorkspace: (workspace: Workspace) => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
@@ -46,7 +45,6 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   favoritedWorkspaceIds,
   workspaces,
   activeWorkspace,
-  onSelectWorkspace,
   onResumeSession,
   onCloseSession,
   onReopenSession,
@@ -106,7 +104,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
           >
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full" onClick={() => onSelectWorkspace(workspace)}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
                   <span className="flex items-center gap-2">
                     <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                     {workspace.isVirtual ? (

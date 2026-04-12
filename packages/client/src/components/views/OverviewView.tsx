@@ -31,7 +31,6 @@ export default function OverviewView() {
       favoritedWorkspaceIds={sidebarData.favoritedWorkspaceIds}
       workspaces={sidebarData.workspaces}
       activeWorkspace={sidebarData.activeWorkspace}
-      onSelectWorkspace={sessionManager.selectWorkspace}
       onResumeSession={resumeSession}
       onCloseSession={closeSession}
       onReopenSession={reopenSession}

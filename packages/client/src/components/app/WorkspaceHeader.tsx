@@ -1,10 +1,18 @@
-import { TerminalSquare, FolderOpen, Server, PanelLeft, Shield } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis } from 'lucide-react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function WorkspaceHeader() {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
@@ -15,7 +23,7 @@ export function WorkspaceHeader() {
   const setShowMCPDialog = useUIStore((s) => s.setShowMCPDialog);
   const setShowWorkspacePermissions = useUIStore((s) => s.setShowWorkspacePermissions);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state: sidebarState } = useSidebar();
 
   return (
     <div className="h-9 border-b border-border bg-background px-3 flex items-center shrink-0">
@@ -27,11 +35,12 @@ export function WorkspaceHeader() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={toggleSidebar}
+                className={sidebarState === 'expanded' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
               >
                 <PanelLeft className="w-4 h-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Toggle Sidebar</TooltipContent>
+            <TooltipContent>{sidebarState === 'expanded' ? 'Hide Sessions' : 'Show Sessions'}</TooltipContent>
           </Tooltip>
           {activeWorkspace && (
             <div className="flex items-center gap-1 md:gap-2">
@@ -40,34 +49,8 @@ export function WorkspaceHeader() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => setShowMCPDialog(true)}
-                  >
-                    <Server className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>MCP Servers</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
-                    className={showWorkspacePermissions ? 'bg-accent text-accent-foreground' : ''}
-                  >
-                    <Shield className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Workspace Permissions</TooltipContent>
-              </Tooltip>
-              <div className="h-4 w-px bg-border mx-1 hidden md:block" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
                     onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                    className={showTerminalPanel ? 'bg-accent text-accent-foreground' : ''}
+                    className={showTerminalPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
                   >
                     <TerminalSquare className="w-4 h-4" />
                   </Button>
@@ -80,13 +63,34 @@ export function WorkspaceHeader() {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setShowFilesPanel(!showFilesPanel)}
-                    className={showFilesPanel ? 'bg-accent text-accent-foreground' : ''}
+                    className={showFilesPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
                   >
                     <FolderOpen className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
               </Tooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm">
+                    <Ellipsis className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
+                    <Server className="w-4 h-4" />
+                    MCP Servers
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={showWorkspacePermissions}
+                    onCheckedChange={setShowWorkspacePermissions}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Permissions
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>

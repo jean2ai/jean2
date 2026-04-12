@@ -117,7 +117,7 @@ export const Route = createFileRoute('/server/$serverId')({
   ),
   errorComponent: ServerErrorComponent,
   pendingComponent: () => (
-    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+    <div className="w-full flex items-center justify-center min-h-screen bg-background text-foreground">
       <div className="text-center space-y-2">
         <div className="h-8 w-8 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin mx-auto" />
         <p className="text-sm text-muted-foreground">Connecting to server...</p>
