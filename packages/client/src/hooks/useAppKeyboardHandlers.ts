@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useUIStore } from '@/stores/uiStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import type { AppSidebarHandle } from '@/components/layout/AppSidebar';
 import type { Preconfig, Workspace } from '@jean2/sdk';
 import { invoke } from '@tauri-apps/api/core';
@@ -46,7 +46,7 @@ export function useAppKeyboardHandlers({
   }, [setSidebarOpen, sidebarRef]);
 
   const focusTerminalPanel = useCallback(() => {
-    useUIStore.getState().setShowTerminalPanel(true);
+    useChatLayoutStore.getState().setShowTerminalPanel(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         terminalPanelRef.current?.focus();
@@ -65,7 +65,7 @@ export function useAppKeyboardHandlers({
   });
 
   const handleCloseTerminal = useCallback(() => {
-    useUIStore.getState().setShowTerminalPanel(false);
+    useChatLayoutStore.getState().setShowTerminalPanel(false);
   }, []);
 
   const focusFilesPanel = useCallback(() => {
@@ -102,7 +102,7 @@ export function useAppKeyboardHandlers({
     if (activeEl?.closest('[data-terminal-panel]')) {
       handleCloseTerminal();
     } else if (activeEl?.closest('[data-panel-id="files"]')) {
-      useUIStore.getState().setShowFilesPanel(false);
+      useChatLayoutStore.getState().setShowFilesPanel(false);
     } else if (activeEl?.closest('[data-sidebar="sidebar"]')) {
       setSidebarOpen(false);
     }

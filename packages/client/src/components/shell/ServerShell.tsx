@@ -1,10 +1,15 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useParams, useNavigate, useRouter } from '@tanstack/react-router';
-import { useUIStore } from '@/stores/uiStore';
-import { useSessionMetaStore } from '@/stores/sessionMetaStore';
+import { useDialogStore } from '@/stores/dialogStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useCompletionStore } from '@/stores/completionStore';
+import { useFilePreviewStore } from '@/stores/filePreviewStore';
+import { usePermissionStore } from '@/stores/permissionStore';
+import { useMessageQueueStore } from '@/stores/messageQueueStore';
 import { useStreamStateStore } from '@/stores/streamStateStore';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionListStore } from '@/stores/sessionListStore';
+import { useActiveSessionStore } from '@/stores/activeSessionStore';
 import { useSessionContentStore } from '@/stores/sessionContentStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
@@ -54,11 +59,16 @@ export default function ServerShell() {
 
   const activeServer = servers.find(s => s.id === serverId) ?? null;
 
-  const { sessions, currentSession, setSessions, setCurrentSession } = useSessionStore(
+  const { sessions, setSessions } = useSessionListStore(
     useShallow((s) => ({
       sessions: s.sessions,
-      currentSession: s.currentSession,
       setSessions: s.setSessions,
+    })),
+  );
+
+  const { currentSession, setCurrentSession } = useActiveSessionStore(
+    useShallow((s) => ({
+      currentSession: s.currentSession,
       setCurrentSession: s.setCurrentSession,
     })),
   );
@@ -160,42 +170,55 @@ export default function ServerShell() {
     showConfiguration,
     showWorkspacePermissions,
     editServerData,
-    showFilesPanel,
-    setShowFilesPanel,
-    filesPanelWidth,
     setShowSettings,
     setShowMCPDialog,
     setShowAddServer,
     setShowConfiguration,
     setShowWorkspacePermissions,
     setEditServerData,
-    setCompletion,
-    clearCompletion,
-    clearAllCompletions,
-    filePreviewTarget,
-    closeFilePreview,
-  } = useUIStore(useShallow((s) => ({
+  } = useDialogStore(useShallow((s) => ({
     showSettings: s.showSettings,
     showMCPDialog: s.showMCPDialog,
     showAddServer: s.showAddServer,
     showConfiguration: s.showConfiguration,
     showWorkspacePermissions: s.showWorkspacePermissions,
     editServerData: s.editServerData,
-    showFilesPanel: s.showFilesPanel,
-    setShowFilesPanel: s.setShowFilesPanel,
-    filesPanelWidth: s.filesPanelWidth,
     setShowSettings: s.setShowSettings,
     setShowMCPDialog: s.setShowMCPDialog,
     setShowAddServer: s.setShowAddServer,
     setShowConfiguration: s.setShowConfiguration,
     setShowWorkspacePermissions: s.setShowWorkspacePermissions,
     setEditServerData: s.setEditServerData,
-    setCompletion: s.setCompletion,
-    clearCompletion: s.clearCompletion,
-    clearAllCompletions: s.clearAllCompletions,
-    filePreviewTarget: s.filePreviewTarget,
-    closeFilePreview: s.closeFilePreview,
   })));
+
+  const {
+    showFilesPanel,
+    setShowFilesPanel,
+    filesPanelWidth,
+    setSidebarViewMode,
+    sessionsPanelWidth,
+  } = useChatLayoutStore(useShallow((s) => ({
+    showFilesPanel: s.showFilesPanel,
+    setShowFilesPanel: s.setShowFilesPanel,
+    filesPanelWidth: s.filesPanelWidth,
+    setSidebarViewMode: s.setSidebarViewMode,
+    sessionsPanelWidth: s.sessionsPanelWidth,
+  })));
+
+  const { setCompletion, clearCompletion, clearAllCompletions } = useCompletionStore(
+    useShallow((s) => ({
+      setCompletion: s.setCompletion,
+      clearCompletion: s.clearCompletion,
+      clearAllCompletions: s.clearAllCompletions,
+    }))
+  );
+
+  const { filePreviewTarget, closeFilePreview } = useFilePreviewStore(
+    useShallow((s) => ({
+      filePreviewTarget: s.filePreviewTarget,
+      closeFilePreview: s.closeFilePreview,
+    }))
+  );
 
   const [chatFinishSoundEnabled, setChatFinishSoundEnabled] = useState<boolean>(() => {
     const stored = localStorage.getItem('jean2_sound_chat_finish_enabled');
@@ -216,26 +239,32 @@ export default function ServerShell() {
 
   const {
     pendingPermissions,
-    queuedMessages,
     clearPendingPermissions,
-    clearQueuedMessages,
     mergePendingPermissions,
     addPendingPermission,
     removePendingPermissionByToolCallId,
     removePendingPermissionsBySessionId,
-    setQueuedMessagesForSession,
-    addQueuedMessage,
-    removeQueuedMessageById,
-  } = useSessionMetaStore(
+  } = usePermissionStore(
     useShallow((s) => ({
       pendingPermissions: s.pendingPermissions,
-      queuedMessages: s.queuedMessages,
       clearPendingPermissions: s.clearPendingPermissions,
-      clearQueuedMessages: s.clearQueuedMessages,
       mergePendingPermissions: s.mergePendingPermissions,
       addPendingPermission: s.addPendingPermission,
       removePendingPermissionByToolCallId: s.removePendingPermissionByToolCallId,
       removePendingPermissionsBySessionId: s.removePendingPermissionsBySessionId,
+    })),
+  );
+
+  const {
+    queuedMessages,
+    clearQueuedMessages,
+    setQueuedMessagesForSession,
+    addQueuedMessage,
+    removeQueuedMessageById,
+  } = useMessageQueueStore(
+    useShallow((s) => ({
+      queuedMessages: s.queuedMessages,
+      clearQueuedMessages: s.clearQueuedMessages,
       setQueuedMessagesForSession: s.setQueuedMessagesForSession,
       addQueuedMessage: s.addQueuedMessage,
       removeQueuedMessageById: s.removeQueuedMessageById,
@@ -628,13 +657,10 @@ export default function ServerShell() {
 
   const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
 
-   const setSidebarViewMode = useUIStore((s) => s.setSidebarViewMode);
-  const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
-
   const handleSidebarViewModeChange = useCallback((
     mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
   ) => {
-    const currentMode = useUIStore.getState().sidebarViewMode;
+    const currentMode = useChatLayoutStore.getState().sidebarViewMode;
     const resolvedMode = typeof mode === 'function' ? mode(currentMode) : mode;
     setSidebarViewMode(resolvedMode);
     requestAnimationFrame(() => {

@@ -7,7 +7,7 @@ import type {
   AttachmentKind,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
+import type { PendingPermissionRequest } from '@/stores/permissionStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';

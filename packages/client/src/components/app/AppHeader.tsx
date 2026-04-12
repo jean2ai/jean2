@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ServerSwitcher } from '@/components/layout/ServerSwitcher';
-import { useUIStore } from '@/stores/uiStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 
 
 
@@ -28,7 +28,7 @@ export function AppHeader({
   onOpenConfiguration,
   onOpenAddServer,
 }: AppHeaderProps) {
-  const sidebarViewMode = useUIStore((s) => s.sidebarViewMode);
+  const sidebarViewMode = useChatLayoutStore((s) => s.sidebarViewMode);
 
   const isOverview = sidebarViewMode === 'overview';
 

@@ -21,7 +21,8 @@ import {
   SidebarProvider,
   PanelResizeHandle,
 } from '@/components/ui/sidebar';
-import { useUIStore } from '@/stores/uiStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useFilePreviewStore } from '@/stores/filePreviewStore';
 
 interface FilesPanelProps {
   workspaceId: string | undefined;
@@ -38,8 +39,8 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
   ({ workspaceId, sdkClient, isOpen, onClose }, ref) => {
     const isMobile = useIsMobile();
     const fileTreeRef = useRef<FileTreeHandle>(null);
-    const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
-    const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
+    const filesPanelWidth = useChatLayoutStore((s) => s.filesPanelWidth);
+    const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
 
     const focus = useCallback(() => {
       setShowFilesPanel(true);
@@ -52,7 +53,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
-    const openFilePreview = useUIStore((s) => s.openFilePreview);
+    const openFilePreview = useFilePreviewStore((s) => s.openFilePreview);
 
     const handleFileSelect = useCallback((file: FileEntry) => {
       if (file.type === 'file' && workspaceId) {

@@ -1,5 +1,5 @@
 import { TerminalPanel } from '@/components/layout/TerminalPanel';
-import { useUIStore } from '@/stores/uiStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 import type { Jean2Client } from '@jean2/sdk';
 
@@ -18,8 +18,8 @@ export function AppPanels({
   sdkClient,
   terminalPanelRef,
 }: AppPanelsProps) {
-  const showTerminalPanel = useUIStore((s) => s.showTerminalPanel);
-  const setShowTerminalPanel = useUIStore((s) => s.setShowTerminalPanel);
+  const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
+  const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
 
   return (
     <TerminalPanel

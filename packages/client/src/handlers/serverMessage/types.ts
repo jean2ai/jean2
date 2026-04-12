@@ -6,7 +6,7 @@ import type {
   ToolPermission,
   ProviderStatus,
 } from '@jean2/sdk';
-import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
+import type { PendingPermissionRequest } from '@/stores/permissionStore';
 import type { CompletionRecord } from '@/stores/uiStore';
 
 export type SessionUsage = {

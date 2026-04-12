@@ -2,7 +2,7 @@ import {Plus, ChevronRight} from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import type { Session, Workspace } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import { useUIStore } from '@/stores/uiStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 
@@ -96,7 +96,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     activeServer,
   } = props;
 
-  const viewMode = useUIStore((s) => s.sidebarViewMode);
+  const viewMode = useChatLayoutStore((s) => s.sidebarViewMode);
   const { quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
   useSidebar(); // Keep hook call to maintain sidebar context
 

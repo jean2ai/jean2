@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useUIStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/uiStore';
+import { useCompletionStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/completionStore';
 
 export type ChildrenMap = Map<string, Session[]>;
 
@@ -157,8 +157,8 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const hasActiveChild = childSessions.some(c => c.id === currentSessionId);
 
   // Read completion record directly from store
-  const completionRecord = useUIStore(selectCompletionRecord(session.id));
-  const clearCompletion = useUIStore(s => s.clearCompletion);
+  const completionRecord = useCompletionStore(selectCompletionRecord(session.id));
+  const clearCompletion = useCompletionStore(s => s.clearCompletion);
 
   // Track current time for flash phase calculation
   const [now, setNow] = useState(() => Date.now());

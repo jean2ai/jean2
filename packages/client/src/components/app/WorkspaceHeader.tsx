@@ -1,5 +1,6 @@
 import { TerminalSquare, FolderOpen, Server, PanelLeft, Shield } from 'lucide-react';
-import { useUIStore } from '@/stores/uiStore';
+import { useDialogStore } from '@/stores/dialogStore';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -12,11 +13,11 @@ export interface WorkspaceHeaderProps {
 }
 
 export function WorkspaceHeader({ activeWorkspace, onOpenMCP, onOpenPermissions }: WorkspaceHeaderProps) {
-  const showFilesPanel = useUIStore((s) => s.showFilesPanel);
-  const showTerminalPanel = useUIStore((s) => s.showTerminalPanel);
-  const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
-  const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
-  const setShowTerminalPanel = useUIStore((s) => s.setShowTerminalPanel);
+  const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
+  const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
+  const showWorkspacePermissions = useDialogStore((s) => s.showWorkspacePermissions);
+  const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
+  const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
   const { toggleSidebar } = useSidebar();
 
   return (

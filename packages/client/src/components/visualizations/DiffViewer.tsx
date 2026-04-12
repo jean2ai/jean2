@@ -5,7 +5,7 @@ import { Highlight, themes } from 'prism-react-renderer';
 const CODE_THEME = themes.oneDark;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
-import { useUIStore } from '@/stores/uiStore';
+import { useFilePreviewStore } from '@/stores/filePreviewStore';;
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 interface DiffViewerProps {
@@ -100,7 +100,7 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const [expanded, setExpanded] = useState(true);
   const language = propLanguage || detectLanguage(path);
 
-  const openFilePreview = useUIStore((s) => s.openFilePreview);
+  const openFilePreview = useFilePreviewStore((s) => s.openFilePreview);
   const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
 
   const handlePathClick = () => {
