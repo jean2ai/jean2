@@ -59,6 +59,9 @@ temp/
 # PWA
 vite.config.ts.sig
 
+# TanStack Router generated files
+**/routeTree.gen.ts
+
 # Kontexted sync
 .kontexted/
 

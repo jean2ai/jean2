@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useServerContext } from '@/contexts/ServerContext';
-import FirstServerScreen from '@/components/FirstServerScreen';
+import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router';
 import type { SavedServer } from '@jean2/sdk';
 import { Server } from 'lucide-react';
+import { useServerContext } from '@/contexts/ServerContext';
+import FirstServerScreen from '@/components/FirstServerScreen';
 
-export function LandingPage() {
+function LandingPage() {
   const navigate = useNavigate();
   const { servers, isHydrated } = useServerContext();
   const location = useRouterState({ select: (s) => s.location });
-
+  
   useEffect(() => {
     if (!isHydrated || servers.length === 0) return;
     if (location.pathname !== '/') return;
@@ -55,3 +55,7 @@ export function LandingPage() {
     </div>
   );
 }
+
+export const Route = createFileRoute('/')({
+  component: LandingPage,
+});

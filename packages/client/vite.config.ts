@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import pkg from './package.json';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -12,6 +13,7 @@ const wsOrigin = serverOrigin.replace(/^http/, 'ws');
 export default defineConfig({
   clearScreen: false,
   plugins: [
+    TanStackRouterVite({ autoCodeSplitting: true }),
     react({
       babel: {
         plugins: ['babel-plugin-react-compiler'],
