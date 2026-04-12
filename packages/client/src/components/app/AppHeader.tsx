@@ -1,5 +1,5 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
-import { useRouter, useParams } from '@tanstack/react-router';
+import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,7 +21,8 @@ export function AppHeader() {
   const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
   const setShowAddServer = useUIStore((s) => s.setShowAddServer);
 
-  const isOverview = router.state.location.pathname.includes('/overview');
+  const location = useLocation();
+  const isOverview = location.pathname.includes('/overview');
 
   return (
     <>
