@@ -10,6 +10,7 @@ import type {
 interface ServerDataState {
   serverId: string | null;
   workspaces: Workspace[];
+  activeWorkspace: Workspace | null;
   preconfigs: Preconfig[];
   prompts: PromptInfo[];
   models: ModelWithStatus[];
@@ -33,12 +34,14 @@ interface ServerDataActions {
   updatePrompts: (prompts: PromptInfo[]) => void;
   updateProviders: (providers: ProviderStatus[]) => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
+  setActiveWorkspace: (workspace: Workspace | null) => void;
   clearAll: () => void;
 }
 
 export const useServerDataStore = create<ServerDataState & ServerDataActions>((set) => ({
   serverId: null,
   workspaces: [],
+  activeWorkspace: null,
   preconfigs: [],
   prompts: [],
   models: [],
@@ -61,10 +64,12 @@ export const useServerDataStore = create<ServerDataState & ServerDataActions>((s
   updatePrompts: (prompts) => set({ prompts }),
   updateProviders: (providers) => set({ providers }),
   setWorkspaces: (workspaces) => set({ workspaces }),
+  setActiveWorkspace: (workspace) => set({ activeWorkspace: workspace }),
 
   clearAll: () => set({
     serverId: null,
     workspaces: [],
+    activeWorkspace: null,
     preconfigs: [],
     prompts: [],
     models: [],

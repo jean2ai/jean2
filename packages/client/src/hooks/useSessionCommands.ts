@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useStreamStateStore } from '@/stores/streamStateStore';
+import { useConnectionStore } from '@/stores/connectionStore';
 import type {
   Session,
   Workspace,
@@ -102,7 +102,7 @@ export function useSessionCommands({
   const resumeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
     removePendingPermissionsBySessionId(sessionId);
-    skipFinishSoundSessionIdsRef.current = new Set(useStreamStateStore.getState().streamingSessionIds);
+    skipFinishSoundSessionIdsRef.current = new Set(useConnectionStore.getState().streamingSessionIds);
     clearStreamingSessions();
     setCompactionSuccess(false);
     const session = sessions.find(s => s.id === sessionId);

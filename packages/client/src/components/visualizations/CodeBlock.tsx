@@ -1,8 +1,8 @@
 import { type FC, memo, useState, useMemo } from 'react';
 import { Check, FileText, AlertCircle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { Highlight, themes } from 'prism-react-renderer';
-import { useFilePreviewStore } from '@/stores/filePreviewStore';;
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 const CODE_THEME = themes.oneDark;
 
@@ -46,8 +46,8 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   highlightLines = [],
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const openFilePreview = useFilePreviewStore((s) => s.openFilePreview);
-  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+  const openFilePreview = useUIStore((s) => s.openFilePreview);
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
   const handlePathClick = () => {
     if (!activeWorkspace) return;

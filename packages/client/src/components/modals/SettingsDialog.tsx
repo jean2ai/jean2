@@ -11,11 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import type { ThemeScheme } from '@/components/providers/ThemeProvider';
 
 import LogoutButton from '@/components/LogoutButton';
 import { VersionInfo } from '@/components/VersionInfo';
+import { useUIStore } from '@/stores/uiStore';
 
 interface SchemeButtonProps {
   scheme: ThemeScheme;
@@ -66,10 +68,6 @@ interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void;
   apiToken: string | null;
   onLogout: () => void;
-  chatFinishSoundEnabled: boolean;
-  onChatFinishSoundEnabledChange: (enabled: boolean) => void;
-  permissionSoundEnabled: boolean;
-  onPermissionSoundEnabledChange: (enabled: boolean) => void;
   sdkClient: Jean2Client | null;
 }
 
@@ -78,13 +76,18 @@ export function SettingsDialog({
   onOpenChange,
   apiToken,
   onLogout,
-  chatFinishSoundEnabled,
-  onChatFinishSoundEnabledChange,
-  permissionSoundEnabled,
-  onPermissionSoundEnabledChange,
   sdkClient,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
+
+  const { chatFinishSoundEnabled, setChatFinishSoundEnabled, permissionSoundEnabled, setPermissionSoundEnabled } = useUIStore(
+    useShallow((s) => ({
+      chatFinishSoundEnabled: s.chatFinishSoundEnabled,
+      setChatFinishSoundEnabled: s.setChatFinishSoundEnabled,
+      permissionSoundEnabled: s.permissionSoundEnabled,
+      setPermissionSoundEnabled: s.setPermissionSoundEnabled,
+    })),
+  );
 
   const isMac = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' || /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
   const mod = isMac ? '⌘' : 'Ctrl';
@@ -201,7 +204,7 @@ export function SettingsDialog({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onChatFinishSoundEnabledChange(!chatFinishSoundEnabled)}
+                      onClick={() => setChatFinishSoundEnabled(!chatFinishSoundEnabled)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
                     >
                       <span
@@ -216,7 +219,7 @@ export function SettingsDialog({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onPermissionSoundEnabledChange(!permissionSoundEnabled)}
+                      onClick={() => setPermissionSoundEnabled(!permissionSoundEnabled)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
                     >
                       <span

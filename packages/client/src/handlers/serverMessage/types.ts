@@ -7,7 +7,7 @@ import type {
   ProviderStatus,
 } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/permissionStore';
-import type { CompletionRecord } from '@/stores/uiStore';
+import type { CompletionRecord } from '@/stores/completionStore';
 
 export type SessionUsage = {
   promptTokens: number;

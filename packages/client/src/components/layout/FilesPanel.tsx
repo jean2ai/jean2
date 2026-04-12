@@ -22,7 +22,7 @@ import {
   PanelResizeHandle,
 } from '@/components/ui/sidebar';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-import { useFilePreviewStore } from '@/stores/filePreviewStore';
+import { useUIStore } from '@/stores/uiStore';
 
 interface FilesPanelProps {
   workspaceId: string | undefined;
@@ -53,7 +53,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
-    const openFilePreview = useFilePreviewStore((s) => s.openFilePreview);
+    const openFilePreview = useUIStore((s) => s.openFilePreview);
 
     const handleFileSelect = useCallback((file: FileEntry) => {
       if (file.type === 'file' && workspaceId) {

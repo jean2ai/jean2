@@ -1,9 +1,7 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useLoaderData, useParams } from '@tanstack/react-router';
-import { useSessionListStore } from '@/stores/sessionListStore';
-import { clearSessionState } from '@/stores/sessionStore';
+import { useSessionStore, clearSessionState } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { ServerData } from '@/lib/fetchServerData';
 
 interface StoreHydratorProps {
@@ -21,7 +19,7 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
 
   useLayoutEffect(() => {
     if (!data) return;
-    useSessionListStore.getState().setSessions(data.sessions);
+    useSessionStore.getState().setSessions(data.sessions);
 
     const usableModels = (data.models || []).filter((m) => m.runtimeStatus?.usable);
     useServerDataStore.getState().hydrate(serverId ?? '', {
@@ -39,12 +37,12 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
     if (pendingWorkspaceId) {
       const saved = workspaces.find(w => w.id === pendingWorkspaceId);
       if (saved) {
-        useWorkspaceStore.getState().setActiveWorkspace(saved);
+        useServerDataStore.getState().setActiveWorkspace(saved);
       } else if (workspaces.length > 0) {
-        useWorkspaceStore.getState().setActiveWorkspace(workspaces[0]);
+        useServerDataStore.getState().setActiveWorkspace(workspaces[0]);
       }
     } else if (workspaces.length > 0) {
-      useWorkspaceStore.getState().setActiveWorkspace(workspaces[0]);
+      useServerDataStore.getState().setActiveWorkspace(workspaces[0]);
     }
   }, [data, serverId]);
 
@@ -52,7 +50,6 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
     return () => {
       clearSessionState();
       useServerDataStore.getState().clearAll();
-      useWorkspaceStore.getState().clear();
     };
   }, []);
 
