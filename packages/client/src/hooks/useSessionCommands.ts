@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { useConnectionStore } from '@/stores/connectionStore';
 import type {
   Session,
   Workspace,
@@ -7,6 +6,7 @@ import type {
   AttachmentKind,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { useConnectionStore } from '@/stores/connectionStore';
 
 interface UseSessionCommandsParams {
   clientRef: React.RefObject<Jean2Client | null>;
@@ -18,7 +18,6 @@ interface UseSessionCommandsParams {
   streamingSessionIds: Set<string>;
   isCompacting: boolean;
   primaryPreconfigs: Preconfig[];
-  setCurrentSession: (session: Session | null) => void;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   setCompactionSuccess: (success: boolean) => void;
   setCurrentModel: (model: string) => void;
@@ -30,6 +29,9 @@ interface UseSessionCommandsParams {
   partAppendRafRef: React.RefObject<number | null>;
   pendingPartAppendsRef: React.RefObject<Map<string, string>>;
   skipFinishSoundSessionIdsRef: React.RefObject<Set<string>>;
+  navigate: (opts: { to: string; params?: Record<string, string> }) => void;
+  serverId: string;
+  viewPath: '/workspace' | '/overview';
 }
 
 interface UseSessionCommandsReturn {
@@ -67,7 +69,6 @@ export function useSessionCommands({
   streamingSessionIds,
   isCompacting,
   primaryPreconfigs,
-  setCurrentSession,
   setActiveWorkspace,
   setCompactionSuccess,
   setCurrentModel,
@@ -79,6 +80,9 @@ export function useSessionCommands({
   partAppendRafRef,
   pendingPartAppendsRef,
   skipFinishSoundSessionIdsRef,
+  navigate,
+  serverId,
+  viewPath,
 }: UseSessionCommandsParams): UseSessionCommandsReturn {
 
   const createSession = useCallback((preconfigId?: string, title?: string) => {
@@ -118,13 +122,15 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
 
-    if (session) {
-      setCurrentSession(session);
-    }
     if (client && client.connected) {
       client.sessions.resume(sessionId);
     }
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setCurrentSession, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess]);
+    navigate({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to: `/server/$serverId${viewPath}/session/$sessionId` as any,
+      params: { serverId, sessionId },
+    });
+  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
 
   const closeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;

@@ -42,18 +42,25 @@ export interface UseSidebarDataReturn {
 export const useSidebarData = (): UseSidebarDataReturn => {
   // Read from stores
   const allSessions = useSessionStore(s => s.sessions);
-  const currentSession = useSessionStore(s => s.currentSession);
-  const currentSessionId = currentSession?.id ?? null;
   const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
   const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
   const connected = useConnectionStore(s => s.connected);
   const workspaces = useServerDataStore(s => s.workspaces);
   const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
 
-  // Derive activeServer from ServerContext and URL params
-  const { servers, quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
+  // Derive currentSession from URL params (sessionId from nested route)
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const serverId = params?.serverId as string | undefined;
+  const sessionIdFromUrl = params?.sessionId as string | undefined;
+
+  const currentSession = useMemo(
+    () => sessionIdFromUrl ? allSessions.find(s => s.id === sessionIdFromUrl) ?? null : null,
+    [sessionIdFromUrl, allSessions],
+  );
+  const currentSessionId = currentSession?.id ?? null;
+
+  // Derive activeServer from ServerContext and URL params
+  const { servers, quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
   const activeServer = serverId ? servers.find(s => s.id === serverId) ?? null : null;
 
   // Derive favoritedWorkspaceIds

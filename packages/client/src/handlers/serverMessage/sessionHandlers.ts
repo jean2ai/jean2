@@ -31,6 +31,7 @@ export function handleSessionCreated(
     setCurrentModel(session.selectedModel || defaultModel);
     setSelectedVariant(session.selectedVariant ?? null);
     pendingSessionCreateRef.current = false;
+    ctx.navigateToSession(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
 }
@@ -157,6 +158,7 @@ export function handleSessionClosed(
   sessionAccessTimesRef.current.delete(sessionId);
   if (currentSessionIdRef.current === sessionId) {
     setCurrentSession(null);
+    ctx.navigateToParent();
   }
 }
 
@@ -216,6 +218,7 @@ export function handleSessionDeleted(
   sessionAccessTimesRef.current.delete(sessionId);
   if (currentSessionIdRef.current === sessionId) {
     setCurrentSession(null);
+    ctx.navigateToParent();
   }
 }
 
@@ -314,6 +317,7 @@ export function handleSessionForked(
     }
   }
   setCurrentSession(forkedSession);
+  ctx.navigateToSession(forkedSession.id);
   setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
   // Clear completion state when session is forked (creates new context)

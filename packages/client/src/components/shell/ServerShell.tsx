@@ -33,7 +33,8 @@ export default function ServerShell() {
   const sessionManager = useServerSessionManager({
     serverId,
     activeServer,
-    navigate: (opts: { to: string }) => router.navigate({ to: opts.to }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    navigate: (opts: { to: string; params?: Record<string, string> }) => router.navigate({ to: opts.to as any, params: opts.params as any }),
     removeFromQuickConnectionsByWorkspace,
     quickConnections,
   });

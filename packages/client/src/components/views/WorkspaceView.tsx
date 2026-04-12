@@ -1,11 +1,10 @@
 import { useCallback } from 'react';
 import { Plus } from 'lucide-react';
+import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { AppSidebar } from '@/components/layout/AppSidebar';
-import { AppMainContent } from '@/components/app/AppMainContent';
-import { AppPanels } from '@/components/app/AppPanels';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
@@ -19,12 +18,10 @@ import {
 export default function WorkspaceView() {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
-  const { sidebarRef, chatInputRef, terminalPanelRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
+  const { sidebarRef, chatInputRef } = useViewRefs();
 
   const {
     sdkClient,
-    messagesWithParts,
-    serverUrl,
     primaryPreconfigs,
     createSession,
     resumeSession,
@@ -32,19 +29,6 @@ export default function WorkspaceView() {
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
-    revertSession,
-    forkSession,
-    compactSession,
-    removeFromQueue,
-    sendChatMessage,
-    handlePermissionResponse,
-    handleInterruptSession,
-    updateSessionPreconfig,
-    updateSessionModel,
-    updateSessionVariant,
-    handleNavigateBack,
-    currentSession,
-    setCompactionSuccess,
     selectWorkspace,
     handleCreateVirtualWorkspace,
     handleCreatePhysicalWorkspace,
@@ -113,7 +97,7 @@ export default function WorkspaceView() {
         header={sidebarHeader}
         currentSessionId={sidebarData.currentSessionId}
         onEscape={() => {
-          if (currentSession) {
+          if (sidebarData.currentSessionId) {
             chatInputRef.current?.focus();
           }
         }}
@@ -129,34 +113,7 @@ export default function WorkspaceView() {
         }}
       >
         <WorkspaceHeader />
-        <AppMainContent
-          sdkClient={sdkClient}
-          inputRef={chatInputRef}
-          messagesWithParts={messagesWithParts}
-          serverUrl={serverUrl}
-          onRetry={sessionManager.handleRetry}
-          onLogout={sessionManager.handleLogout}
-          onSendMessage={sendChatMessage}
-          onRemoveFromQueue={removeFromQueue}
-          onChangePreconfig={updateSessionPreconfig}
-          onChangeModel={updateSessionModel}
-          onChangeVariant={updateSessionVariant}
-          onPermissionResponse={handlePermissionResponse}
-          onRename={handleRenameSession}
-          onNavigateToSubagent={resumeSession}
-          onNavigateBack={handleNavigateBack}
-          onInterrupt={handleInterruptSession}
-          onRevert={revertSession}
-          onFork={forkSession}
-          onCompact={compactSession}
-          onClearCompactionSuccess={() => setCompactionSuccess(false)}
-          scrollToBottomRef={scrollToBottomRef}
-          autoFollowToggleRef={autoFollowToggleRef}
-        />
-        <AppPanels
-          sdkClient={sdkClient}
-          terminalPanelRef={terminalPanelRef}
-        />
+        <Outlet />
       </main>
     </>
   );

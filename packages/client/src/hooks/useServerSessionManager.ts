@@ -1,5 +1,6 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useParams, useRouterState } from '@tanstack/react-router';
 import type {
   Session,
   Message,
@@ -32,7 +33,7 @@ import { useNotificationSound } from '@/hooks/useNotificationSound';
 export interface UseServerSessionManagerParams {
   serverId: string;
   activeServer: SavedServer | null;
-  navigate: (opts: { to: string }) => void;
+  navigate: (opts: { to: string; params?: Record<string, string> }) => void;
   removeFromQuickConnectionsByWorkspace: (workspaceId: string) => void;
   quickConnections: QuickConnection[];
 }
@@ -62,6 +63,7 @@ export interface UseServerSessionManagerReturn {
   isCompacting: boolean;
   compactionSuccess: boolean;
   isPrimarySession: boolean;
+  isSessionLoading: boolean;
 
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
@@ -138,9 +140,8 @@ export function useServerSessionManager({
     })),
   );
 
-  const { currentSession, setCurrentSession } = useSessionStore(
+  const { setCurrentSession } = useSessionStore(
     useShallow((s) => ({
-      currentSession: s.currentSession,
       setCurrentSession: s.setCurrentSession,
     })),
   );
@@ -151,6 +152,26 @@ export function useServerSessionManager({
       setPartsBySession: state.setPartsBySession,
     })),
   );
+
+  // Derive currentSession from URL params
+  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
+  const sessionIdFromUrl = params?.sessionId as string | undefined;
+  const currentPathname = useRouterState({ select: (s) => s.location.pathname });
+  const viewPath = currentPathname.includes('/overview') ? '/overview' as const : '/workspace' as const;
+  const currentSession = useMemo(
+    () => sessionIdFromUrl ? sessions.find(s => s.id === sessionIdFromUrl) ?? null : null,
+    [sessionIdFromUrl, sessions],
+  );
+
+  const isSessionLoading = sessionIdFromUrl != null && currentSession == null;
+
+  // Sync URL-derived session to the store so AppMainContent (which reads from store) stays consistent
+  useEffect(() => {
+    const storeSession = useSessionStore.getState().currentSession;
+    if (currentSession?.id !== storeSession?.id) {
+      setCurrentSession(currentSession);
+    }
+  }, [currentSession, setCurrentSession]);
 
   const activeSessionId = currentSession?.id;
   const activeSessionMessages = useSessionStore(
@@ -464,6 +485,7 @@ export function useServerSessionManager({
     useServerDataStore.getState().setActiveWorkspace(workspace);
     localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
+    navigate({ to: '/server/$serverId/workspace', params: { serverId: _serverId } });
     return workspace;
   };
 
@@ -471,7 +493,8 @@ export function useServerSessionManager({
     useServerDataStore.getState().setActiveWorkspace(workspace);
     localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
-  }, [setCurrentSession]);
+    navigate({ to: '/server/$serverId/workspace', params: { serverId: _serverId } });
+  }, [setCurrentSession, navigate, _serverId]);
 
   const deleteWorkspace = async (id: string) => {
     const http = sdkClientRef.current?.httpClient;
@@ -481,7 +504,7 @@ export function useServerSessionManager({
     try {
       const data = await http.delete<{ deletedSessions: string[] }>(`/workspaces/${id}`);
       deletedSessions = data.deletedSessions;
-    } catch (err) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to delete workspace:', message);
       return;
@@ -491,6 +514,7 @@ export function useServerSessionManager({
 
     if (currentSession && (currentSession.workspaceId === id || deletedSessions.includes(currentSession.id))) {
       setCurrentSession(null);
+      navigate({ to: '/server/$serverId/workspace', params: { serverId: _serverId } });
     }
 
     setSessions(prev => prev.filter(s => !deletedSessions.includes(s.id)));
@@ -585,6 +609,15 @@ export function useServerSessionManager({
       playPermissionSound,
       chatFinishSoundEnabledRef,
       playChatFinishSound,
+      navigateToSession: (sessionId: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        navigate({ to: `/server/$serverId${viewPath}/session/$sessionId` as any, params: { serverId: _serverId, sessionId } });
+      },
+      navigateToParent: () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        navigate({ to: `/server/$serverId${viewPath}` as any, params: { serverId: _serverId } });
+      },
+      serverId: _serverId,
     };
   });
 
@@ -622,7 +655,6 @@ export function useServerSessionManager({
     streamingSessionIds,
     isCompacting,
     primaryPreconfigs,
-    setCurrentSession,
     setActiveWorkspace: (ws: Workspace | null) => useServerDataStore.getState().setActiveWorkspace(ws),
     setCompactionSuccess,
     setCurrentModel,
@@ -634,6 +666,9 @@ export function useServerSessionManager({
     partAppendRafRef,
     pendingPartAppendsRef,
     skipFinishSoundSessionIdsRef,
+    navigate,
+    serverId: _serverId,
+    viewPath,
   });
 
   const workspaceSessions = sessions.filter(s => s.workspaceId === activeWorkspace?.id);
@@ -670,6 +705,7 @@ export function useServerSessionManager({
     isCompacting,
     compactionSuccess,
     isPrimarySession,
+    isSessionLoading,
 
     workspaces,
     activeWorkspace,

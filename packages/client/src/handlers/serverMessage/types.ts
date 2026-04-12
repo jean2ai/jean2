@@ -89,6 +89,9 @@ export interface SessionHandlersContext {
   playPermissionSound: () => void;
   chatFinishSoundEnabledRef: React.MutableRefObject<boolean>;
   playChatFinishSound: () => void;
+  navigateToSession: (sessionId: string) => void;
+  navigateToParent: () => void;
+  serverId: string;
 }
 
 export type SessionHandlers = {
