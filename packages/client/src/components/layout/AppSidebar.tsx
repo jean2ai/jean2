@@ -1,8 +1,13 @@
-import {Plus, ChevronRight} from 'lucide-react';
+import { Plus, ChevronRight } from 'lucide-react';
 import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
+import { useParams } from '@tanstack/react-router';
 import type { Session, Workspace } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { usePermissionStore } from '@/stores/permissionStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 
@@ -30,22 +35,8 @@ import { SessionMenuButton, type ChildrenMap } from './SessionMenuButton';
 import { WorkspaceOverview } from './WorkspaceOverview';
 import { Badge } from '@/components/ui/badge';
 import { useServerContext } from '@/contexts/ServerContext';
-import type { SavedServer } from '@jean2/sdk';
 
 interface AppSidebarProps {
-  sessions: Session[];
-  currentSession: Session | null;
-  currentSessionId: string | null;
-  streamingSessionIds: Set<string>;
-  pendingPermissions: { sessionId: string }[];
-  connected: boolean;
-  workspaces: Workspace[];
-  activeWorkspace: Workspace | null;
-  activeServer: SavedServer | null;
-
-  allSessions: Session[];
-  favoritedWorkspaceIds: string[];
-
   onCreateSession: () => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -70,16 +61,6 @@ export interface AppSidebarHandle {
 
 export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, ref) => {
   const {
-    sessions,
-    currentSession,
-    currentSessionId,
-    streamingSessionIds,
-    pendingPermissions,
-    connected,
-    workspaces,
-    activeWorkspace,
-    allSessions,
-    favoritedWorkspaceIds,
     onCreateSession,
     onResumeSession,
     onCloseSession,
@@ -93,11 +74,33 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     onCreateSessionInWorkspace,
     onEscape,
     sdkClient,
-    activeServer,
   } = props;
 
+  // Read from stores
+  const allSessions = useSessionStore(s => s.sessions);
+  const currentSession = useSessionStore(s => s.currentSession);
+  const currentSessionId = currentSession?.id ?? null;
+  const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
+  const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
+  const connected = useConnectionStore(s => s.connected);
+  const workspaces = useServerDataStore(s => s.workspaces);
+  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
+
+  // Derive activeServer from ServerContext and URL params
+  const { servers, quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
+  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
+  const serverId = params?.serverId as string | undefined;
+  const activeServer = serverId ? servers.find(s => s.id === serverId) ?? null : null;
+
+  // Derive favoritedWorkspaceIds
+  const favoritedWorkspaceIds = quickConnections
+    .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
+    .map(conn => conn.workspaceId!);
+
+  // Derive workspaceSessions (was the old `sessions` prop)
+  const sessions = allSessions.filter(s => s.workspaceId === activeWorkspace?.id);
+
   const viewMode = useChatLayoutStore((s) => s.sidebarViewMode);
-  const { quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
   useSidebar(); // Keep hook call to maintain sidebar context
 
   const sessionListRef = useRef<HTMLDivElement>(null);

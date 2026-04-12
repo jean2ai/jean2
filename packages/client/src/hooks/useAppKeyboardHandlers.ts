@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import { useSidebar } from '@/components/ui/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import type { AppSidebarHandle } from '@/components/layout/AppSidebar';
 import type { Preconfig, Workspace } from '@jean2/sdk';
 import { invoke } from '@tauri-apps/api/core';
@@ -177,8 +178,6 @@ export interface AppKeyboardHandlersMountProps {
   terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
   filesPanelRef: React.RefObject<{ focus: () => void } | null>;
   chatInputRef: React.RefObject<{ focus: () => void } | null>;
-  activeWorkspace: Workspace | null;
-  primaryPreconfigs: Preconfig[];
   handleInterruptSession: () => void;
   handleSidebarViewModeChange: (
     mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
@@ -189,8 +188,11 @@ export interface AppKeyboardHandlersMountProps {
 
 export function AppKeyboardHandlersMount(props: AppKeyboardHandlersMountProps) {
   const { setOpen } = useSidebar();
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+  const preconfigs = useServerDataStore((s) => s.preconfigs);
+  const primaryPreconfigs = preconfigs.filter((p) => p.mode !== 'subagent');
 
-  useAppKeyboardHandlers({ ...props, setSidebarOpen: setOpen });
+  useAppKeyboardHandlers({ ...props, activeWorkspace, primaryPreconfigs, setSidebarOpen: setOpen });
 
   return null;
 }

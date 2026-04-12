@@ -10,25 +10,19 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ServerSwitcher } from '@/components/layout/ServerSwitcher';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-
-
+import { useConnectionStore } from '@/stores/connectionStore';
+import { useUIStore } from '@/stores/uiStore';
 
 interface AppHeaderProps {
   onSidebarViewModeChange: (mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')) => void;
-  connected: boolean;
-  onOpenSettings: () => void;
-  onOpenConfiguration: () => void;
-  onOpenAddServer: () => void;
 }
 
-export function AppHeader({
-  onSidebarViewModeChange,
-  connected,
-  onOpenSettings,
-  onOpenConfiguration,
-  onOpenAddServer,
-}: AppHeaderProps) {
+export function AppHeader({ onSidebarViewModeChange }: AppHeaderProps) {
   const sidebarViewMode = useChatLayoutStore((s) => s.sidebarViewMode);
+  const connected = useConnectionStore((s) => s.connected);
+  const setShowSettings = useUIStore((s) => s.setShowSettings);
+  const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
+  const setShowAddServer = useUIStore((s) => s.setShowAddServer);
 
   const isOverview = sidebarViewMode === 'overview';
 
@@ -36,11 +30,10 @@ export function AppHeader({
     <>
       <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10 shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <ServerSwitcher
-              compact
-              onOpenAddServer={onOpenAddServer}
-            />              <button
+          <div className="flex items-center gap-1">              <ServerSwitcher
+                compact
+                onOpenAddServer={() => setShowAddServer(true)}
+              />              <button
                 className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
                 title={connected ? 'Connected' : 'Disconnected'}
               >
@@ -84,12 +77,12 @@ export function AppHeader({
                 <TooltipContent>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={onOpenConfiguration}>
+                <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
                   <SlidersHorizontal className="mr-2 h-4 w-4" />
                   Configuration
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onOpenSettings}>
+                <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
@@ -104,7 +97,7 @@ export function AppHeader({
           <div className="flex items-center gap-1">
             <ServerSwitcher
               compact
-              onOpenAddServer={onOpenAddServer}
+              onOpenAddServer={() => setShowAddServer(true)}
             />
             <button
               className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
@@ -156,12 +149,12 @@ export function AppHeader({
                 <TooltipContent>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={onOpenConfiguration}>
+                <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
                   <SlidersHorizontal className="mr-2 h-4 w-4" />
                   Configuration
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onOpenSettings}>
+                <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>

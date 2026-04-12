@@ -23,12 +23,10 @@ import {
 } from '@/components/ui/sidebar';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 interface FilesPanelProps {
-  workspaceId: string | undefined;
   sdkClient: Jean2Client | null;
-  isOpen: boolean;
-  onClose: () => void;
 }
 
 export interface FilesPanelHandle {
@@ -36,11 +34,14 @@ export interface FilesPanelHandle {
 }
 
 export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
-  ({ workspaceId, sdkClient, isOpen, onClose }, ref) => {
+  ({ sdkClient }, ref) => {
     const isMobile = useIsMobile();
     const fileTreeRef = useRef<FileTreeHandle>(null);
     const filesPanelWidth = useChatLayoutStore((s) => s.filesPanelWidth);
+    const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
     const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
+    const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+    const workspaceId = activeWorkspace?.id;
 
     const focus = useCallback(() => {
       setShowFilesPanel(true);
@@ -71,14 +72,14 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     if (isMobile) {
       return (
-        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Sheet open={showFilesPanel} onOpenChange={(open) => !open && setShowFilesPanel(false)}>
           <SheetContent side="right" className="w-72 p-0 bg-sidebar [&>button]:hidden">
             <SheetHeader className="sr-only">
               <SheetTitle>Files</SheetTitle>
             </SheetHeader>
             <div className="flex items-center justify-between p-3 border-b border-border">
               <span className="font-semibold text-sm text-sidebar-foreground">Files</span>
-              <Button variant="ghost" size="icon-sm" onClick={onClose}>
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowFilesPanel(false)}>
                 <X className="size-4" />
               </Button>
             </div>
@@ -104,7 +105,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
         className="w-0 shrink-0"
         style={{ '--sidebar-width': `${filesPanelWidth}px` } as React.CSSProperties}
       >
-        <Sidebar side="right" isOpen={isOpen}>
+        <Sidebar side="right" isOpen={showFilesPanel}>
           <PanelResizeHandle side="right" panelId="files" />
           <SidebarHeader>
             <SidebarMenu>

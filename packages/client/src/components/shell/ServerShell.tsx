@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { useParams, useRouter } from '@tanstack/react-router';
 
 import { useServerContext } from '@/contexts/ServerContext';
-import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
@@ -46,30 +45,12 @@ export default function ServerShell() {
   const autoFollowToggleRef = useRef<{ toggle: () => void } | null>(null);
 
   const {
-    setShowSettings,
-    setShowAddServer,
-    setShowConfiguration,
-    setShowMCPDialog,
-    setShowWorkspacePermissions,
-  } = useUIStore(
-    useShallow((s) => ({
-      setShowSettings: s.setShowSettings,
-      setShowAddServer: s.setShowAddServer,
-      setShowConfiguration: s.setShowConfiguration,
-      setShowMCPDialog: s.setShowMCPDialog,
-      setShowWorkspacePermissions: s.setShowWorkspacePermissions,
-    })),
-  );
-
-  const {
     showFilesPanel,
-    setShowFilesPanel,
     filesPanelWidth,
     setSidebarViewMode,
     sessionsPanelWidth,
   } = useChatLayoutStore(useShallow((s) => ({
     showFilesPanel: s.showFilesPanel,
-    setShowFilesPanel: s.setShowFilesPanel,
     filesPanelWidth: s.filesPanelWidth,
     setSidebarViewMode: s.setSidebarViewMode,
     sessionsPanelWidth: s.sessionsPanelWidth,
@@ -89,34 +70,12 @@ export default function ServerShell() {
   }, [sidebarRef, setSidebarViewMode]);
 
   const {
-    connected,
-    authError,
-    connectionTimedOut,
-    retryCount,
-    nextRetryIn,
     serverUrl,
     apiToken,
     sdkClient,
     currentSession,
-    sessions,
-    workspaceSessions,
     messagesWithParts,
-    pendingPermissions,
-    queuedMessages,
-    sessionUsage,
-    currentModel,
-    selectedVariant,
-    isCompacting,
-    compactionSuccess,
-    isPrimarySession,
-    workspaces,
-    activeWorkspace,
-    preconfigs,
     primaryPreconfigs,
-    prompts,
-    models,
-    defaultModel,
-    streamingSessionIds,
     createSession,
     resumeSession,
     closeSession,
@@ -144,7 +103,6 @@ export default function ServerShell() {
     deleteWorkspace,
     handleLogout,
     handleRetry,
-    favoritedWorkspaceIds,
     setCompactionSuccess,
     permissions,
   } = sessionManager;
@@ -153,25 +111,11 @@ export default function ServerShell() {
     <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '3.5rem' } as React.CSSProperties}>
       <AppHeader
         onSidebarViewModeChange={handleSidebarViewModeChange}
-        connected={connected}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenConfiguration={() => setShowConfiguration(true)}
-        onOpenAddServer={() => setShowAddServer(true)}
       />
 
       <div className="flex flex-1 min-h-0">
         <AppSidebar
           ref={sidebarRef}
-          allSessions={sessions}
-          favoritedWorkspaceIds={favoritedWorkspaceIds}
-          sessions={workspaceSessions}
-          currentSession={currentSession}
-          currentSessionId={currentSession?.id ?? null}
-          streamingSessionIds={streamingSessionIds}
-          connected={connected}
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          activeServer={activeServer}
           onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
           onResumeSession={resumeSession}
           onCloseSession={closeSession}
@@ -188,42 +132,15 @@ export default function ServerShell() {
             }
           }}
           onCreateSessionInWorkspace={createSessionInWorkspace}
-          pendingPermissions={pendingPermissions}
           sdkClient={sdkClient}
         />
 
         <ShellContent
-          connected={connected}
-          authError={authError}
-          connectionTimedOut={connectionTimedOut}
-          retryCount={retryCount}
-          nextRetryIn={nextRetryIn}
-          serverUrl={serverUrl}
-          currentSession={currentSession}
-          messagesWithParts={messagesWithParts}
-          queuedMessages={queuedMessages}
-          preconfigs={preconfigs}
-          primaryPreconfigs={primaryPreconfigs}
-          prompts={prompts}
-          models={models}
-          defaultModel={defaultModel}
-          selectedVariant={selectedVariant}
-          pendingPermissions={pendingPermissions}
-          sessionUsage={sessionUsage}
-          currentModel={currentModel}
-          streamingSessionIds={streamingSessionIds}
-          isCompacting={isCompacting}
-          compactionSuccess={compactionSuccess}
-          isPrimarySession={isPrimarySession}
-          inputRef={chatInputRef}
           sdkClient={sdkClient}
+          inputRef={chatInputRef}
+          messagesWithParts={messagesWithParts}
+          serverUrl={serverUrl}
           terminalPanelRef={terminalPanelRef}
-          workspaceId={activeWorkspace?.id}
-          workspacePath={activeWorkspace?.path}
-          workspaceName={activeWorkspace?.name}
-          activeWorkspace={activeWorkspace}
-          onOpenMCP={() => setShowMCPDialog(true)}
-          onOpenPermissions={() => setShowWorkspacePermissions(true)}
           onRetry={handleRetry}
           onLogout={handleLogout}
           onSendMessage={sendChatMessage}
@@ -246,10 +163,7 @@ export default function ServerShell() {
 
         <FilesPanel
           ref={filesPanelRef}
-          workspaceId={activeWorkspace?.id}
           sdkClient={sdkClient}
-          isOpen={showFilesPanel}
-          onClose={() => setShowFilesPanel(false)}
         />
 
         <div
@@ -264,8 +178,6 @@ export default function ServerShell() {
         terminalPanelRef={terminalPanelRef}
         filesPanelRef={filesPanelRef}
         chatInputRef={chatInputRef}
-        activeWorkspace={activeWorkspace}
-        primaryPreconfigs={primaryPreconfigs}
         handleInterruptSession={handleInterruptSession}
         handleSidebarViewModeChange={handleSidebarViewModeChange}
         createSession={createSession}
@@ -275,7 +187,6 @@ export default function ServerShell() {
       <ServerDialogs
         apiToken={apiToken}
         sdkClient={sdkClient}
-        activeWorkspace={activeWorkspace}
         permissions={permissions}
         onLogout={handleLogout}
         onRefreshPermissions={refreshPermissions}

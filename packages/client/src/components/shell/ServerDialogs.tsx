@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
-import type { Jean2Client, Workspace, ToolPermission } from '@jean2/sdk';
+import type { Jean2Client, ToolPermission } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
@@ -11,7 +12,6 @@ import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 interface ServerDialogsProps {
   apiToken: string | null;
   sdkClient: Jean2Client | null;
-  activeWorkspace: Workspace | null;
   permissions: ToolPermission[];
   onLogout: () => void;
   onRefreshPermissions: () => void;
@@ -23,7 +23,6 @@ interface ServerDialogsProps {
 export function ServerDialogs({
   apiToken,
   sdkClient,
-  activeWorkspace,
   permissions,
   onLogout,
   onRefreshPermissions,
@@ -31,6 +30,7 @@ export function ServerDialogs({
   onRevokeAllPermissions,
   onConfigurationClose,
 }: ServerDialogsProps) {
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const {
     showSettings,
     showMCPDialog,

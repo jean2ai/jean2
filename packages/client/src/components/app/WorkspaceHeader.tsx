@@ -1,23 +1,20 @@
 import { TerminalSquare, FolderOpen, Server, PanelLeft, Shield } from 'lucide-react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Workspace } from '@jean2/sdk';
 
-export interface WorkspaceHeaderProps {
-  activeWorkspace: Workspace | null;
-  onOpenMCP: () => void;
-  onOpenPermissions: () => void;
-}
-
-export function WorkspaceHeader({ activeWorkspace, onOpenMCP, onOpenPermissions }: WorkspaceHeaderProps) {
+export function WorkspaceHeader() {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
   const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
   const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
+  const setShowMCPDialog = useUIStore((s) => s.setShowMCPDialog);
+  const setShowWorkspacePermissions = useUIStore((s) => s.setShowWorkspacePermissions);
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -43,7 +40,7 @@ export function WorkspaceHeader({ activeWorkspace, onOpenMCP, onOpenPermissions 
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={onOpenMCP}
+                    onClick={() => setShowMCPDialog(true)}
                   >
                     <Server className="w-4 h-4" />
                   </Button>
@@ -55,7 +52,7 @@ export function WorkspaceHeader({ activeWorkspace, onOpenMCP, onOpenPermissions 
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={onOpenPermissions}
+                    onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
                     className={showWorkspacePermissions ? 'bg-accent text-accent-foreground' : ''}
                   >
                     <Shield className="w-4 h-4" />
