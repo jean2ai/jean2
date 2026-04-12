@@ -44,7 +44,6 @@ export function AppHeader({
     <>
       <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-10 shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-2">
-          <SidebarTrigger />
           <div className="flex items-center gap-1">
             <ServerSwitcher
               compact
@@ -57,6 +56,8 @@ export function AppHeader({
               <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
             </button>
           </div>
+          <div className="h-4 w-px bg-border mx-0.5" />
+          <SidebarTrigger />
         </div>
         <TooltipProvider>
           <div className="flex items-center gap-1">
@@ -144,7 +145,6 @@ export function AppHeader({
 
       <header className="hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-14 shrink-0">
         <div className="flex items-center gap-2">
-          <SidebarTrigger />
           <div className="flex items-center gap-1">
             <ServerSwitcher
               compact
@@ -157,6 +157,8 @@ export function AppHeader({
               <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
             </button>
           </div>
+          <div className="h-4 w-px bg-border mx-1" />
+          <SidebarTrigger />
         </div>
         <TooltipProvider>
           <div className="flex items-center gap-2">
