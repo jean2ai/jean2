@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { subscribeToServerEvents } from './subscribeToServerEvents';
@@ -50,6 +50,7 @@ export function useConnectionLifecycle({
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
   const lastMessageTimeRef = useRef<number>(0);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
@@ -109,7 +110,7 @@ export function useConnectionLifecycle({
         clientRef.current = null;
       }
     };
-  }, [apiToken, serverUrl]);
+  }, [apiToken, serverUrl, reconnectAttempt]);
 
   useEffect(() => {
     if (apiToken && serverUrl && !connected && !connectionTimedOut) {
@@ -166,16 +167,18 @@ export function useConnectionLifecycle({
         setConnected(false);
         setRetryCount(0);
         setConnectionTimedOut(false);
+        setReconnectAttempt(n => n + 1);
       } else if (!client.connected) {
         setConnected(false);
         setRetryCount(0);
         setConnectionTimedOut(false);
+        setReconnectAttempt(n => n + 1);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
+  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef, setReconnectAttempt]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -187,11 +190,12 @@ export function useConnectionLifecycle({
       setConnected(false);
       setRetryCount(0);
       setConnectionTimedOut(false);
+      setReconnectAttempt(n => n + 1);
     };
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut]);
+  }, [apiToken, serverUrl, setConnected, setRetryCount, setConnectionTimedOut, setReconnectAttempt]);
 
   return { clientRef };
 }
