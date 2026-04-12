@@ -1,44 +1,11 @@
-import { Plus } from 'lucide-react';
-import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
-import { useParams } from '@tanstack/react-router';
-import type { Session, Workspace } from '@jean2/sdk';
-import type { Jean2Client } from '@jean2/sdk';
-import { useSessionStore } from '@/stores/sessionStore';
-import { useConnectionStore } from '@/stores/connectionStore';
-import { usePermissionStore } from '@/stores/permissionStore';
-import { useServerDataStore } from '@/stores/serverDataStore';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import {
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  useSidebar,
-} from '@/components/ui/sidebar';
-import type { ChildrenMap } from './SessionMenuButton';
-import { WorkspaceOverview } from './WorkspaceOverview';
-import { useServerContext } from '@/contexts/ServerContext';
+import { useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { ResizablePanel } from './ResizablePanel';
-import { WorkspaceSessionContent } from './WorkspaceSessionContent';
 
 interface AppSidebarProps {
-  mode: 'workspace' | 'overview';
-  onCreateSession: () => void;
-  onResumeSession: (sessionId: string) => void;
-  onCloseSession: (sessionId: string) => void;
-  onReopenSession: (sessionId: string) => void;
-  onDeleteSession: (sessionId: string) => void;
-  onRenameSession: (sessionId: string, title: string) => void;
-
-  onSelectWorkspace: (workspace: Workspace) => void;
-  onCreateVirtualWorkspace: () => void;
-  onCreatePhysicalWorkspace: (path: string) => void;
-  onDeleteWorkspace: (id: string) => void;
-
-  onCreateSessionInWorkspace: (workspaceId: string) => void;
-
+  children: React.ReactNode;
+  header?: React.ReactNode;
+  currentSessionId: string | null;
   onEscape?: () => void;
-  sdkClient: Jean2Client | null;
 }
 
 export interface AppSidebarHandle {
@@ -46,48 +13,7 @@ export interface AppSidebarHandle {
 }
 
 export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, ref) => {
-  const {
-    mode,
-    onCreateSession,
-    onResumeSession,
-    onCloseSession,
-    onReopenSession,
-    onDeleteSession,
-    onRenameSession,
-    onSelectWorkspace,
-    onCreateVirtualWorkspace,
-    onCreatePhysicalWorkspace,
-    onDeleteWorkspace,
-    onCreateSessionInWorkspace,
-    onEscape,
-    sdkClient,
-  } = props;
-
-  // Read from stores
-  const allSessions = useSessionStore(s => s.sessions);
-  const currentSession = useSessionStore(s => s.currentSession);
-  const currentSessionId = currentSession?.id ?? null;
-  const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
-  const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
-  const connected = useConnectionStore(s => s.connected);
-  const workspaces = useServerDataStore(s => s.workspaces);
-  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
-
-  // Derive activeServer from ServerContext and URL params
-  const { servers, quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
-  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
-  const serverId = params?.serverId as string | undefined;
-  const activeServer = serverId ? servers.find(s => s.id === serverId) ?? null : null;
-
-  // Derive favoritedWorkspaceIds
-  const favoritedWorkspaceIds = quickConnections
-    .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
-    .map(conn => conn.workspaceId!);
-
-  // Derive workspaceSessions (was the old `sessions` prop)
-  const sessions = allSessions.filter(s => s.workspaceId === activeWorkspace?.id);
-
-  useSidebar();
+  const { children, header, currentSessionId, onEscape } = props;
 
   const sessionListRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(null);
@@ -201,132 +127,13 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
     }
   }, [onEscape]);
 
-  // Precompute childrenMap from allSessions for overview mode compatibility
-  const childrenMap = useMemo((): ChildrenMap => {
-    const map = new Map<string, Session[]>();
-    for (const session of allSessions) {
-      if (session.parentId) {
-        const existing = map.get(session.parentId) ?? [];
-        existing.push(session);
-        map.set(session.parentId, existing);
-      }
-    }
-    return map;
-  }, [allSessions]);
-
-  // Precompute derived values from allSessions for overview mode compatibility
-  const sessionDerivedValues = useMemo(() => {
-    const pendingSet = new Set(pendingPermissions.map(p => p.sessionId));
-    const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
-    for (const session of allSessions) {
-      const isStreaming = streamingSessionIds.has(session.id);
-      const hasPendingPermission = pendingSet.has(session.id);
-      const isCurrentSession = session.id === currentSessionId;
-      const isRunning = (isCurrentSession && isStreaming) || session.subagentStatus === 'running' || !!session.runningAt;
-      derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
-    }
-    return derived;
-  }, [allSessions, streamingSessionIds, pendingPermissions, currentSessionId]);
-
-  // Separate active and archived sessions (only root sessions, no parent)
-  const { activeSessions, archivedSessions } = useMemo(() => {
-    const rootSessions = sessions.filter((s) => !s.parentId);
-    return {
-      activeSessions: rootSessions.filter((s) => s.status === 'active'),
-      archivedSessions: rootSessions.filter((s) => s.status === 'closed'),
-    };
-  }, [sessions]);
-
-  const isWorkspaceFavorited = (workspaceId: string) => {
-    return quickConnections.some(
-      conn => conn.workspaceId === workspaceId && conn.serverId === activeServer?.id
-    );
-  };
-
-  const handleToggleWorkspaceFavorite = (workspaceId: string, workspaceName: string) => {
-    if (!activeServer) return;
-
-    const existing = quickConnections.find(
-      conn => conn.workspaceId === workspaceId && conn.serverId === activeServer.id
-    );
-
-    if (existing) {
-      removeFromQuickConnections(existing.id);
-    } else {
-      addToQuickConnections(activeServer.id, activeServer.name, workspaceId, workspaceName);
-    }
-  };
-
-  // Build header: only shown in default (single-workspace) mode
-  const header = mode !== 'overview' ? (
-    <SidebarHeader>
-      <div className="p-2 space-y-2">
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          onSelectWorkspace={onSelectWorkspace}
-          onCreateVirtualWorkspace={onCreateVirtualWorkspace}
-          onCreatePhysicalWorkspace={onCreatePhysicalWorkspace}
-          isWorkspaceFavorited={isWorkspaceFavorited}
-          onToggleFavorite={handleToggleWorkspaceFavorite}
-          onDeleteWorkspace={onDeleteWorkspace}
-          sdkClient={sdkClient}
-        />
-      </div>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            onClick={onCreateSession}
-            disabled={!connected}
-            className="w-full"
-          >
-            <Plus className="size-4" data-icon="inline-start" />
-            <span>New Chat</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarHeader>
-  ) : undefined;
-
   return (
     <ResizablePanel
       header={header}
       contentRef={sessionListRef}
       onContentKeyDown={handleSessionListKeyDown}
     >
-      {mode === 'overview' ? (
-        <WorkspaceOverview
-          allSessions={allSessions}
-          childrenMap={childrenMap}
-          sessionDerivedValues={sessionDerivedValues}
-          currentSession={currentSession}
-          currentSessionId={currentSessionId}
-          favoritedWorkspaceIds={favoritedWorkspaceIds}
-          workspaces={workspaces}
-          activeWorkspace={activeWorkspace}
-          onSelectWorkspace={onSelectWorkspace}
-          onResumeSession={onResumeSession}
-          onCloseSession={onCloseSession}
-          onReopenSession={onReopenSession}
-          onDeleteSession={onDeleteSession}
-          onRenameSession={onRenameSession}
-          onCreateSessionInWorkspace={onCreateSessionInWorkspace}
-          connected={connected}
-        />
-      ) : (
-        <WorkspaceSessionContent
-          activeSessions={activeSessions}
-          archivedSessions={archivedSessions}
-          childrenMap={childrenMap}
-          sessionDerivedValues={sessionDerivedValues}
-          currentSessionId={currentSessionId}
-          onResumeSession={onResumeSession}
-          onCloseSession={onCloseSession}
-          onReopenSession={onReopenSession}
-          onDeleteSession={onDeleteSession}
-          onRenameSession={onRenameSession}
-        />
-      )}
+      {children}
     </ResizablePanel>
   );
 });

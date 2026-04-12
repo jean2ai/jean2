@@ -4,9 +4,12 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { AppMainContent } from '@/components/app/AppMainContent';
 import { AppPanels } from '@/components/app/AppPanels';
+import { useSidebarData } from '@/hooks/useSidebarData';
+import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
 
 export default function OverviewView() {
   const sessionManager = useSessionManager();
+  const sidebarData = useSidebarData();
 
   const { sidebarRef, chatInputRef, terminalPanelRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
 
@@ -14,8 +17,6 @@ export default function OverviewView() {
     sdkClient,
     messagesWithParts,
     serverUrl,
-    primaryPreconfigs,
-    createSession,
     resumeSession,
     closeSession,
     reopenSession,
@@ -37,29 +38,40 @@ export default function OverviewView() {
     setCompactionSuccess,
   } = sessionManager;
 
+  const sidebarContent = (
+    <WorkspaceOverview
+      allSessions={sidebarData.allSessions}
+      childrenMap={sidebarData.childrenMap}
+      sessionDerivedValues={sidebarData.sessionDerivedValues}
+      currentSession={sidebarData.currentSession}
+      currentSessionId={sidebarData.currentSessionId}
+      favoritedWorkspaceIds={sidebarData.favoritedWorkspaceIds}
+      workspaces={sidebarData.workspaces}
+      activeWorkspace={sidebarData.activeWorkspace}
+      onSelectWorkspace={sessionManager.selectWorkspace}
+      onResumeSession={resumeSession}
+      onCloseSession={closeSession}
+      onReopenSession={reopenSession}
+      onDeleteSession={permanentlyDeleteSession}
+      onRenameSession={handleRenameSession}
+      onCreateSessionInWorkspace={createSessionInWorkspace}
+      connected={sidebarData.connected}
+    />
+  );
+
   return (
     <>
       <AppSidebar
         ref={sidebarRef}
-        mode="overview"
-        onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
-        onResumeSession={resumeSession}
-        onCloseSession={closeSession}
-        onReopenSession={reopenSession}
-        onDeleteSession={permanentlyDeleteSession}
-        onRenameSession={handleRenameSession}
-        onSelectWorkspace={sessionManager.selectWorkspace}
-        onCreateVirtualWorkspace={sessionManager.handleCreateVirtualWorkspace}
-        onCreatePhysicalWorkspace={sessionManager.handleCreatePhysicalWorkspace}
-        onDeleteWorkspace={sessionManager.deleteWorkspace}
+        currentSessionId={sidebarData.currentSessionId}
         onEscape={() => {
           if (currentSession) {
             chatInputRef.current?.focus();
           }
         }}
-        onCreateSessionInWorkspace={createSessionInWorkspace}
-        sdkClient={sdkClient}
-      />
+      >
+        {sidebarContent}
+      </AppSidebar>
 
       <main className="flex-1 flex flex-col overflow-hidden min-h-0" style={{
         paddingTop: 'env(safe-area-inset-top, 0)',

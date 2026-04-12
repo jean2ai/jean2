@@ -1,13 +1,23 @@
+import { Plus } from 'lucide-react';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
+import { useSidebarData } from '@/hooks/useSidebarData';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { AppMainContent } from '@/components/app/AppMainContent';
 import { AppPanels } from '@/components/app/AppPanels';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
+import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
+import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
+import {
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from '@/components/ui/sidebar';
 
 export default function WorkspaceView() {
   const sessionManager = useSessionManager();
-
+  const sidebarData = useSidebarData();
   const { sidebarRef, chatInputRef, terminalPanelRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
 
   const {
@@ -32,39 +42,81 @@ export default function WorkspaceView() {
     updateSessionModel,
     updateSessionVariant,
     handleNavigateBack,
-    createSessionInWorkspace,
     currentSession,
     setCompactionSuccess,
+    selectWorkspace,
+    handleCreateVirtualWorkspace,
+    handleCreatePhysicalWorkspace,
+    deleteWorkspace,
   } = sessionManager;
+
+  const sidebarHeader = (
+    <SidebarHeader>
+      <div className="p-2 space-y-2">
+        <WorkspaceSwitcher
+          workspaces={sidebarData.workspaces}
+          activeWorkspace={sidebarData.activeWorkspace}
+          onSelectWorkspace={selectWorkspace}
+          onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
+          onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
+          isWorkspaceFavorited={sidebarData.isWorkspaceFavorited}
+          onToggleFavorite={sidebarData.handleToggleWorkspaceFavorite}
+          onDeleteWorkspace={deleteWorkspace}
+          sdkClient={sdkClient}
+        />
+      </div>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            onClick={() => createSession(primaryPreconfigs[0]?.id)}
+            disabled={!sidebarData.connected}
+            className="w-full"
+          >
+            <Plus className="size-4" data-icon="inline-start" />
+            <span>New Chat</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </SidebarHeader>
+  );
+
+  const sidebarContent = (
+    <WorkspaceSessionContent
+      activeSessions={sidebarData.activeSessions}
+      archivedSessions={sidebarData.archivedSessions}
+      childrenMap={sidebarData.childrenMap}
+      sessionDerivedValues={sidebarData.sessionDerivedValues}
+      currentSessionId={sidebarData.currentSessionId}
+      onResumeSession={resumeSession}
+      onCloseSession={closeSession}
+      onReopenSession={reopenSession}
+      onDeleteSession={permanentlyDeleteSession}
+      onRenameSession={handleRenameSession}
+    />
+  );
 
   return (
     <>
       <AppSidebar
         ref={sidebarRef}
-        mode="workspace"
-        onCreateSession={() => createSession(primaryPreconfigs[0]?.id)}
-        onResumeSession={resumeSession}
-        onCloseSession={closeSession}
-        onReopenSession={reopenSession}
-        onDeleteSession={permanentlyDeleteSession}
-        onRenameSession={handleRenameSession}
-        onSelectWorkspace={sessionManager.selectWorkspace}
-        onCreateVirtualWorkspace={sessionManager.handleCreateVirtualWorkspace}
-        onCreatePhysicalWorkspace={sessionManager.handleCreatePhysicalWorkspace}
-        onDeleteWorkspace={sessionManager.deleteWorkspace}
+        header={sidebarHeader}
+        currentSessionId={sidebarData.currentSessionId}
         onEscape={() => {
           if (currentSession) {
             chatInputRef.current?.focus();
           }
         }}
-        onCreateSessionInWorkspace={createSessionInWorkspace}
-        sdkClient={sdkClient}
-      />
+      >
+        {sidebarContent}
+      </AppSidebar>
 
-      <main className="flex-1 flex flex-col overflow-hidden min-h-0" style={{
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
+      <main
+        className="flex-1 flex flex-col overflow-hidden min-h-0"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+        }}
+      >
         <WorkspaceHeader />
         <AppMainContent
           sdkClient={sdkClient}
