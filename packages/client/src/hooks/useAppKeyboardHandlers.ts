@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useRouter } from '@tanstack/react-router';
 import { useSidebar } from '@/components/ui/sidebar';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -16,9 +17,7 @@ export interface AppKeyboardHandlersConfig {
   activeWorkspace: Workspace | null;
   primaryPreconfigs: Preconfig[];
   handleInterruptSession: () => void;
-  handleSidebarViewModeChange: (
-    mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
-  ) => void;
+  serverId: string;
   createSession: (preconfigId?: string, title?: string) => void;
   setSidebarOpen: (open: boolean) => void;
   onToggleAutoFollow?: () => void;
@@ -32,7 +31,7 @@ export function useAppKeyboardHandlers({
   activeWorkspace,
   primaryPreconfigs,
   handleInterruptSession,
-  handleSidebarViewModeChange,
+  serverId,
   createSession,
   setSidebarOpen,
   onToggleAutoFollow,
@@ -94,9 +93,16 @@ export function useAppKeyboardHandlers({
     invoke('create_new_window').catch(() => {});
   }, []);
 
+  const router = useRouter();
+
   const handleToggleViewMode = useCallback(() => {
-    handleSidebarViewModeChange((prev) => (prev === 'overview' ? 'default' : 'overview'));
-  }, [handleSidebarViewModeChange]);
+    const currentPath = router.state.location.pathname;
+    if (currentPath.includes('/overview')) {
+      router.navigate({ to: '/server/$serverId/workspace', params: { serverId } });
+    } else {
+      router.navigate({ to: '/server/$serverId/overview', params: { serverId } });
+    }
+  }, [router, serverId]);
 
   const handleCloseFocusedPanel = useCallback(() => {
     const activeEl = document.activeElement;
@@ -179,9 +185,7 @@ export interface AppKeyboardHandlersMountProps {
   filesPanelRef: React.RefObject<{ focus: () => void } | null>;
   chatInputRef: React.RefObject<{ focus: () => void } | null>;
   handleInterruptSession: () => void;
-  handleSidebarViewModeChange: (
-    mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
-  ) => void;
+  serverId: string;
   createSession: (preconfigId?: string, title?: string) => void;
   onToggleAutoFollow?: () => void;
 }

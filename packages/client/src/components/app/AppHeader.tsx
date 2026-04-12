@@ -1,4 +1,5 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
+import { useRouter, useParams } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -9,22 +10,18 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ServerSwitcher } from '@/components/layout/ServerSwitcher';
-import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useUIStore } from '@/stores/uiStore';
 
-interface AppHeaderProps {
-  onSidebarViewModeChange: (mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')) => void;
-}
-
-export function AppHeader({ onSidebarViewModeChange }: AppHeaderProps) {
-  const sidebarViewMode = useChatLayoutStore((s) => s.sidebarViewMode);
+export function AppHeader() {
+  const router = useRouter();
+  const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const connected = useConnectionStore((s) => s.connected);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
   const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
   const setShowAddServer = useUIStore((s) => s.setShowAddServer);
 
-  const isOverview = sidebarViewMode === 'overview';
+  const isOverview = router.state.location.pathname.includes('/overview');
 
   return (
     <>
@@ -55,11 +52,11 @@ export function AppHeader({ onSidebarViewModeChange }: AppHeaderProps) {
                 <TooltipContent>View</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={() => onSidebarViewModeChange('default')}>
+                <DropdownMenuItem onClick={() => router.navigate({ to: '/server/$serverId/workspace', params: { serverId: params.serverId } })}>
                   <span className="flex-1">Single workspace</span>
                   {!isOverview && <Check className="size-4" />}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSidebarViewModeChange('overview')}>
+                <DropdownMenuItem onClick={() => router.navigate({ to: '/server/$serverId/overview', params: { serverId: params.serverId } })}>
                   <span className="flex-1">Overview</span>
                   {isOverview && <Check className="size-4" />}
                 </DropdownMenuItem>
@@ -115,7 +112,7 @@ export function AppHeader({ onSidebarViewModeChange }: AppHeaderProps) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => onSidebarViewModeChange('default')}
+                    onClick={() => router.navigate({ to: '/server/$serverId/workspace', params: { serverId: params.serverId } })}
                     className={isOverview ? '' : 'bg-sidebar-accent text-sidebar-accent-foreground'}
                   >
                     <LayoutList className="h-4 w-4" />
@@ -128,7 +125,7 @@ export function AppHeader({ onSidebarViewModeChange }: AppHeaderProps) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => onSidebarViewModeChange('overview')}
+                    onClick={() => router.navigate({ to: '/server/$serverId/overview', params: { serverId: params.serverId } })}
                     className={isOverview ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
                   >
                     <LayoutGrid className="h-4 w-4" />

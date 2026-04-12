@@ -3,7 +3,6 @@ import { useMemo, useRef, useCallback, forwardRef, useImperativeHandle, useEffec
 import { useParams } from '@tanstack/react-router';
 import type { Session, Workspace } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { usePermissionStore } from '@/stores/permissionStore';
@@ -23,6 +22,7 @@ import { ResizablePanel } from './ResizablePanel';
 import { WorkspaceSessionContent } from './WorkspaceSessionContent';
 
 interface AppSidebarProps {
+  mode: 'workspace' | 'overview';
   onCreateSession: () => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -47,6 +47,7 @@ export interface AppSidebarHandle {
 
 export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, ref) => {
   const {
+    mode,
     onCreateSession,
     onResumeSession,
     onCloseSession,
@@ -86,8 +87,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
   // Derive workspaceSessions (was the old `sessions` prop)
   const sessions = allSessions.filter(s => s.workspaceId === activeWorkspace?.id);
 
-  const viewMode = useChatLayoutStore((s) => s.sidebarViewMode);
-  useSidebar(); // Keep hook call to maintain sidebar context
+  useSidebar();
 
   const sessionListRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(null);
@@ -258,7 +258,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
   };
 
   // Build header: only shown in default (single-workspace) mode
-  const header = viewMode !== 'overview' ? (
+  const header = mode !== 'overview' ? (
     <SidebarHeader>
       <div className="p-2 space-y-2">
         <WorkspaceSwitcher
@@ -294,7 +294,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
       contentRef={sessionListRef}
       onContentKeyDown={handleSessionListKeyDown}
     >
-      {viewMode === 'overview' ? (
+      {mode === 'overview' ? (
         <WorkspaceOverview
           allSessions={allSessions}
           childrenMap={childrenMap}
