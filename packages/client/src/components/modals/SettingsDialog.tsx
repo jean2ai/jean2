@@ -1,7 +1,5 @@
-import { useState } from 'react';
-import { Sun, Moon, Monitor, RefreshCw, Trash2, Shield, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { Sun, Moon, Monitor, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { ToolPermission } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,
@@ -13,11 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import type { ThemeScheme } from '@/components/providers/ThemeProvider';
-import { PermissionListItem } from './PermissionListItem';
-import { ConfirmDialog } from './ConfirmDialog';
 
 import LogoutButton from '@/components/LogoutButton';
 import { VersionInfo } from '@/components/VersionInfo';
@@ -69,10 +64,6 @@ function SchemeButton({ scheme, currentScheme, onClick }: SchemeButtonProps) {
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  permissions: ToolPermission[];
-  onRefreshPermissions: () => void;
-  onRevokePermission: (permissionId: string) => void;
-  onRevokeAllPermissions: () => void;
   apiToken: string | null;
   onLogout: () => void;
   chatFinishSoundEnabled: boolean;
@@ -85,10 +76,6 @@ interface SettingsDialogProps {
 export function SettingsDialog({
   open,
   onOpenChange,
-  permissions,
-  onRefreshPermissions,
-  onRevokePermission,
-  onRevokeAllPermissions,
   apiToken,
   onLogout,
   chatFinishSoundEnabled,
@@ -98,7 +85,6 @@ export function SettingsDialog({
   sdkClient,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
-  const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
 
   const isMac = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' || /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
   const mod = isMac ? '⌘' : 'Ctrl';
@@ -120,21 +106,18 @@ export function SettingsDialog({
     { keys: ['Esc', 'Esc'], description: 'Stop streaming (chat input focused)' },
   ];
 
-  const activePermissions = permissions.filter((p) => !p.revokedAt);
-  const revokedPermissions = permissions.filter((p) => p.revokedAt);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Manage your preferences and permissions
+            Manage your preferences
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="account" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="account">
               <User className="size-4 sm:size-3" data-icon="inline-start" />
               <span className="hidden sm:inline">Account</span>
@@ -142,15 +125,6 @@ export function SettingsDialog({
             <TabsTrigger value="appearance">
               <Palette className="size-4 sm:size-3" data-icon="inline-start" />
               <span className="hidden sm:inline">Appearance</span>
-            </TabsTrigger>
-            <TabsTrigger value="permissions">
-              <Shield className="size-4 sm:size-3" data-icon="inline-start" />
-              <span className="hidden sm:inline">Permissions</span>
-              {activePermissions.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold leading-none text-primary-foreground sm:static sm:flex sm:size-auto sm:ml-1.5 sm:px-1.5 sm:py-0.5 sm:text-xs sm:font-medium sm:leading-normal">
-                  {activePermissions.length}
-                </span>
-              )}
             </TabsTrigger>
             <TabsTrigger value="keybinds">
               <Keyboard className="size-4 sm:size-3" data-icon="inline-start" />
@@ -291,83 +265,6 @@ export function SettingsDialog({
             </div>
           </TabsContent>
 
-          <TabsContent value="permissions" className="mt-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">
-                    Always-allowed Operations
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Tools you've approved to run without asking
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={onRefreshPermissions}
-                    className="size-8"
-                  >
-                    <RefreshCw className="size-4" />
-                  </Button>
-                  {activePermissions.length > 0 && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setShowRevokeAllConfirm(true)}
-                    >
-                      <Trash2 className="size-4" data-icon="inline-start" />
-                      Revoke All
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <Separator />
-
-              <ScrollArea className="h-[300px]">
-                {activePermissions.length === 0 && revokedPermissions.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    No permissions granted yet.
-                    <br />
-                    Approve tool requests with "Always allow" to add them here.
-                  </div>
-                )}
-
-                {activePermissions.length > 0 && (
-                  <div className="mb-4">
-                    <h4 className="text-xs uppercase text-muted-foreground mb-2 font-medium">
-                      Active ({activePermissions.length})
-                    </h4>
-                    {activePermissions.map((permission) => (
-                      <PermissionListItem
-                        key={permission.id}
-                        permission={permission}
-                        onRevoke={onRevokePermission}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {revokedPermissions.length > 0 && (
-                  <div>
-                    <h4 className="text-xs uppercase text-muted-foreground mb-2 font-medium">
-                      Revoked ({revokedPermissions.length})
-                    </h4>
-                    {revokedPermissions.map((permission) => (
-                      <PermissionListItem
-                        key={permission.id}
-                        permission={permission}
-                        onRevoke={onRevokePermission}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </div>
-          </TabsContent>
-
           <TabsContent value="keybinds" className="mt-4">
             <div className="flex flex-col gap-2">
               {shortcuts.map((shortcut, index) => (
@@ -393,19 +290,6 @@ export function SettingsDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
-
-      <ConfirmDialog
-        open={showRevokeAllConfirm}
-        onOpenChange={setShowRevokeAllConfirm}
-        title="Revoke All Permissions"
-        description="This will revoke all always-allowed permissions for this workspace. You'll need to approve these tools again when they're used."
-        confirmLabel="Revoke All"
-        variant="destructive"
-        onConfirm={() => {
-          onRevokeAllPermissions();
-          setShowRevokeAllConfirm(false);
-        }}
-      />
     </Dialog>
   );
 }

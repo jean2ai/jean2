@@ -11,6 +11,7 @@ export interface ShellContentProps extends AppMainContentProps {
   workspaceName?: string;
   activeWorkspace: Workspace | null;
   onOpenMCP: () => void;
+  onOpenPermissions: () => void;
 }
 
 export function ShellContent(props: ShellContentProps) {
@@ -22,6 +23,7 @@ export function ShellContent(props: ShellContentProps) {
     sdkClient,
     activeWorkspace,
     onOpenMCP,
+    onOpenPermissions,
     ...mainContentProps
   } = props;
 
@@ -30,7 +32,7 @@ export function ShellContent(props: ShellContentProps) {
       paddingTop: 'env(safe-area-inset-top, 0)',
       paddingBottom: 'env(safe-area-inset-bottom, 0)',
     }}>
-      <WorkspaceHeader activeWorkspace={activeWorkspace} onOpenMCP={onOpenMCP} />
+      <WorkspaceHeader activeWorkspace={activeWorkspace} onOpenMCP={onOpenMCP} onOpenPermissions={onOpenPermissions} />
       <AppMainContent {...mainContentProps} sdkClient={sdkClient} />
       <AppPanels
         workspaceId={workspaceId}

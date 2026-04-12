@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, Server, PanelLeft } from 'lucide-react';
+import { TerminalSquare, FolderOpen, Server, PanelLeft, Shield } from 'lucide-react';
 import { useUIStore } from '@/stores/uiStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,13 @@ import type { Workspace } from '@jean2/sdk';
 export interface WorkspaceHeaderProps {
   activeWorkspace: Workspace | null;
   onOpenMCP: () => void;
+  onOpenPermissions: () => void;
 }
 
-export function WorkspaceHeader({ activeWorkspace, onOpenMCP }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ activeWorkspace, onOpenMCP, onOpenPermissions }: WorkspaceHeaderProps) {
   const showFilesPanel = useUIStore((s) => s.showFilesPanel);
   const showTerminalPanel = useUIStore((s) => s.showTerminalPanel);
+  const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
   const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
   const setShowTerminalPanel = useUIStore((s) => s.setShowTerminalPanel);
   const { toggleSidebar } = useSidebar();
@@ -46,6 +48,19 @@ export function WorkspaceHeader({ activeWorkspace, onOpenMCP }: WorkspaceHeaderP
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>MCP Servers</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onOpenPermissions}
+                    className={showWorkspacePermissions ? 'bg-accent text-accent-foreground' : ''}
+                  >
+                    <Shield className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Workspace Permissions</TooltipContent>
               </Tooltip>
               <div className="h-4 w-px bg-border mx-1 hidden md:block" />
               <Tooltip>

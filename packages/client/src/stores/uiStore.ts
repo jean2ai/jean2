@@ -32,6 +32,7 @@ interface UIState {
   showMCPDialog: boolean;
   showFilesPanel: boolean;
   showTerminalPanel: boolean;
+  showWorkspacePermissions: boolean;
   showAddServer: boolean;
   editServerData: SavedServer | null;
   sidebarViewMode: SidebarViewMode;
@@ -47,6 +48,7 @@ interface UIActions {
   setShowMCPDialog: (show: boolean) => void;
   setShowFilesPanel: (show: boolean) => void;
   setShowTerminalPanel: (show: boolean) => void;
+  setShowWorkspacePermissions: (show: boolean) => void;
   setShowAddServer: (show: boolean) => void;
   setEditServerData: (data: SavedServer | null) => void;
   setSidebarViewMode: (mode: SidebarViewMode) => void;
@@ -83,6 +85,7 @@ export const useUIStore = create<UIStore>((set) => ({
   showMCPDialog: false,
   showFilesPanel: false,
   showTerminalPanel: false,
+  showWorkspacePermissions: false,
   showAddServer: false,
   editServerData: null,
   sidebarViewMode: getInitialSidebarViewMode(),
@@ -96,6 +99,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowFilesPanel: (show) => set({ showFilesPanel: show }),
   setShowTerminalPanel: (show) => set({ showTerminalPanel: show }),
+  setShowWorkspacePermissions: (show) => set({ showWorkspacePermissions: show }),
   setShowAddServer: (show) => set({ showAddServer: show }),
   setEditServerData: (data) => set({ editServerData: data }),
   setSidebarViewMode: (mode) => {

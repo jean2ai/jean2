@@ -24,6 +24,7 @@ import { AppHeader } from '@/components/app';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
+import { WorkspacePermissionsDialog } from '@/components/modals/WorkspacePermissionsDialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
@@ -157,6 +158,7 @@ export default function ServerShell() {
     showMCPDialog,
     showAddServer,
     showConfiguration,
+    showWorkspacePermissions,
     editServerData,
     showFilesPanel,
     setShowFilesPanel,
@@ -165,6 +167,7 @@ export default function ServerShell() {
     setShowMCPDialog,
     setShowAddServer,
     setShowConfiguration,
+    setShowWorkspacePermissions,
     setEditServerData,
     setCompletion,
     clearCompletion,
@@ -176,6 +179,7 @@ export default function ServerShell() {
     showMCPDialog: s.showMCPDialog,
     showAddServer: s.showAddServer,
     showConfiguration: s.showConfiguration,
+    showWorkspacePermissions: s.showWorkspacePermissions,
     editServerData: s.editServerData,
     showFilesPanel: s.showFilesPanel,
     setShowFilesPanel: s.setShowFilesPanel,
@@ -184,6 +188,7 @@ export default function ServerShell() {
     setShowMCPDialog: s.setShowMCPDialog,
     setShowAddServer: s.setShowAddServer,
     setShowConfiguration: s.setShowConfiguration,
+    setShowWorkspacePermissions: s.setShowWorkspacePermissions,
     setEditServerData: s.setEditServerData,
     setCompletion: s.setCompletion,
     clearCompletion: s.clearCompletion,
@@ -715,6 +720,7 @@ export default function ServerShell() {
           workspaceName={activeWorkspace?.name}
           activeWorkspace={activeWorkspace}
           onOpenMCP={() => setShowMCPDialog(true)}
+          onOpenPermissions={() => setShowWorkspacePermissions(true)}
           onRetry={handleRetry}
           onLogout={handleLogout}
           onSendMessage={sendChatMessage}
@@ -766,14 +772,6 @@ export default function ServerShell() {
       <SettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}
-        permissions={permissions}
-        onRefreshPermissions={refreshPermissions}
-        onRevokePermission={revokePermission}
-        onRevokeAllPermissions={() => {
-          if (activeWorkspace?.id) {
-            revokeAllPermissions(activeWorkspace?.id);
-          }
-        }}
         apiToken={apiToken}
         onLogout={handleLogout}
         chatFinishSoundEnabled={chatFinishSoundEnabled}
@@ -789,6 +787,20 @@ export default function ServerShell() {
         workspaceId={activeWorkspace?.id}
         workspacePath={activeWorkspace?.path}
         sdkClient={sdkClient}
+      />
+
+      <WorkspacePermissionsDialog
+        open={showWorkspacePermissions}
+        onOpenChange={setShowWorkspacePermissions}
+        permissions={permissions}
+        onRefreshPermissions={refreshPermissions}
+        onRevokePermission={revokePermission}
+        onRevokeAllPermissions={() => {
+          if (activeWorkspace?.id) {
+            revokeAllPermissions(activeWorkspace.id);
+          }
+        }}
+        workspaceName={activeWorkspace?.name}
       />
 
       <ConfigurationDialog
