@@ -90,7 +90,7 @@ export function AppHeader() {
         </TooltipProvider>
       </header>
 
-      <header className="hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-14 shrink-0">
+      <header className="hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <ServerSwitcher

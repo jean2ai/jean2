@@ -66,7 +66,7 @@ export default function ServerShell() {
   };
 
   return (
-    <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '3.5rem' } as React.CSSProperties}>
+    <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': '2.75rem' } as React.CSSProperties}>
       <AppHeader />
 
       <div className="flex flex-1 min-h-0">

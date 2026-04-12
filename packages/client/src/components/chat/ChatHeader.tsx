@@ -4,6 +4,7 @@ import type { Session, Preconfig } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TokenMeter } from './TokenMeter';
 import { ModelSelector } from './ModelSelector';
 import { VariantSelector } from './VariantSelector';
@@ -107,127 +108,131 @@ export function ChatHeader({
 
   return (
     <header className="flex flex-col border-b border-border bg-card">
-      {/* Top row: Navigation and Title */}
-      <div className="flex items-center justify-start px-4 py-2 overflow-hidden">
-        <div className="flex items-center gap-3 min-w-0">
-          {session.parentId && onNavigateBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onNavigateBack}
-              className="h-7"
-            >
-              <ArrowLeft className="size-4" data-icon="inline-start" />
-              Back
-            </Button>
-          )}
+      <TooltipProvider delayDuration={300}>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-1 gap-1">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {session.parentId && onNavigateBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onNavigateBack}
+                className="h-7"
+              >
+                <ArrowLeft className="size-4" data-icon="inline-start" />
+                Back
+              </Button>
+            )}
 
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              onBlur={handleTitleSubmit}
-              onKeyDown={handleKeyDown}
-              className="text-lg font-semibold bg-background border border-primary rounded px-2 py-0.5 outline-none min-w-0 flex-1"
-              autoFocus
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={handleTitleSubmit}
+                onKeyDown={handleKeyDown}
+                className="text-base font-semibold bg-background border border-primary rounded px-2 py-0.5 outline-none min-w-0 flex-1"
+                autoFocus
+              />
+            ) : (
+              <h2
+                className="text-base font-semibold cursor-pointer px-2 py-0.5 -mx-2 rounded hover:bg-accent transition-colors truncate min-w-0"
+                onDoubleClick={handleTitleDoubleClick}
+              >
+                {session.title || 'Untitled Session'}
+              </h2>
+            )}
+
+            <TokenMeter
+              promptTokens={usage.promptTokens}
+              completionTokens={usage.completionTokens}
+              totalTokens={usage.totalTokens}
+              contextWindow={contextWindow}
+              modelName={modelName}
+              compact={isMobile}
             />
-          ) : (
-            <h2
-              className="text-lg font-semibold cursor-pointer px-2 py-0.5 -mx-2 rounded hover:bg-accent transition-colors truncate min-w-0"
-              onDoubleClick={handleTitleDoubleClick}
-            >
-              {session.title || 'Untitled Session'}
-            </h2>
-          )}
 
-          <Badge variant="outline" className="font-mono text-xs">
-            {session.id.slice(0, 8)}
-          </Badge>
+            {session.status === 'closed' && (
+              <Badge variant="secondary">
+                <Archive className="size-3" data-icon="inline-start" />
+                Archived
+              </Badge>
+            )}
+          </div>
 
-          {session.status === 'closed' && (
-            <Badge variant="secondary">
-              <Archive className="size-3" data-icon="inline-start" />
-              Archived
-            </Badge>
-          )}
+          <Separator className="md:hidden" />
+
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap md:flex-nowrap shrink-0">
+            <ModelSelector
+              models={models}
+              selectedModelId={selectedModel}
+              onChangeModel={onChangeModel}
+              disabled={session.status === 'closed' || !!session.parentId}
+              iconOnly={isMobile}
+              compact={isCompact}
+            />
+
+            <VariantSelector
+              variants={variants}
+              selectedVariant={selectedVariant}
+              onChangeVariant={onChangeVariant}
+              disabled={session.status === 'closed' || !!session.parentId}
+              iconOnly={isMobile}
+              compact={isCompact}
+            />
+
+            <PreconfigSelector
+              preconfigs={preconfigs}
+              selectedPreconfigId={session.preconfigId}
+              onChangePreconfig={onChangePreconfig}
+              disabled={session.status === 'closed' || !!session.parentId}
+              iconOnly={isMobile}
+              compact={isCompact}
+            />
+
+            <Separator orientation="vertical" className="hidden md:block" />
+
+            {onCompact && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent"
+                      onClick={onCompact}
+                      disabled={isStreaming || isCompacting || !canCompact}
+                    >
+                      <Minimize2 className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isCompacting ? 'Compacting...' : 'Compact older messages'}
+                  </TooltipContent>
+                </Tooltip>
+                <Separator orientation="vertical" className="hidden md:block" />
+              </>
+            )}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={isStreaming ? 'destructive' : 'ghost'}
+                  size="sm"
+                  className={`h-8 w-8 p-0 hover:bg-accent${!isStreaming ? ' text-muted-foreground opacity-60 hover:opacity-100' : ''}`}
+                  onClick={onInterrupt}
+                  disabled={!onInterrupt}
+                >
+                  <Square className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isStreaming ? 'Interrupt operation' : 'Interrupt'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </div>
-
-      <Separator />
-
-      {/* Bottom row: Controls */}
-      <div className="inline-flex align-middle items-center gap-3 sm:gap-4 px-4 py-2 flex-wrap">
-        <TokenMeter
-          promptTokens={usage.promptTokens}
-          completionTokens={usage.completionTokens}
-          totalTokens={usage.totalTokens}
-          contextWindow={contextWindow}
-          modelName={modelName}
-          compact={isMobile}
-        />
-
-        <Separator orientation="vertical" className="hidden sm:block" />
-
-        <ModelSelector
-          models={models}
-          selectedModelId={selectedModel}
-          onChangeModel={onChangeModel}
-          disabled={session.status === 'closed' || !!session.parentId}
-          compact={isCompact}
-          iconOnly={isMobile}
-        />
-
-        <VariantSelector
-          variants={variants}
-          selectedVariant={selectedVariant}
-          onChangeVariant={onChangeVariant}
-          disabled={session.status === 'closed' || !!session.parentId}
-          compact={isCompact}
-          iconOnly={isMobile}
-        />
-
-        <PreconfigSelector
-          preconfigs={preconfigs}
-          selectedPreconfigId={session.preconfigId}
-          onChangePreconfig={onChangePreconfig}
-          disabled={session.status === 'closed' || !!session.parentId}
-          compact={isCompact}
-          iconOnly={isMobile}
-        />
-
-        <Separator orientation="vertical" className="hidden sm:block" />
-
-        {onCompact && (
-          <>
-            <Button
-              variant="outline"
-              size={isCompact ? 'icon' : 'sm'}
-              onClick={onCompact}
-              disabled={isStreaming || isCompacting || !canCompact}
-              title={isCompacting ? 'Compacting...' : 'Compact older messages'}
-            >
-              <Minimize2 className="size-4" />
-              {!isCompact && <span className="ml-1">{isCompacting ? 'Compacting...' : 'Compact'}</span>}
-            </Button>
-            <Separator orientation="vertical" className="hidden sm:block" />
-          </>
-        )}
-
-
-        <Button
-          variant={isStreaming ? 'destructive' : 'outline'}
-          size={isCompact ? 'icon' : 'sm'}
-          onClick={onInterrupt}
-          disabled={!onInterrupt}
-          className={!isStreaming ? 'opacity-60 hover:opacity-100' : ''}
-          title={isStreaming ? 'Interrupt operation' : 'Interrupt (no active operation)'}
-        >
-          <Square className="size-4" />
-          {!isCompact && <span className="ml-1">Stop</span>}
-        </Button>
-      </div>
+      </TooltipProvider>
     </header>
   );
 }
