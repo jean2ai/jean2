@@ -201,6 +201,7 @@ export type { SdkEventMap } from './server-messages';
 // REST response types
 export type {
   ListSessionsResponse,
+  ListSessionsGroupedResponse,
   CreateSessionResponse,
   GetSessionResponse,
   UpdateSessionResponse,

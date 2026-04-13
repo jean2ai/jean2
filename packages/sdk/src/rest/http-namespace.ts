@@ -1,4 +1,4 @@
-import type { Session, Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus } from '../shared';
+import type { Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus } from '../shared';
 import type { HttpClient } from '../transport/http';
 import { SessionsRestNamespace } from './sessions';
 import { WorkspacesRestNamespace } from './workspaces';
@@ -18,7 +18,6 @@ import { ConfigRestNamespace } from './config';
  * Matches the pattern used by the React client's useServerDataLoader.
  */
 export interface LoadAllResult {
-  sessions: Session[];
   workspaces: Workspace[];
   preconfigs: Preconfig[];
   prompts: PromptInfo[];
@@ -66,8 +65,7 @@ export class HttpNamespace {
    * Useful for client initialization — replaces manual Promise.all() composition.
    */
   async loadAll(options?: { signal?: AbortSignal }): Promise<LoadAllResult> {
-    const [sessionsData, workspacesData, preconfigsData, promptsData, modelsData, providersData] = await Promise.all([
-      this.sessions.list(options),
+    const [workspacesData, preconfigsData, promptsData, modelsData, providersData] = await Promise.all([
       this.workspaces.list(options),
       this.preconfigs.list(options),
       this.prompts.list(options),
@@ -76,7 +74,6 @@ export class HttpNamespace {
     ]);
 
     return {
-      sessions: sessionsData.sessions,
       workspaces: workspacesData.workspaces,
       preconfigs: preconfigsData.preconfigs,
       prompts: promptsData.prompts,

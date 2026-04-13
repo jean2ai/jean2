@@ -8,6 +8,13 @@ export interface ListSessionsResponse {
 }
 
 /**
+ * GET /api/sessions/grouped
+ */
+export interface ListSessionsGroupedResponse {
+  sessions: Record<string, Session[]>;
+}
+
+/**
  * POST /api/sessions
  */
 export interface CreateSessionResponse {

@@ -4,6 +4,7 @@ import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSidebarData } from '@/hooks/useSidebarData';
+import { useWorkspaceSessions } from '@/hooks/useWorkspaceSessions';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
@@ -34,6 +35,16 @@ export default function WorkspaceView() {
     handleCreatePhysicalWorkspace,
     deleteWorkspace,
   } = sessionManager;
+
+  useWorkspaceSessions({
+    sdkClient,
+    workspaceId: sidebarData.activeWorkspace?.id ?? null,
+    connected: sidebarData.connected,
+  });
+
+  // Read from store via useSidebarData — WebSocket events update the store
+  const activeSessions = sidebarData.activeSessions;
+  const archivedSessions = sidebarData.archivedSessions;
 
   const sidebarHeader = (
     <SidebarHeader>
@@ -75,8 +86,8 @@ export default function WorkspaceView() {
 
   const sidebarContent = (
     <WorkspaceSessionContent
-      activeSessions={sidebarData.activeSessions}
-      archivedSessions={sidebarData.archivedSessions}
+      activeSessions={activeSessions}
+      archivedSessions={archivedSessions}
       childrenMap={sidebarData.childrenMap}
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSessionId={sidebarData.currentSessionId}

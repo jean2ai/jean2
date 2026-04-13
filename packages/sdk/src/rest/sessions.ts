@@ -1,6 +1,7 @@
 import type { HttpClient } from '../transport/http';
 import type {
   ListSessionsResponse,
+  ListSessionsGroupedResponse,
   CreateSessionResponse,
   GetSessionResponse,
   UpdateSessionResponse,
@@ -27,6 +28,20 @@ interface UpdateOptions {
   title?: string;
   status?: SessionStatus;
   metadata?: Record<string, unknown>;
+}
+
+interface ListGroupedOptions {
+  workspaceIds: string[];
+  status?: SessionStatus;
+  rootOnly?: boolean;
+  signal?: AbortSignal;
+}
+
+interface ListByWorkspaceOptions {
+  workspaceId: string;
+  status?: SessionStatus;
+  rootOnly?: boolean;
+  signal?: AbortSignal;
 }
 
 export class SessionsRestNamespace {
@@ -58,5 +73,21 @@ export class SessionsRestNamespace {
 
   async listMessages(id: string, options?: { signal?: AbortSignal }): Promise<ListMessagesResponse> {
     return this.http.get(`/sessions/${encodeURIComponent(id)}/messages`, { signal: options?.signal });
+  }
+
+  async listGrouped(options: ListGroupedOptions): Promise<ListSessionsGroupedResponse> {
+    const params: Record<string, string> = {
+      workspaceIds: options.workspaceIds.join(','),
+    };
+    if (options.status) params.status = options.status;
+    if (options.rootOnly) params.rootOnly = 'true';
+    return this.http.get('/sessions/grouped', { params, signal: options.signal });
+  }
+
+  async listByWorkspace(options: ListByWorkspaceOptions): Promise<ListSessionsResponse> {
+    const params: Record<string, string> = {};
+    if (options.status) params.status = options.status;
+    if (options.rootOnly) params.rootOnly = 'true';
+    return this.http.get(`/workspaces/${encodeURIComponent(options.workspaceId)}/sessions`, { params, signal: options.signal });
   }
 }

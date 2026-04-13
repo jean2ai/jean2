@@ -26,6 +26,7 @@ import {
   updateSession,
   deleteSession,
   listSessionsByWorkspace,
+  listSessionsGrouped,
 } from '@/store';
 import {
   getAttachmentByKey,
@@ -196,6 +197,25 @@ export function createApp() {
     });
     
     return c.json({ session }, 201);
+  });
+
+  // GET /api/sessions/grouped - List sessions grouped by workspace
+  app.get('/api/sessions/grouped', async (c) => {
+    const workspaceIdsParam = c.req.query('workspaceIds');
+    if (!workspaceIdsParam) {
+      return c.json({ error: 'Bad Request', message: 'workspaceIds query parameter is required' }, 400);
+    }
+
+    const workspaceIds = workspaceIdsParam.split(',').filter(Boolean);
+    if (workspaceIds.length === 0) {
+      return c.json({ error: 'Bad Request', message: 'At least one workspaceId is required' }, 400);
+    }
+
+    const status = c.req.query('status') as SessionStatus | undefined;
+    const rootOnly = c.req.query('rootOnly') === 'true';
+
+    const sessions = listSessionsGrouped(workspaceIds, { status, rootOnly });
+    return c.json({ sessions });
   });
 
   // GET /api/sessions/:id - Get a session by ID
@@ -453,7 +473,9 @@ export function createApp() {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
-    const sessions = listSessionsByWorkspace(workspaceId);
+    const status = c.req.query('status') as SessionStatus | undefined;
+    const rootOnly = c.req.query('rootOnly') === 'true';
+    const sessions = listSessionsByWorkspace(workspaceId, { status, rootOnly });
     return c.json({ sessions });
   });
 

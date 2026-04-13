@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useLoaderData, useParams } from '@tanstack/react-router';
-import { useSessionStore, clearSessionState } from '@/stores/sessionStore';
+import { clearSessionState } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import type { ServerData } from '@/lib/fetchServerData';
 
@@ -19,7 +19,6 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
 
   useLayoutEffect(() => {
     if (!data) return;
-    useSessionStore.getState().setSessions(data.sessions);
 
     const usableModels = (data.models || []).filter((m) => m.runtimeStatus?.usable);
     useServerDataStore.getState().hydrate(serverId ?? '', {

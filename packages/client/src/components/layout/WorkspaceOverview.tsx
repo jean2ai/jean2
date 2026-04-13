@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
 
 interface WorkspaceOverviewProps {
-  allSessions: Session[];
+  sessionsByWorkspace: Record<string, Session[]>;
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSession: Session | null;
@@ -37,7 +37,7 @@ interface WorkspaceOverviewProps {
 }
 
 export const WorkspaceOverview = React.memo(function WorkspaceOverview({
-  allSessions,
+  sessionsByWorkspace,
   childrenMap,
   sessionDerivedValues,
   currentSession,
@@ -60,22 +60,6 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
       .filter((w): w is Workspace => w !== undefined);
   }, [workspaces, favoritedWorkspaceIds]);
 
-  const workspaceSessions = useMemo(() => {
-    const sessionsByWorkspace = new Map<string, Session[]>();
-    for (const workspace of favoritedWorkspaces) {
-      const workspaceSessionList = allSessions
-        .filter(
-          (s) =>
-            s.workspaceId === workspace.id &&
-            s.status === 'active' &&
-            s.parentId === null
-        )
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      sessionsByWorkspace.set(workspace.id, workspaceSessionList);
-    }
-    return sessionsByWorkspace;
-  }, [allSessions, favoritedWorkspaces]);
-
   if (favoritedWorkspaces.length === 0) {
     return (
       <SidebarGroup>
@@ -94,7 +78,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
       {favoritedWorkspaces.map((workspace) => {
         const isActiveWorkspace = workspace.id === activeWorkspace?.id;
         const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
-        const activeSessions = workspaceSessions.get(workspace.id) || [];
+        const activeSessions = sessionsByWorkspace[workspace.id] || [];
 
         return (
           <Collapsible

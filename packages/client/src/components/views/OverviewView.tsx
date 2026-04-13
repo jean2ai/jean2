@@ -4,13 +4,19 @@ import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { useSidebarData } from '@/hooks/useSidebarData';
+import { useOverviewSessions } from '@/hooks/useOverviewSessions';
 import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
 
 export default function OverviewView() {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
-
   const { sidebarRef, chatInputRef } = useViewRefs();
+
+  const { sessionsByWorkspace } = useOverviewSessions({
+    sdkClient: sessionManager.sdkClient,
+    workspaceIds: sidebarData.favoritedWorkspaceIds,
+    connected: sidebarData.connected,
+  });
 
   const {
     resumeSession,
@@ -23,7 +29,7 @@ export default function OverviewView() {
 
   const sidebarContent = (
     <WorkspaceOverview
-      allSessions={sidebarData.allSessions}
+      sessionsByWorkspace={sessionsByWorkspace}
       childrenMap={sidebarData.childrenMap}
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSession={sidebarData.currentSession}
