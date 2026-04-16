@@ -10,13 +10,13 @@ This package provides the Electron-based desktop wrapper for the Jean2 React cli
 - **Embedded Web Views**: Browser-like feature for loading arbitrary URLs within the main window
 - **Offline Mode**: Optionally bundles and spawns the Jean2 server binary locally
 - **Auto-Updates**: Automatic updates via electron-updater (GitHub Releases)
-- **Cross-Platform**: Builds for macOS, Windows, and Linux
+- **Cross-Platform**: Builds for macOS and Windows (unsigned)
 
 ## Prerequisites
 
 - Node.js 18+
 - Bun runtime
-- For building: Xcode command line tools (macOS), Visual Studio Build Tools (Windows), or appropriate build tools (Linux)
+- For building: Xcode command line tools (macOS), Visual Studio Build Tools (Windows)
 
 ## Installation
 
@@ -61,14 +61,14 @@ bun run electron:build
 ### Build for Specific Platforms
 
 ```bash
-# macOS
-bun run electron:build:mac
+# macOS (local development - no signing)
+bun run electron:build:mac:local
 
-# Windows
+# macOS (release build with signing & notarization)
+bun run electron:build:mac:release
+
+# Windows (unsigned)
 bun run electron:build:win
-
-# Linux
-bun run electron:build:linux
 ```
 
 ### Type Checking
@@ -246,7 +246,6 @@ Configuration is stored in `electron-store` under the app data directory:
 
 - **macOS**: `~/Library/Application Support/Jean2/`
 - **Windows**: `%APPDATA%/Jean2/`
-- **Linux**: `~/.config/Jean2/`
 
 ## Building for Distribution
 
@@ -254,7 +253,6 @@ The build outputs go to `packages/client-electron/release/`:
 
 - **macOS**: `.dmg` and `.zip` files
 - **Windows**: `.exe` (NSIS installer) and `.exe` (portable)
-- **Linux**: `.AppImage` and `.deb`
 
 ## Troubleshooting
 

@@ -3,20 +3,10 @@ name: Release Electron
 on:
   workflow_dispatch:
     inputs:
-      release_electron_mac:
-        description: 'Release Electron macOS build'
+      release_client:
+        description: 'Release Electron desktop client (macOS + Windows together)'
         required: false
         default: true
-        type: boolean
-      release_electron_win:
-        description: 'Release Electron Windows build'
-        required: false
-        default: false
-        type: boolean
-      release_electron_linux:
-        description: 'Release Electron Linux build'
-        required: false
-        default: false
         type: boolean
       force:
         description: 'Force release (recreate existing)'
@@ -32,9 +22,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  prepare-electron-release:
+  prepare-client-release:
     runs-on: ubuntu-latest
-    if: inputs.release_electron_mac || inputs.release_electron_win || inputs.release_electron_linux
+    if: inputs.release_client
     outputs:
       tag: ${{ steps.info.outputs.tag }}
       version: ${{ steps.info.outputs.version }}
@@ -48,7 +38,7 @@ jobs:
       - id: info
         run: |
           V=$(cat packages/client/VERSION)
-          TAG="electron/v${V}"
+          TAG="client/v${V}"
           echo "version=$V" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
@@ -83,16 +73,16 @@ jobs:
           echo "prerelease=$PRE" >> $GITHUB_OUTPUT
 
           if [ "$PRE" == "true" ]; then
-            gh release create "$TAG" --title "Electron $V" --prerelease
+            gh release create "$TAG" --title "Client $V" --prerelease
           else
-            gh release create "$TAG" --title "Electron $V"
+            gh release create "$TAG" --title "Client $V"
           fi
           echo "Release $TAG created successfully"
 
-  release-electron-mac:
-    needs: prepare-electron-release
+  release-client-macos:
+    needs: prepare-client-release
     runs-on: macos-latest
-    if: inputs.release_electron_mac && needs.prepare-electron-release.outputs.should_skip != 'true'
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -117,45 +107,43 @@ jobs:
           "
           echo "Set client-electron version to $V"
 
-      - name: Import Apple Certificate
+      - name: Build macOS (release build with signing & notarization)
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          echo "$CSC_LINK" | base64 --decode > certificate.p12
-          security create-keychain -p actions temp.keychain
-          security import certificate.p12 -k temp.keychain -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
-          security list-keychains -s temp.keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions temp.keychain
-          rm -f certificate.p12
-
-      - name: Build unsigned
-        run: bun run electron:build:mac
-
-      - name: Sign & Notarize
-        env:
-          CSC_NAME: ${{ secrets.CSC_NAME }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: cd packages/client-electron && ./scripts/sign-mac.sh
+        run: bun run electron:build:mac:release
 
       - name: Upload macOS artifacts
         env:
-          TAG: ${{ needs.prepare-electron-release.outputs.tag }}
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
         run: |
           cd packages/client-electron/release
-          for file in *.dmg; do
+          # Upload for direct download (DMG + ZIP)
+          for file in *.dmg *.zip; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done
+          # Upload electron-updater artifacts
+          if [ -f "latest-mac.yml" ]; then
+            echo "Uploading latest-mac.yml"
+            gh release upload "$TAG" "latest-mac.yml" --clobber
+          fi
+          for file in *.blockmap; do
             if [ -f "$file" ]; then
               echo "Uploading $file"
               gh release upload "$TAG" "$file" --clobber
             fi
           done
 
-  release-electron-win:
-    needs: prepare-electron-release
+  release-client-windows:
+    needs: prepare-client-release
     runs-on: windows-latest
-    if: inputs.release_electron_win && needs.prepare-electron-release.outputs.should_skip != 'true'
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -181,65 +169,17 @@ jobs:
           "
           echo "Set client-electron version to $V"
 
-      - name: Build Windows
+      - name: Build Windows (unsigned)
         run: bun run electron:build:win
-
-      - name: Sign Windows
-        shell: bash
-        run: cd packages/client-electron && ./scripts/sign-win.sh
 
       - name: Upload Windows artifacts
         shell: bash
         env:
-          TAG: ${{ needs.prepare-electron-release.outputs.tag }}
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
         run: |
           cd packages/client-electron/release
           shopt -s nullglob
           for file in *.exe *.msi; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file"
-              gh release upload "$TAG" "$file" --clobber
-            fi
-          done
-
-  release-electron-linux:
-    needs: prepare-electron-release
-    runs-on: ubuntu-latest
-    if: inputs.release_electron_linux && needs.prepare-electron-release.outputs.should_skip != 'true'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install
-        run: bun install
-
-      - name: Sync version from VERSION file
-        run: |
-          V=$(cat packages/client/VERSION)
-          cd packages/client-electron
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$V';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-          echo "Set client-electron version to $V"
-
-      - name: Build Linux
-        run: bun run electron:build:linux
-
-      - name: Upload Linux artifacts
-        env:
-          TAG: ${{ needs.prepare-electron-release.outputs.tag }}
-        run: |
-          cd packages/client-electron/release
-          shopt -s nullglob
-          for file in *.AppImage *.deb; do
             if [ -f "$file" ]; then
               echo "Uploading $file"
               gh release upload "$TAG" "$file" --clobber
