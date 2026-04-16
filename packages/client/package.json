@@ -1,6 +1,6 @@
 {
   "name": "@jean2/client",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "private": false,
   "type": "module",
   "bin": {
