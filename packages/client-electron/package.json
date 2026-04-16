@@ -15,6 +15,11 @@
     "electron:build:mac": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --mac",
     "electron:build:win": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --win",
     "electron:build:linux": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --linux",
+    "electron:sign:mac": "./scripts/sign-mac.sh",
+    "electron:sign:win": "./scripts/sign-win.sh",
+    "electron:release:mac": "bun run electron:build:mac && bun run electron:sign:mac",
+    "electron:release:win": "bun run electron:build:win && bun run electron:sign:win",
+    "electron:release:linux": "bun run electron:build:linux",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -23,13 +28,15 @@
     "electron-updater": "^6.3.0"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
+    "@electron/osx-sign": "^2.4.0",
+    "concurrently": "^9.1.0",
     "electron": "^41.0.0",
     "electron-builder": "^26.0.0",
-    "concurrently": "^9.1.0",
-    "wait-on": "^8.0.0",
+    "typescript": "^5.7.2",
     "vite": "^8.0.0",
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "typescript": "^5.7.2"
+    "wait-on": "^8.0.0"
   }
 }

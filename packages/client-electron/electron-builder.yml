@@ -19,18 +19,16 @@ mac:
   icon: build/icon.icns
   target:
     - dmg
-    - zip
   hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  type: distribution
+  identity: null
   extendInfo:
     NSCameraUsageDescription: Jean2 needs camera access for video calls
     NSMicrophoneUsageDescription: Jean2 needs microphone access for audio calls
-    NSDesktopFolderUsageDescription: Jean2 needs desktop folder access for file operations
-    NSDocumentsFolderUsageDescription: Jean2 needs documents folder access for file operations
-    NSDownloadsFolderUsageDescription: Jean2 needs downloads folder access for file operations
     NSUserNotificationsUsageDescription: Jean2 needs notification access for alerts
-    NSLocalNetworkUsageDescription: Jean2 needs local network access for server communication
-    NSBonjourServices:
-      - _jean2._tcp
 
 win:
   target:
@@ -56,7 +54,7 @@ nsis:
 
 publish:
   provider: github
-  owner: your-github-username
+  owner: rabbyte-tech
   repo: jean2
 
 asar: true
@@ -65,12 +63,7 @@ compression: normal
 electronDownload:
   cache: .electron-cache
 
-# Bundle server binary as extra resource
 extraResources:
-  - from: ../server/dist
-    to: server
-    filter:
-      - "**/*"
   - from: ../client/dist
     to: client/dist
     filter:
