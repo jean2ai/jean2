@@ -1,6 +1,6 @@
 import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch } from 'lucide-react';
 import { useState } from 'react';
-import type { Message } from '@jean2/shared';
+import type { Message } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { cn } from '@/lib/utils';

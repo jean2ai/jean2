@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import type { SkillInfo } from '@jean2/shared';
+import type { SkillInfo } from '@jean2/sdk';
 
 /**
  * Parse YAML frontmatter from markdown content.

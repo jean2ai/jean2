@@ -1,9 +1,8 @@
-import { useEffect, useRef, type RefObject } from 'react';
-import { buildWsUrl } from '@/config/urls';
-import type { ServerMessage } from '@jean2/shared';
-
-const getWsUrl = (token: string | null, url: string | null) =>
-  (token && url) ? buildWsUrl(url, `/ws?token=${token}`) : null;
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { Jean2Client } from '@jean2/sdk';
+import type { SessionHandlersContext } from '@/handlers/serverMessage';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { subscribeToServerEvents } from './subscribeToServerEvents';
 
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
@@ -13,140 +12,122 @@ const STALE_THRESHOLD = 30_000;
 export interface ConnectionLifecycleParams {
   apiToken: string | null;
   serverUrl: string | null;
-  wsRef: RefObject<WebSocket | null>;
-  serverEpochRef: RefObject<number>;
   currentSessionIdRef: RefObject<string | null>;
+  handlerContextRef: RefObject<SessionHandlersContext | null>;
   clearPendingPermissions: () => void;
   handleLogout: () => void;
-  setWs: (ws: WebSocket | null) => void;
-  setConnected: (connected: boolean) => void;
-  setAuthError: (error: string | null) => void;
-  setConnectionTimedOut: (timedOut: boolean) => void;
-  setRetryCount: React.Dispatch<React.SetStateAction<number>>;
-  setNextRetryIn: React.Dispatch<React.SetStateAction<number>>;
-  setReconnectTrigger: React.Dispatch<React.SetStateAction<number>>;
-  reconnectTrigger: number;
-  connected: boolean;
-  connectionTimedOut: boolean;
-  retryCount: number;
-  onMessage: (msg: ServerMessage) => void;
+  clientRef?: RefObject<Jean2Client | null>;
+}
+
+export interface ConnectionLifecycleReturn {
+  clientRef: RefObject<Jean2Client | null>;
 }
 
 export function useConnectionLifecycle({
   apiToken,
   serverUrl,
-  wsRef,
-  serverEpochRef,
   currentSessionIdRef,
+  handlerContextRef,
   clearPendingPermissions,
   handleLogout,
-  setWs,
-  setConnected,
-  setAuthError,
-  setConnectionTimedOut,
-  setRetryCount,
-  setNextRetryIn,
-  setReconnectTrigger,
-  reconnectTrigger,
-  connected,
-  connectionTimedOut,
-  retryCount,
-  onMessage,
-}: ConnectionLifecycleParams) {
-  const lastMessageTimeRef = useRef(Date.now());
+  clientRef: externalClientRef,
+}: ConnectionLifecycleParams): ConnectionLifecycleReturn {
+  const internalClientRef = useRef<Jean2Client | null>(null);
+  const clientRef = externalClientRef ?? internalClientRef;
+  const lastMessageTimeRef = useRef<number>(0);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
+  // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
     if (!apiToken || !serverUrl) {
       return;
     }
 
-    const wsUrl = getWsUrl(apiToken, serverUrl);
-    if (!wsUrl) return;
+    const client = new Jean2Client({
+      url: serverUrl,
+      token: apiToken,
+      autoSyncPermissions: false,
+    });
 
-    const socket = new WebSocket(wsUrl);
+    clientRef.current = client;
 
-    const localEpoch = serverEpochRef.current;
-
-    socket.onopen = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-      lastMessageTimeRef.current = Date.now();
-      setConnected(true);
-      setAuthError(null);
-      setRetryCount(0);
-      setConnectionTimedOut(false);
+    client.on('connected', () => {
+      useConnectionStore.getState().setConnected(true);
+      useConnectionStore.getState().setAuthError(null);
+      useConnectionStore.getState().setRetryCount(0);
+      useConnectionStore.getState().setConnectionTimedOut(false);
 
       clearPendingPermissions();
 
       if (currentSessionIdRef.current) {
-        socket.send(JSON.stringify({
-          type: 'session.resume',
-          sessionId: currentSessionIdRef.current,
-        }));
+        client.sessions.resume(currentSessionIdRef.current);
       }
 
-      socket.send(JSON.stringify({ type: 'permissions.sync' }));
-    };
+      client.permissions.sync();
+    });
 
-    socket.onclose = (event) => {
-      if (serverEpochRef.current !== localEpoch) return;
-      setConnected(false);
+    client.on('disconnected', (payload) => {
+      useConnectionStore.getState().setConnected(false);
 
-      if (event.code === 1008 || event.code === 401) {
+      if (payload.code === 1008 || payload.code === 401) {
         handleLogout();
       }
-    };
+    });
 
-    socket.onerror = (error) => {
-      if (serverEpochRef.current !== localEpoch) return;
+    client.on('error.connection', (error) => {
       console.error('WebSocket error:', error);
-    };
+    });
 
-    socket.onmessage = (event) => {
-      if (serverEpochRef.current !== localEpoch) return;
+    client.on('*', () => {
       lastMessageTimeRef.current = Date.now();
-      const msg: ServerMessage = JSON.parse(event.data);
-      onMessage(msg);
+    });
+
+    const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
+
+    client.connect().catch((err) => {
+      console.error('Connection failed:', err);
+    });
+
+    return () => {
+      unsubscribe();
+      client.dispose();
+      if (clientRef.current === client) {
+        clientRef.current = null;
+      }
     };
-
-    setWs(socket);
-
-    return () => socket.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiToken, serverUrl, handleLogout, reconnectTrigger]);
+  }, [apiToken, serverUrl, reconnectAttempt]);
 
   useEffect(() => {
+    const { connected, connectionTimedOut } = useConnectionStore.getState();
     if (apiToken && serverUrl && !connected && !connectionTimedOut) {
       const timeoutId = setTimeout(() => {
-        if (!connected) {
-          setConnectionTimedOut(true);
+        if (!useConnectionStore.getState().connected) {
+          useConnectionStore.getState().setConnectionTimedOut(true);
         }
       }, CONNECTION_TIMEOUT);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [apiToken, serverUrl, connected, connectionTimedOut, setConnectionTimedOut]);
+  }, [apiToken, serverUrl, reconnectAttempt]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
+    const { connectionTimedOut, connected, retryCount } = useConnectionStore.getState();
     if (connectionTimedOut && !connected && apiToken && serverUrl) {
       const delay = Math.min(
         INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
-        MAX_RETRY_DELAY
+        MAX_RETRY_DELAY,
       );
 
       let countdown = Math.floor(delay / 1000);
-      setNextRetryIn(countdown);
+      useConnectionStore.getState().setNextRetryIn(countdown);
 
       const countdownInterval = setInterval(() => {
         countdown -= 1;
-        setNextRetryIn(Math.max(0, countdown));
+        useConnectionStore.getState().setNextRetryIn(Math.max(0, countdown));
       }, 1000);
 
       const retryTimeout = setTimeout(() => {
-        if (serverEpochRef.current !== localEpoch) return;
-        setRetryCount(c => c + 1);
-        setReconnectTrigger(t => t + 1);
+        useConnectionStore.getState().setRetryCount(c => c + 1);
       }, delay);
 
       return () => {
@@ -154,63 +135,54 @@ export function useConnectionLifecycle({
         clearTimeout(retryTimeout);
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionTimedOut, connected, apiToken, serverUrl, retryCount, serverEpochRef, setReconnectTrigger, setNextRetryIn]);
+  }, [apiToken, serverUrl, reconnectAttempt]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     const handleVisibilityChange = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (document.visibilityState !== 'visible') return;
 
-      const socket = wsRef.current;
-      if (!socket || !apiToken || !serverUrl) return;
+      const client = clientRef.current;
+      if (!client || !apiToken || !serverUrl) return;
 
-      if (socket.readyState === WebSocket.OPEN) {
+      if (client.connected) {
         const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
         if (timeSinceLastMessage < STALE_THRESHOLD) {
           return;
         }
-        socket.onclose = null;
-        socket.close();
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
-      } else if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-        setConnected(false);
-        setRetryCount(0);
-        setConnectionTimedOut(false);
-        setReconnectTrigger(t => t + 1);
+        client.dispose();
+        clientRef.current = null;
+        useConnectionStore.getState().setConnected(false);
+        useConnectionStore.getState().setRetryCount(0);
+        useConnectionStore.getState().setConnectionTimedOut(false);
+        setReconnectAttempt(n => n + 1);
+      } else if (!client.connected) {
+        useConnectionStore.getState().setConnected(false);
+        useConnectionStore.getState().setRetryCount(0);
+        useConnectionStore.getState().setConnectionTimedOut(false);
+        setReconnectAttempt(n => n + 1);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut, lastMessageTimeRef]);
+  }, [apiToken, serverUrl, lastMessageTimeRef]);
 
   useEffect(() => {
-    const localEpoch = serverEpochRef.current;
-
     const handleOnline = () => {
-      if (serverEpochRef.current !== localEpoch) return;
-
       if (!apiToken || !serverUrl) return;
 
-      const socket = wsRef.current;
-      if (socket && socket.readyState === WebSocket.OPEN) return;
+      const client = clientRef.current;
+      if (client && client.connected) return;
 
-      setConnected(false);
-      setRetryCount(0);
-      setConnectionTimedOut(false);
-      setReconnectTrigger(t => t + 1);
+      useConnectionStore.getState().setConnected(false);
+      useConnectionStore.getState().setRetryCount(0);
+      useConnectionStore.getState().setConnectionTimedOut(false);
+      setReconnectAttempt(n => n + 1);
     };
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiToken, serverUrl, serverEpochRef, setReconnectTrigger, setConnected, setRetryCount, setConnectionTimedOut]);
+  }, [apiToken, serverUrl]);
+
+  return { clientRef };
 }

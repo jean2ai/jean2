@@ -1,4 +1,5 @@
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import type { Jean2Client } from '@jean2/sdk';
 import type { FilePreviewTarget } from '@/stores/uiStore';
 import {
   Dialog,
@@ -14,8 +15,7 @@ import { Button } from '@/components/ui/button';
 interface FilePreviewOverlayProps {
   workspaceId: string | undefined;
   target: FilePreviewTarget | null;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  sdkClient: Jean2Client | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -23,16 +23,14 @@ interface FilePreviewOverlayProps {
 export default function FilePreviewOverlay({
   workspaceId,
   target,
-  serverUrl,
-  apiToken,
+  sdkClient,
   open,
   onOpenChange,
 }: FilePreviewOverlayProps) {
   const { data, loading, error, reload } = useFilePreview({
     workspaceId,
     path: target?.path,
-    serverUrl,
-    apiToken,
+    sdkClient,
     enabled: open && !!target && !!workspaceId,
   });
 

@@ -1,0 +1,17 @@
+{
+  "name": "@jean2/sdk",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "version:sync": "echo \"export const version: string = '$npm_package_version';\" > src/version.ts"
+  }
+}

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isElectron, isTauriMobile } from '@/lib/platform';
 import chatFinishSound from '@/assets/sounds/chat-finish.mp3';
 import chatPermissionSound from '@/assets/sounds/chat-permission.mp3';
 
@@ -112,10 +112,26 @@ export function useNotificationSound(): UseNotificationSoundReturn {
   }, [getOrCreateContext, loadBuffer, playBuffer, attachGestureListeners]);
 
   const playSound = useCallback(async (key: SoundKey) => {
-    if (isTauri()) {
+    if (isElectron()) {
       const now = Date.now();
       if (now > nativeCooldownRef.current) {
         try {
+          await window.__JEAN2_ELECTRON__?.playSound(key);
+          nativeCooldownRef.current = now + 1000;
+          return;
+        } catch (err) {
+          console.warn('[useNotificationSound] Electron native playback failed, falling back to Web Audio', err);
+        }
+      }
+      await playWebAudio(key);
+      return;
+    }
+
+    if (isTauriMobile()) {
+      const now = Date.now();
+      if (now > nativeCooldownRef.current) {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
           await invoke('play_sound', { soundKey: key });
           return;
         } catch (err) {
@@ -124,9 +140,11 @@ export function useNotificationSound(): UseNotificationSoundReturn {
           nativeCooldownRef.current = now + 1000;
         }
       }
-    } else {
       await playWebAudio(key);
+      return;
     }
+
+    await playWebAudio(key);
   }, [playWebAudio]);
 
   const playChatFinishSound = useCallback(() => {

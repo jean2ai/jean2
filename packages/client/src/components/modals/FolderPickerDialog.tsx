@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, Folder, Loader2, Check, Search, HardDrive } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
-import { useApi } from '@/hooks/useApi';
-import { useServerContext } from '@/contexts/ServerContext';
+import type { FileEntry } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { join } from '@/lib/path';
 import {
   Dialog,
@@ -22,6 +21,7 @@ interface FolderPickerDialogProps {
   onSelect: (path: string) => void;
   initialPath?: string;
   title?: string;
+  sdkClient: Jean2Client | null;
 }
 
 export function FolderPickerDialog({
@@ -30,6 +30,7 @@ export function FolderPickerDialog({
   onSelect,
   initialPath,
   title = 'Select Folder',
+  sdkClient,
 }: FolderPickerDialogProps) {
   const [currentPath, setCurrentPath] = useState(initialPath || '');
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -42,29 +43,19 @@ export function FolderPickerDialog({
   const [showDrives, setShowDrives] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const { fetchWithAuth } = useApi();
-  const { activeServer } = useServerContext();
 
   const loadDirectory = useCallback(async (path: string) => {
+    if (!sdkClient) return;
+
     setLoading(true);
     setError(null);
     setSelectedIndex(0);
     setSearchQuery('');
     setShowDrives(false);
-    
+
     try {
-      const res = await fetchWithAuth(
-        `/api/fs/browse?path=${encodeURIComponent(path)}`,
-        {},
-        { serverUrl: activeServer?.url, token: activeServer?.token }
-      );
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to browse directory');
-      }
-      
-      // Only show directories for folder picker
+      const data = await sdkClient.http.files.browseFs(path);
+
       const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
       setFiles(directories);
       setCurrentPath(data.currentPath);
@@ -75,21 +66,18 @@ export function FolderPickerDialog({
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, activeServer]);
+  }, [sdkClient]);
 
   const loadDrives = useCallback(async () => {
+    if (!sdkClient) return;
+
     try {
-      const res = await fetchWithAuth(
-        '/api/fs/drives',
-        {},
-        { serverUrl: activeServer?.url, token: activeServer?.token }
-      );
-      const data = await res.json();
+      const data = await sdkClient.http.files.drives();
       setDrives(data.drives || []);
     } catch {
       // Silently fail — drives are optional UI
     }
-  }, [fetchWithAuth, activeServer]);
+  }, [sdkClient]);
 
   useEffect(() => {
     if (open) {
@@ -123,18 +111,12 @@ export function FolderPickerDialog({
   const isUsingCurrentFolder = !selectedFolder;
 
   const handleNavigateUp = async () => {
+    if (!sdkClient) return;
+
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(
-        `/api/fs/parent?path=${encodeURIComponent(currentPath)}`,
-        {},
-        { serverUrl: activeServer?.url, token: activeServer?.token }
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to navigate up');
-      }
+      const data = await sdkClient.http.files.parent(currentPath);
       const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
       setFiles(directories);
       setCurrentPath(data.currentPath);

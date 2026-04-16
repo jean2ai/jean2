@@ -13,7 +13,7 @@ import type {
   UpdateModelRequest,
   SetDefaultsRequest,
   ModelWithStatus,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 
 const KNOWN_PROVIDERS = new Set([
   'openai', 'anthropic', 'openrouter', 'google', 'minimax', 'zhipu', 'zhipu-coding',

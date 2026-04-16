@@ -1,6 +1,7 @@
+import type { Jean2Client } from '@jean2/sdk';
 import { useState } from 'react';
 import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2 } from 'lucide-react';
-import type { Workspace } from '@jean2/shared';
+import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
@@ -35,6 +36,7 @@ interface WorkspaceSwitcherProps {
   isWorkspaceFavorited: (workspaceId: string) => boolean;
   onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
   onDeleteWorkspace: (id: string) => void;
+  sdkClient: Jean2Client | null;
 }
 
 export function WorkspaceSwitcher({
@@ -46,6 +48,7 @@ export function WorkspaceSwitcher({
   isWorkspaceFavorited,
   onToggleFavorite,
   onDeleteWorkspace,
+  sdkClient,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -181,6 +184,7 @@ export function WorkspaceSwitcher({
         setShowFolderPicker(false);
       }}
       title="Select Workspace Folder"
+      sdkClient={sdkClient}
     />
     <ConfirmationDialog
       open={workspaceToDelete !== null}

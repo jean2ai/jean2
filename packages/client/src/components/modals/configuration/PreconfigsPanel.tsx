@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { Jean2Client } from '@jean2/sdk';
 import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,12 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { useApi } from '@/hooks/useApi';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 
 interface PanelProps {
-  serverUrl: string | null;
-  apiToken: string | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface Preconfig {
@@ -69,10 +67,7 @@ const emptyForm: PreconfigForm = {
   isDefault: false,
 };
 
-export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
-  const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
-
+export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,36 +85,29 @@ export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
   const [skillInput, setSkillInput] = useState('');
 
   const loadPreconfigs = useCallback(async () => {
-    if (!apiToken || !apiUrl) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/preconfigs`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to load preconfigs');
-      const data = await res.json();
+      const data = await sdkClient.http.preconfigs.list();
       setPreconfigs(data.preconfigs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load preconfigs');
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadPreconfigs();
   }, [loadPreconfigs]);
 
   useEffect(() => {
-    if (!apiToken || !apiUrl) return;
-    fetchWithAuth(`${apiUrl}/api/tools`, {
-      headers: { 'Authorization': `Bearer ${apiToken}` },
-    })
-      .then(res => res.json())
+    if (!sdkClient) return;
+    sdkClient.http.tools.list()
       .then(data => setAvailableTools(data.tools || []))
       .catch(() => {});
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [sdkClient]);
 
   const handleCreate = () => {
     setIsCreating(true);
@@ -161,7 +149,6 @@ export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
     setSaving(true);
     setError(null);
     try {
-      // Parse settings JSON
       let settings: Record<string, unknown> | null = null;
       if (form.settings.trim()) {
         try {
@@ -178,7 +165,6 @@ export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
         }
       }
 
-      // Derive canSpawnSubagents
       let canSpawnSubagents: boolean | string[] | null = null;
       if (form.canSpawnSubagentsMode === 'all') {
         canSpawnSubagents = true;
@@ -205,31 +191,9 @@ export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
       };
 
       if (isCreating) {
-        const res = await fetchWithAuth(`${apiUrl}/api/preconfigs`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to create preconfig');
-        }
+        await sdkClient!.http.preconfigs.create(body);
       } else if (editingPreconfig) {
-        const res = await fetchWithAuth(`${apiUrl}/api/preconfigs/${editingPreconfig.id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${apiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to update preconfig');
-        }
+        await sdkClient!.http.preconfigs.update(editingPreconfig.id, body);
       }
       setIsCreating(false);
       setEditingPreconfig(null);
@@ -245,14 +209,7 @@ export function PreconfigsPanel({ serverUrl, apiToken }: PanelProps) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/preconfigs/${deleteTarget}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete preconfig');
-      }
+      await sdkClient!.http.preconfigs.delete(deleteTarget);
       setDeleteTarget(null);
       await loadPreconfigs();
     } catch (err) {

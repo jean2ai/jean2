@@ -8,7 +8,7 @@ import {
   markTerminalSessionExited,
   markTerminalSessionDestroyed,
 } from '@/store/terminal-sessions';
-import type { TerminalSessionInfo } from '@jean2/shared';
+import type { TerminalSessionInfo } from '@jean2/sdk';
 import type { TerminalEventManager } from './event-manager';
 
 interface OutputChunk {

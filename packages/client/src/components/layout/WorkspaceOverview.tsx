@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Folder, Box, ChevronRight, Plus } from 'lucide-react';
-import type { Session, Workspace } from '@jean2/shared';
+import type { Session, Workspace } from '@jean2/sdk';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
 
 interface WorkspaceOverviewProps {
-  allSessions: Session[];
+  sessionsByWorkspace: Record<string, Session[]>;
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSession: Session | null;
@@ -27,7 +27,6 @@ interface WorkspaceOverviewProps {
   favoritedWorkspaceIds: string[];
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
-  onSelectWorkspace: (workspace: Workspace) => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
@@ -38,7 +37,7 @@ interface WorkspaceOverviewProps {
 }
 
 export const WorkspaceOverview = React.memo(function WorkspaceOverview({
-  allSessions,
+  sessionsByWorkspace,
   childrenMap,
   sessionDerivedValues,
   currentSession,
@@ -46,7 +45,6 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   favoritedWorkspaceIds,
   workspaces,
   activeWorkspace,
-  onSelectWorkspace,
   onResumeSession,
   onCloseSession,
   onReopenSession,
@@ -61,22 +59,6 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
       .map((id) => workspaceMap.get(id))
       .filter((w): w is Workspace => w !== undefined);
   }, [workspaces, favoritedWorkspaceIds]);
-
-  const workspaceSessions = useMemo(() => {
-    const sessionsByWorkspace = new Map<string, Session[]>();
-    for (const workspace of favoritedWorkspaces) {
-      const workspaceSessionList = allSessions
-        .filter(
-          (s) =>
-            s.workspaceId === workspace.id &&
-            s.status === 'active' &&
-            s.parentId === null
-        )
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      sessionsByWorkspace.set(workspace.id, workspaceSessionList);
-    }
-    return sessionsByWorkspace;
-  }, [allSessions, favoritedWorkspaces]);
 
   if (favoritedWorkspaces.length === 0) {
     return (
@@ -96,7 +78,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
       {favoritedWorkspaces.map((workspace) => {
         const isActiveWorkspace = workspace.id === activeWorkspace?.id;
         const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
-        const activeSessions = workspaceSessions.get(workspace.id) || [];
+        const activeSessions = sessionsByWorkspace[workspace.id] || [];
 
         return (
           <Collapsible
@@ -106,7 +88,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
           >
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full" onClick={() => onSelectWorkspace(workspace)}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full">
                   <span className="flex items-center gap-2">
                     <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                     {workspace.isVirtual ? (

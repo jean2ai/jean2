@@ -1,4 +1,4 @@
-import type { FilePreviewResponse } from '@jean2/shared';
+import type { FilePreviewResponse } from '@jean2/sdk';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import FilePreviewCodeView from './FilePreviewCodeView';
 import { FileX2, FileQuestion, FileWarning } from 'lucide-react';

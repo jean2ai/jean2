@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/shared';
+import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/sdk';
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
 import { broadcastEvent } from './broadcast';
 import { getLLMSubagentMaxSteps } from '../env';

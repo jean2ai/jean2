@@ -1,10 +1,9 @@
 // packages/client/src/config/servers.ts
 
-import type { SavedServer, QuickConnection } from '@jean2/shared';
+import type { SavedServer, QuickConnection } from '@jean2/sdk';
 
 const STORAGE_KEYS = {
   SERVERS: 'jean2_servers',
-  ACTIVE_SERVER_ID: 'jean2_active_server_id',
   QUICK_CONNECTIONS: 'jean2_quick_connections',
 } as const;
 
@@ -89,50 +88,9 @@ export function deleteServer(id: string): void {
       STORAGE_KEYS.QUICK_CONNECTIONS,
       JSON.stringify(filteredConnections),
     );
-
-    // Clear active server if it was deleted
-    const activeId = getActiveServerId();
-    if (activeId === id) {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_SERVER_ID);
-    }
   } catch (error) {
     console.error('Error deleting server from localStorage:', error);
   }
-}
-
-/**
- * Get the active server ID from localStorage
- */
-export function getActiveServerId(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEYS.ACTIVE_SERVER_ID);
-  } catch (error) {
-    console.error('Error reading active server ID from localStorage:', error);
-    return null;
-  }
-}
-
-/**
- * Set the active server ID in localStorage
- */
-export function setActiveServerId(id: string): void {
-  try {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_SERVER_ID, id);
-  } catch (error) {
-    console.error('Error setting active server ID in localStorage:', error);
-  }
-}
-
-/**
- * Get the active server object
- * Convenience function that returns full server data
- */
-export function getActiveServer(): SavedServer | null {
-  const activeId = getActiveServerId();
-  if (!activeId) {
-    return null;
-  }
-  return getServerById(activeId);
 }
 
 /**

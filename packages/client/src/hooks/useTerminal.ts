@@ -1,20 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { buildWsUrl } from '@/config/urls';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
-
-const OPCODES = {
-  INPUT: 0x01,
-  RESIZE: 0x02,
-  CLOSE: 0x03,
-  OUTPUT: 0x04,
-  EXIT: 0x05,
-  ERROR: 0x06,
-  INIT_ACK: 0x07,
-  TITLE: 0x08,
-} as const;
+import type { Jean2Client, TerminalConnection } from '@jean2/sdk';
 
 export type TerminalStatus = 'connecting' | 'connected' | 'disconnected' | 'exited';
 
@@ -33,17 +22,10 @@ export interface SessionInitData {
   inAlternateScreen?: boolean;
 }
 
-function encodeFrame(opcode: number, payload: Uint8Array): Uint8Array {
-  const frame = new Uint8Array(1 + payload.length);
-  frame[0] = opcode;
-  frame.set(payload, 1);
-  return frame;
-}
-
 export interface CachedTerminal {
   terminal: Terminal;
   fitAddon: FitAddon;
-  serverSessionId: string | null;
+  serverSessionId: string;
   status: TerminalStatus;
   isOpened: boolean;
 }
@@ -120,8 +102,8 @@ export function createTerminalInstance(options?: CreateTerminalOptions): { termi
 
 export interface UseTerminalConnectionOptions {
   terminal: Terminal | null;
-  serverUrl: string;
-  apiToken: string;
+  sdkClient: Jean2Client;
+  workspaceId: string;
   cwd: string;
   serverSessionId?: string | null;
   onOutput: (data: string) => void;
@@ -139,11 +121,11 @@ export function useTerminalConnection(
   disconnect: () => void;
   destroy: () => void;
 } {
-  const { serverUrl, apiToken, cwd } = options;
-  const wsRef = useRef<WebSocket | null>(null);
+  const { sdkClient, workspaceId, cwd } = options;
+  const connectionRef = useRef<TerminalConnection | null>(null);
   const statusRef = useRef<TerminalStatus>('disconnected');
   const disposedRef = useRef(false);
-  const wsGenerationRef = useRef(0);
+  const connectionGenerationRef = useRef(0);
 
   const onOutputRef = useRef(options.onOutput);
   const onStatusChangeRef = useRef(options.onStatusChange);
@@ -151,8 +133,8 @@ export function useTerminalConnection(
   const onSessionInitRef = useRef(options.onSessionInit);
   const onTitleChangeRef = useRef(options.onTitleChange);
 
-  const serverUrlRef = useRef(serverUrl);
-  const apiTokenRef = useRef(apiToken);
+  const sdkClientRef = useRef(sdkClient);
+  const workspaceIdRef = useRef(workspaceId);
   const cwdRef = useRef(cwd);
   const serverSessionIdRef = useRef(options.serverSessionId);
   const terminalRef = useRef(options.terminal);
@@ -166,29 +148,27 @@ export function useTerminalConnection(
   });
 
   useEffect(() => {
-    serverUrlRef.current = serverUrl;
-    apiTokenRef.current = apiToken;
+    sdkClientRef.current = sdkClient;
+    workspaceIdRef.current = workspaceId;
     cwdRef.current = cwd;
     serverSessionIdRef.current = options.serverSessionId;
     terminalRef.current = options.terminal;
-  }, [serverUrl, apiToken, cwd, options.serverSessionId, options.terminal]);
+  }, [sdkClient, workspaceId, cwd, options.serverSessionId, options.terminal]);
 
   const setStatus = useCallback((status: TerminalStatus) => {
     statusRef.current = status;
     onStatusChangeRef.current?.(status);
   }, []);
 
-  const connect = useCallback((sessionId: string | null | undefined) => {
-    const generation = ++wsGenerationRef.current;
+  const connect = useCallback(async (sessionId: string | null | undefined) => {
+    const generation = ++connectionGenerationRef.current;
 
-    const existingWs = wsRef.current;
-    if (existingWs) {
-      existingWs.onopen = null;
-      existingWs.onclose = null;
-      existingWs.onmessage = null;
-      existingWs.onerror = null;
-      existingWs.close();
-      wsRef.current = null;
+    // Close existing connection
+    const existingConn = connectionRef.current;
+    if (existingConn) {
+      existingConn.removeAllListeners();
+      existingConn.close();
+      connectionRef.current = null;
     }
 
     // Clear terminal on reconnect — server will flush the buffer which duplicates existing content
@@ -198,85 +178,84 @@ export function useTerminalConnection(
 
     setStatus('connecting');
 
-    const wsUrl = sessionId
-      ? buildWsUrl(serverUrlRef.current, `/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}&sessionId=${sessionId}`)
-      : buildWsUrl(serverUrlRef.current, `/ws/terminal?token=${apiTokenRef.current}&cwd=${encodeURIComponent(cwdRef.current)}`);
+    try {
+      const connection = await sdkClientRef.current.terminal.connect({
+        workspaceId: workspaceIdRef.current,
+        cwd: cwdRef.current,
+        sessionId: sessionId ?? undefined,
+      });
 
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = 'arraybuffer';
-
-    ws.onopen = () => {
-      if (wsGenerationRef.current !== generation) {
-        ws.close();
+      if (connectionGenerationRef.current !== generation) {
+        connection.close();
         return;
       }
-      wsRef.current = ws;
-    };
 
-    ws.onmessage = (event: MessageEvent) => {
-      if (wsGenerationRef.current !== generation) return;
-      if (!(event.data instanceof ArrayBuffer)) return;
+      connectionRef.current = connection;
 
-      const data = new Uint8Array(event.data);
-      if (data.length < 1) return;
+      // Wire up SDK connection events to callbacks
+      connection.on('output', (data: Uint8Array) => {
+        if (connectionGenerationRef.current !== generation) return;
+        onOutputRef.current?.(new TextDecoder().decode(data));
+      });
 
-      const opcode = data[0];
-      const payload = data.slice(1);
+      connection.on('exit', (exitCode: number) => {
+        if (connectionGenerationRef.current !== generation) return;
+        setStatus('exited');
+        onExitRef.current?.(exitCode);
+      });
 
-      switch (opcode) {
-        case OPCODES.OUTPUT: {
-          onOutputRef.current?.(new TextDecoder().decode(payload));
-          break;
-        }
-        case OPCODES.EXIT: {
-          const { exitCode } = JSON.parse(new TextDecoder().decode(payload)) as { exitCode: number };
-          setStatus('exited');
-          onExitRef.current?.(exitCode);
-          ws.close();
-          break;
-        }
-        case OPCODES.ERROR: {
-          const { message } = JSON.parse(new TextDecoder().decode(payload)) as { message: string };
-          console.error('[useTerminal] Server error:', message);
+      connection.on('title', (title: string) => {
+        if (connectionGenerationRef.current !== generation) return;
+        onTitleChangeRef.current?.(title);
+      });
+
+      connection.on('close', () => {
+        if (connectionGenerationRef.current !== generation) return;
+        connectionRef.current = null;
+        if (statusRef.current !== 'exited') {
           setStatus('disconnected');
-          break;
         }
-        case OPCODES.INIT_ACK: {
-          const initData = JSON.parse(new TextDecoder().decode(payload)) as SessionInitData;
-          onSessionInitRef.current?.(initData);
+      });
 
-          if (initData.isReconnect && initData.status === 'exited') {
-            setStatus('exited');
-            onExitRef.current?.(initData.exitCode!);
-          } else if (initData.isReconnect && initData.inAlternateScreen) {
-            setStatus('connected');
-            onOutputRef.current?.('\r\n\x1b[33m[Reconnected — a full-screen application is running. Press Ctrl+C to exit it.]\x1b[0m\r\n');
-          } else {
-            setStatus('connected');
-          }
-          break;
-        }
-        case OPCODES.TITLE: {
-          const { title } = JSON.parse(new TextDecoder().decode(payload)) as { title: string };
-          onTitleChangeRef.current?.(title);
-          break;
-        }
-      }
-    };
-
-    ws.onclose = () => {
-      if (wsGenerationRef.current !== generation) return;
-      wsRef.current = null;
-      if (statusRef.current === 'connecting') {
+      connection.on('error', (error: Error) => {
+        if (connectionGenerationRef.current !== generation) return;
+        console.error('[useTerminal]', error.message);
         setStatus('disconnected');
-      } else if (statusRef.current === 'connected') {
-        setStatus('disconnected');
-      }
-    };
+      });
 
-    ws.onerror = () => {
-      // onclose will fire after this
-    };
+      // Handle reconnect special cases (formerly INIT_ACK logic)
+      if (connection.isReconnect && connection.status === 'exited') {
+        setStatus('exited');
+        onExitRef.current?.(connection.exitCode ?? 0);
+      } else if (connection.isReconnect && connection.session.inAlternateScreen) {
+        setStatus('connected');
+        onOutputRef.current?.('\r\n\x1b[33m[Reconnected — a full-screen application is running. Press Ctrl+C to exit it.]\x1b[0m\r\n');
+      } else {
+        setStatus('connected');
+      }
+
+      // Call onSessionInit with session data
+      const session = connection.session;
+      onSessionInitRef.current?.({
+        sessionId: session.sessionId,
+        pid: session.pid,
+        shell: session.shell,
+        cwd: session.cwd,
+        cols: session.cols,
+        rows: session.rows,
+        status: session.status,
+        exitCode: session.exitCode,
+        isReconnect: session.isReconnect,
+        title: session.title,
+        createdAt: session.createdAt,
+        inAlternateScreen: session.inAlternateScreen,
+      });
+    } catch (err: unknown) {
+      if (connectionGenerationRef.current !== generation) return;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[useTerminal] Connection failed:', message);
+      setStatus('disconnected');
+    }
   }, [setStatus]);
 
   useEffect(() => {
@@ -284,57 +263,45 @@ export function useTerminalConnection(
     disposedRef.current = false;
 
     const onDataDisposable = terminal.onData((data: string) => {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const payload = new TextEncoder().encode(data);
-      ws.send(encodeFrame(OPCODES.INPUT, payload));
+      const connection = connectionRef.current;
+      if (!connection || connection.closed) return;
+      connection.write(data);
     });
 
     const onResizeDisposable = terminal.onResize(({ cols, rows }: { cols: number; rows: number }) => {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const payload = new TextEncoder().encode(JSON.stringify({ cols, rows }));
-      ws.send(encodeFrame(OPCODES.RESIZE, payload));
+      const connection = connectionRef.current;
+      if (!connection || connection.closed) return;
+      connection.resize(cols, rows);
     });
 
     return () => {
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       disposedRef.current = true;
-      const ws = wsRef.current;
-      if (ws) {
-        ws.onopen = null;
-        ws.onclose = null;
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.close();
-        wsRef.current = null;
+      const connection = connectionRef.current;
+      if (connection) {
+        connection.removeAllListeners();
+        connection.dispose();
+        connectionRef.current = null;
       }
     };
   }, [terminal]);
 
   const disconnect = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws) {
-      ws.onopen = null;
-      ws.onclose = null;
-      ws.onmessage = null;
-      ws.onerror = null;
-      ws.close();
-      wsRef.current = null;
+    const connection = connectionRef.current;
+    if (connection) {
+      connection.removeAllListeners();
+      connection.dispose();
+      connectionRef.current = null;
     }
   }, []);
 
   const destroy = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws) {
-      try {
-        ws.send(encodeFrame(OPCODES.CLOSE, new Uint8Array(0)));
-      } catch {
-        // ignore
-      }
-      ws.close();
-      wsRef.current = null;
+    const connection = connectionRef.current;
+    if (connection) {
+      connection.removeAllListeners();
+      connection.close();
+      connectionRef.current = null;
     }
     disposedRef.current = true;
   }, []);

@@ -6,6 +6,7 @@ node_modules/
 # Build output
 dist/
 build/
+!packages/client-electron/build
 *.tsbuildinfo
 
 # Environment
@@ -59,6 +60,9 @@ temp/
 # PWA
 vite.config.ts.sig
 
+# TanStack Router generated files
+**/routeTree.gen.ts
+
 # Kontexted sync
 .kontexted/
 
@@ -67,3 +71,27 @@ vite.config.ts.sig
 preconfigs-testing
 certs/
 *.pem
+
+# ==========================================
+# client-electron (Electron)
+# ==========================================
+packages/client-electron/release/
+packages/client-electron/out/
+packages/client-electron/dist/
+
+# ==========================================
+# client-tauri (Tauri / Rust)
+# ==========================================
+packages/client-tauri/target/
+packages/client-tauri/gen/
+
+# Tauri Xcode user data
+packages/client-tauri/gen/**/xcuserdata/
+*.xcuserstate
+
+# Tauri Android
+packages/client-tauri/gen/android/.gradle/
+packages/client-tauri/gen/android/app/build/
+packages/client-tauri/gen/android/build/
+packages/client-electron/.electron-cache/
+.electron-cache/

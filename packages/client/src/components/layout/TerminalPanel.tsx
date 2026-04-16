@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { buildWsUrl, buildApiUrl } from '@/config/urls';
-import { X, Plus, Terminal } from 'lucide-react';
+import { X, Plus, Terminal as TerminalIcon } from 'lucide-react';
 import { TerminalView } from './TerminalView';
 import {
   useTerminalConnection,
@@ -11,7 +10,8 @@ import {
   type SessionInitData,
   type TerminalCache,
 } from '@/hooks/useTerminal';
-import type { TerminalEvent } from '@jean2/shared';
+import type { TerminalEvent } from '@jean2/sdk';
+import type { TerminalEventsConnection } from '@jean2/sdk';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useVisualViewport } from '@/hooks/useVisualViewport';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 
 export interface TerminalPanelHandle {
@@ -39,8 +40,7 @@ interface TerminalPanelProps {
   workspaceId: string | undefined;
   workspacePath: string | undefined;
   workspaceName: string | undefined;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  sdkClient: Jean2Client | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -53,8 +53,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   workspaceId,
   workspacePath,
   workspaceName,
-  serverUrl,
-  apiToken,
+  sdkClient,
   isOpen,
   onClose,
 }, ref) {
@@ -64,6 +63,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const [tabs, setTabs] = useState<TerminalTab[]>([]);
   const [activeTabServerId, setActiveTabServerId] = useState<string | null>(null);
   const [panelHeight, setPanelHeight] = useState(DEFAULT_HEIGHT);
+  const [connectionTarget, setConnectionTarget] = useState<CachedTerminal | null>(null);
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
@@ -74,7 +74,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     disconnect: () => void;
     destroy: () => void;
   } | null>(null);
-  const eventWsRef = useRef<WebSocket | null>(null);
+  const eventsConnRef = useRef<TerminalEventsConnection | null>(null);
   const tabsRef = useRef<TerminalTab[]>([]);
   const handleTerminalEventRef = useRef<(event: TerminalEvent) => void>(() => {});
   const autoCreateRef = useRef(false);
@@ -179,7 +179,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   }, [handleTerminalEvent]);
 
   useEffect(() => {
-    if (!workspaceId || !isOpen || !serverUrl || !apiToken) {
+    if (!workspaceId || !isOpen || !sdkClient) {
       setTabs([]);
       setActiveTabServerId(null);
       previousTabIdsRef.current = new Set();
@@ -192,14 +192,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       setConnectionTarget(null);
       terminalCacheRef.current.disposeAll();
 
-      const ws = eventWsRef.current;
-      if (ws) {
-        ws.onopen = null;
-        ws.onclose = null;
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.close();
-        eventWsRef.current = null;
+      if (eventsConnRef.current) {
+        eventsConnRef.current.dispose();
+        eventsConnRef.current = null;
       }
       return;
     }
@@ -214,31 +209,46 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
     previousTabIdsRef.current = new Set(tabsRef.current.map(t => t.serverSessionId));
 
-    const wsUrl = buildWsUrl(serverUrl, `/ws/terminal/events?token=${apiToken}&workspaceId=${encodeURIComponent(workspaceId)}`);
-    const ws = new WebSocket(wsUrl);
-    eventWsRef.current = ws;
+    sdkClient.terminal.subscribeEvents(workspaceId).then(({ conn, initialSessions }) => {
+      eventsConnRef.current = conn;
 
-    ws.onmessage = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data as string) as TerminalEvent;
-        handleTerminalEventRef.current(data);
-      } catch (err) {
-        console.error('[TerminalPanel] Failed to parse event:', err);
-      }
-    };
+      // Process initial snapshot immediately (before registering listeners)
+      handleTerminalEventRef.current({ type: 'snapshot', sessions: initialSessions });
+
+      // Register listeners for future events
+      conn.on('snapshot', (sessions) => {
+        handleTerminalEventRef.current({ type: 'snapshot', sessions });
+      });
+      conn.on('created', (session) => {
+        handleTerminalEventRef.current({ type: 'created', session });
+      });
+      conn.on('destroyed', (sessionId) => {
+        handleTerminalEventRef.current({ type: 'destroyed', sessionId });
+      });
+      conn.on('exited', (sessionId, exitCode) => {
+        handleTerminalEventRef.current({ type: 'exited', sessionId, exitCode });
+      });
+      conn.on('title_changed', (sessionId, title) => {
+        handleTerminalEventRef.current({ type: 'title_changed', sessionId, title });
+      });
+      conn.on('status_changed', (sessionId, status) => {
+        handleTerminalEventRef.current({ type: 'status_changed', sessionId, status });
+      });
+
+      conn.on('error', (error) => {
+        console.error('[TerminalPanel] Events connection error:', error.message);
+      });
+    }).catch(err => {
+      console.error('[TerminalPanel] Failed to subscribe to terminal events:', err);
+    });
 
     return () => {
-      const currentWs = eventWsRef.current;
-      if (currentWs) {
-        currentWs.onopen = null;
-        currentWs.onclose = null;
-        currentWs.onmessage = null;
-        currentWs.onerror = null;
-        currentWs.close();
-        eventWsRef.current = null;
+      if (eventsConnRef.current) {
+        eventsConnRef.current.dispose();
+        eventsConnRef.current = null;
       }
     };
-  }, [workspaceId, isOpen, serverUrl, apiToken]);
+  }, [workspaceId, isOpen, sdkClient]);
 
   const onOutput = useCallback((serverSessionId: string) => (data: string) => {
     const cached = terminalCacheRef.current.get(serverSessionId);
@@ -273,14 +283,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     ));
   }, []);
 
-  const [connectionTarget, setConnectionTarget] = useState<CachedTerminal | null>(null);
-
   const { connect, disconnect, destroy } = useTerminalConnection(
     connectionTarget?.terminal ?? null,
-    connectionTarget && serverUrl && apiToken && workspacePath && connectionTarget.serverSessionId ? {
+    connectionTarget && sdkClient && workspaceId && workspacePath && connectionTarget.serverSessionId ? {
       terminal: connectionTarget.terminal,
-      serverUrl,
-      apiToken,
+      sdkClient,
+      workspaceId,
       cwd: tabs.find(t => t.serverSessionId === connectionTarget.serverSessionId)?.cwd ?? workspacePath,
       serverSessionId: connectionTarget.serverSessionId,
       onOutput: onOutput(connectionTarget.serverSessionId),
@@ -289,27 +297,16 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       onTitleChange: onTitleChange(connectionTarget.serverSessionId),
     } : {
       terminal: null,
-      serverUrl: '',
-      apiToken: '',
+      sdkClient: null as unknown as import('@jean2/sdk').Jean2Client,
+      workspaceId: '',
       cwd: '',
       onOutput: () => {},
       onStatusChange: () => {},
     }
   );
 
-  useEffect(() => {
-    if (connectionTarget && connectionTarget.serverSessionId) {
-      activeConnectionRef.current = {
-        serverSessionId: connectionTarget.serverSessionId,
-        disconnect,
-        destroy,
-      };
-      connect(connectionTarget.serverSessionId);
-    }
-  }, [connectionTarget, connect, disconnect, destroy]);
-
   const attachActiveTerminal = useCallback(() => {
-    if (!activeTabServerId || !serverUrl || !apiToken || !workspacePath) return;
+    if (!activeTabServerId || !sdkClient || !workspacePath) return;
 
     const cached = terminalCacheRef.current.get(activeTabServerId);
 
@@ -334,42 +331,40 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     }
 
     setConnectionTarget(terminalEntry);
-  }, [activeTabServerId, serverUrl, apiToken, workspacePath]);
+  }, [activeTabServerId, sdkClient, workspacePath]);
 
   useEffect(() => {
     if (!isOpen || !activeTabServerId) return;
     attachActiveTerminal();
   }, [isOpen, activeTabServerId, attachActiveTerminal]);
 
+  useEffect(() => {
+    if (connectionTarget && connectionTarget.serverSessionId) {
+      activeConnectionRef.current = {
+        serverSessionId: connectionTarget.serverSessionId,
+        disconnect,
+        destroy,
+      };
+      connect(connectionTarget.serverSessionId);
+    }
+  }, [connectionTarget, connect, disconnect, destroy]);
+
   const addTab = useCallback(async () => {
-    if (!workspaceId || !workspacePath || !serverUrl || !apiToken) return;
+    if (!workspaceId || !workspacePath || !sdkClient) return;
 
     try {
-      const response = await fetch(
-        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals`),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiToken}`,
-          },
-          body: JSON.stringify({ cwd: workspacePath }),
-        }
-      );
-      if (!response.ok) {
-        console.error('[TerminalPanel] Failed to create terminal:', response.statusText);
-      }
+      await sdkClient.http.terminals.create(workspaceId, { body: { cwd: workspacePath } });
     } catch (err) {
       console.error('[TerminalPanel] Failed to create terminal:', err);
     }
-  }, [workspaceId, workspacePath, serverUrl, apiToken]);
+  }, [workspaceId, workspacePath, sdkClient]);
 
   useEffect(() => {
     addTabRef.current = addTab;
   }, [addTab]);
 
   const closeTab = useCallback(async (serverSessionId: string) => {
-    if (!workspaceId || !serverUrl || !apiToken) return;
+    if (!workspaceId || !sdkClient) return;
 
     if (activeConnectionRef.current?.serverSessionId === serverSessionId) {
       activeConnectionRef.current.destroy();
@@ -380,17 +375,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     terminalCacheRef.current.dispose(serverSessionId);
 
     try {
-      await fetch(
-        buildApiUrl(serverUrl, `/api/workspaces/${workspaceId}/terminals/${serverSessionId}`),
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${apiToken}` },
-        }
-      );
+      await sdkClient.http.terminals.delete(workspaceId, serverSessionId);
     } catch (err) {
       console.error('[TerminalPanel] Failed to destroy terminal:', err);
     }
-  }, [workspaceId, serverUrl, apiToken]);
+  }, [workspaceId, sdkClient]);
 
   useEffect(() => {
     if (autoCreateResetRef.current !== workspaceId) {
@@ -405,7 +394,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
   useEffect(() => {
     return () => {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       const cache = terminalCacheRef.current;
       cache.disposeAll();
     };
@@ -459,7 +447,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   }, [panelHeight]);
 
 
-  if (!workspaceId || !workspacePath || !serverUrl || !apiToken) {
+  if (!workspaceId || !workspacePath || !sdkClient) {
     return (
       <div className="flex items-center justify-center h-[300px] border-t border-border bg-background text-muted-foreground text-sm">
         Select a workspace to use the terminal.
@@ -469,7 +457,8 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
   const shortName = workspaceName || workspacePath.split('/').pop() || 'ws';
   const activeTab = tabs.find(t => t.serverSessionId === activeTabServerId);
-   
+    
+  // eslint-disable-next-line react-hooks/refs
   const activeCached = activeTabServerId ? terminalCacheRef.current.get(activeTabServerId) : null;
 
   const statusIndicator = (status: TerminalStatus) => {
@@ -550,7 +539,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
 
           <div className="flex items-center justify-between p-2 border-b border-border shrink-0">
             <div className="flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
+              <TerminalIcon className="w-4 h-4" />
               <span className="font-semibold text-sm">Terminal</span>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -583,7 +572,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       >
         <div className="flex items-center justify-between px-2 py-1 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+            <TerminalIcon className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="font-medium text-xs text-muted-foreground">Terminal</span>
           </div>
           <Button variant="ghost" size="icon-sm" onClick={onClose}>

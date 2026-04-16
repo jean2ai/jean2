@@ -1,14 +1,16 @@
 // packages/client/src/components/FirstServerScreen.tsx
 import { useState } from 'react';
-import type { SavedServer } from '@jean2/shared';
+import { useNavigate } from '@tanstack/react-router';
 import { isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
+import { useServerContext } from '@/contexts/ServerContext';
 
 interface FirstServerScreenProps {
-  onServerAdded: (server: SavedServer) => void;
   error?: string;
 }
 
-export default function FirstServerScreen({ onServerAdded, error }: FirstServerScreenProps) {
+export default function FirstServerScreen({ error }: FirstServerScreenProps) {
+  const navigate = useNavigate();
+  const { addServer } = useServerContext();
   const [name, setName] = useState('');
   const [url, setUrl] = useState('localhost:8742');
   const [token, setToken] = useState('');
@@ -44,15 +46,8 @@ export default function FirstServerScreen({ onServerAdded, error }: FirstServerS
 
     const normalizedUrl = normalizeServerUrl(trimmedUrl);
 
-    const newServer: SavedServer = {
-      id: crypto.randomUUID(),
-      name: trimmedName,
-      url: normalizedUrl,
-      token: trimmedToken,
-      createdAt: new Date().toISOString(),
-    };
-
-    onServerAdded(newServer);
+    const newServer = addServer(trimmedName, normalizedUrl, trimmedToken);
+    navigate({ to: '/server/$serverId', params: { serverId: newServer.id } });
   };
 
   return (

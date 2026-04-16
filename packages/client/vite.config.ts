@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import pkg from './package.json';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -10,11 +11,13 @@ const serverOrigin = process.env.VITE_SERVER_URL || 'http://localhost:3000';
 const wsOrigin = serverOrigin.replace(/^http/, 'ws');
 
 export default defineConfig({
+  base: './',
   clearScreen: false,
   plugins: [
+    TanStackRouterVite({ autoCodeSplitting: true }),
     react({
-      babel: {
-        plugins: ['babel-plugin-react-compiler'],
+      reactCompiler: {
+        target: '19',
       },
     }),
     tailwindcss(),
@@ -32,7 +35,7 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM == 'windows' ? 'chrome105' : 'safari13',
     outDir: 'dist',
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
-    minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
+    minify: !process.env.TAURI_ENV_DEBUG ? 'oxc' : false,
   },
   server: {
     port: 5173,

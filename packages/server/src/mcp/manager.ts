@@ -8,7 +8,7 @@ import type {
   McpLocalServerConfig,
   McpRemoteServerConfig,
   McpStatus,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import type { Tool } from 'ai';
 import { convertMcpTool } from './converter';
 import { McpOAuthProvider } from './oauth-provider';

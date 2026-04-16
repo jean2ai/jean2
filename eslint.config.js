@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/data/**',
       '**/src-tauri/target/**',
+      'tools/**',
     ],
   },
   
@@ -83,6 +84,7 @@ export default tseslint.config(
       'react/prop-types': 'off', // Using TypeScript
       'react-hooks/set-state-in-effect': 'off', // Too strict for common patterns
       'react-hooks/preserve-manual-memoization': 'off', // Conflicts with intentional deps
+      'react-hooks/exhaustive-deps': 'off', // Refs and setters cause false positives
     },
   },
   

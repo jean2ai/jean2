@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { X, RefreshCw } from 'lucide-react';
 import { FileTree, type FileTreeHandle } from '@/components/files';
 import { Button } from '@/components/ui/button';
@@ -20,14 +21,12 @@ import {
   SidebarProvider,
   PanelResizeHandle,
 } from '@/components/ui/sidebar';
+import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 interface FilesPanelProps {
-  workspaceId: string | undefined;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
-  isOpen: boolean;
-  onClose: () => void;
+  sdkClient: Jean2Client | null;
 }
 
 export interface FilesPanelHandle {
@@ -35,11 +34,14 @@ export interface FilesPanelHandle {
 }
 
 export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
-  ({ workspaceId, serverUrl, apiToken, isOpen, onClose }, ref) => {
+  ({ sdkClient }, ref) => {
     const isMobile = useIsMobile();
     const fileTreeRef = useRef<FileTreeHandle>(null);
-    const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
-    const setShowFilesPanel = useUIStore((s) => s.setShowFilesPanel);
+    const filesPanelWidth = useChatLayoutStore((s) => s.filesPanelWidth);
+    const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
+    const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
+    const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+    const workspaceId = activeWorkspace?.id;
 
     const focus = useCallback(() => {
       setShowFilesPanel(true);
@@ -70,14 +72,14 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     if (isMobile) {
       return (
-        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Sheet open={showFilesPanel} onOpenChange={(open) => !open && setShowFilesPanel(false)}>
           <SheetContent side="right" className="w-72 p-0 bg-sidebar [&>button]:hidden">
             <SheetHeader className="sr-only">
               <SheetTitle>Files</SheetTitle>
             </SheetHeader>
             <div className="flex items-center justify-between p-3 border-b border-border">
               <span className="font-semibold text-sm text-sidebar-foreground">Files</span>
-              <Button variant="ghost" size="icon-sm" onClick={onClose}>
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowFilesPanel(false)}>
                 <X className="size-4" />
               </Button>
             </div>
@@ -86,8 +88,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
                 ref={fileTreeRef}
                 key={workspaceId}
                 workspaceId={workspaceId}
-                serverUrl={serverUrl}
-                apiToken={apiToken}
+                sdkClient={sdkClient}
                 showHidden={true}
                 onFileSelect={handleFileSelect}
               />
@@ -104,7 +105,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
         className="w-0 shrink-0"
         style={{ '--sidebar-width': `${filesPanelWidth}px` } as React.CSSProperties}
       >
-        <Sidebar side="right" isOpen={isOpen}>
+        <Sidebar side="right" isOpen={showFilesPanel}>
           <PanelResizeHandle side="right" panelId="files" />
           <SidebarHeader>
             <SidebarMenu>
@@ -121,8 +122,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
               ref={fileTreeRef}
               key={workspaceId}
               workspaceId={workspaceId}
-              serverUrl={serverUrl}
-              apiToken={apiToken}
+              sdkClient={sdkClient}
               showHidden={true}
               width={filesPanelWidth}
               onFileSelect={handleFileSelect}

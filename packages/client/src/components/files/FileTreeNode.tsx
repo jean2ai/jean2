@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
-import { useApi } from '@/hooks/useApi';
 
 interface FileTreeNodeProps {
   entry: FileEntry;
@@ -12,8 +12,7 @@ interface FileTreeNodeProps {
   depth: number;
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
-  serverUrl?: string;
-  apiToken?: string;
+  sdkClient?: Jean2Client | null;
 }
 
 const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
@@ -34,10 +33,8 @@ export function FileTreeNode({
   depth,
   onFileSelect,
   showHidden = true,
-  serverUrl,
-  apiToken,
+  sdkClient,
 }: FileTreeNodeProps) {
-  const { fetchWithAuth } = useApi();
   const [isOpen, setIsOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,17 +44,12 @@ export function FileTreeNode({
   const isDirectory = entry.type === 'directory';
 
   const loadChildren = async () => {
-    if (hasLoaded || isLoading) return;
+    if (hasLoaded || isLoading || !sdkClient) return;
 
     setIsLoading(true);
 
     try {
-      const res = await fetchWithAuth(
-        `/api/workspaces/${workspaceId}/files?path=${encodeURIComponent(fullPath)}&showHidden=${showHidden}`,
-        {},
-        { serverUrl, token: apiToken }
-      );
-      const data = await res.json();
+      const data = await sdkClient.http.files.browse(workspaceId, fullPath, { showHidden });
       setChildren(data.files || []);
       setHasLoaded(true);
     } catch (err) {
@@ -154,8 +146,7 @@ export function FileTreeNode({
             depth={depth + 1}
             onFileSelect={onFileSelect}
             showHidden={showHidden}
-            serverUrl={serverUrl}
-            apiToken={apiToken}
+            sdkClient={sdkClient}
           />
         ))}
       </CollapsibleContent>

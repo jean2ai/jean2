@@ -1,5 +1,5 @@
 import { Trash2, Shield } from 'lucide-react';
-import type { ToolPermission } from '@jean2/shared';
+import type { ToolPermission } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 

@@ -1,5 +1,5 @@
 import { X, FileIcon, Image as ImageIcon } from 'lucide-react';
-import type { AttachmentKind } from '@jean2/shared';
+import type { AttachmentKind } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 
 interface PendingAttachmentProps {

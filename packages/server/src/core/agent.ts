@@ -1,5 +1,5 @@
 import { streamText, stepCountIs } from 'ai';
-import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/shared';
+import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/sdk';
 import { createMessage, updateMessage, getSession, updateSession } from '@/store';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';

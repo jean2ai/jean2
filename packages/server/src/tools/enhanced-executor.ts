@@ -2,7 +2,7 @@ import type {
   SecurityCheckInput,
   SecurityCheckResult,
   ToolExecutionContext,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 import type { DiscoveredTool, ToolResult } from './types';
 import { executeTool } from './executor';
 import { runSecurityCheck, hasSecurityCheck } from './security-executor';

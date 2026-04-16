@@ -1,11 +1,12 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
-import { useSidebar } from '@/components/ui/sidebar';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useUIStore } from '@/stores/uiStore';
-import type { AppSidebarHandle } from '@/components/layout/AppSidebar';
-import type { Preconfig, Workspace } from '@jean2/shared';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import {useCallback, useLayoutEffect, useRef} from 'react';
+import {useRouter} from '@tanstack/react-router';
+import {useSidebar} from '@/components/ui/sidebar';
+import {useKeyboardShortcuts} from '@/hooks/useKeyboardShortcuts';
+import {useChatLayoutStore} from '@/stores/chatLayoutStore';
+import {useServerDataStore} from '@/stores/serverDataStore';
+import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
+import type {Preconfig, Workspace} from '@jean2/sdk';
+import {isElectron, isTauriMobile} from '@/lib/platform';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -15,9 +16,7 @@ export interface AppKeyboardHandlersConfig {
   activeWorkspace: Workspace | null;
   primaryPreconfigs: Preconfig[];
   handleInterruptSession: () => void;
-  handleSidebarViewModeChange: (
-    mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
-  ) => void;
+  serverId: string;
   createSession: (preconfigId?: string, title?: string) => void;
   setSidebarOpen: (open: boolean) => void;
   onToggleAutoFollow?: () => void;
@@ -31,7 +30,7 @@ export function useAppKeyboardHandlers({
   activeWorkspace,
   primaryPreconfigs,
   handleInterruptSession,
-  handleSidebarViewModeChange,
+  serverId,
   createSession,
   setSidebarOpen,
   onToggleAutoFollow,
@@ -46,7 +45,7 @@ export function useAppKeyboardHandlers({
   }, [setSidebarOpen, sidebarRef]);
 
   const focusTerminalPanel = useCallback(() => {
-    useUIStore.getState().setShowTerminalPanel(true);
+    useChatLayoutStore.getState().setShowTerminalPanel(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         terminalPanelRef.current?.focus();
@@ -65,7 +64,7 @@ export function useAppKeyboardHandlers({
   });
 
   const handleCloseTerminal = useCallback(() => {
-    useUIStore.getState().setShowTerminalPanel(false);
+    useChatLayoutStore.getState().setShowTerminalPanel(false);
   }, []);
 
   const focusFilesPanel = useCallback(() => {
@@ -89,20 +88,32 @@ export function useAppKeyboardHandlers({
     }
   }, [activeWorkspace, primaryPreconfigs, createSession]);
 
-  const handleNewWindow = useCallback(() => {
-    invoke('create_new_window').catch(() => {});
+  const handleNewWindow = useCallback(async () => {
+    if (isElectron()) {
+      window.__JEAN2_ELECTRON__?.createWindow();
+    } else if (isTauriMobile()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      invoke('create_new_window').catch(() => {});
+    }
   }, []);
 
+  const router = useRouter();
+
   const handleToggleViewMode = useCallback(() => {
-    handleSidebarViewModeChange((prev) => (prev === 'overview' ? 'default' : 'overview'));
-  }, [handleSidebarViewModeChange]);
+    const currentPath = router.state.location.pathname;
+    if (currentPath.includes('/overview')) {
+      router.navigate({ to: '/server/$serverId/workspace', params: { serverId } });
+    } else {
+      router.navigate({ to: '/server/$serverId/overview', params: { serverId } });
+    }
+  }, [router, serverId]);
 
   const handleCloseFocusedPanel = useCallback(() => {
     const activeEl = document.activeElement;
     if (activeEl?.closest('[data-terminal-panel]')) {
       handleCloseTerminal();
     } else if (activeEl?.closest('[data-panel-id="files"]')) {
-      useUIStore.getState().setShowFilesPanel(false);
+      useChatLayoutStore.getState().setShowFilesPanel(false);
     } else if (activeEl?.closest('[data-sidebar="sidebar"]')) {
       setSidebarOpen(false);
     }
@@ -125,17 +136,25 @@ export function useAppKeyboardHandlers({
     onToggleAutoFollow: () => onToggleAutoFollow?.(),
   });
 
-  // Listen for native Tauri accelerator events
   useLayoutEffect(() => {
-    const isTauri =
-      typeof window !== 'undefined' &&
-      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-    if (!isTauri) return;
+    if (isElectron()) {
+      return window.__JEAN2_ELECTRON__?.onAccelerator((action) => {
+        if (action === 'open-sidebar') {
+          focusSidebarSessionPanelRef.current();
+        } else if (action === 'open-terminal') {
+          focusTerminalPanelRef.current();
+        }
+      });
+    }
+
+    if (!isTauriMobile()) return;
 
     let disposed = false;
-    const unlistenFns: UnlistenFn[] = [];
+    const unlistenFns: Array<() => void> = [];
 
     const registerListeners = async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+
       try {
         const unlistenSidebar = await listen('jean2://accelerator/open-sidebar', () => {
           focusSidebarSessionPanelRef.current();
@@ -169,7 +188,7 @@ export function useAppKeyboardHandlers({
       disposed = true;
       unlistenFns.forEach((fn) => fn());
     };
-  }, []); // Stable registration — handlers accessed via refs
+  }, []);
 }
 
 export interface AppKeyboardHandlersMountProps {
@@ -177,20 +196,19 @@ export interface AppKeyboardHandlersMountProps {
   terminalPanelRef: React.RefObject<{ focus: () => void } | null>;
   filesPanelRef: React.RefObject<{ focus: () => void } | null>;
   chatInputRef: React.RefObject<{ focus: () => void } | null>;
-  activeWorkspace: Workspace | null;
-  primaryPreconfigs: Preconfig[];
   handleInterruptSession: () => void;
-  handleSidebarViewModeChange: (
-    mode: 'default' | 'overview' | ((prev: 'default' | 'overview') => 'default' | 'overview')
-  ) => void;
+  serverId: string;
   createSession: (preconfigId?: string, title?: string) => void;
   onToggleAutoFollow?: () => void;
 }
 
 export function AppKeyboardHandlersMount(props: AppKeyboardHandlersMountProps) {
   const { setOpen } = useSidebar();
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+  const preconfigs = useServerDataStore((s) => s.preconfigs);
+  const primaryPreconfigs = preconfigs.filter((p) => p.mode !== 'subagent');
 
-  useAppKeyboardHandlers({ ...props, setSidebarOpen: setOpen });
+  useAppKeyboardHandlers({ ...props, activeWorkspace, primaryPreconfigs, setSidebarOpen: setOpen });
 
   return null;
 }

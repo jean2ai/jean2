@@ -8,7 +8,7 @@ import type {
   SystemMessage,
   AssistantMessage,
   ToolPart,
-} from '@jean2/shared';
+} from '@jean2/sdk';
 
 // =============================================================================
 // Row Types

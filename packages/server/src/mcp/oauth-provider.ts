@@ -5,7 +5,7 @@ import type {
   OAuthClientInformation,
   OAuthClientInformationFull,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
-import type { McpOAuthConfig } from '@jean2/shared';
+import type { McpOAuthConfig } from '@jean2/sdk';
 import * as auth from './auth';
 
 const OAUTH_CALLBACK_PORT = 19876;

@@ -1,4 +1,4 @@
-import type { TextPart, ToolPart, ReasoningPart, MessageEvent } from '@jean2/shared';
+import type { TextPart, ToolPart, ReasoningPart, MessageEvent } from '@jean2/sdk';
 import { createPart, updatePart, getPart } from '@/store';
 import { parseToolInput } from './part-utils';
 import { randomUUID } from 'crypto';

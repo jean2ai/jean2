@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/shared';
+import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/sdk';
 import { getWorkspace } from './workspaces';
 import { deleteAttachmentsForSession, deleteAttachmentsForWorkspace } from './attachments';
 import { rmSync, existsSync } from 'fs';
@@ -224,10 +224,59 @@ export function deleteSessionsByWorkspace(workspaceId: string): void {
   }
 }
 
-export function listSessionsByWorkspace(workspaceId: string): Session[] {
+export function listSessionsByWorkspace(
+  workspaceId: string,
+  options?: { status?: SessionStatus; rootOnly?: boolean }
+): Session[] {
   const db = getDatabase();
-  const rows = db.query('SELECT * FROM sessions WHERE workspace_id = ? ORDER BY updated_at DESC').all(workspaceId) as SessionRow[];
+  const whereClauses: string[] = ['workspace_id = ?'];
+  const values: (string | number)[] = [workspaceId];
+
+  if (options?.status !== undefined) {
+    whereClauses.push('status = ?');
+    values.push(options.status);
+  }
+  if (options?.rootOnly === true) {
+    whereClauses.push('parent_id IS NULL');
+  }
+
+  const query = `SELECT * FROM sessions WHERE ${whereClauses.join(' AND ')} ORDER BY updated_at DESC`;
+  const rows = db.query(query).all(...values) as SessionRow[];
   return rows.map(mapRowToSession);
+}
+
+export function listSessionsGrouped(
+  workspaceIds: string[],
+  options?: { status?: SessionStatus; rootOnly?: boolean }
+): Record<string, Session[]> {
+  const db = getDatabase();
+  const placeholders = workspaceIds.map(() => '?').join(', ');
+  const whereClauses: string[] = [`workspace_id IN (${placeholders})`];
+  const values: (string | number)[] = [...workspaceIds];
+
+  if (options?.status !== undefined) {
+    whereClauses.push('status = ?');
+    values.push(options.status);
+  }
+  if (options?.rootOnly === true) {
+    whereClauses.push('parent_id IS NULL');
+  }
+
+  const query = `SELECT * FROM sessions WHERE ${whereClauses.join(' AND ')} ORDER BY updated_at DESC`;
+  const rows = db.query(query).all(...values) as SessionRow[];
+
+  const result: Record<string, Session[]> = {};
+  for (const id of workspaceIds) {
+    result[id] = [];
+  }
+  for (const row of rows) {
+    const wsId = row.workspace_id || '';
+    if (result[wsId]) {
+      result[wsId].push(mapRowToSession(row));
+    }
+  }
+
+  return result;
 }
 
 function mapRowToSession(row: SessionRow): Session {

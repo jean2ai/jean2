@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '@/config/urls';
+import type { Jean2Client } from '@jean2/sdk';
 import { FileText, Plus, Pencil, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useApi } from '@/hooks/useApi';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
 
 interface PanelProps {
-  serverUrl: string | null;
-  apiToken: string | null;
+  sdkClient: Jean2Client | null;
 }
 
 interface PromptInfo {
@@ -17,10 +15,7 @@ interface PromptInfo {
   content: string;
 }
 
-export function PromptsPanel({ serverUrl, apiToken }: PanelProps) {
-  const { fetchWithAuth } = useApi();
-  const apiUrl = serverUrl ? buildApiUrl(serverUrl, '') : '';
-
+export function PromptsPanel({ sdkClient }: PanelProps) {
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,22 +29,18 @@ export function PromptsPanel({ serverUrl, apiToken }: PanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const loadPrompts = useCallback(async () => {
-    if (!apiToken || !apiUrl) return;
+    if (!sdkClient) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/prompts`, {
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) throw new Error('Failed to load prompts');
-      const data = await res.json();
+      const data = await sdkClient.http.config.prompts.list();
       setPrompts(data.prompts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load prompts');
     } finally {
       setLoading(false);
     }
-  }, [fetchWithAuth, apiUrl, apiToken]);
+  }, [sdkClient]);
 
   useEffect(() => {
     loadPrompts();
@@ -75,31 +66,9 @@ export function PromptsPanel({ serverUrl, apiToken }: PanelProps) {
     setError(null);
     try {
       if (isCreating) {
-        const res = await fetchWithAuth(`${apiUrl}/api/config/prompts`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: editName.trim(), content: editContent }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to create prompt');
-        }
+        await sdkClient!.http.config.prompts.create({ name: editName.trim(), content: editContent });
       } else if (editingPrompt) {
-        const res = await fetchWithAuth(`${apiUrl}/api/config/prompts/${editingPrompt.name}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${apiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content: editContent }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to update prompt');
-        }
+        await sdkClient!.http.config.prompts.update(editingPrompt.name, { content: editContent });
       }
       setIsCreating(false);
       setEditingPrompt(null);
@@ -114,14 +83,7 @@ export function PromptsPanel({ serverUrl, apiToken }: PanelProps) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetchWithAuth(`${apiUrl}/api/config/prompts/${deleteTarget}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${apiToken}` },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to delete prompt');
-      }
+      await sdkClient!.http.config.prompts.delete(deleteTarget);
       setDeleteTarget(null);
       await loadPrompts();
     } catch (err) {

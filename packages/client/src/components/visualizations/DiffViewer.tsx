@@ -6,7 +6,7 @@ const CODE_THEME = themes.oneDark;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 interface DiffViewerProps {
   hunks: DiffHunk[];
@@ -101,7 +101,7 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const language = propLanguage || detectLanguage(path);
 
   const openFilePreview = useUIStore((s) => s.openFilePreview);
-  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace);
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
   const handlePathClick = () => {
     if (!activeWorkspace) return;

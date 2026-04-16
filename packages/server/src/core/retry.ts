@@ -1,6 +1,6 @@
 import type { ChatOptions } from './agent';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_CHAT_FAILED } from '@/utils/errors';
-import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage } from '@jean2/shared';
+import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage } from '@jean2/sdk';
 
 export async function* streamChatWithRetry(
   options: ChatOptions

@@ -1,0 +1,187 @@
+name: Release Electron
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_client:
+        description: 'Release Electron desktop client (macOS + Windows together)'
+        required: false
+        default: true
+        type: boolean
+      force:
+        description: 'Force release (recreate existing)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  prepare-client-release:
+    runs-on: ubuntu-latest
+    if: inputs.release_client
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
+      should_skip: ${{ steps.info.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: info
+        run: |
+          V=$(cat packages/client/VERSION)
+          TAG="client/v${V}"
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if gh release view "$TAG" 2>/dev/null; then
+            if [ "${{ inputs.force }}" != "true" ]; then
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+              echo "should_skip=true" >> $GITHUB_OUTPUT
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+              echo "Release $TAG already exists, skipping..."
+              exit 0
+            else
+              echo "release_exists=true" >> $GITHUB_OUTPUT
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
+            fi
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG"
+          git push origin "$TAG" --force
+
+          if [[ "$V" == *"-"* ]]; then
+            PRE="true"
+          else
+            PRE="false"
+          fi
+          echo "prerelease=$PRE" >> $GITHUB_OUTPUT
+
+          if [ "$PRE" == "true" ]; then
+            gh release create "$TAG" --title "Client $V" --prerelease
+          else
+            gh release create "$TAG" --title "Client $V"
+          fi
+          echo "Release $TAG created successfully"
+
+  release-client-macos:
+    needs: prepare-client-release
+    runs-on: macos-latest
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install
+
+      - name: Sync version from VERSION file
+        run: |
+          V=$(cat packages/client/VERSION)
+          cd packages/client-electron
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$V';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Set client-electron version to $V"
+
+      - name: Build macOS (release build with signing & notarization)
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bun run electron:build:mac:release
+
+      - name: Upload macOS artifacts
+        env:
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
+        run: |
+          cd packages/client-electron/release
+          # Upload for direct download (DMG + ZIP)
+          for file in *.dmg *.zip; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done
+          # Upload electron-updater artifacts
+          if [ -f "latest-mac.yml" ]; then
+            echo "Uploading latest-mac.yml"
+            gh release upload "$TAG" "latest-mac.yml" --clobber
+          fi
+          for file in *.blockmap; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done
+
+  release-client-windows:
+    needs: prepare-client-release
+    runs-on: windows-latest
+    if: inputs.release_client && needs.prepare-client-release.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install
+
+      - name: Sync version from VERSION file
+        shell: bash
+        run: |
+          V=$(cat packages/client/VERSION)
+          cd packages/client-electron
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$V';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Set client-electron version to $V"
+
+      - name: Build Windows (unsigned)
+        run: bun run electron:build:win
+
+      - name: Upload Windows artifacts
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare-client-release.outputs.tag }}
+        run: |
+          cd packages/client-electron/release
+          shopt -s nullglob
+          for file in *.exe *.msi; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file"
+              gh release upload "$TAG" "$file" --clobber
+            fi
+          done

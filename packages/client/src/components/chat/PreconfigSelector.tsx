@@ -1,13 +1,19 @@
+import { useState } from 'react';
+import { Check, ChevronsUpDown, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Settings, Cog } from 'lucide-react';
-import type { Preconfig } from '@jean2/shared';
+  Command,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import type { Preconfig } from '@jean2/sdk';
 
 interface PreconfigSelectorProps {
   preconfigs: Preconfig[];
@@ -26,38 +32,167 @@ export function PreconfigSelector({
   compact = false,
   iconOnly = false,
 }: PreconfigSelectorProps) {
-  const showCompactIcon = compact && !iconOnly;
+  const [open, setOpen] = useState(false);
+
+  const selectedPreconfig = preconfigs.find(p => p.id === selectedPreconfigId);
+
+  const handleSelect = (preconfigId: string) => {
+    onChangePreconfig(preconfigId);
+    setOpen(false);
+  };
+
+  if (iconOnly) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Select config"
+            disabled={disabled}
+          >
+            <Settings className="size-4 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[240px] p-0">
+          <Command>
+            <CommandInput placeholder="Search config..." />
+            <CommandList className="max-h-[50vh] overflow-y-auto">
+              {preconfigs.map((preconfig) => (
+                <CommandItem
+                  key={preconfig.id}
+                  onSelect={() => handleSelect(preconfig.id)}
+                  className="justify-between"
+                >
+                  <span>
+                    {preconfig.name}
+                    {preconfig.isDefault && (
+                      <span className="ml-1 text-muted-foreground text-xs">
+                        (default)
+                      </span>
+                    )}
+                  </span>
+                  <Check
+                    className={cn(
+                      'size-4',
+                      selectedPreconfigId === preconfig.id
+                        ? 'opacity-100'
+                        : 'opacity-0'
+                    )}
+                  />
+                </CommandItem>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  if (compact) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Select config"
+            disabled={disabled}
+          >
+            <Settings className="size-4 flex-shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[240px] p-0">
+          <Command>
+            <CommandInput placeholder="Search config..." />
+            <CommandList className="max-h-[50vh] overflow-y-auto">
+              {preconfigs.map((preconfig) => (
+                <CommandItem
+                  key={preconfig.id}
+                  onSelect={() => handleSelect(preconfig.id)}
+                  className="justify-between"
+                >
+                  <span>
+                    {preconfig.name}
+                    {preconfig.isDefault && (
+                      <span className="ml-1 text-muted-foreground text-xs">
+                        (default)
+                      </span>
+                    )}
+                  </span>
+                  <Check
+                    className={cn(
+                      'size-4',
+                      selectedPreconfigId === preconfig.id
+                        ? 'opacity-100'
+                        : 'opacity-0'
+                    )}
+                  />
+                </CommandItem>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
   return (
-    <div className="flex items-center gap-2">
-      {!iconOnly && <Label className="text-xs text-muted-foreground">{showCompactIcon ? <Cog className="size-3.5" /> : 'Config:'}</Label>}
-      <Select
-        value={selectedPreconfigId || ''}
-        onValueChange={onChangePreconfig}
-        disabled={disabled}
-      >
-        <SelectTrigger className={iconOnly ? 'w-9 h-9 px-0 justify-center gap-0 [&>svg:last-child]:hidden [&_[data-slot=select-value]]:hidden' : 'w-[140px] h-8 text-sm'}>
-          {iconOnly && (
-            <>
-              <Settings className="size-4" />
-              <SelectValue className="sr-only" />
-            </>
-          )}
-          {!iconOnly && <SelectValue placeholder="Select config" />}
-        </SelectTrigger>
-        <SelectContent>
-          {preconfigs.map((preconfig) => (
-            <SelectItem key={preconfig.id} value={preconfig.id}>
-              {preconfig.name}
-              {preconfig.isDefault && (
-                <span className="ml-2 text-muted-foreground text-xs">
-                  (default)
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Select config"
+          disabled={disabled}
+        >
+          <Settings className="size-4 flex-shrink-0 text-muted-foreground" />
+          <span className="truncate">
+            {selectedPreconfig?.name || 'Select config'}
+          </span>
+          <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-0">
+        <Command>
+          <CommandInput placeholder="Search config..." />
+          <CommandList className="max-h-[50vh] overflow-y-auto">
+            {preconfigs.map((preconfig) => (
+              <CommandItem
+                key={preconfig.id}
+                onSelect={() => handleSelect(preconfig.id)}
+                className="justify-between"
+              >
+                <span>
+                  {preconfig.name}
+                  {preconfig.isDefault && (
+                    <span className="ml-1 text-muted-foreground text-xs">
+                      (default)
+                    </span>
+                  )}
                 </span>
-              )}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+                <Check
+                  className={cn(
+                    'size-4',
+                    selectedPreconfigId === preconfig.id
+                      ? 'opacity-100'
+                      : 'opacity-0'
+                  )}
+                />
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

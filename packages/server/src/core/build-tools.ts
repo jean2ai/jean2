@@ -1,7 +1,7 @@
 import { homedir } from 'os';
 import { join } from 'path';
 import { tool, jsonSchema, type Tool } from 'ai';
-import type { ToolExecutionContext } from '@jean2/shared';
+import type { ToolExecutionContext } from '@jean2/sdk';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
 import * as mcp from '@/mcp';

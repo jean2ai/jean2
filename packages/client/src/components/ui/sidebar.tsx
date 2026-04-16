@@ -4,9 +4,9 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
-import { clampPanelWidth } from "@jean2/shared"
+import { clampPanelWidth } from "@jean2/sdk"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useUIStore } from "@/stores/uiStore"
+import { useChatLayoutStore } from "@/stores/chatLayoutStore"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -238,9 +238,9 @@ function Sidebar({
           className
         )}
         style={{
-          top: 'env(safe-area-inset-top, 0)',
-          bottom: 'env(safe-area-inset-bottom, 0)',
-          height: 'calc(100vh - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0))',
+          top: 'calc(var(--header-height, 0px) + env(safe-area-inset-top, 0px))',
+          bottom: 'env(safe-area-inset-bottom, 0px)',
+          height: 'calc(100vh - var(--header-height, 0px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
         }}
         {...props}
       >
@@ -691,10 +691,10 @@ interface PanelResizeHandleProps extends React.ComponentProps<"div"> {
 function PanelResizeHandle({ side, panelId, className, ...props }: PanelResizeHandleProps) {
   const isMobile = useIsMobile();
 
-  const sessionsPanelWidth = useUIStore((s) => s.sessionsPanelWidth);
-  const setSessionsPanelWidth = useUIStore((s) => s.setSessionsPanelWidth);
-  const filesPanelWidth = useUIStore((s) => s.filesPanelWidth);
-  const setFilesPanelWidth = useUIStore((s) => s.setFilesPanelWidth);
+  const sessionsPanelWidth = useChatLayoutStore((s) => s.sessionsPanelWidth);
+  const setSessionsPanelWidth = useChatLayoutStore((s) => s.setSessionsPanelWidth);
+  const filesPanelWidth = useChatLayoutStore((s) => s.filesPanelWidth);
+  const setFilesPanelWidth = useChatLayoutStore((s) => s.setFilesPanelWidth);
 
   const panelWidth = panelId === "sessions" ? sessionsPanelWidth : filesPanelWidth;
   const setPanelWidth = panelId === "sessions" ? setSessionsPanelWidth : setFilesPanelWidth;

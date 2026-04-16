@@ -1,5 +1,5 @@
 import type { Tool } from 'ai';
-import type { ToolDefinition } from '@jean2/shared';
+import type { ToolDefinition } from '@jean2/sdk';
 import { pathToFileURL } from 'url';
 import { getSkill, getAvailableSkills, formatSkillsList } from './registry';
 

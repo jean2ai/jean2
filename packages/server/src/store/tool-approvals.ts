@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { ToolApproval, ToolApprovalStatus } from '@jean2/shared';
+import type { ToolApproval, ToolApprovalStatus } from '@jean2/sdk';
 
 // Interface for raw database row from tool_approvals table
 interface ToolApprovalRow {

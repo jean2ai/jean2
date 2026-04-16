@@ -1,14 +1,20 @@
+import { useState } from 'react';
+import { Check, ChevronsUpDown, Cpu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Cpu } from 'lucide-react';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface Model {
   id: string;
@@ -45,6 +51,8 @@ export function ModelSelector({
   compact = false,
   iconOnly = false,
 }: ModelSelectorProps) {
+  const [open, setOpen] = useState(false);
+
   const groupedModels = models.reduce((acc, model) => {
     if (!acc[model.providerName]) {
       acc[model.providerName] = [];
@@ -53,50 +61,180 @@ export function ModelSelector({
     return acc;
   }, {} as Record<string, Model[]>);
 
-  const handleValueChange = (modelId: string) => {
+  const handleSelect = (modelId: string) => {
     const model = models.find((m) => m.id === modelId);
     if (model) {
       onChangeModel(modelId, model.providerId);
+      setOpen(false);
     }
   };
 
-  const showCompactIcon = compact && !iconOnly;
+  const selectedModel = models.find((m) => m.id === selectedModelId);
+
+  if (iconOnly) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Select model"
+            disabled={disabled}
+          >
+            <Cpu className="size-4 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[240px] p-0">
+          <Command>
+            <CommandInput placeholder="Search model..." />
+            <CommandList className="max-h-[50vh] overflow-y-auto">
+              <CommandEmpty>No model found.</CommandEmpty>
+              {Object.entries(groupedModels).map(([providerName, providerModels]) => (
+                <CommandGroup key={providerName} heading={providerName}>
+                  {providerModels.map((model) => (
+                    <CommandItem
+                      key={model.id}
+                      value={model.id}
+                      onSelect={() => handleSelect(model.id)}
+                      className="justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{model.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {getTierBadge(model.tier)}
+                        </span>
+                      </div>
+                      <Check
+                        className={cn(
+                          'size-4',
+                          selectedModelId === model.id
+                            ? 'opacity-100'
+                            : 'opacity-0'
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  if (compact) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Select model"
+            className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
+            disabled={disabled}
+          >
+            <Cpu className="size-4 flex-shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[240px] p-0">
+          <Command>
+            <CommandInput placeholder="Search model..." />
+            <CommandList className="max-h-[50vh] overflow-y-auto">
+              <CommandEmpty>No model found.</CommandEmpty>
+              {Object.entries(groupedModels).map(([providerName, providerModels]) => (
+                <CommandGroup key={providerName} heading={providerName}>
+                  {providerModels.map((model) => (
+                    <CommandItem
+                      key={model.id}
+                      value={model.id}
+                      onSelect={() => handleSelect(model.id)}
+                      className="justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{model.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {getTierBadge(model.tier)}
+                        </span>
+                      </div>
+                      <Check
+                        className={cn(
+                          'size-4',
+                          selectedModelId === model.id
+                            ? 'opacity-100'
+                            : 'opacity-0'
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
   return (
-    <div className="flex items-center gap-2">
-      {!iconOnly && <Label className="text-xs text-muted-foreground">{showCompactIcon ? <Cpu className="size-3.5" /> : 'Model:'}</Label>}
-      <Select
-        value={selectedModelId || ''}
-        onValueChange={handleValueChange}
-        disabled={disabled}
-      >
-        <SelectTrigger className={iconOnly ? 'w-9 h-9 px-0 justify-center gap-0 [&>svg:last-child]:hidden [&_[data-slot=select-value]]:hidden' : 'w-[180px] h-8 text-sm'}>
-          {iconOnly && (
-            <>
-              <Cpu className="size-4" />
-              <SelectValue className="sr-only" />
-            </>
-          )}
-          {!iconOnly && <SelectValue placeholder="Select model" />}
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(groupedModels).map(([providerName, providerModels]) => (
-            <SelectGroup key={providerName}>
-              <SelectLabel>{providerName}</SelectLabel>
-              {providerModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  <span className="flex items-center gap-2">
-                    {model.name}
-                    <span className="text-muted-foreground text-xs">
-                      {getTierBadge(model.tier)}
-                    </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Select model"
+          className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
+          disabled={disabled}
+        >
+          <Cpu className="size-4 flex-shrink-0 text-muted-foreground" />
+          <span className="truncate">
+            {selectedModel?.name || 'Select model'}
+          </span>
+          <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-0">
+        <Command>
+          <CommandInput placeholder="Search model..." />
+          <CommandList className="max-h-[50vh] overflow-y-auto">
+            <CommandEmpty>No model found.</CommandEmpty>
+            {Object.entries(groupedModels).map(([providerName, providerModels]) => (
+              <CommandGroup key={providerName} heading={providerName}>
+                {providerModels.map((model) => (
+                  <CommandItem
+                    key={model.id}
+                    value={model.id}
+                    onSelect={() => handleSelect(model.id)}
+                    className="justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{model.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {getTierBadge(model.tier)}
+                      </span>
+                    </div>
+                    <Check
+                      className={cn(
+                        'size-4',
+                        selectedModelId === model.id
+                          ? 'opacity-100'
+                          : 'opacity-0'
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

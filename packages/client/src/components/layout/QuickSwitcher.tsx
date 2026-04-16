@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Zap, Server, Trash2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -22,45 +23,32 @@ import {
 } from '@/components/ui/command';
 import { useServerContext } from '@/contexts/ServerContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { QuickConnection } from '@jean2/shared';
+import type { QuickConnection } from '@jean2/sdk';
 
 interface QuickSwitcherProps {
-  onServerSwitch?: () => void;
   onSelectWorkspace?: (workspaceId: string) => void;
 }
 
-export function QuickSwitcher({ onServerSwitch, onSelectWorkspace }: QuickSwitcherProps) {
+export function QuickSwitcher({ onSelectWorkspace }: QuickSwitcherProps) {
   const [open, setOpen] = useState(false);
-  const switchingInitiatedRef = useRef(false);
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { 
-    quickConnections, 
-    switchServer, 
+  const {
+    quickConnections,
     removeFromQuickConnections,
-    isSwitching,
   } = useServerContext();
 
   const handleSelectConnection = (conn: QuickConnection) => {
-    const switched = switchServer(conn.serverId);
-    
-    if (!switched) {
-      return;
-    }
-    
-    switchingInitiatedRef.current = true;
-    
-    onServerSwitch?.();
+    setOpen(false);
+    // Navigate to the server first, then optionally select workspace
+    navigate({ to: '/server/$serverId', params: { serverId: conn.serverId } });
     if (conn.workspaceId && onSelectWorkspace) {
-      onSelectWorkspace(conn.workspaceId);
+      // Small delay to let the navigation settle
+      setTimeout(() => {
+        onSelectWorkspace(conn.workspaceId!);
+      }, 50);
     }
   };
-
-  useEffect(() => {
-    if (!isSwitching && open && switchingInitiatedRef.current) {
-      setOpen(false);
-      switchingInitiatedRef.current = false;
-    }
-  }, [isSwitching, open]);
 
   const handleRemoveQuickConnection = (
     e: React.MouseEvent,

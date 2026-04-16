@@ -1,50 +1,24 @@
 import type {
-  Session,
   MessageWithParts,
-  Preconfig,
-  PromptInfo,
-  QueuedMessage,
-  SavedServer,
   AttachmentKind,
-} from '@jean2/shared';
-import type { PendingPermissionRequest } from '@/stores/sessionMetaStore';
+} from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
+import { usePermissionStore } from '@/stores/permissionStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
-import FirstServerScreen from '@/components/FirstServerScreen';
 import { ChatView } from '@/components/chat/ChatView';
 import { Button } from '@/components/ui/button';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 
 export interface AppMainContentProps {
-  servers: SavedServer[];
-  activeServer: SavedServer | null;
-  isSwitching: boolean;
-  connected: boolean;
-  authError: string | null;
-  connectionTimedOut: boolean;
-  retryCount: number;
-  nextRetryIn: number;
   serverUrl: string | null;
-  currentSession: Session | null;
+  sdkClient: Jean2Client | null;
   messagesWithParts: MessageWithParts[];
-  queuedMessages: Record<string, QueuedMessage[]>;
-  preconfigs: Preconfig[];
-  primaryPreconfigs: Preconfig[];
-  prompts: PromptInfo[];
-  models: ModelInfo[];
-  defaultModel: string;
-  selectedVariant: string | null;
-  pendingPermissions: PendingPermissionRequest[];
-  sessionUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
-  currentModel: string;
-  streamingSessionIds: Set<string>;
-  isCompacting: boolean;
-  compactionSuccess: boolean;
-  isPrimarySession: boolean;
   inputRef: React.RefObject<MessageInputHandle | null>;
-  apiToken: string | null;
-  onFirstServerAdded: (server: SavedServer) => void;
   onRetry: () => void;
   onLogout: () => void;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
@@ -66,34 +40,10 @@ export interface AppMainContentProps {
 }
 
 export function AppMainContent({
-  servers,
-  activeServer,
-  isSwitching,
-  connected,
-  authError,
-  connectionTimedOut,
-  retryCount,
-  nextRetryIn,
   serverUrl,
-  currentSession,
   messagesWithParts,
-  queuedMessages,
-  preconfigs,
-  primaryPreconfigs,
-  prompts,
-  models,
-  defaultModel,
-  selectedVariant,
-  pendingPermissions,
-  sessionUsage,
-  currentModel,
-  streamingSessionIds,
-  isCompacting,
-  compactionSuccess,
-  isPrimarySession,
   inputRef,
-  apiToken,
-  onFirstServerAdded,
+  sdkClient,
   onRetry,
   onLogout,
   onSendMessage,
@@ -113,7 +63,31 @@ export function AppMainContent({
   scrollToBottomRef,
   autoFollowToggleRef,
 }: AppMainContentProps) {
-  const isLoggedIn = !!(activeServer);
+  // Read from stores
+  const connected = useConnectionStore(s => s.connected);
+  const authError = useConnectionStore(s => s.authError);
+  const connectionTimedOut = useConnectionStore(s => s.connectionTimedOut);
+  const retryCount = useConnectionStore(s => s.retryCount);
+  const nextRetryIn = useConnectionStore(s => s.nextRetryIn);
+  const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
+
+  const currentSession = useSessionStore(s => s.currentSession);
+  const queuedMessages = useSessionStore(s => s.queuedMessages);
+  const sessionUsage = useSessionStore(s => s.sessionUsage);
+  const currentModel = useSessionStore(s => s.currentModel);
+  const selectedVariant = useSessionStore(s => s.selectedVariant);
+  const compactionSuccess = useSessionStore(s => s.compactionSuccess);
+
+  const preconfigs = useServerDataStore(s => s.preconfigs);
+  const prompts = useServerDataStore(s => s.prompts);
+  const models = useServerDataStore(s => s.models) as ModelInfo[];
+  const defaultModel = useServerDataStore(s => s.defaultModel);
+
+  const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
+
+  const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
+  const isPrimarySession = !currentSession?.parentId;
+  const isCompacting = currentSession?.compacting ?? false;
 
   const handleChangePreconfig = (preconfigId: string) => {
     onChangePreconfig(preconfigId);
@@ -127,33 +101,7 @@ export function AppMainContent({
     onInterrupt();
   };
 
-  if (servers.length === 0) {
-    return (
-      <FirstServerScreen
-        onServerAdded={onFirstServerAdded}
-        error={authError || undefined}
-      />
-    );
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <FirstServerScreen
-        onServerAdded={onFirstServerAdded}
-        error={authError || undefined}
-      />
-    );
-  }
-
-  if (isSwitching) {
-    return (
-      <div className="flex flex-col w-full h-full items-center justify-center bg-background gap-4">
-        <ConnectingState message={`Connecting to ${activeServer?.name || 'server'}...`} />
-      </div>
-    );
-  }
-
-  if (!connected && servers.length > 0) {
+  if (!connected) {
     if (connectionTimedOut) {
       return (
         <div className="flex w-full h-full items-center justify-center bg-background">
@@ -234,7 +182,7 @@ export function AppMainContent({
       compactionSuccess={compactionSuccess}
       onClearCompactionSuccess={onClearCompactionSuccess}
       serverUrl={serverUrl ?? undefined}
-      apiToken={apiToken ?? undefined}
+      sdkClient={sdkClient}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
     />

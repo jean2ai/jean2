@@ -1,7 +1,7 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
-import type { Session } from '@jean2/shared';
+import type { Session } from '@jean2/sdk';
 import {
   SidebarMenuItem,
   SidebarMenuButton,
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { useUIStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/uiStore';
+import { useCompletionStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/completionStore';
 
 export type ChildrenMap = Map<string, Session[]>;
 
@@ -42,12 +42,16 @@ interface SessionMenuButtonProps {
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRename: (sessionId: string, title: string) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (sessionId: string) => void;
 }
 
 // Helper: Actions dropdown
 const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   isClosed,
   isEditing,
+  selectionMode,
   onRename,
   onReopen,
   onClose,
@@ -55,12 +59,15 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
 }: {
   isClosed: boolean;
   isEditing: boolean;
+  selectionMode?: boolean;
   onRename: () => void;
   onReopen: () => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
   if (isEditing) return <div className="shrink-0 size-7" />;
+
+  if (selectionMode) return <div className="shrink-0 size-7" />;
 
   return (
     <DropdownMenu>
@@ -137,6 +144,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   onReopenSession,
   onDeleteSession,
   onRename,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: SessionMenuButtonProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(session.title || '');
@@ -157,8 +167,8 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const hasActiveChild = childSessions.some(c => c.id === currentSessionId);
 
   // Read completion record directly from store
-  const completionRecord = useUIStore(selectCompletionRecord(session.id));
-  const clearCompletion = useUIStore(s => s.clearCompletion);
+  const completionRecord = useCompletionStore(selectCompletionRecord(session.id));
+  const clearCompletion = useCompletionStore(s => s.clearCompletion);
 
   // Track current time for flash phase calculation
   const [now, setNow] = useState(() => Date.now());
@@ -188,7 +198,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     return () => clearTimeout(timer);
   }, [completionRecord, session.id, clearCompletion, now]);
 
-  // Determine the highlight class: flashing takes precedence, then sticky green
+  // Determine the highlight class: flashing takes precedence, then sticky green, then selection mode highlight
   const highlightClass = isFlashing
     ? 'animate-completion-flash rounded-md'
     : isSticky
@@ -247,14 +257,54 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   };
 
+  // Handle click based on mode: selection mode toggles selection, otherwise opens session
+  const handleRowClick = () => {
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect(session.id);
+    } else {
+      onResumeSession(session.id);
+    }
+  };
+
+  // Handle checkbox click (stops propagation to prevent double-triggering)
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSelect) {
+      onToggleSelect(session.id);
+    }
+  };
+
+  const rowClassName = cn(
+    selected && selectionMode && 'bg-accent/50',
+    selectionMode && 'cursor-pointer',
+  );
+
   // No children - simple item with spacer for alignment
   if (!hasChildren) {
     return (
       <TooltipProvider delayDuration={300}>
         <SidebarMenuItem>
-          <div className="flex items-center w-full">
-            {/* Spacer - same size as chevron button for alignment */}
-            <div className="shrink-0 size-7 p-1" />
+          <div
+            className={cn('flex items-center w-full', rowClassName)}
+            onClick={selectionMode ? handleRowClick : undefined}
+          >
+            {/* Left control area - checkbox in selection mode, spacer otherwise */}
+            {selectionMode ? (
+              <button
+                className="shrink-0 size-7 p-1 flex items-center justify-center hover:bg-accent/70 rounded-md transition-colors"
+                onClick={handleCheckboxClick}
+                aria-label={selected ? 'Deselect session' : 'Select session'}
+              >
+                {selected ? (
+                  <CheckSquare className="size-4 text-primary" />
+                ) : (
+                  <Square className="size-4 text-muted-foreground" />
+                )}
+              </button>
+            ) : (
+              /* Spacer - same size as chevron button for alignment */
+              <div className="shrink-0 size-7 p-1" />
+            )}
 
             {/* Session name (click to open or inline edit) */}
             {isEditing ? (
@@ -265,6 +315,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleRenameCommit}
+                onClick={(e) => e.stopPropagation()}
                 aria-label={`Rename session: ${session.title || 'Untitled'}`}
                 className="flex-1 min-w-0 h-8 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
@@ -272,7 +323,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               <SidebarMenuButton
                 data-session-id={session.id}
                 isActive={isActive}
-                onClick={() => onResumeSession(session.id)}
+                onClick={selectionMode ? undefined : handleRowClick}
                 className={cn('flex-1 min-w-0', highlightClass)}
               >
                 <Tooltip>
@@ -294,6 +345,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             <SessionActionsDropdown
               isClosed={isClosed}
               isEditing={isEditing}
+              selectionMode={selectionMode}
               onRename={handleRenameStart}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
@@ -310,16 +362,33 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     <TooltipProvider delayDuration={300}>
       <Collapsible defaultOpen={isActive || hasActiveChild} className="group/collapsible">
         <SidebarMenuItem>
-          <div className="flex items-center w-full">
-            {/* Part 1: Expand button (chevron) */}
-              <CollapsibleTrigger asChild>
+          <div
+            className={cn('flex items-center w-full', rowClassName)}
+            onClick={selectionMode ? handleRowClick : undefined}
+          >
+            {/* Part 1: Left control - checkbox in selection mode, expand button otherwise */}
+            {selectionMode ? (
               <button
-                className="flex items-center justify-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground shrink-0 size-7 p-1"
-                aria-label="Toggle child sessions"
+                className="shrink-0 size-7 p-1 flex items-center justify-center hover:bg-accent/70 rounded-md transition-colors"
+                onClick={handleCheckboxClick}
+                aria-label={selected ? 'Deselect session' : 'Select session'}
               >
-                <ChevronRight className="size-4 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                {selected ? (
+                  <CheckSquare className="size-4 text-primary" />
+                ) : (
+                  <Square className="size-4 text-muted-foreground" />
+                )}
               </button>
-            </CollapsibleTrigger>
+            ) : (
+              <CollapsibleTrigger asChild>
+                <button
+                  className="flex items-center justify-center rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground shrink-0 size-7 p-1"
+                  aria-label="Toggle child sessions"
+                >
+                  <ChevronRight className="size-4 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                </button>
+              </CollapsibleTrigger>
+            )}
 
             {/* Part 2: Session name (click to open or inline edit) */}
             {isEditing ? (
@@ -330,6 +399,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleRenameCommit}
+                onClick={(e) => e.stopPropagation()}
                 aria-label={`Rename session: ${session.title || 'Untitled'}`}
                 className="flex-1 min-w-0 h-8 px-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
@@ -337,7 +407,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               <SidebarMenuButton
                 data-session-id={session.id}
                 isActive={isActive}
-                onClick={() => onResumeSession(session.id)}
+                onClick={selectionMode ? undefined : handleRowClick}
                 className={cn('flex-1 min-w-0', highlightClass)}
               >
                 <Tooltip>
@@ -359,6 +429,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             <SessionActionsDropdown
               isClosed={isClosed}
               isEditing={isEditing}
+              selectionMode={selectionMode}
               onRename={handleRenameStart}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
@@ -382,6 +453,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   onReopenSession={onReopenSession}
                   onDeleteSession={onDeleteSession}
                   onRename={onRename}
+                  selectionMode={selectionMode}
+                  selected={selected}
+                  onToggleSelect={onToggleSelect}
                 />
               ))}
             </SidebarMenuSub>

@@ -1,4 +1,4 @@
-import type { Session, MessageWithParts } from '@jean2/shared';
+import type { Session, MessageWithParts } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 
 export function handleSessionCreated(
@@ -31,6 +31,7 @@ export function handleSessionCreated(
     setCurrentModel(session.selectedModel || defaultModel);
     setSelectedVariant(session.selectedVariant ?? null);
     pendingSessionCreateRef.current = false;
+    ctx.navigateToSession(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
 }
@@ -73,7 +74,7 @@ export function handleSessionResumed(
   if (messages) {
     setMessagesBySession({ [session.id]: messages.map(mwp => mwp.message) });
     setPartsBySession(() => {
-      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
+      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = {};
       newParts[session.id] = {};
       for (const mwp of messages) {
         newParts[session.id][mwp.message.id] = mwp.parts;
@@ -157,6 +158,7 @@ export function handleSessionClosed(
   sessionAccessTimesRef.current.delete(sessionId);
   if (currentSessionIdRef.current === sessionId) {
     setCurrentSession(null);
+    ctx.navigateToParent();
   }
 }
 
@@ -216,6 +218,7 @@ export function handleSessionDeleted(
   sessionAccessTimesRef.current.delete(sessionId);
   if (currentSessionIdRef.current === sessionId) {
     setCurrentSession(null);
+    ctx.navigateToParent();
   }
 }
 
@@ -294,12 +297,10 @@ export function handleSessionForked(
     clearCompletion,
   } = ctx;
 
-  setSessions(prev => [forkedSession, ...prev]);
-  setMessagesBySession({ [forkedSession.id]: forkedMessages.map(mwp => mwp.message) });
-  setPartsBySession(() => {
-    const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
-    newParts[forkedSession.id] = {};
-    for (const mwp of forkedMessages) {
+  setSessions(prev => [forkedSession, ...prev]);    setMessagesBySession({ [forkedSession.id]: forkedMessages.map(mwp => mwp.message) });
+    setPartsBySession(() => {
+      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = {};
+      newParts[forkedSession.id] = {};    for (const mwp of forkedMessages) {
       newParts[forkedSession.id][mwp.message.id] = mwp.parts;
     }
     return newParts;
@@ -316,6 +317,7 @@ export function handleSessionForked(
     }
   }
   setCurrentSession(forkedSession);
+  ctx.navigateToSession(forkedSession.id);
   setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
   // Clear completion state when session is forked (creates new context)
@@ -351,7 +353,7 @@ export function handleSessionState(
   if (currentSessionIdRef.current === sessionId) {
     setMessagesBySession({ [sessionId]: messages.map(mwp => mwp.message) });
     setPartsBySession(() => {
-      const newParts: Record<string, Record<string, import('@jean2/shared').Part[]>> = {};
+      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = {};
       newParts[sessionId] = {};
       for (const mwp of messages) {
         newParts[sessionId][mwp.message.id] = mwp.parts;

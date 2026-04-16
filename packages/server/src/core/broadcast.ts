@@ -1,5 +1,5 @@
-import type { ServerMessage } from '@jean2/shared';
-import type { Session } from '@jean2/shared';
+import type { ServerMessage } from '@jean2/sdk';
+import type { Session } from '@jean2/sdk';
 
 type BroadcastCallback = (message: ServerMessage, excludeWs?: unknown) => void;
 

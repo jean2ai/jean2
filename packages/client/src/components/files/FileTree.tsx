@@ -1,15 +1,14 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/shared';
+import type { FileEntry } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeNode } from './FileTreeNode';
-import { useApi } from '@/hooks/useApi';
 
 interface FileTreeProps {
   workspaceId: string;
-  serverUrl: string | undefined;
-  apiToken: string | undefined;
+  sdkClient: Jean2Client | null;
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
   width?: number;
@@ -21,34 +20,30 @@ export interface FileTreeHandle {
 }
 
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
-  ({ workspaceId, serverUrl, apiToken, onFileSelect, showHidden = true, width }, ref) => {
+  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width }, ref) => {
     const [files, setFiles] = useState<FileEntry[]>([]);
     const [currentPath, setCurrentPath] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const { fetchWithAuth } = useApi();
     const containerRef = useRef<HTMLDivElement>(null);
 
     const loadRoot = useCallback(async () => {
+      if (!sdkClient) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        const res = await fetchWithAuth(`/api/workspaces/${workspaceId}/files?showHidden=${showHidden}`, {}, { serverUrl, token: apiToken });
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.message || 'Failed to load files');
-        }
+        const data = await sdkClient.http.files.browse(workspaceId, undefined, { showHidden });
 
         setFiles(data.files);
-        setCurrentPath(data.currentPath);
+        setCurrentPath(data.currentPath || '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load files');
       } finally {
         setLoading(false);
       }
-    }, [workspaceId, showHidden, fetchWithAuth, serverUrl, apiToken]);
+    }, [workspaceId, showHidden, sdkClient]);
 
     useEffect(() => {
       loadRoot();
@@ -189,8 +184,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                   depth={0}
                   onFileSelect={onFileSelect}
                   showHidden={showHidden}
-                  serverUrl={serverUrl}
-                  apiToken={apiToken}
+                  sdkClient={sdkClient}
                 />
               ))}
             </div>

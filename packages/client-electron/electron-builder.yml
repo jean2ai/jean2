@@ -1,0 +1,66 @@
+appId: com.jean2.app
+productName: Jean2
+copyright: Copyright © 2026 Jean2
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - dist/*.html
+  - package.json
+
+extraMetadata:
+  main: dist/main.js
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  gatekeeperAssess: false
+  type: distribution
+  extendInfo:
+    NSCameraUsageDescription: Jean2 needs camera access for video calls
+    NSMicrophoneUsageDescription: Jean2 needs microphone access for audio calls
+    NSUserNotificationsUsageDescription: Jean2 needs notification access for alerts
+
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-win.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Jean2
+
+publish:
+  provider: github
+  owner: rabbyte-tech
+  repo: jean2
+
+asar: true
+compression: normal
+
+electronDownload:
+  cache: .electron-cache
+
+extraResources:
+  - from: ../client/dist
+    to: client/dist
+    filter:
+      - "**/*"
+  - from: ../client/src/assets/sounds
+    to: sounds
+    filter:
+      - "**/*.mp3"

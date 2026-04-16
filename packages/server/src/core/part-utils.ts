@@ -1,4 +1,4 @@
-import type { TextPart, ToolPart, StepPart, Part, ImagePart, FilePart } from '@jean2/shared';
+import type { TextPart, ToolPart, StepPart, Part, ImagePart, FilePart } from '@jean2/sdk';
 import { randomUUID } from 'crypto';
 
 export function isTextPart(part: Part): part is TextPart {

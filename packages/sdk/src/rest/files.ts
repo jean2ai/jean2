@@ -1,0 +1,104 @@
+import type { HttpClient } from '../transport/http';
+import type {
+  BrowseFilesResponse,
+  SearchFilesResponse,
+  PreviewFileResponse,
+  BrowseFsResponse,
+  FsParentResponse,
+  ListDrivesResponse,
+} from '../types/rest-responses';
+
+interface BrowseOptions {
+  path?: string;
+  showHidden?: boolean;
+  limit?: number;
+  signal?: AbortSignal;
+}
+
+interface SearchOptions {
+  limit?: number;
+  showHidden?: boolean;
+  signal?: AbortSignal;
+}
+
+interface PreviewOptions {
+  signal?: AbortSignal;
+}
+
+interface BrowseFsOptions {
+  signal?: AbortSignal;
+}
+
+interface FsParentOptions {
+  signal?: AbortSignal;
+}
+
+interface DrivesOptions {
+  signal?: AbortSignal;
+}
+
+export class FilesRestNamespace {
+  constructor(private http: HttpClient) {}
+
+  async browse(workspaceId: string, path?: string, options?: BrowseOptions): Promise<BrowseFilesResponse> {
+    const params: Record<string, string> = {};
+
+    if (path !== undefined) {
+      params.path = path;
+    }
+    if (options?.showHidden !== undefined) {
+      params.showHidden = String(options.showHidden);
+    }
+    if (options?.limit !== undefined) {
+      params.limit = String(options.limit);
+    }
+
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/files`, {
+      params: Object.keys(params).length > 0 ? params : undefined,
+      signal: options?.signal,
+    });
+  }
+
+  async search(workspaceId: string, query: string, options?: SearchOptions): Promise<SearchFilesResponse> {
+    const params: Record<string, string> = {
+      search: query,
+    };
+
+    if (options?.limit !== undefined) {
+      params.limit = String(options.limit);
+    }
+    if (options?.showHidden !== undefined) {
+      params.showHidden = String(options.showHidden);
+    }
+
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/files`, {
+      params,
+      signal: options?.signal,
+    });
+  }
+
+  async preview(workspaceId: string, path: string, options?: PreviewOptions): Promise<PreviewFileResponse> {
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/file-preview`, {
+      params: { path },
+      signal: options?.signal,
+    });
+  }
+
+  async browseFs(path?: string, options?: BrowseFsOptions): Promise<BrowseFsResponse> {
+    return this.http.get('/fs/browse', {
+      params: path !== undefined ? { path } : undefined,
+      signal: options?.signal,
+    });
+  }
+
+  async parent(path: string, options?: FsParentOptions): Promise<FsParentResponse> {
+    return this.http.get('/fs/parent', {
+      params: { path },
+      signal: options?.signal,
+    });
+  }
+
+  async drives(options?: DrivesOptions): Promise<ListDrivesResponse> {
+    return this.http.get('/fs/drives', { signal: options?.signal });
+  }
+}
