@@ -1,5 +1,6 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
+import { isElectron } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -90,6 +91,11 @@ export function AppHeader() {
         </TooltipProvider>
       </header>
 
+      {/* Traffic light spacer for macOS - provides space for native window controls */}
+      {isElectron() && (
+        <div className="hidden md:block h-[30px] shrink-0" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
+      )}
+
       <header className="hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -106,7 +112,7 @@ export function AppHeader() {
           </div>
         </div>
         <TooltipProvider>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" style={isElectron() ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
             <>
               <Tooltip>
                 <TooltipTrigger asChild>

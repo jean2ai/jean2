@@ -1,13 +1,12 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
-import { useRouter } from '@tanstack/react-router';
-import { useSidebar } from '@/components/ui/sidebar';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-import { useServerDataStore } from '@/stores/serverDataStore';
-import type { AppSidebarHandle } from '@/components/layout/AppSidebar';
-import type { Preconfig, Workspace } from '@jean2/sdk';
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import {useCallback, useLayoutEffect, useRef} from 'react';
+import {useRouter} from '@tanstack/react-router';
+import {useSidebar} from '@/components/ui/sidebar';
+import {useKeyboardShortcuts} from '@/hooks/useKeyboardShortcuts';
+import {useChatLayoutStore} from '@/stores/chatLayoutStore';
+import {useServerDataStore} from '@/stores/serverDataStore';
+import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
+import type {Preconfig, Workspace} from '@jean2/sdk';
+import {isElectron, isTauriMobile} from '@/lib/platform';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -89,8 +88,13 @@ export function useAppKeyboardHandlers({
     }
   }, [activeWorkspace, primaryPreconfigs, createSession]);
 
-  const handleNewWindow = useCallback(() => {
-    invoke('create_new_window').catch(() => {});
+  const handleNewWindow = useCallback(async () => {
+    if (isElectron()) {
+      window.__JEAN2_ELECTRON__?.createWindow();
+    } else if (isTauriMobile()) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      invoke('create_new_window').catch(() => {});
+    }
   }, []);
 
   const router = useRouter();
@@ -132,17 +136,25 @@ export function useAppKeyboardHandlers({
     onToggleAutoFollow: () => onToggleAutoFollow?.(),
   });
 
-  // Listen for native Tauri accelerator events
   useLayoutEffect(() => {
-    const isTauri =
-      typeof window !== 'undefined' &&
-      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-    if (!isTauri) return;
+    if (isElectron()) {
+      return window.__JEAN2_ELECTRON__?.onAccelerator((action) => {
+        if (action === 'open-sidebar') {
+          focusSidebarSessionPanelRef.current();
+        } else if (action === 'open-terminal') {
+          focusTerminalPanelRef.current();
+        }
+      });
+    }
+
+    if (!isTauriMobile()) return;
 
     let disposed = false;
-    const unlistenFns: UnlistenFn[] = [];
+    const unlistenFns: Array<() => void> = [];
 
     const registerListeners = async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+
       try {
         const unlistenSidebar = await listen('jean2://accelerator/open-sidebar', () => {
           focusSidebarSessionPanelRef.current();
@@ -176,7 +188,7 @@ export function useAppKeyboardHandlers({
       disposed = true;
       unlistenFns.forEach((fn) => fn());
     };
-  }, []); // Stable registration — handlers accessed via refs
+  }, []);
 }
 
 export interface AppKeyboardHandlersMountProps {

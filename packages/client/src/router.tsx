@@ -1,9 +1,13 @@
-import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { createRouter, RouterProvider, createHashHistory } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 import { serverRegistry } from '@/lib/serverRegistry';
+import { isElectron } from '@/lib/platform';
+
+const history = isElectron() ? createHashHistory() : undefined;
 
 export const router = createRouter({
   routeTree,
+  history,
   context: { serverRegistry },
   defaultPreload: 'intent',
   defaultPendingComponent: () => (

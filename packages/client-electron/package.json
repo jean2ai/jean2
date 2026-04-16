@@ -1,0 +1,35 @@
+{
+  "name": "@jean2/client-electron",
+  "version": "0.1.0",
+  "description": "Jean2 - AI Agent Desktop Application",
+  "author": "Jean2",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "electron:dev": "vite build && electron .",
+    "electron:build": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder",
+    "electron:build:mac": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --mac",
+    "electron:build:win": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --win",
+    "electron:build:linux": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --linux",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.0"
+  },
+  "devDependencies": {
+    "electron": "^41.0.0",
+    "electron-builder": "^26.0.0",
+    "concurrently": "^9.1.0",
+    "wait-on": "^8.0.0",
+    "vite": "^8.0.0",
+    "vite-plugin-electron": "^0.29.1",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "typescript": "^5.7.2"
+  }
+}

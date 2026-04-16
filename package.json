@@ -21,7 +21,12 @@
     "build:bin:linux": "cd packages/server && bun run build:bin:linux",
     "build:bin:windows": "cd packages/server && bun run build:bin:windows",
     "build:all": "cd packages/server && bun run build:all",
-    "tauri:build:windows": "cd packages/client && bun run tauri:build:windows"
+    "tauri:build:windows": "cd packages/client && bun run tauri:build:windows",
+    "dev:electron": "cd packages/client-electron && bun run electron:dev",
+    "electron:build": "cd packages/client-electron && bun run electron:build",
+    "electron:build:mac": "cd packages/client-electron && bun run electron:build:mac",
+    "electron:build:win": "cd packages/client-electron && bun run electron:build:win",
+    "electron:build:linux": "cd packages/client-electron && bun run electron:build:linux"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

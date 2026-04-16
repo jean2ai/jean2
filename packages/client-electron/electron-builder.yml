@@ -1,0 +1,81 @@
+appId: com.jean2.app
+productName: Jean2
+copyright: Copyright © 2025 Jean2
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - dist/*.html
+  - package.json
+
+extraMetadata:
+  main: dist/main.js
+
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  extendInfo:
+    NSCameraUsageDescription: Jean2 needs camera access for video calls
+    NSMicrophoneUsageDescription: Jean2 needs microphone access for audio calls
+    NSDesktopFolderUsageDescription: Jean2 needs desktop folder access for file operations
+    NSDocumentsFolderUsageDescription: Jean2 needs documents folder access for file operations
+    NSDownloadsFolderUsageDescription: Jean2 needs downloads folder access for file operations
+    NSUserNotificationsUsageDescription: Jean2 needs notification access for alerts
+    NSLocalNetworkUsageDescription: Jean2 needs local network access for server communication
+    NSBonjourServices:
+      - _jean2._tcp
+
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-win.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icons
+  category: Utility
+  artifactName: ${productName}-${version}-linux.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Jean2
+
+publish:
+  provider: github
+  owner: your-github-username
+  repo: jean2
+
+asar: true
+compression: normal
+
+electronDownload:
+  cache: .electron-cache
+
+# Bundle server binary as extra resource
+extraResources:
+  - from: ../server/dist
+    to: server
+    filter:
+      - "**/*"
+  - from: ../client/dist
+    to: client/dist
+    filter:
+      - "**/*"
+  - from: ../client/src/assets/sounds
+    to: sounds
+    filter:
+      - "**/*.mp3"
