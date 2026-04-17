@@ -115,7 +115,11 @@ jobs:
             bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
             bun build --compile --target=bun-windows-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-windows.exe packages/server/src/cli.ts
             [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-            gh release create "$TAG" --title "Server $V" $PRE \
+            NOTES_FLAG=""
+            if [ -s "changelogs/server/v${V}.md" ]; then
+              NOTES_FLAG="--notes-file changelogs/server/v${V}.md"
+            fi
+            gh release create "$TAG" --title "Server $V" $PRE $NOTES_FLAG \
               packages/server/dist/jean2-darwin packages/server/dist/jean2-linux packages/server/dist/jean2-windows.exe
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
@@ -129,5 +133,9 @@ jobs:
             git push origin "$TAG" --force
             tar -czf "$PACKAGE_NAME.tar.gz" -C "$P" .
             [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-            gh release create "$TAG" --title "Tool $PACKAGE_NAME $V" $PRE "$PACKAGE_NAME.tar.gz"
+            NOTES_FLAG=""
+            if [ -s "changelogs/tools/$PACKAGE_NAME/v${V}.md" ]; then
+              NOTES_FLAG="--notes-file changelogs/tools/$PACKAGE_NAME/v${V}.md"
+            fi
+            gh release create "$TAG" --title "Tool $PACKAGE_NAME $V" $PRE $NOTES_FLAG "$PACKAGE_NAME.tar.gz"
           fi

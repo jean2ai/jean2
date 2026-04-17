@@ -72,10 +72,14 @@ jobs:
           fi
           echo "prerelease=$PRE" >> $GITHUB_OUTPUT
 
+          NOTES_FLAG=""
+          if [ -s "changelogs/client/v${V}.md" ]; then
+            NOTES_FLAG="--notes-file changelogs/client/v${V}.md"
+          fi
           if [ "$PRE" == "true" ]; then
-            gh release create "$TAG" --title "Client $V" --prerelease
+            gh release create "$TAG" --title "Client $V" --prerelease $NOTES_FLAG
           else
-            gh release create "$TAG" --title "Client $V"
+            gh release create "$TAG" --title "Client $V" $NOTES_FLAG
           fi
           echo "Release $TAG created successfully"
 
