@@ -1,6 +1,6 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
-import { isElectron } from '@/lib/platform';
+import { isElectron, isWindows } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -96,7 +96,7 @@ export function AppHeader() {
         <div className="hidden md:block h-[30px] shrink-0" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
 
-      <header className="hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0">
+      <header className={`hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0${isElectron() && isWindows() ? ' pr-36' : ''}`}>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <ServerSwitcher

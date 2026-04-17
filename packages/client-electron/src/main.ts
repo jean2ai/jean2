@@ -46,6 +46,7 @@ function createWindow(): BrowserWindow {
     center: true,
     resizable: true,
     titleBarStyle: 'hidden',
+    titleBarOverlay: true,
     backgroundColor: '#00000000',
     icon: isDev ? join(__dirname, '..', 'build', 'icon.png') : undefined,
     webPreferences: {
