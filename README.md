@@ -75,11 +75,11 @@ System prompts, tools, and skills are all files on disk. Edit them, add them, re
 
 ## Use Cases
 
-| Use Case | Description |
-|----------|-------------|
-| **AI-Powered Coding** | Connect Claude, GPT-4o, or Gemini to your codebase. Subagents explore, refactor, and implement with full workspace isolation. |
-| **Research & Analysis** | Give your agent tools to query APIs, scrape pages, and process documents. Isolated workspaces keep contexts separate. |
-| **Deployment & Ops** | Connect MCP servers for Kubernetes, AWS, or Terraform. Multi-step deployment pipelines via subagent orchestration. |
+| Use Case | Description                                                                                                                               |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **AI-Powered Coding** | Connect Claude, GPT-5.4, or Gemini to your codebase. Subagents explore, refactor, and implement with full workspace isolation.            |
+| **Research & Analysis** | Give your agent tools to query APIs, scrape pages, and process documents. Isolated workspaces keep contexts separate.                     |
+| **Deployment & Ops** | Connect MCP servers for Kubernetes, AWS, or Terraform. Multi-step deployment pipelines via subagent orchestration.                        |
 | **Automation Workflows** | Create agent personalities for repetitive tasks. Skills let agents follow domain-specific workflows. Queue sessions for batch processing. |
 
 ---
@@ -96,7 +96,6 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | **read-file** | Read files and directory listings |
 | **write-file** | Write content to files |
 | **grep** | Search files with regex patterns |
-| **bash** | Execute shell commands |
 
 [+9 more tools available](https://jean2.ai/docs/tools/registry) · [Explore all tools](https://jean2.ai/docs/tools/registry)
 
@@ -109,49 +108,51 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Client Layer                              │
-│    ┌──────────┐  ┌──────────┐  ┌─────────────────────────┐      │
-│    │ Desktop  │  │ iPhone   │  │ Web (npx @jean2/client) │      │
-│    │ (Tauri)  │  │ (Tauri)  │  │                         │      │
-│    └────┬─────┘  └────┬─────┘  └──────────┬──────────────┘      │
-│         └─────────────┴───────────────────┘                     │
-│                         ·                                       │
+│    ┌───────────┐  ┌──────────┐  ┌─────────────────────────┐     │
+│    │ Desktop   │  │ Mobile   │  │ Web (npx @jean2/client) │     │
+│    │ (Electron)│  │ (Tauri)  │  │                         │     │
+│    └────┬──────┘  └────┬─────┘  └──────────┬──────────────┘     │
+│         └──────────────┴─┬─────────────────┘                    │
+│                          │                                      │
 │              WebSocket + REST (any network)                     │
 │              local · Tailscale · VPN · public                   │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
-┌──────────────────────────┴──────────────────────────────────────┐
-│                    Server (@jean2/server)                       │
-│                                                                 │
-│  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐           │
-│  │ Agent Loop  │  │ Tool     │  │ MCP Manager       │           │
-│  │ (AI SDK v6) │  │ Executor │  │ (stdio + remote)  │           │
-│  └──────┬──────┘  └────┬─────┘  └────────┬──────────┘           │
-│         └──────────────┼─────────────────┘                      │
-│               ┌────────┴───────────┐                            │
-│               │   ~/.jean2/tools/  │                            │
-│               │   (any runtime)    │                            │
-│               └────────────────────┘                            │
-│                     ┌──────────────┐                            │
-│                     │ Subagent     │                            │
-│                     │ Orchestrator │                            │
-│                     └──────┬───────┘                            │
-│               ┌────────────┴────────────┐                       │
-│               │     SQLite Store        │                       │
-│               │ Sessions · Messages     │                       │
-│               │ Permissions · History   │                       │
-│               └─────────────────────────┘                       │
-│                                                                 │
-│              Workspaces → directories on your machine           │
-└──────────────────────────┴──────────────────────────────────────┘
+┌──────────────────────────┴─────────────────────────────────────┐
+│                    Server (@jean2/server)                      │
+│                                                                │
+│  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐          │
+│  │ Agent Loop  │  │ Tool     │  │ MCP Manager       │          │
+│  │ (AI SDK v6) │  │ Executor │  │ (stdio + remote)  │          │
+│  └──────┬──────┘  └────┬─────┘  └────────┬──────────┘          │
+│         └──────────────┼─────────────────┘                     │
+│               ┌────────┴───────────┐                           │
+│               │   ~/.jean2/tools/  │                           │
+│               │   (any runtime)    │                           │
+│               └────────────────────┘                           │
+│                     ┌──────────────┐                           │
+│                     │ Subagent     │                           │
+│                     │ Orchestrator │                           │
+│                     └──────┬───────┘                           │
+│               ┌────────────┴────────────┐                      │
+│               │     SQLite Store        │                      │
+│               │ Sessions · Messages     │                      │
+│               │ Permissions · History   │                      │
+│               └─────────────────────────┘                      │
+│                                                                │
+│              Workspaces → directories on your machine          │
+└──────────────────────────┴─────────────────────────────────────┘
 ```
 
 ### Packages
 
 | Package | Description |
 |---------|-------------|
-| [`@jean2/server`](packages/server/README.md) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
-| [`@jean2/client`](packages/client/README.md) | React 19 + Tauri 2 UI — chat, file browser, permissions, multi-server |
-| [`@jean2/shared`](packages/shared/README.md) | Shared TypeScript types and WebSocket protocol definitions |
+| [`@jean2/server`](packages/server/) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
+| [`@jean2/client`](packages/client/) | React 19 + Vite 8 UI — chat, file browser, permissions, multi-server |
+| [`@jean2/sdk`](packages/sdk/) | Shared TypeScript types, WebSocket protocol, transport layer, REST clients |
+| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app — macOS and Windows |
+| [`@jean2/client-tauri`](packages/client-tauri/) | Tauri 2 native app — mobile (iOS, Android) |
 
 ### Tech Stack
 
@@ -159,9 +160,10 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 |-------|-----------|
 | Runtime | [Bun](https://bun.sh/) |
 | Server | [Hono](https://hono.dev/), AI SDK v6, SQLite |
-| Client | React 19, Vite 6, TypeScript |
+| Client | React 19, Vite 8, TypeScript |
 | UI | Tailwind CSS v4, shadcn/ui, Radix UI |
-| Desktop / Mobile | [Tauri 2](https://tauri.app/) |
+| Desktop | [Electron](https://www.electronjs.org/) |
+| Mobile | [Tauri 2](https://tauri.app/) |
 | LLM | Vercel AI SDK v6, MCP SDK |
 
 ---
