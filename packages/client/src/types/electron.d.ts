@@ -13,6 +13,8 @@ interface Jean2ElectronAPI {
   playSound(key: string): Promise<void>;
   onAccelerator(callback: (action: string) => void): () => void;
   onWebviewMessage(callback: (viewId: string, data: unknown) => void): () => void;
+  onUpdaterEvent(callback: (event: { type: string; data?: unknown }) => void): () => void;
+  checkForUpdates(): Promise<void>;
   getAppVersion(): Promise<string>;
   getServerStatus(): Promise<{ running: boolean; port: number }>;
   startServer(): Promise<number>;

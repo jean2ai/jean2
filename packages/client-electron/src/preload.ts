@@ -25,6 +25,7 @@ export interface Jean2ElectronAPI {
   onAccelerator(callback: (accelerator: string) => void): () => void;
   onWebviewMessage(callback: (data: { viewId: string; message: unknown }) => void): () => void;
   onUpdaterEvent(callback: (event: { type: string; data?: unknown }) => void): () => void;
+  checkForUpdates(): Promise<void>;
   getAppVersion(): Promise<string>;
   getServerStatus(): Promise<{ running: boolean; port: number }>;
   startServer(): Promise<{ port: number }>;
@@ -75,6 +76,7 @@ const electronAPI: Jean2ElectronAPI = {
       ipcRenderer.removeListener('updater:event', handler);
     };
   },
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   getServerStatus: () => ipcRenderer.invoke('server:status'),
   startServer: () => ipcRenderer.invoke('server:start'),

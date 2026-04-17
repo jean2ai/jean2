@@ -6,21 +6,21 @@ const { autoUpdater } = electronUpdater;
 const log = electronLog.default || electronLog;
 type UpdateInfo = import('electron-updater').UpdateInfo;
 
+const UPDATE_CHECK_INTERVAL = 4 * 60 * 60 * 1000;
+
+function checkForUpdates(): void {
+  console.log('[Updater] Checking for updates...');
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.error('[Updater] Error checking for updates:', err);
+  });
+}
+
 export function setupUpdater(mainWindow: BrowserWindow): void {
   autoUpdater.logger = log;
   log.transports.file.level = 'info';
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
-
-  const UPDATE_CHECK_INTERVAL = 4 * 60 * 60 * 1000;
-
-  function checkForUpdates(): void {
-    console.log('[Updater] Checking for updates...');
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error('[Updater] Error checking for updates:', err);
-    });
-  }
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[Updater] Checking for update...');
@@ -79,6 +79,10 @@ export function setupUpdater(mainWindow: BrowserWindow): void {
   setInterval(() => {
     checkForUpdates();
   }, UPDATE_CHECK_INTERVAL);
+}
+
+export function triggerUpdateCheck(): void {
+  checkForUpdates();
 }
 
 function sendUpdaterEvent(

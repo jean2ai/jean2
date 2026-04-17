@@ -5,6 +5,7 @@ import { dirname, join } from 'path';
 import ElectronStore from 'electron-store';
 import { WebviewManager } from './webview-manager.js';
 import { ServerManager } from './server-manager.js';
+import { triggerUpdateCheck } from './updater.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -124,5 +125,9 @@ export function registerIpcHandlers(
 
   ipcMain.handle('server:stop', async () => {
     return serverManager.stop();
+  });
+
+  ipcMain.handle('updater:check', () => {
+    triggerUpdateCheck();
   });
 }
