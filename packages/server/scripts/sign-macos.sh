@@ -240,6 +240,9 @@ setup_certificate() {
 sign_binary() {
   local signing_identity="$1"
 
+  info "Removing existing signature..."
+  codesign --remove-signature "$BINARY_PATH" 2>/dev/null || true
+
   info "Code signing binary..."
   info "Identity: $signing_identity"
 

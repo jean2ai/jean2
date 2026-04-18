@@ -151,6 +151,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k actions "$KEYCHAIN_PATH"
           rm -f "$CERT_PATH"
 
+      - name: Remove existing signature
+        run: codesign --remove-signature packages/server/dist/jean2-darwin || true
+
       - name: Code Sign
         run: |
           IDENTITY=$(security find-identity -v -p codesigning $RUNNER_TEMP/signing.keychain-db | grep "Developer ID Application" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
