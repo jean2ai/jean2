@@ -182,7 +182,7 @@ jobs:
           rm jean2-darwin.zip
 
       - name: Staple Notarization Ticket
-        run: xcrun stapler staple packages/server/dist/jean2-darwin
+        run: xcrun stapler staple packages/server/dist/jean2-darwin || echo "Stapling skipped (expected for bare binaries)"
 
       - name: Upload macOS Binary
         env:
