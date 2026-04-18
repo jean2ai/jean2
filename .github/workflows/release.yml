@@ -41,14 +41,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.items }}
+      has_server: ${{ steps.matrix.outputs.has_server }}
     steps:
       - id: matrix
         run: |
           ITEMS='[]'
+          HAS_SERVER="false"
           
           # Server
           if [ "${{ inputs.release_server }}" = "true" ]; then
             ITEMS=$(echo "$ITEMS" | jq -c '. += [{"type": "server"}]')
+            HAS_SERVER="true"
           fi
           
           # Tools - bun
@@ -68,6 +71,124 @@ jobs:
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT
+          echo "has_server=$HAS_SERVER" >> $GITHUB_OUTPUT
+
+  prepare-server-release:
+    needs: prepare-releases
+    if: needs.prepare-releases.outputs.has_server == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare release
+        id: release
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          V=$(cat packages/server/VERSION) && TAG="server/v${V}"
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if gh release view "$TAG" 2>/dev/null; then
+            if [ "$FORCE" != "true" ]; then
+              echo "Skipping $TAG - release already exists"
+              exit 0
+            fi
+            echo "Deleting existing release $TAG for force recreation..."
+            gh release delete "$TAG" --yes || true
+          fi
+          git tag -f "$TAG"
+          git push origin "$TAG" --force
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
+            NOTES_FLAG=""
+            if [ -s "changelogs/server/v${V}.md" ]; then
+              NOTES_FLAG="--notes-file changelogs/server/v${V}.md"
+            fi
+          gh release create "$TAG" --title "Server $V" $PRE $NOTES_FLAG
+
+  release-server-macos:
+    needs: prepare-server-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install
+
+      - name: Build macOS binary
+        env:
+          V: ${{ needs.prepare-server-release.outputs.version }}
+        run: |
+          mkdir -p packages/server/dist
+          bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
+
+      - name: Import Apple Certificate
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          echo "$CSC_LINK" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p actions "$KEYCHAIN_PATH"
+          security list-keychains -s "$KEYCHAIN_PATH"
+          security unlock-keychain -p actions "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CSC_KEY_PASSWORD" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k actions "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+      - name: Code Sign
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning $RUNNER_TEMP/signing.keychain-db | grep "Developer ID Application" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Signing identity: $IDENTITY"
+          codesign --force --options runtime \
+            --entitlements packages/server/build/entitlements.mac.plist \
+            --sign "$IDENTITY" \
+            packages/server/dist/jean2-darwin
+
+      - name: Verify Signature
+        run: codesign --verify --deep --strict --verbose=2 packages/server/dist/jean2-darwin
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd packages/server/dist
+          zip -y jean2-darwin.zip jean2-darwin
+          xcrun notarytool submit jean2-darwin.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          rm jean2-darwin.zip
+
+      - name: Staple Notarization Ticket
+        run: xcrun stapler staple packages/server/dist/jean2-darwin
+
+      - name: Upload macOS Binary
+        env:
+          TAG: ${{ needs.prepare-server-release.outputs.tag }}
+        run: gh release upload "$TAG" packages/server/dist/jean2-darwin --clobber
+
+      - name: Cleanup Keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db || true
 
   release:
     needs: prepare-releases
@@ -100,27 +221,10 @@ jobs:
 
           if [ "$RELEASE_TYPE" = "server" ]; then
             V=$(cat packages/server/VERSION) && TAG="server/v${V}"
-            if gh release view "$TAG" 2>/dev/null; then
-              if [ "$FORCE" != "true" ]; then
-                echo "Skipping $TAG - release already exists"
-                continue
-              fi
-              echo "Deleting existing release $TAG for force recreation..."
-              gh release delete "$TAG" --yes || true
-            fi
-            git tag -f "$TAG"
-            git push origin "$TAG" --force
             mkdir -p packages/server/dist
-            bun build --compile --target=bun-darwin-arm64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-darwin packages/server/src/cli.ts
             bun build --compile --target=bun-linux-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-linux packages/server/src/cli.ts
             bun build --compile --target=bun-windows-x64 --define=JEAN2_VERSION="'${V}'" --outfile=packages/server/dist/jean2-windows.exe packages/server/src/cli.ts
-            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
-            NOTES_FLAG=""
-            if [ -s "changelogs/server/v${V}.md" ]; then
-              NOTES_FLAG="--notes-file changelogs/server/v${V}.md"
-            fi
-            gh release create "$TAG" --title "Server $V" $PRE $NOTES_FLAG \
-              packages/server/dist/jean2-darwin packages/server/dist/jean2-linux packages/server/dist/jean2-windows.exe
+            gh release upload "$TAG" packages/server/dist/jean2-linux packages/server/dist/jean2-windows.exe --clobber
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
             P="tools/$PACKAGE_NAME"
@@ -132,7 +236,7 @@ jobs:
             git tag -f "$TAG"
             git push origin "$TAG" --force
             tar -czf "$PACKAGE_NAME.tar.gz" -C "$P" .
-            [[ "$V" == *"- "* ]] && PRE="--prerelease" || PRE=""
+            [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             NOTES_FLAG=""
             if [ -s "changelogs/tools/$PACKAGE_NAME/v${V}.md" ]; then
               NOTES_FLAG="--notes-file changelogs/tools/$PACKAGE_NAME/v${V}.md"
