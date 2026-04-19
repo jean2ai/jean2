@@ -50,6 +50,28 @@
       "tags": ["recommended", "core"],
       "dangerous": false
     },
+    "file-to-markdown": {
+      "description": "Convert files to Markdown format (PDFs, Office docs, code files, archives)",
+      "packages": [
+        {
+          "name": "file-to-markdown-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        },
+        {
+          "name": "file-to-markdown-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["recommended"],
+      "dangerous": false
+    },
     "glob": {
       "description": "Find files matching glob patterns",
       "packages": [
