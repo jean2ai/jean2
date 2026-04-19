@@ -55,7 +55,7 @@ jobs:
           fi
           
           # Tools - bun
-          BUN_TOOLS=(apply-patch-bun edit-bun glob-bun grep-bun ls-bun multiedit-bun read-file-bun shell-bun todoread-bun todowrite-bun webfetch-bun write-file-bun)
+          BUN_TOOLS=(apply-patch-bun edit-bun file-to-markdown-bun glob-bun grep-bun ls-bun multiedit-bun read-file-bun shell-bun todoread-bun todowrite-bun webfetch-bun write-file-bun)
           if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_bun_tools }}" = "true" ]; then
             for TOOL in "${BUN_TOOLS[@]}"; do
               ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
@@ -63,7 +63,7 @@ jobs:
           fi
           
           # Tools - node
-          NODE_TOOLS=(apply-patch-node edit-node glob-node grep-node ls-node multiedit-node read-file-node shell-node todoread-node todowrite-node webfetch-node write-file-node)
+          NODE_TOOLS=(apply-patch-node edit-node file-to-markdown-node glob-node grep-node ls-node multiedit-node read-file-node shell-node todoread-node todowrite-node webfetch-node write-file-node)
           if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_node_tools }}" = "true" ]; then
             for TOOL in "${NODE_TOOLS[@]}"; do
               ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
