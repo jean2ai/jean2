@@ -1,0 +1,9 @@
+{
+  "name": "tool-file-to-markdown-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "filetomarkdown": "^0.6.9"
+  }
+}
