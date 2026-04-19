@@ -33,7 +33,7 @@ hasSecurityCheck: true
 
 # file-to-markdown
 
-Converts files to Markdown format using the `filetomarkdown` npm package, with support for 60+ file formats. Conversion results are cached in session temp storage — subsequent reads of unchanged files skip conversion entirely.
+Converts files to Markdown format using the `filetomarkdown` npm package. Conversion results are cached in session temp storage — subsequent reads of unchanged files skip conversion entirely.
 
 ## When to Use
 
@@ -41,23 +41,19 @@ Converts files to Markdown format using the `filetomarkdown` npm package, with s
 - Extracting content from Office documents (Word, Excel, PowerPoint)
 - Reading LibreOffice documents (odt, ods, odp)
 - Extracting content from archive files (zip, 7z)
-- Reading binary files that don't have a plain-text representation
 
 ## When NOT to Use
 
-- Plain text files (.txt, .md) — use `read-file` instead for better performance
+- Plain text or code files (.txt, .md, .js, .py, etc.) — use `read-file` instead
 - Fetching content from URLs — use `webfetch` instead
 - Creating or writing files — use `write-file` instead
 
 ## Supported File Types
 
-### Documents
-- PDF documents
+- PDF documents: `.pdf`
 - Microsoft Office: `.docx`, `.xlsx`, `.pptx`
 - LibreOffice: `.odt`, `.ods`, `.odp`
-
-### Archives
-- `.zip`, `.7z` (extracts content from contained files)
+- Archives: `.zip`, `.7z`
 
 ## Usage
 
@@ -80,5 +76,5 @@ Converts files to Markdown format using the `filetomarkdown` npm package, with s
 
 Best practices:
 - For large documents, the output will be paginated — use `offset` to read subsequent sections
-- Use `read-file` for plain text files — it's faster and doesn't require conversion
+- Use `read-file` for plain text and code files — it's faster and doesn't require conversion
 - Maximum supported file size is 50MB

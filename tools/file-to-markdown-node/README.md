@@ -6,8 +6,8 @@ This tool wraps the `filetomarkdown` npm package, created by Josef Nobach (jojom
 
 ## Requirements
 
-- **Runtime**: `bun`
-- **Post-install**: `bun install`
+- **Runtime**: `node`
+- **Post-install**: `npm install`
 
 ## Parameters
 
