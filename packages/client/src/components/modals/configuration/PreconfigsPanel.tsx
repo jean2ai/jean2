@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Jean2Client } from '@jean2/sdk';
-import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X } from 'lucide-react';
+import type { Jean2Client, ModelWithStatus } from '@jean2/sdk';
+import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X, Cpu, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { ConfirmDialog } from '@/components/modals/ConfirmDialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 interface PanelProps {
   sdkClient: Jean2Client | null;
@@ -44,7 +59,7 @@ interface PreconfigForm {
   provider: string;
   variant: string;
   tools: string[];
-  settings: string;
+  temperature: string;
   canSpawnSubagentsMode: 'all' | 'none' | 'specific';
   canSpawnSubagentsList: string[];
   skills: string[];
@@ -60,7 +75,7 @@ const emptyForm: PreconfigForm = {
   provider: '',
   variant: '',
   tools: [],
-  settings: '',
+  temperature: '',
   canSpawnSubagentsMode: 'none',
   canSpawnSubagentsList: [],
   skills: [],
@@ -83,6 +98,27 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [customToolInput, setCustomToolInput] = useState('');
   const [subagentInput, setSubagentInput] = useState('');
   const [skillInput, setSkillInput] = useState('');
+
+  const models = useServerDataStore((s) => s.models);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+
+  const selectedModelObj = form.model ? models.find(m => m.id === form.model) : null;
+  const selectedModelVariants = selectedModelObj?.variants ? Object.keys(selectedModelObj.variants) : [];
+
+
+  const groupedModels = models.reduce((acc, model) => {
+    const key = model.providerName || model.providerId;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(model);
+    return acc;
+  }, {} as Record<string, ModelWithStatus[]>);
+
+  const availableSubagents = preconfigs.filter(p => {
+    const mode = p.mode ?? 'primary';
+    const isSubagent = mode === 'subagent' || mode === 'both';
+    const isNotSelf = !editingPreconfig || p.id !== editingPreconfig.id;
+    return isSubagent && isNotSelf;
+  });
 
   const loadPreconfigs = useCallback(async () => {
     if (!sdkClient) return;
@@ -116,6 +152,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
     setCustomToolInput('');
     setSubagentInput('');
     setSkillInput('');
+    setModelSelectorOpen(false);
   };
 
   const handleEdit = (preconfig: Preconfig) => {
@@ -130,7 +167,9 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
       provider: preconfig.provider || '',
       variant: preconfig.variant || '',
       tools: preconfig.tools ?? [],
-      settings: preconfig.settings ? JSON.stringify(preconfig.settings, null, 2) : '',
+      temperature: preconfig.settings?.temperature != null
+        ? String(preconfig.settings.temperature)
+        : '',
       canSpawnSubagentsMode: preconfig.canSpawnSubagents === true ? 'all'
         : preconfig.canSpawnSubagents === false || preconfig.canSpawnSubagents === null || preconfig.canSpawnSubagents === undefined
           ? 'none'
@@ -150,19 +189,14 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
     setError(null);
     try {
       let settings: Record<string, unknown> | null = null;
-      if (form.settings.trim()) {
-        try {
-          const parsed = JSON.parse(form.settings);
-          if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-            settings = parsed;
-          } else {
-            throw new Error('Settings must be a JSON object');
-          }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Invalid settings JSON');
+      if (form.temperature.trim()) {
+        const temp = parseFloat(form.temperature);
+        if (isNaN(temp) || temp < 0.1 || temp > 0.9) {
+          setError('Temperature must be between 0.1 and 0.9');
           setSaving(false);
           return;
         }
+        settings = { temperature: temp };
       }
 
       let canSpawnSubagents: boolean | string[] | null = null;
@@ -226,6 +260,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
     setCustomToolInput('');
     setSubagentInput('');
     setSkillInput('');
+    setModelSelectorOpen(false);
   };
 
   if (isCreating || editingPreconfig) {
@@ -278,38 +313,99 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-sm">Model (optional)</Label>
-              <Input
-                value={form.model}
-                onChange={(e) => setForm({ ...form, model: e.target.value })}
-                placeholder="gpt-4o"
-                className="font-mono"
-              />
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm">Model</Label>
+              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={modelSelectorOpen}
+                    className="w-full justify-between font-mono text-sm h-9"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Cpu className="size-4 shrink-0 text-muted-foreground" />
+                      {selectedModelObj
+                        ? <span className="truncate">{selectedModelObj.name}</span>
+                        : <span className="text-muted-foreground">Use server default</span>
+                      }
+                    </div>
+                    <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search models..." />
+                    <CommandList className="max-h-[50vh] overflow-y-auto">
+                      <CommandEmpty>No model found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => {
+                            setForm(prev => ({ ...prev, model: '', provider: '', variant: '' }));
+                            setModelSelectorOpen(false);
+                          }}
+                          className="justify-between"
+                        >
+                          <span className="text-muted-foreground">Use server default</span>
+                          {!form.model && <Check className="size-4" />}
+                        </CommandItem>
+                      </CommandGroup>
+                      {Object.entries(groupedModels).map(([providerName, providerModels]) => (
+                        <CommandGroup key={providerName} heading={providerName}>
+                          {providerModels.map((model) => (
+                            <CommandItem
+                              key={model.id}
+                              value={`${model.name} ${model.id}`}
+                              onSelect={() => {
+                                setForm(prev => ({
+                                  ...prev,
+                                  model: model.id,
+                                  provider: model.providerId,
+                                  variant: '',
+                                }));
+                                setModelSelectorOpen(false);
+                              }}
+                              className="justify-between"
+                            >
+                              <span className="truncate">{model.name}</span>
+                              <Check
+                                className={cn(
+                                  'size-4 shrink-0',
+                                  form.model === model.id ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="text-[10px] text-muted-foreground">
+                Provider is set automatically based on the selected model
+              </p>
             </div>
-            <div>
-              <Label className="text-sm">Provider (optional)</Label>
-              <Input
-                value={form.provider}
-                onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                placeholder="openai"
-                className="font-mono"
-              />
-            </div>
-          </div>
 
-          <Separator className="my-1" />
-
-          <div>
-            <Label className="text-sm">Variant (optional)</Label>
-            <Input
-              value={form.variant}
-              onChange={(e) => setForm({ ...form, variant: e.target.value })}
-              placeholder="e.g., low, medium, high"
-              className="font-mono"
-            />
-            <p className="text-[10px] text-muted-foreground mt-1">Model variant key from models.json</p>
+            {selectedModelVariants.length > 0 && (
+              <div>
+                <Label className="text-sm">Variant</Label>
+                <select
+                  value={form.variant}
+                  onChange={(e) => setForm(prev => ({ ...prev, variant: e.target.value }))}
+                  className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+                >
+                  <option value="">Default</option>
+                  {selectedModelVariants.map(v => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Model variant from models.json (e.g., reasoning effort)
+                </p>
+              </div>
+            )}
           </div>
 
           <Separator className="my-1" />
@@ -406,14 +502,20 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
 
           <Separator className="my-1" />
 
-          <div className="space-y-1">
-            <Label className="text-sm">Settings</Label>
-            <p className="text-[10px] text-muted-foreground">JSON object for model parameters (e.g., temperature)</p>
-            <textarea
-              value={form.settings}
-              onChange={(e) => setForm({ ...form, settings: e.target.value })}
-              className="w-full h-20 p-2 rounded-lg border bg-background text-sm font-mono resize-y"
-              placeholder='{"temperature": 0.2}'
+          <div>
+            <Label className="text-sm">Temperature</Label>
+            <p className="text-[10px] text-muted-foreground">
+              Model sampling temperature (0.1–0.9). Leave empty to use server default.
+            </p>
+            <Input
+              type="number"
+              value={form.temperature}
+              onChange={(e) => setForm({ ...form, temperature: e.target.value })}
+              placeholder="0.2"
+              min="0.1"
+              max="0.9"
+              step="0.1"
+              className="font-mono"
             />
           </div>
 
@@ -433,7 +535,43 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
 
             {form.canSpawnSubagentsMode === 'specific' && (
               <div className="space-y-1.5">
-                <p className="text-[10px] text-muted-foreground">Enter preconfig IDs that this agent can spawn</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Select from available subagents or enter a preconfig ID manually
+                </p>
+
+                {/* Badge selector for known subagents */}
+                {availableSubagents.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableSubagents.map(subagent => {
+                      const selected = form.canSpawnSubagentsList.includes(subagent.id);
+                      return (
+                        <button
+                          key={subagent.id}
+                          type="button"
+                          onClick={() => {
+                            setForm(prev => ({
+                              ...prev,
+                              canSpawnSubagentsList: selected
+                                ? prev.canSpawnSubagentsList.filter(s => s !== subagent.id)
+                                : [...prev.canSpawnSubagentsList, subagent.id],
+                            }));
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border transition-colors ${
+                            selected
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background border-border hover:bg-muted'
+                          }`}
+                          title={subagent.description || subagent.id}
+                        >
+                          {selected && <Check className="size-2.5" />}
+                          {subagent.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Manual ID input */}
                 <div className="flex gap-1.5">
                   <Input
                     value={subagentInput}
@@ -452,9 +590,11 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
                     }}
                   />
                 </div>
-                {form.canSpawnSubagentsList.length > 0 && (
+
+                {/* Show manually-added IDs that don't match known subagents */}
+                {form.canSpawnSubagentsList.filter(id => !availableSubagents.some(sa => sa.id === id)).length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {form.canSpawnSubagentsList.map(id => (
+                    {form.canSpawnSubagentsList.filter(id => !availableSubagents.some(sa => sa.id === id)).map(id => (
                       <span
                         key={id}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-primary/10 border border-primary/30 font-mono"
