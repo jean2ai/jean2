@@ -49,8 +49,8 @@ export interface CompactionExecutorError {
  * - trigger creation and broadcasting
  * - processing via processCompactionTask
  * - failure persistence via persistCompactionFailure
- * - session token accumulation from compaction result
- * - standard trigger/summary broadcasting
+   * - session token update from compaction result
+   * - standard trigger/summary broadcasting
  */
 export async function executeCompaction(
   sessionId: string,
@@ -101,9 +101,9 @@ export async function executeCompaction(
     const currentSession = getSession(sessionId);
     if (currentSession) {
       updateSession(sessionId, {
-        promptTokens: (currentSession.promptTokens ?? 0) + result.tokensUsed.prompt,
-        completionTokens: (currentSession.completionTokens ?? 0) + result.tokensUsed.completion,
-        totalTokens: (currentSession.totalTokens ?? 0) + result.tokensUsed.prompt + result.tokensUsed.completion,
+        promptTokens: result.tokensUsed.prompt,
+        completionTokens: result.tokensUsed.completion,
+        totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
         compacting: false,
       });
       broadcastSessionUpdated(getSession(sessionId)!);

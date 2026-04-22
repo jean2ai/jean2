@@ -143,7 +143,7 @@ export function AppMainContent({
   const compactable = messagesWithParts.filter(
     (m) => m.message.role !== 'system'
   );
-  const canCompact = compactable.length >= 4;
+  const canCompact = compactable.length >= 2;
 
   // Find the provider ID for the current model
   const currentModelInfo = models.find((m) => m.id === currentModel);

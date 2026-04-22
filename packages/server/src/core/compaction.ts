@@ -1,5 +1,5 @@
 import { generateText, streamText } from 'ai';
-import { getModel } from './model-utils';
+import { getModelWithMetadata } from './model-utils';
 import { findModel } from '@/config';
 import {
   listMessagesWithParts,
@@ -195,8 +195,8 @@ export function createCompactionTrigger(
   sessionId: string,
   reason: CompactionTriggerReason,
 ): CompactionTrigger {
-  // Simple meaningful validation: there must be at least 2 non-system messages
-  // (at minimum one user turn + one assistant turn to have meaningful content)
+  // Minimum validation: at least 1 user + 1 assistant message needed for meaningful compaction.
+  // A single agent turn with heavy tool use can produce enough context to warrant compaction.
   const { messages: effectiveHistory } = buildEffectiveContextHistory(sessionId);
   const nonSystemCount = effectiveHistory.filter(
     (m) => m.message.role !== 'system',
@@ -444,7 +444,7 @@ export async function processCompactionTask(
 
   console.log('[compaction] modelId:', policy.modelId, 'providerId:', policy.providerId);
 
-  const model = await getModel(policy.modelId ?? undefined, policy.providerId ?? undefined);
+  const { model, omitMaxOutputTokens } = await getModelWithMetadata(policy.modelId ?? undefined, policy.providerId ?? undefined);
 
   // Resolve effective modelId/providerId - same logic as getModelWithMetadata in agent.ts
   const effectiveModelId = policy.modelId || 'gpt-4o';
@@ -468,7 +468,7 @@ export async function processCompactionTask(
     const stream = streamText({
       model,
       prompt,
-      maxOutputTokens: policy.maxOutputTokens,
+      maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
       providerOptions: {
         openai: {
           instructions: prompt,
@@ -478,6 +478,11 @@ export async function processCompactionTask(
     });
     summary = await stream.text;
     const resultUsage = await stream.usage;
+    const resultFinishReason = await stream.finishReason;
+    if (resultFinishReason === 'length') {
+      console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
+      summary += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
+    }
     usage = {
       prompt: resultUsage.inputTokens ?? 0,
       completion: resultUsage.outputTokens ?? 0,
@@ -487,9 +492,13 @@ export async function processCompactionTask(
       const result = await generateText({
         model,
         prompt,
-        maxOutputTokens: policy.maxOutputTokens,
+        maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
       });
       summary = result.text;
+      if (result.finishReason === 'length') {
+        console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
+        summary += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
+      }
       usage = {
         prompt: result.usage.inputTokens ?? 0,
         completion: result.usage.outputTokens ?? 0,

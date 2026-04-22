@@ -337,7 +337,7 @@ export function ChatView({
         onInterrupt={onInterrupt}
         onCompact={onCompact}
         isCompacting={isCompacting}
-        canCompact={messagesWithParts.length >= 4}
+        canCompact={messagesWithParts.length >= 2}
         selectedVariant={selectedVariant}
         variants={variants}
       />

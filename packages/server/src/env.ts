@@ -149,8 +149,8 @@ export function getCompactionProvider(): string | undefined {
 }
 
 export function getCompactionMaxTokens(): number {
-  const parsed = parseInt(process.env.JEAN2_COMPACTION_MAX_TOKENS || '2000', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 2000;
+  const parsed = parseInt(process.env.JEAN2_COMPACTION_MAX_TOKENS || '8000', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8000;
 }
 
 export function getCompactionAutoThresholdRatio(): number {

@@ -83,6 +83,37 @@ const pendingPermissionResolvers = new Map<string, {
   resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void
 }>();
 
+const compactionFailureTracker = new Map<string, { count: number; lastFailureAt: number }>();
+const COMPACTION_FAILURE_COOLDOWN_MS = 60_000;
+const COMPACTION_MAX_CONSECUTIVE_FAILURES = 2;
+
+function shouldSkipCompaction(sessionId: string): boolean {
+  const tracker = compactionFailureTracker.get(sessionId);
+  if (!tracker) return false;
+
+  const elapsed = Date.now() - tracker.lastFailureAt;
+  if (elapsed > COMPACTION_FAILURE_COOLDOWN_MS) {
+    compactionFailureTracker.delete(sessionId);
+    return false;
+  }
+
+  return tracker.count >= COMPACTION_MAX_CONSECUTIVE_FAILURES;
+}
+
+function recordCompactionFailure(sessionId: string): void {
+  const existing = compactionFailureTracker.get(sessionId);
+  if (existing) {
+    existing.count++;
+    existing.lastFailureAt = Date.now();
+  } else {
+    compactionFailureTracker.set(sessionId, { count: 1, lastFailureAt: Date.now() });
+  }
+}
+
+function clearCompactionFailure(sessionId: string): void {
+  compactionFailureTracker.delete(sessionId);
+}
+
 function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
   const messageStr = JSON.stringify(message);
   for (const [ws] of clients.entries()) {
@@ -1385,14 +1416,18 @@ async function handleChat(
       const currentSession = getSession(sessionId);
       const isMainSession = currentSession && !currentSession.parentId;
 
-      if (isMainSession) {
+      if (isMainSession && !shouldSkipCompaction(sessionId)) {
         const replayText = findReplayText(sessionId);
         const execResult = await executeCompaction(sessionId, 'overflow');
 
         if (execResult.ok) {
+          clearCompactionFailure(sessionId);
           overflowRetryDepth++;
           currentContent = replayText ?? 'Continue from where we left off, using the compacted context.';
           continue;
+        } else if (!execResult.skipped) {
+          recordCompactionFailure(sessionId);
+          console.warn(`[handleChat] Overflow compaction failed for session ${sessionId}: ${execResult.error}`);
         }
       }
 
@@ -1415,8 +1450,14 @@ async function handleChat(
 
     if (result.streamCompleted && result.needsAutoCompaction) {
       const currentSession = getSession(sessionId);
-      if (currentSession && !currentSession.parentId) {
-        await executeCompaction(sessionId, 'auto');
+      if (currentSession && !currentSession.parentId && !shouldSkipCompaction(sessionId)) {
+        const execResult = await executeCompaction(sessionId, 'auto');
+        if (execResult.ok) {
+          clearCompactionFailure(sessionId);
+        } else if (!execResult.skipped) {
+          recordCompactionFailure(sessionId);
+          console.warn(`[handleChat] Auto-compaction failed for session ${sessionId}: ${execResult.error}`);
+        }
       }
       const next = await drainQueue(ws, sessionId);
       if (next) {
