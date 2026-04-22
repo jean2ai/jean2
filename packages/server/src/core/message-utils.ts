@@ -120,6 +120,19 @@ export async function convertToAiSdkMessages(
             toolName: toolPart.name,
             output: { type: 'text' as const, value: JSON.stringify(stripVisualization({ error: toolPart.state.error })) },
           });
+        } else {
+          // Handle 'pending', 'running', or 'interrupted' tool states
+          // These can occur when a session was interrupted or crashed mid-execution.
+          // Synthesize an error result so the AI SDK gets a valid tool-result for every tool-call.
+          const statusLabel = toolPart.state.status === 'interrupted'
+            ? 'interrupted'
+            : `${toolPart.state.status} (session interrupted)`;
+          toolResultBlocks.push({
+            type: 'tool-result' as const,
+            toolCallId: toolPart.callId,
+            toolName: toolPart.name,
+            output: { type: 'text' as const, value: JSON.stringify({ error: `Tool execution was ${statusLabel}` }) },
+          });
         }
       } else if (isImagePart(part)) {
         if (modelCapabilities?.input?.image) {

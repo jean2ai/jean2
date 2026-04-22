@@ -28,6 +28,8 @@ import {
   getNextQueuedMessage,
   reconcileSessionCompaction,
   reconcileAllSessionsCompaction,
+  reconcileAllOrphanedToolCalls,
+  reconcileOrphanedToolCalls,
   getAttachment,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
@@ -93,6 +95,7 @@ function broadcast(message: ServerMessage, excludeWs?: ServerWebSocket) {
 async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   cleanupRunningSessionsOnStartup();
   reconcileAllSessionsCompaction();
+  reconcileAllOrphanedToolCalls();
 
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();
@@ -541,6 +544,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       clients.set(ws, { sessionId: session.id });
 
       reconcileSessionCompaction(session.id);
+      reconcileOrphanedToolCalls(session.id);
 
       const reconciledSession = getSession(msg.sessionId);
 

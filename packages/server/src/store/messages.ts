@@ -472,6 +472,68 @@ export function transitionToolToRunningByCallId(
 }
 
 // =============================================================================
+// Interrupted Tool Call Recovery
+// =============================================================================
+
+export type ToolInterruptReason = 'user_request' | 'timeout' | 'error' | 'cascade';
+
+export function transitionToolToInterrupted(
+  partId: string,
+  reason: ToolInterruptReason,
+): ToolPart | null {
+  const existing = getPart(partId);
+  if (!existing || existing.type !== 'tool') return null;
+
+  const toolPart = existing as ToolPart;
+  const now = Date.now();
+
+  const updated: ToolPart = {
+    ...toolPart,
+    state: {
+      status: 'interrupted',
+      input: toolPart.state.input,
+      startedAt:
+        toolPart.state.status === 'running'
+          ? toolPart.state.startedAt
+          : now,
+      interruptedAt: now,
+      reason,
+      ...('childSessionId' in toolPart.state && { childSessionId: (toolPart.state as { childSessionId: string }).childSessionId }),
+    },
+  };
+
+  return updatePart(partId, { state: updated.state }) as ToolPart;
+}
+
+export function findOrphanedToolCalls(sessionId: string): ToolPart[] {
+  const allParts = getPartsBySession(sessionId);
+  return allParts.filter(
+    (p) => p.type === 'tool' && ((p as ToolPart).state.status === 'pending' || (p as ToolPart).state.status === 'running'),
+  ) as ToolPart[];
+}
+
+export function reconcileOrphanedToolCalls(sessionId: string): number {
+  const orphaned = findOrphanedToolCalls(sessionId);
+  for (const toolPart of orphaned) {
+    transitionToolToInterrupted(toolPart.id, 'error');
+  }
+  return orphaned.length;
+}
+
+export function reconcileAllOrphanedToolCalls(): number {
+  const db = getDatabase();
+  const allSessions = db.query('SELECT id FROM sessions').all() as { id: string }[];
+  let totalReconciled = 0;
+  for (const session of allSessions) {
+    totalReconciled += reconcileOrphanedToolCalls(session.id);
+  }
+  if (totalReconciled > 0) {
+    console.log(`[tool-recovery] Reconciled ${totalReconciled} orphaned tool call(s) across ${allSessions.length} session(s)`);
+  }
+  return totalReconciled;
+}
+
+// =============================================================================
 // Compaction Recovery (Workstream 2)
 // =============================================================================
 

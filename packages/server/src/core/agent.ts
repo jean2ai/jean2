@@ -1,6 +1,6 @@
 import { streamText, stepCountIs } from 'ai';
 import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/sdk';
-import { createMessage, updateMessage, getSession, updateSession } from '@/store';
+import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted } from '@/store';
 import type { PermissionRequestCallback } from '@/tools';
 import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
@@ -38,6 +38,30 @@ export interface ChatOptions {
   onPermissionRequest?: PermissionRequestCallback;
   maxSteps?: number;
   compactionPolicy?: CompactionPolicy;
+}
+
+function collectInterruptedToolPartEvents(
+  toolParts: ToolPart[],
+  sessionId: string,
+): MessageEvent[] {
+  const events: MessageEvent[] = [];
+  for (const toolPart of toolParts) {
+    if (toolPart.state.status === 'pending' || toolPart.state.status === 'running') {
+      const updatedPart = transitionToolToInterrupted(toolPart.id, 'user_request');
+      if (updatedPart) {
+        events.push({ type: 'part.updated', sessionId, part: updatedPart });
+      }
+    }
+  }
+  return events;
+}
+
+function buildInterruptedMessage(assistantMessage: AssistantMessage): AssistantMessage {
+  return {
+    ...assistantMessage,
+    status: 'interrupted' as const,
+    error: 'Interrupted by user',
+  };
 }
 
 export interface ChatResult {
@@ -214,11 +238,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     for await (const delta of result.fullStream) {
 
       if (abortController.signal.aborted) {
-        const interruptedMessage: AssistantMessage = {
-          ...assistantMessage,
-          status: 'interrupted',
-          error: 'Interrupted by user',
-        };
+        // Clean up any pending/running tool parts that won't get results
+        for (const event of collectInterruptedToolPartEvents(streamCtx.toolParts, _sessionId)) {
+          yield event;
+        }
+        const interruptedMessage = buildInterruptedMessage(assistantMessage);
         yield { type: 'message.updated', message: interruptedMessage };
         updateMessage(messageId, interruptedMessage);
         return;
@@ -259,11 +283,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
     // Check if it's an abort/interrupt (already handled)
     if (abortController.signal.aborted) {
-      const interruptedMessage: AssistantMessage = {
-        ...assistantMessage,
-        status: 'interrupted',
-        error: 'Interrupted by user',
-      };
+      // Clean up any pending/running tool parts that won't get results
+      for (const event of collectInterruptedToolPartEvents(streamCtx.toolParts, _sessionId)) {
+        yield event;
+      }
+      const interruptedMessage = buildInterruptedMessage(assistantMessage);
       yield { type: 'message.updated', message: interruptedMessage };
       updateMessage(messageId, interruptedMessage);
       return;
