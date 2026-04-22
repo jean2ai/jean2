@@ -460,13 +460,7 @@ export function useServerSessionManager({
     useConnectionStore.getState().resetConnection();
   }, [activeServer, removeServer, navigate, sdkClientRef]);
 
-  const handleRetry = useCallback(() => {
-    useConnectionStore.getState().setRetryCount(c => c + 1);
-    useConnectionStore.getState().setConnectionTimedOut(false);
-    useConnectionStore.getState().setNextRetryIn(0);
-  }, []);
-
-  useConnectionLifecycle({
+  const { retry } = useConnectionLifecycle({
     apiToken,
     serverUrl,
     currentSessionIdRef,
@@ -475,6 +469,10 @@ export function useServerSessionManager({
     handleLogout,
     clientRef: sdkClientRef,
   });
+
+  const handleRetry = useCallback(() => {
+    retry();
+  }, [retry]);
 
   const createWorkspace = async (name: string, path: string, isVirtual: boolean) => {
     const http = sdkClientRef.current?.httpClient;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -20,6 +20,7 @@ export interface ConnectionLifecycleParams {
 
 export interface ConnectionLifecycleReturn {
   clientRef: RefObject<Jean2Client | null>;
+  retry: () => void;
 }
 
 export function useConnectionLifecycle({
@@ -34,6 +35,13 @@ export function useConnectionLifecycle({
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    useConnectionStore.getState().setRetryCount(0);
+    useConnectionStore.getState().setConnectionTimedOut(false);
+    useConnectionStore.getState().setNextRetryIn(0);
+    setReconnectAttempt(n => n + 1);
+  }, []);
 
   // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
@@ -69,6 +77,8 @@ export function useConnectionLifecycle({
 
       if (payload.code === 1008 || payload.code === 401) {
         handleLogout();
+      } else {
+        useConnectionStore.getState().setConnectionTimedOut(true);
       }
     });
 
@@ -122,6 +132,7 @@ export function useConnectionLifecycle({
 
       const retryTimeout = setTimeout(() => {
         useConnectionStore.getState().setRetryCount(c => c + 1);
+        setReconnectAttempt(n => n + 1);
       }, delay);
 
       return () => {
@@ -148,5 +159,22 @@ export function useConnectionLifecycle({
     return () => window.removeEventListener('online', handleOnline);
   }, [apiToken, serverUrl]);
 
-  return { clientRef };
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const client = clientRef.current;
+      if (client && client.connected) return;
+      if (!apiToken || !serverUrl) return;
+
+      useConnectionStore.getState().setRetryCount(0);
+      useConnectionStore.getState().setConnectionTimedOut(false);
+      setReconnectAttempt(n => n + 1);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [apiToken, serverUrl]);
+
+  return { clientRef, retry };
 }
