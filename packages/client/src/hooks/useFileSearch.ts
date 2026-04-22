@@ -69,6 +69,10 @@ export function useFileSearch({ workspaceId: _workspaceId, debounceMs: _debounce
     handleFileSelect,
     insertMention,
     extractMentions,
+    clearMentions: useCallback(() => setMentions([]), []),
+    removeMention: useCallback((path: string) => {
+      setMentions(prev => prev.filter(m => m.path !== path));
+    }, []),
   };
 }
 

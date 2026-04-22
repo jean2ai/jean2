@@ -835,6 +835,25 @@ main {
 }
 
 /* ==========================================================================
+   MENTION HIGHLIGHTING
+   Subtle background tint for @file mentions in chat input
+   ========================================================================== */
+
+.mention-highlight {
+  background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.mirror-textarea {
+  color: var(--foreground);
+}
+
+:is(.dark .mirror-textarea) {
+  background-color: color-mix(in oklch, var(--input) 30%, transparent);
+}
+
+/* ==========================================================================
    SIDEBAR RESIZE TRANSITION CONTROL
    Suppresses CSS transitions during drag for instant cursor tracking
    ========================================================================== */

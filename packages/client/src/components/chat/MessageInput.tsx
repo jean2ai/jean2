@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,13 @@ import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/sdk';
 import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
+import { MentionHighlighter } from './MentionHighlighter';
+import { FileMentionChip } from './FileMentionChip';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
+import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 type AutocompleteMode = 'none' | 'files' | 'prompts';
 
@@ -94,9 +98,34 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setQuery,
     showAutocomplete,
     setShowAutocomplete,
+    mentions,
     handleFileSelect,
     insertMention,
+    clearMentions,
+    removeMention,
   } = useFileSearch({ workspaceId: workspaceId || '' });
+
+  const openFilePreview = useUIStore((s) => s.openFilePreview);
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+  const mentionPaths = useMemo(() => mentions.map(m => m.path), [mentions]);
+
+  useEffect(() => {
+    if (mentions.length === 0) return;
+    const mentionPathSet = new Set(mentions.map(m => m.path));
+    const regex = /@([^\s@]+)/g;
+    let match;
+    const activePaths = new Set<string>();
+    while ((match = regex.exec(input)) !== null) {
+      if (mentionPathSet.has(match[1])) {
+        activePaths.add(match[1]);
+      }
+    }
+    for (const m of mentions) {
+      if (!activePaths.has(m.path)) {
+        removeMention(m.path);
+      }
+    }
+  }, [input, mentions, removeMention]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -194,7 +223,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }
     setPendingAttachments([]);
     clearInput();
-  }, [pendingAttachments, clearInput]);
+    clearMentions();
+  }, [pendingAttachments, clearInput, clearMentions]);
 
   const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
     if (!sdkClient || !sessionId) return null;
@@ -224,6 +254,24 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return prev.filter(a => a.id !== id);
     });
   }, []);
+
+  const handleMentionRemove = useCallback((path: string) => {
+    const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mentionRegex = new RegExp(`@${escapedPath}`, 'g');
+    const newInput = input.replace(mentionRegex, '').replace(/\s+/g, ' ').trim();
+    setInput(newInput);
+    removeMention(path);
+  }, [input, setInput, removeMention]);
+
+  const handleMentionPreview = useCallback((path: string) => {
+    if (activeWorkspace?.id) {
+      openFilePreview({
+        workspaceId: activeWorkspace.id,
+        path,
+        name: path.split('/').pop() || path,
+      });
+    }
+  }, [activeWorkspace?.id, openFilePreview]);
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -453,8 +501,25 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <span>This model will not inspect images directly. They will be sent as file paths instead.</span>
         </div>
       )}
+      {mentions.length > 0 && (
+        <div className="flex gap-2 flex-wrap mb-2">
+          {mentions.map((mention) => (
+            <FileMentionChip
+              key={mention.path}
+              path={mention.path}
+              onRemove={handleMentionRemove}
+              onPreview={handleMentionPreview}
+            />
+          ))}
+        </div>
+      )}
       <div className="flex gap-3 items-end">
         <div className="flex-1 relative">
+          <MentionHighlighter
+            content={input}
+            mentions={mentionPaths}
+            textareaRef={textareaRef}
+          />
           <Popover open={showPromptAc || showFileAc} onOpenChange={(open) => {
             if (!open) {
               setAcMode('none');
@@ -472,7 +537,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 disabled={disabled}
                 className={cn(
                   'min-h-[44px] max-h-[150px] resize-none pr-12 chat-input-scrollbar',
-                  'focus-visible:ring-1'
+                  'focus-visible:ring-1',
+                  'relative z-[1] text-transparent caret-foreground placeholder:text-muted-foreground'
                 )}
                 rows={1}
                 data-chat-input="true"
