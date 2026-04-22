@@ -310,6 +310,9 @@ export function routeServerMessage(
       emitter.emit('error.context_overflow', msg.code, msg.message);
       emitter.emit('error', msg.code, msg.message);
       break;
+    case 'ping':
+      // Handled at transport level — no event emission
+      return;
     default: {
       const _exhaustive: never = msg;
       console.warn(`Unknown server message type: ${(_exhaustive as { type: string }).type}`);

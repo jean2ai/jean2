@@ -7,7 +7,6 @@ import { subscribeToServerEvents } from './subscribeToServerEvents';
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
 const INITIAL_RETRY_DELAY = 1000;
-const STALE_THRESHOLD = 30_000;
 
 export interface ConnectionLifecycleParams {
   apiToken: string | null;
@@ -34,7 +33,6 @@ export function useConnectionLifecycle({
 }: ConnectionLifecycleParams): ConnectionLifecycleReturn {
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
-  const lastMessageTimeRef = useRef<number>(0);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // eslint-disable-next-line react-hooks/immutability
@@ -76,10 +74,6 @@ export function useConnectionLifecycle({
 
     client.on('error.connection', (error) => {
       console.error('WebSocket error:', error);
-    });
-
-    client.on('*', () => {
-      lastMessageTimeRef.current = Date.now();
     });
 
     const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
@@ -136,36 +130,6 @@ export function useConnectionLifecycle({
       };
     }
   }, [apiToken, serverUrl, reconnectAttempt]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
-
-      const client = clientRef.current;
-      if (!client || !apiToken || !serverUrl) return;
-
-      if (client.connected) {
-        const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
-        if (timeSinceLastMessage < STALE_THRESHOLD) {
-          return;
-        }
-        client.dispose();
-        clientRef.current = null;
-        useConnectionStore.getState().setConnected(false);
-        useConnectionStore.getState().setRetryCount(0);
-        useConnectionStore.getState().setConnectionTimedOut(false);
-        setReconnectAttempt(n => n + 1);
-      } else if (!client.connected) {
-        useConnectionStore.getState().setConnected(false);
-        useConnectionStore.getState().setRetryCount(0);
-        useConnectionStore.getState().setConnectionTimedOut(false);
-        setReconnectAttempt(n => n + 1);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl, lastMessageTimeRef]);
 
   useEffect(() => {
     const handleOnline = () => {

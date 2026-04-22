@@ -77,7 +77,7 @@ export interface ServerInstance {
   cleanup: () => void;
 }
 
-const clients = new Map<ServerWebSocket, { sessionId?: string }>();
+const clients = new Map<ServerWebSocket, { sessionId?: string; missedPings: number }>();
 
 const pendingPermissionResolvers = new Map<string, {
   resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void
@@ -357,7 +357,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           }
           return;
         }
-        clients.set(ws, {});
+        clients.set(ws, { missedPings: 0 });
       },
 
       close(ws) {
@@ -393,10 +393,28 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     },
   });
 
+  const HEARTBEAT_INTERVAL_MS = 30_000;
+  const MAX_MISSED_PINGS = 3;
+
+  const heartbeatInterval = setInterval(() => {
+    for (const [ws, data] of clients.entries()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        data.missedPings++;
+        if (data.missedPings > MAX_MISSED_PINGS) {
+          ws.close(1000, 'Heartbeat timeout');
+          clients.delete(ws);
+        } else {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
   console.log(`AI Agent Server running at ${protocol}://${host}:${port}`);
 
   const onShutdown = (signal: string) => {
     console.log(`Received ${signal}, shutting down...`);
+    clearInterval(heartbeatInterval);
     cleanup();
     process.exit(0);
   };
@@ -405,6 +423,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   process.on('SIGINT', () => onShutdown('SIGINT'));
 
   const cleanup = () => {
+    clearInterval(heartbeatInterval);
     server.stop();
     getTerminalManager().destroyAllSessions();
     closeDatabase();
@@ -545,7 +564,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         parentId: null,
         agentName: null,
       });
-      clients.set(ws, { sessionId: session.id });
+      clients.set(ws, { sessionId: session.id, missedPings: 0 });
 
       if (msg.preconfigId) {
         const preconfig = await getPreconfig(msg.preconfigId);
@@ -572,7 +591,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         return;
       }
-      clients.set(ws, { sessionId: session.id });
+      clients.set(ws, { sessionId: session.id, missedPings: 0 });
 
       reconcileSessionCompaction(session.id);
       reconcileOrphanedToolCalls(session.id);
@@ -818,7 +837,7 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       }
 
       const queuedMessage = addMessageToQueue(msg.sessionId, msg.content, msg.attachments);
-      clients.set(ws, { sessionId: msg.sessionId });
+      clients.set(ws, { sessionId: msg.sessionId, missedPings: 0 });
 
       send(ws, {
         type: 'queue.added',
@@ -901,6 +920,14 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to disconnect provider';
         send(ws, { type: 'error', code: 'provider_error', message });
+      }
+      break;
+    }
+
+    case 'pong': {
+      const clientData = clients.get(ws);
+      if (clientData) {
+        clientData.missedPings = 0;
       }
       break;
     }
@@ -1336,7 +1363,7 @@ async function handleChat(
   // If session is already actively streaming (e.g., subagent running), queue the message instead
   if (interruptManager.isSessionActive(sessionId)) {
     const queuedMessage = addMessageToQueue(sessionId, content, attachments);
-    clients.set(ws, { sessionId });
+    clients.set(ws, { sessionId, missedPings: 0 });
     send(ws, { type: 'queue.added', sessionId, message: queuedMessage });
     return;
   }

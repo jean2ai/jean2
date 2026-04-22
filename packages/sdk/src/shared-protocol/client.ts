@@ -152,6 +152,14 @@ export interface ProviderDisconnectMessage {
   provider: string;
 }
 
+// =============================================================================
+// Heartbeat Messages
+// =============================================================================
+
+export interface PongMessage {
+  type: 'pong';
+}
+
 export type ClientMessage = 
   | SessionCreateMessage 
   | SessionResumeMessage
@@ -174,4 +182,5 @@ export type ClientMessage =
   | QueueAddMessage
   | QueueRemoveMessage
   | ProviderConnectMessage
-  | ProviderDisconnectMessage;
+  | ProviderDisconnectMessage
+  | PongMessage;

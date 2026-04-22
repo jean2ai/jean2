@@ -20,6 +20,10 @@ export class WebSocketTransport {
   onClose: ((code: number, reason: string, wasClean: boolean) => void) | null = null;
   onError: ((error: Error) => void) | null = null;
 
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private missedHeartbeats: number = 0;
+  private static readonly HEARTBEAT_TIMEOUT_MS = 120_000;
+
   constructor(config: WebSocketTransportConfig) {
     this.config = config;
   }
@@ -41,6 +45,7 @@ export class WebSocketTransport {
       this._ws.onopen = () => {
         clearTimeout(timeoutId);
         this._state = 'connected';
+        this.startHeartbeatMonitor();
         this.onOpen?.();
         resolve();
       };
@@ -48,6 +53,11 @@ export class WebSocketTransport {
       this._ws.onmessage = (event: MessageEvent) => {
         try {
           const message = JSON.parse(String(event.data)) as ServerMessage;
+          if (message.type === 'ping') {
+            this.send({ type: 'pong' } as unknown as ClientMessage);
+            return;
+          }
+          this.resetHeartbeat();
           this.onMessage?.(message);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
@@ -57,6 +67,7 @@ export class WebSocketTransport {
 
       this._ws.onclose = (event: CloseEvent) => {
         clearTimeout(timeoutId);
+        this.stopHeartbeatMonitor();
         this._state = 'disconnected';
         if (this._ws !== null) {
           reject(new ConnectionError(`Connection closed before open: code=${event.code}, reason=${event.reason}`));
@@ -95,6 +106,7 @@ export class WebSocketTransport {
   }
 
   dispose(): void {
+    this.stopHeartbeatMonitor();
     this.onOpen = null;
     this.onMessage = null;
     this.onClose = null;
@@ -120,6 +132,31 @@ export class WebSocketTransport {
 
   get ws(): WebSocket | null {
     return this._ws;
+  }
+
+  private resetHeartbeat(): void {
+    this.missedHeartbeats = 0;
+  }
+
+  private startHeartbeatMonitor(): void {
+    this.stopHeartbeatMonitor();
+    this.missedHeartbeats = 0;
+    this.heartbeatTimer = setInterval(() => {
+      this.missedHeartbeats++;
+      if (this.missedHeartbeats >= 4) {
+        this.stopHeartbeatMonitor();
+        if (this._ws) {
+          this._ws.close(1000, 'Heartbeat timeout');
+        }
+      }
+    }, WebSocketTransport.HEARTBEAT_TIMEOUT_MS);
+  }
+
+  private stopHeartbeatMonitor(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private buildWsUrl(): string {
