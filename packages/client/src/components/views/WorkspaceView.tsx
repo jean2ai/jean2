@@ -9,6 +9,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
+import { AppPanels } from '@/components/app/AppPanels';
 import {
   SidebarHeader,
   SidebarMenu,
@@ -19,7 +20,7 @@ import {
 export default function WorkspaceView() {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
-  const { sidebarRef, chatInputRef } = useViewRefs();
+  const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
 
   const {
     sdkClient,
@@ -125,6 +126,10 @@ export default function WorkspaceView() {
       >
         <WorkspaceHeader />
         <Outlet />
+        <AppPanels
+          sdkClient={sdkClient}
+          terminalPanelRef={terminalPanelRef}
+        />
       </main>
     </>
   );

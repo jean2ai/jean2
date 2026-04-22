@@ -1,12 +1,11 @@
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppMainContent } from '@/components/app/AppMainContent';
-import { AppPanels } from '@/components/app/AppPanels';
 import { ChatLoadingState } from '@/components/shared/LoadingSkeleton';
 
 export default function SessionContent() {
   const sessionManager = useSessionManager();
-  const { chatInputRef, terminalPanelRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
+  const { chatInputRef, scrollToBottomRef, autoFollowToggleRef } = useViewRefs();
 
   const {
     sdkClient,
@@ -39,35 +38,29 @@ export default function SessionContent() {
   }
 
   return (
-    <>
-      <AppMainContent
-        sdkClient={sdkClient}
-        inputRef={chatInputRef}
-        messagesWithParts={messagesWithParts}
-        serverUrl={serverUrl}
-        onRetry={sessionManager.handleRetry}
-        onLogout={sessionManager.handleLogout}
-        onSendMessage={sendChatMessage}
-        onRemoveFromQueue={removeFromQueue}
-        onChangePreconfig={updateSessionPreconfig}
-        onChangeModel={updateSessionModel}
-        onChangeVariant={updateSessionVariant}
-        onPermissionResponse={handlePermissionResponse}
-        onRename={handleRenameSession}
-        onNavigateToSubagent={resumeSession}
-        onNavigateBack={handleNavigateBack}
-        onInterrupt={handleInterruptSession}
-        onRevert={revertSession}
-        onFork={forkSession}
-        onCompact={compactSession}
-        onClearCompactionSuccess={() => setCompactionSuccess(false)}
-        scrollToBottomRef={scrollToBottomRef}
-        autoFollowToggleRef={autoFollowToggleRef}
-      />
-      <AppPanels
-        sdkClient={sdkClient}
-        terminalPanelRef={terminalPanelRef}
-      />
-    </>
+    <AppMainContent
+      sdkClient={sdkClient}
+      inputRef={chatInputRef}
+      messagesWithParts={messagesWithParts}
+      serverUrl={serverUrl}
+      onRetry={sessionManager.handleRetry}
+      onLogout={sessionManager.handleLogout}
+      onSendMessage={sendChatMessage}
+      onRemoveFromQueue={removeFromQueue}
+      onChangePreconfig={updateSessionPreconfig}
+      onChangeModel={updateSessionModel}
+      onChangeVariant={updateSessionVariant}
+      onPermissionResponse={handlePermissionResponse}
+      onRename={handleRenameSession}
+      onNavigateToSubagent={resumeSession}
+      onNavigateBack={handleNavigateBack}
+      onInterrupt={handleInterruptSession}
+      onRevert={revertSession}
+      onFork={forkSession}
+      onCompact={compactSession}
+      onClearCompactionSuccess={() => setCompactionSuccess(false)}
+      scrollToBottomRef={scrollToBottomRef}
+      autoFollowToggleRef={autoFollowToggleRef}
+    />
   );
 }

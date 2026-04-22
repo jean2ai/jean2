@@ -3,6 +3,7 @@ import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
+import { AppPanels } from '@/components/app/AppPanels';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useOverviewSessions } from '@/hooks/useOverviewSessions';
 import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
@@ -10,7 +11,7 @@ import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
 export default function OverviewView() {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
-  const { sidebarRef, chatInputRef } = useViewRefs();
+  const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
 
   const { sessionsByWorkspace } = useOverviewSessions({
     sdkClient: sessionManager.sdkClient,
@@ -67,6 +68,10 @@ export default function OverviewView() {
       }}>
         <WorkspaceHeader />
         <Outlet />
+        <AppPanels
+          sdkClient={sessionManager.sdkClient}
+          terminalPanelRef={terminalPanelRef}
+        />
       </main>
     </>
   );
