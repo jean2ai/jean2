@@ -170,7 +170,7 @@ export interface SessionRevertedMessage {
   type: 'session.reverted';
   sessionId: string;
   revertedTo: {
-    messageId: string;
+    messageId: string | null;
     messageCount: number;
   };
   removed: {

@@ -15,6 +15,7 @@ interface MessageBubbleProps {
   canRevert?: boolean;
   onFork?: () => void;
   canFork?: boolean;
+  isClearAll?: boolean;
 }
 
 export function MessageBubble({ 
@@ -27,6 +28,7 @@ export function MessageBubble({
   canRevert = false,
   onFork,
   canFork = false,
+  isClearAll = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
@@ -154,9 +156,13 @@ export function MessageBubble({
       <ConfirmationDialog
         open={showRevertConfirm}
         onOpenChange={setShowRevertConfirm}
-        title="Revert Conversation"
-        description="This will delete this message and all messages after it. Are you sure you want to continue?"
-        confirmLabel="Revert"
+        title={isClearAll ? 'Clear Conversation' : 'Revert Conversation'}
+        description={
+          isClearAll
+            ? 'This will delete all messages in this session, leaving it completely empty. Are you sure you want to continue?'
+            : 'This will delete this message and all messages after it. Are you sure you want to continue?'
+        }
+        confirmLabel={isClearAll ? 'Clear All' : 'Revert'}
         cancelLabel="Cancel"
         onConfirm={() => {
           onRevert?.();

@@ -274,11 +274,15 @@ export function handleSessionInterrupted(
 }
 
 export function handleSessionReverted(
-  msg: { type: 'session.reverted'; sessionId: string; revertedTo: { messageId: string; messageCount: number }; removed: { messageIds: string[]; partCount: number } },
+  msg: { type: 'session.reverted'; sessionId: string; revertedTo: { messageId: string | null; messageCount: number }; removed: { messageIds: string[]; partCount: number } },
   _ctx: SessionHandlersContext,
 ): void {
   const { sessionId, revertedTo, removed } = msg;
-  console.log(`Session ${sessionId} reverted to message ${revertedTo.messageId}, removed ${removed.messageIds.length} messages`);
+  if (revertedTo.messageId === null) {
+    console.log(`Session ${sessionId} cleared (all ${removed.messageIds.length} messages removed)`);
+  } else {
+    console.log(`Session ${sessionId} reverted to message ${revertedTo.messageId}, removed ${removed.messageIds.length} messages`);
+  }
 }
 
 export function handleSessionForked(

@@ -50,7 +50,7 @@ export function subscribeToServerEvents(
     sessionHandlers['session.interrupted']({ type: 'session.interrupted', sessionId: sessionId as string, result: result as { cascadedTo: string[] } }, ctx()!);
   });
   add('session.reverted', (sessionId: unknown, revertedTo: unknown, removed: unknown) => {
-    sessionHandlers['session.reverted']({ type: 'session.reverted', sessionId: sessionId as string, revertedTo: revertedTo as { messageId: string; messageCount: number }, removed: removed as { messageIds: string[]; partCount: number } }, ctx()!);
+    sessionHandlers['session.reverted']({ type: 'session.reverted', sessionId: sessionId as string, revertedTo: revertedTo as { messageId: string | null; messageCount: number }, removed: removed as { messageIds: string[]; partCount: number } }, ctx()!);
   });
   add('session.forked', (originalSessionId: unknown, forkedSession: unknown, messages: unknown) => {
     sessionHandlers['session.forked']({ type: 'session.forked', originalSessionId: originalSessionId as string, forkedSession: forkedSession as Session, messages: messages as MessageWithParts[] }, ctx()!);

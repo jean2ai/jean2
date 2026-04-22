@@ -88,8 +88,13 @@ function findRevertMessageId(
 ): string | null {
   const targetIndex = messagesWithParts.findIndex(mwp => mwp.message.id === targetMessageId);
 
-  if (targetIndex <= 0) {
+  if (targetIndex < 0) {
     return null;
+  }
+
+  // First message: return its own ID — server will recognize index 0 and clear all
+  if (targetIndex === 0) {
+    return targetMessageId;
   }
 
   for (let i = targetIndex - 1; i >= 0; i--) {
@@ -376,6 +381,7 @@ const MessageRow = memo(function MessageRow({
   const revertMessageId = canRevert
     ? findRevertMessageId(item.message.id, messagesWithParts)
     : null;
+  const isClearAll = revertMessageId === item.message.id;
 
   return (
     <MessageBubble
@@ -387,6 +393,7 @@ const MessageRow = memo(function MessageRow({
       onRevert={revertMessageId ? () => onRevert?.(sessionId, revertMessageId) : undefined}
       canFork={canRevert && revertMessageId !== null}
       onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
+      isClearAll={isClearAll}
     >
       {item.parts.length === 0 ? (
         <span className="opacity-50">...</span>

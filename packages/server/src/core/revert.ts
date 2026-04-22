@@ -6,7 +6,7 @@ import {
 
 interface RevertResult {
   revertedTo: {
-    messageId: string;
+    messageId: string | null;
     messageCount: number;
   };
   removed: {
@@ -30,7 +30,15 @@ export async function revertToStep(options: RevertOptions): Promise<RevertResult
     throw new Error('Target message not found');
   }
 
-  const messagesToDelete = allMessages.slice(targetIndex + 1);
+  let messagesToDelete: typeof allMessages;
+
+  if (targetIndex === 0) {
+    // Clear all: delete everything including the target message
+    messagesToDelete = allMessages;
+  } else {
+    // Normal revert: keep target, delete everything after
+    messagesToDelete = allMessages.slice(targetIndex + 1);
+  }
 
   const removedMessageIds: string[] = [];
   let partCountRemoved = 0;
@@ -53,8 +61,8 @@ export async function revertToStep(options: RevertOptions): Promise<RevertResult
 
   return {
     revertedTo: {
-      messageId: targetMessageId,
-      messageCount: targetIndex,
+      messageId: targetIndex === 0 ? null : targetMessageId,
+      messageCount: targetIndex === 0 ? 0 : targetIndex,
     },
     removed: {
       messageIds: removedMessageIds,

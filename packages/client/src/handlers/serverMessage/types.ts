@@ -103,7 +103,7 @@ export type SessionHandlers = {
   'session.updated': (msg: { type: 'session.updated'; session: Session }, ctx: SessionHandlersContext) => void;
   'session.renamed': (msg: { type: 'session.renamed'; session: Session }, ctx: SessionHandlersContext) => void;
   'session.interrupted': (msg: { type: 'session.interrupted'; sessionId: string; result: { cascadedTo: string[] } }, ctx: SessionHandlersContext) => void;
-  'session.reverted': (msg: { type: 'session.reverted'; sessionId: string; revertedTo: { messageId: string; messageCount: number }; removed: { messageIds: string[]; partCount: number } }, ctx: SessionHandlersContext) => void;
+  'session.reverted': (msg: { type: 'session.reverted'; sessionId: string; revertedTo: { messageId: string | null; messageCount: number }; removed: { messageIds: string[]; partCount: number } }, ctx: SessionHandlersContext) => void;
   'session.forked': (msg: { type: 'session.forked'; originalSessionId: string; forkedSession: Session; messages: MessageWithParts[] }, ctx: SessionHandlersContext) => void;
   'session.state': (msg: { type: 'session.state'; sessionId: string; messages: MessageWithParts[] }, ctx: SessionHandlersContext) => void;
 };
