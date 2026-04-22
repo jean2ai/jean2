@@ -35,6 +35,7 @@ export default function WorkspaceView() {
     handleCreateVirtualWorkspace,
     handleCreatePhysicalWorkspace,
     deleteWorkspace,
+    renameWorkspace,
   } = sessionManager;
 
   useWorkspaceSessions({
@@ -59,6 +60,7 @@ export default function WorkspaceView() {
           isWorkspaceFavorited={sidebarData.isWorkspaceFavorited}
           onToggleFavorite={sidebarData.handleToggleWorkspaceFavorite}
           onDeleteWorkspace={deleteWorkspace}
+          onRenameWorkspace={renameWorkspace}
           sdkClient={sdkClient}
         />
       </div>

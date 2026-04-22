@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
-import { useState } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
 import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
@@ -36,6 +36,7 @@ interface WorkspaceSwitcherProps {
   isWorkspaceFavorited: (workspaceId: string) => boolean;
   onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
   onDeleteWorkspace: (id: string) => void;
+  onRenameWorkspace: (id: string, name: string) => void;
   sdkClient: Jean2Client | null;
 }
 
@@ -48,11 +49,39 @@ export function WorkspaceSwitcher({
   isWorkspaceFavorited,
   onToggleFavorite,
   onDeleteWorkspace,
+  onRenameWorkspace,
   sdkClient,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
+  const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renamingWorkspaceId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingWorkspaceId]);
+
+  const handleRenameStart = (workspace: Workspace) => {
+    setRenameValue(workspace.name);
+    setRenamingWorkspaceId(workspace.id);
+  };
+
+  const handleRenameCommit = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && renamingWorkspaceId) {
+      onRenameWorkspace(renamingWorkspaceId, trimmed);
+    }
+    setRenamingWorkspaceId(null);
+  };
+
+  const handleRenameCancel = () => {
+    setRenamingWorkspaceId(null);
+  };
 
   return (
     <>
@@ -89,17 +118,43 @@ export function WorkspaceSwitcher({
                   key={workspace.id}
                   showCheck={false}
                   onSelect={() => {
+                    if (renamingWorkspaceId === workspace.id) return;
                     onSelectWorkspace(workspace);
                     setOpen(false);
                   }}
                 >
                   <div className="flex-1 min-w-0 flex items-center gap-2">
-                    {workspace.isVirtual ? (
-                      <Box className="size-4 flex-shrink-0 text-muted-foreground" />
+                    {renamingWorkspaceId === workspace.id ? (
+                      <input
+                        ref={renameInputRef}
+                        type="text"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleRenameCommit();
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            handleRenameCancel();
+                          } else if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
+                            e.stopPropagation();
+                          }
+                        }}
+                        onBlur={handleRenameCommit}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 h-6 px-1 text-sm bg-background border border-input rounded focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
                     ) : (
-                      <Folder className="size-4 flex-shrink-0 text-muted-foreground" />
+                      <>
+                        {workspace.isVirtual ? (
+                          <Box className="size-4 flex-shrink-0 text-muted-foreground" />
+                        ) : (
+                          <Folder className="size-4 flex-shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate">{workspace.name}</span>
+                      </>
                     )}
-                    <span className="truncate">{workspace.name}</span>
                   </div>
                   <div className="ml-auto flex items-center gap-1">
                     <button
@@ -138,12 +193,21 @@ export function WorkspaceSwitcher({
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
+                            handleRenameStart(workspace);
+                          }}
+                        >
+                          <Pencil className="size-4" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setWorkspaceToDelete(workspace);
                           }}
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="size-4" />
-                          Delete workspace
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
