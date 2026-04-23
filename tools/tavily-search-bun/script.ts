@@ -3,14 +3,14 @@ import { tavily } from '@tavily/core';
 interface SearchInput {
   query: string;
   topic?: 'general' | 'news' | 'finance';
-  searchDepth?: 'basic' | 'advanced' | 'fast' | 'ultra-fast';
-  maxResults?: number;
   timeRange?: 'day' | 'week' | 'month' | 'year';
-  includeAnswer?: boolean;
+  startDate?: string;
+  endDate?: string;
   includeRawContent?: boolean;
-  includeImages?: boolean;
   includeDomains?: string[];
   excludeDomains?: string[];
+  country?: string;
+  exactMatch?: boolean;
   workspacePath: string;
   sessionId: string;
 }
@@ -34,14 +34,14 @@ async function main() {
     const {
       query,
       topic,
-      searchDepth,
-      maxResults,
       timeRange,
-      includeAnswer,
+      startDate,
+      endDate,
       includeRawContent,
-      includeImages,
       includeDomains,
       excludeDomains,
+      country,
+      exactMatch,
       workspacePath,
       sessionId,
     } = input;
@@ -67,17 +67,31 @@ async function main() {
 
     const client = tavily({ apiKey });
 
+    // Env-only: operator controls cost
+    const searchDepth = process.env.TAVILY_SEARCH_DEPTH || 'basic';
+    const maxResults = Number(process.env.TAVILY_MAX_RESULTS) || 5;
+    const includeAnswer = process.env.TAVILY_INCLUDE_ANSWER === 'true';
+    const includeImages = process.env.TAVILY_INCLUDE_IMAGES === 'true';
+    const includeImageDescriptions = process.env.TAVILY_INCLUDE_IMAGE_DESCRIPTIONS === 'true';
+    const chunksPerSource = process.env.TAVILY_CHUNKS_PER_SOURCE ? Number(process.env.TAVILY_CHUNKS_PER_SOURCE) : undefined;
+
     const options: Record<string, unknown> = {};
 
     if (topic !== undefined) options.topic = topic;
-    if (searchDepth !== undefined) options.searchDepth = searchDepth;
-    if (maxResults !== undefined) options.maxResults = maxResults;
+    options.searchDepth = searchDepth;
+    options.maxResults = maxResults;
     if (timeRange !== undefined) options.timeRange = timeRange;
-    if (includeAnswer !== undefined) options.includeAnswer = includeAnswer;
+    if (startDate !== undefined) options.startDate = startDate;
+    if (endDate !== undefined) options.endDate = endDate;
+    if (chunksPerSource !== undefined) options.chunksPerSource = chunksPerSource;
+    options.includeAnswer = includeAnswer;
     if (includeRawContent !== undefined) options.includeRawContent = includeRawContent;
-    if (includeImages !== undefined) options.includeImages = includeImages;
+    options.includeImages = includeImages;
+    options.includeImageDescriptions = includeImageDescriptions;
     if (includeDomains !== undefined) options.includeDomains = includeDomains;
     if (excludeDomains !== undefined) options.excludeDomains = excludeDomains;
+    if (country !== undefined) options.country = country;
+    if (exactMatch !== undefined) options.exactMatch = exactMatch;
 
     const response = await client.search(query, options);
 

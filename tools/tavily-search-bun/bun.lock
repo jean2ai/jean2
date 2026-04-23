@@ -3,9 +3,9 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "tool-tavily-crawl",
+      "name": "tool-tavily-search",
       "dependencies": {
-        "@tavily/core": "^0.7.0",
+        "@tavily/core": "^0.7.2",
       },
     },
   },

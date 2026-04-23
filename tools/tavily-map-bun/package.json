@@ -1,5 +1,5 @@
 {
-  "name": "tool-tavily-crawl",
+  "name": "tool-tavily-map-bun",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

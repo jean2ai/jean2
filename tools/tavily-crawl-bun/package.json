@@ -1,5 +1,5 @@
 {
-  "name": "tool-tavily-extract",
+  "name": "tool-tavily-crawl-bun",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

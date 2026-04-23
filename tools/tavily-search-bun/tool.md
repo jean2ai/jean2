@@ -16,19 +16,6 @@ inputSchema:
         - finance
       default: general
       description: "Search category: general, news, or finance"
-    searchDepth:
-      type: string
-      enum:
-        - basic
-        - advanced
-        - fast
-        - ultra-fast
-      default: basic
-      description: "Search depth: basic (balanced), advanced (highest relevance, 2 credits), fast, or ultra-fast"
-    maxResults:
-      type: number
-      default: 5
-      description: "Maximum number of results (0-20)"
     timeRange:
       type: string
       enum:
@@ -37,18 +24,16 @@ inputSchema:
         - month
         - year
       description: "Filter results by publish date: day, week, month, or year"
-    includeAnswer:
-      type: boolean
-      default: false
-      description: "Include an LLM-generated answer to the query"
+    startDate:
+      type: string
+      description: "Return results after this date (YYYY-MM-DD format). Mutually exclusive with timeRange."
+    endDate:
+      type: string
+      description: "Return results before this date (YYYY-MM-DD format). Mutually exclusive with timeRange."
     includeRawContent:
       type: boolean
       default: false
       description: "Include the cleaned HTML content of each result"
-    includeImages:
-      type: boolean
-      default: false
-      description: "Include images in the response"
     includeDomains:
       type: array
       items:
@@ -59,6 +44,13 @@ inputSchema:
       items:
         type: string
       description: "List of domains to exclude (max 150)"
+    country:
+      type: string
+      description: "Boost results from a specific country (full name e.g. 'united states'). Only with topic=general."
+    exactMatch:
+      type: boolean
+      default: false
+      description: "Only return results containing the exact quoted phrase(s) from the query"
   required:
     - query
 outputSchema:
@@ -86,7 +78,13 @@ requireApproval: false
 dangerous: false
 env:
   - TAVILY_API_KEY
-hasSecurityCheck: true
+  - TAVILY_SEARCH_DEPTH
+  - TAVILY_MAX_RESULTS
+  - TAVILY_INCLUDE_ANSWER
+  - TAVILY_INCLUDE_IMAGES
+  - TAVILY_INCLUDE_IMAGE_DESCRIPTIONS
+  - TAVILY_CHUNKS_PER_SOURCE
+hasSecurityCheck: false
 ---
 
 Perform web searches using Tavily's search API.
@@ -105,17 +103,15 @@ When NOT to use:
 Usage:
 - query (required): The search query to execute
 - topic (optional): Search category - general (default), news, or finance
-- searchDepth (optional): basic (balanced, default), advanced (highest relevance, uses 2 credits), fast, or ultra-fast
-- maxResults (optional): Number of results to return (0-20, default 5)
-- timeRange (optional): Filter by publish date - day, week, month, or year
-- includeAnswer (optional): Include an LLM-generated answer to the query
+- timeRange (optional): Filter by publish date - day, week, month, or year (mutually exclusive with startDate/endDate)
+- startDate (optional): Return results after this date (YYYY-MM-DD format)
+- endDate (optional): Return results before this date (YYYY-MM-DD format)
 - includeRawContent (optional): Include cleaned HTML content of each result
-- includeImages (optional): Include images in the response
 - includeDomains (optional): List of domains to include (max 300)
 - excludeDomains (optional): List of domains to exclude (max 150)
+- country (optional): Boost results from a specific country (full name e.g. 'united states'). Only with topic=general.
+- exactMatch (optional): Only return results containing exact quoted phrase(s) from the query
 
 Notes:
-- Basic search uses 1 credit per query
-- Advanced search uses 2 credits per query
-- News and finance topics may have different pricing
 - Tavily maintains a free tier with usage limits
+- Default search uses basic depth (1 credit per query)

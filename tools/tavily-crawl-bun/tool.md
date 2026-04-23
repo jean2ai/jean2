@@ -11,18 +11,6 @@ inputSchema:
     instructions:
       type: string
       description: "Natural language instructions for the crawler to guide content discovery"
-    maxDepth:
-      type: number
-      default: 1
-      description: "Max depth of the crawl (1-5). How far from base URL the crawler can explore"
-    maxBreadth:
-      type: number
-      default: 20
-      description: "Max number of links to follow per level of the tree (1-500)"
-    limit:
-      type: number
-      default: 50
-      description: "Total number of links to process before stopping"
     selectPaths:
       type: array
       items:
@@ -33,20 +21,16 @@ inputSchema:
       items:
         type: string
       description: "Regex patterns to exclude URLs with specific path patterns (e.g. /admin/.*)"
-    extractDepth:
-      type: string
-      enum:
-        - basic
-        - advanced
-      default: basic
-      description: "Extraction depth: basic or advanced"
-    format:
-      type: string
-      enum:
-        - markdown
-        - text
-      default: markdown
-      description: "Output format: markdown (default) or text"
+    selectDomains:
+      type: array
+      items:
+        type: string
+      description: "Regex patterns to restrict crawling to specific domains or subdomains (e.g. ^docs\\.example\\.com$)"
+    excludeDomains:
+      type: array
+      items:
+        type: string
+      description: "Regex patterns to exclude specific domains or subdomains from crawling"
   required:
     - url
 outputSchema:
@@ -76,6 +60,14 @@ requireApproval: false
 dangerous: false
 env:
   - TAVILY_API_KEY
+  - TAVILY_MAX_DEPTH
+  - TAVILY_MAX_BREADTH
+  - TAVILY_LIMIT
+  - TAVILY_EXTRACT_DEPTH
+  - TAVILY_ALLOW_EXTERNAL
+  - TAVILY_INCLUDE_IMAGES
+  - TAVILY_CHUNKS_PER_SOURCE
+  - TAVILY_FORMAT
 hasSecurityCheck: false
 ---
 
@@ -103,24 +95,21 @@ Crawl a website and extract content from multiple pages using the Tavily search 
 |-----------|----------|---------|-------------|
 | `url` | Yes | - | Root URL to begin the crawl |
 | `instructions` | No | - | Natural language instructions to guide content discovery |
-| `maxDepth` | No | 1 | Crawl depth (1-5), how far from base URL to explore |
-| `maxBreadth` | No | 20 | Links to follow per level (1-500) |
-| `limit` | No | 50 | Total links to process before stopping |
 | `selectPaths` | No | - | Regex patterns to include only matching URLs |
 | `excludePaths` | No | - | Regex patterns to exclude matching URLs |
-| `extractDepth` | No | basic | Extraction depth: `basic` or `advanced` |
-| `format` | No | markdown | Output format: `markdown` or `text` |
+| `selectDomains` | No | - | Regex patterns to restrict to specific domains (e.g. `^docs\\.example\\.com$`) |
+| `excludeDomains` | No | - | Regex patterns to exclude specific domains |
 
 ### Examples
 
 Basic crawl:
 ```
-{"url": "https://docs.example.com", "maxDepth": 2, "limit": 20}
+{"url": "https://docs.example.com"}
 ```
 
 Guided crawl with instructions:
 ```
-{"url": "https://api.example.com", "instructions": "Focus on authentication and rate limiting endpoints", "extractDepth": "advanced"}
+{"url": "https://api.example.com", "instructions": "Focus on authentication and rate limiting endpoints"}
 ```
 
 Filtered crawl:
@@ -131,7 +120,9 @@ Filtered crawl:
 ## Notes
 
 - **Timeout**: Default timeout is 180 seconds (3 minutes). Large crawls may need this increased.
-- **Credits**: Crawl operations use Tavily credits. Be mindful of the `limit` parameter.
+- **Credits**: Crawl operations use Tavily credits. Configure environment variables to control costs (`TAVILY_LIMIT`, `TAVILY_MAX_DEPTH`, etc.).
 - **Rate limiting**: The Tavily API may rate limit requests. For large crawls, consider running multiple smaller operations.
 - **Robots.txt**: Respect the target website's robots.txt directives.
 - **Output**: Results are returned as an array with URL, raw content, images, and favicon for each page.
+- **Domain filtering**: Use `selectDomains`/`excludeDomains` to control which domains the crawler visits when following links beyond the initial URL.
+- **Environment control**: Cost-related parameters (`maxDepth`, `maxBreadth`, `limit`, `extractDepth`, `allowExternal`, `includeImages`, `chunksPerSource`) are controlled via environment variables, not the LLM.

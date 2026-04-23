@@ -13,24 +13,6 @@ inputSchema:
     query:
       type: string
       description: "User intent for reranking extracted content chunks"
-    extractDepth:
-      type: string
-      enum:
-        - basic
-        - advanced
-      default: basic
-      description: "Extraction depth: basic (1 credit/5 URLs) or advanced (2 credits/5 URLs, more data)"
-    format:
-      type: string
-      enum:
-        - markdown
-        - text
-      default: markdown
-      description: "Output format: markdown (default) or text"
-    includeImages:
-      type: boolean
-      default: false
-      description: "Include a list of images extracted from the URLs"
   required:
     - urls
 outputSchema:
@@ -67,6 +49,10 @@ requireApproval: false
 dangerous: false
 env:
   - TAVILY_API_KEY
+  - TAVILY_EXTRACT_DEPTH
+  - TAVILY_INCLUDE_IMAGES
+  - TAVILY_CHUNKS_PER_SOURCE
+  - TAVILY_FORMAT
 hasSecurityCheck: false
 ---
 
@@ -88,13 +74,10 @@ Extract clean content from a list of URLs using the Tavily search API.
 
 **Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `urls` | string[] | Yes | List of URLs to extract content from (max 20) |
-| `query` | string | No | User intent for reranking extracted content chunks |
-| `extractDepth` | string | No | `basic` (default) or `advanced` - see credits below |
-| `format` | string | No | `markdown` (default) or `text` |
-| `includeImages` | boolean | No | Include extracted images list (default: false) |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `urls` | string[] | Yes | - | List of URLs to extract content from (max 20) |
+| `query` | string | No | - | User intent for reranking extracted content chunks |
 
 **Output:**
 
@@ -117,9 +100,6 @@ Extract clean content from a list of URLs using the Tavily search API.
     "https://example.com/article",
     "https://example.org/docs"
   ],
-  "query": "user wants to understand the main topic",
-  "extractDepth": "basic",
-  "format": "markdown",
-  "includeImages": true
+  "query": "user wants to understand the main topic"
 }
 ```

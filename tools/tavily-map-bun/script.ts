@@ -3,11 +3,10 @@ import { tavily } from '@tavily/core';
 interface Input {
   url: string;
   instructions?: string;
-  maxDepth?: number;
-  maxBreadth?: number;
-  limit?: number;
   selectPaths?: string[];
   excludePaths?: string[];
+  selectDomains?: string[];
+  excludeDomains?: string[];
   workspacePath: string;
   sessionId: string;
 }
@@ -26,11 +25,10 @@ async function main() {
     const {
       url,
       instructions,
-      maxDepth,
-      maxBreadth,
-      limit,
       selectPaths,
       excludePaths,
+      selectDomains,
+      excludeDomains,
       workspacePath,
       sessionId,
     } = input;
@@ -56,21 +54,23 @@ async function main() {
 
     const client = tavily({ apiKey });
 
-    const options: {
-      instructions?: string;
-      maxDepth?: number;
-      maxBreadth?: number;
-      limit?: number;
-      selectPaths?: string[];
-      excludePaths?: string[];
-    } = {};
+    // Env-only: operator controls cost
+    const maxDepth = process.env.TAVILY_MAX_DEPTH ? Number(process.env.TAVILY_MAX_DEPTH) : undefined;
+    const maxBreadth = process.env.TAVILY_MAX_BREADTH ? Number(process.env.TAVILY_MAX_BREADTH) : undefined;
+    const limit = process.env.TAVILY_LIMIT ? Number(process.env.TAVILY_LIMIT) : undefined;
+    const allowExternal = process.env.TAVILY_ALLOW_EXTERNAL === 'true';
 
-    if (instructions !== undefined) options.instructions = instructions;
+    const options: Record<string, unknown> = {};
+
     if (maxDepth !== undefined) options.maxDepth = maxDepth;
     if (maxBreadth !== undefined) options.maxBreadth = maxBreadth;
     if (limit !== undefined) options.limit = limit;
+    options.allowExternal = allowExternal;
+    if (instructions !== undefined) options.instructions = instructions;
     if (selectPaths !== undefined) options.selectPaths = selectPaths;
     if (excludePaths !== undefined) options.excludePaths = excludePaths;
+    if (selectDomains !== undefined) options.selectDomains = selectDomains;
+    if (excludeDomains !== undefined) options.excludeDomains = excludeDomains;
 
     const response = await client.map(url, options);
 

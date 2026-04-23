@@ -3,13 +3,10 @@ import { tavily } from '@tavily/core';
 interface Input {
   url: string;
   instructions?: string;
-  maxDepth?: number;
-  maxBreadth?: number;
-  limit?: number;
   selectPaths?: string[];
   excludePaths?: string[];
-  extractDepth?: 'basic' | 'advanced';
-  format?: 'markdown' | 'text';
+  selectDomains?: string[];
+  excludeDomains?: string[];
   workspacePath: string;
   sessionId: string;
 }
@@ -35,13 +32,10 @@ async function main() {
     const {
       url,
       instructions,
-      maxDepth,
-      maxBreadth,
-      limit,
       selectPaths,
       excludePaths,
-      extractDepth,
-      format,
+      selectDomains,
+      excludeDomains,
       workspacePath,
       sessionId,
     } = input;
@@ -67,15 +61,31 @@ async function main() {
 
     const client = tavily({ apiKey });
 
+    // Env-only: operator controls cost
+    const maxDepth = process.env.TAVILY_MAX_DEPTH ? Number(process.env.TAVILY_MAX_DEPTH) : undefined;
+    const maxBreadth = process.env.TAVILY_MAX_BREADTH ? Number(process.env.TAVILY_MAX_BREADTH) : undefined;
+    const limit = process.env.TAVILY_LIMIT ? Number(process.env.TAVILY_LIMIT) : undefined;
+    const extractDepth = process.env.TAVILY_EXTRACT_DEPTH || 'basic';
+    const allowExternal = process.env.TAVILY_ALLOW_EXTERNAL === 'true';
+    const includeImages = process.env.TAVILY_INCLUDE_IMAGES === 'true';
+    const format = process.env.TAVILY_FORMAT || 'markdown';
+    const chunksPerSource = process.env.TAVILY_CHUNKS_PER_SOURCE ? Number(process.env.TAVILY_CHUNKS_PER_SOURCE) : undefined;
+
     const options: Record<string, unknown> = {};
-    if (instructions !== undefined) options.instructions = instructions;
+
     if (maxDepth !== undefined) options.maxDepth = maxDepth;
     if (maxBreadth !== undefined) options.maxBreadth = maxBreadth;
     if (limit !== undefined) options.limit = limit;
+    options.extractDepth = extractDepth;
+    options.format = format as 'markdown' | 'text';
+    options.allowExternal = allowExternal;
+    options.includeImages = includeImages;
+    if (chunksPerSource !== undefined) options.chunksPerSource = chunksPerSource;
+    if (instructions !== undefined) options.instructions = instructions;
     if (selectPaths !== undefined) options.selectPaths = selectPaths;
     if (excludePaths !== undefined) options.excludePaths = excludePaths;
-    if (extractDepth !== undefined) options.extractDepth = extractDepth;
-    if (format !== undefined) options.format = format;
+    if (selectDomains !== undefined) options.selectDomains = selectDomains;
+    if (excludeDomains !== undefined) options.excludeDomains = excludeDomains;
 
     const response = await client.crawl(url, options);
 

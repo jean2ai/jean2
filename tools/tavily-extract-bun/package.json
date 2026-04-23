@@ -1,5 +1,5 @@
 {
-  "name": "tool-tavily-map",
+  "name": "tool-tavily-extract-bun",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
