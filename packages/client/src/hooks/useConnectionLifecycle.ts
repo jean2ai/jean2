@@ -43,6 +43,9 @@ export function useConnectionLifecycle({
     setReconnectAttempt(n => n + 1);
   }, []);
 
+  const connected = useConnectionStore((s) => s.connected);
+  const connectionTimedOut = useConnectionStore((s) => s.connectionTimedOut);
+
   // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
     if (!apiToken || !serverUrl) {
@@ -102,7 +105,6 @@ export function useConnectionLifecycle({
   }, [apiToken, serverUrl, reconnectAttempt]);
 
   useEffect(() => {
-    const { connected, connectionTimedOut } = useConnectionStore.getState();
     if (apiToken && serverUrl && !connected && !connectionTimedOut) {
       const timeoutId = setTimeout(() => {
         if (!useConnectionStore.getState().connected) {
@@ -112,35 +114,35 @@ export function useConnectionLifecycle({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [apiToken, serverUrl, reconnectAttempt]);
+  }, [apiToken, serverUrl, reconnectAttempt, connected, connectionTimedOut]);
 
   useEffect(() => {
-    const { connectionTimedOut, connected, retryCount } = useConnectionStore.getState();
-    if (connectionTimedOut && !connected && apiToken && serverUrl) {
-      const delay = Math.min(
-        INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
-        MAX_RETRY_DELAY,
-      );
+    if (!connectionTimedOut || connected || !apiToken || !serverUrl) return;
 
-      let countdown = Math.floor(delay / 1000);
-      useConnectionStore.getState().setNextRetryIn(countdown);
+    const retryCount = useConnectionStore.getState().retryCount;
+    const delay = Math.min(
+      INITIAL_RETRY_DELAY * Math.pow(2, retryCount),
+      MAX_RETRY_DELAY,
+    );
 
-      const countdownInterval = setInterval(() => {
-        countdown -= 1;
-        useConnectionStore.getState().setNextRetryIn(Math.max(0, countdown));
-      }, 1000);
+    let countdown = Math.floor(delay / 1000);
+    useConnectionStore.getState().setNextRetryIn(countdown);
 
-      const retryTimeout = setTimeout(() => {
-        useConnectionStore.getState().setRetryCount(c => c + 1);
-        setReconnectAttempt(n => n + 1);
-      }, delay);
+    const countdownInterval = setInterval(() => {
+      countdown -= 1;
+      useConnectionStore.getState().setNextRetryIn(Math.max(0, countdown));
+    }, 1000);
 
-      return () => {
-        clearInterval(countdownInterval);
-        clearTimeout(retryTimeout);
-      };
-    }
-  }, [apiToken, serverUrl, reconnectAttempt]);
+    const retryTimeout = setTimeout(() => {
+      useConnectionStore.getState().setRetryCount(c => c + 1);
+      setReconnectAttempt(n => n + 1);
+    }, delay);
+
+    return () => {
+      clearInterval(countdownInterval);
+      clearTimeout(retryTimeout);
+    };
+  }, [apiToken, serverUrl, reconnectAttempt, connected, connectionTimedOut]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -164,7 +166,7 @@ export function useConnectionLifecycle({
       if (document.visibilityState !== 'visible') return;
 
       const client = clientRef.current;
-      if (client && client.connected) return;
+      if (client && client.ws?.readyState === WebSocket.OPEN) return;
       if (!apiToken || !serverUrl) return;
 
       useConnectionStore.getState().setRetryCount(0);

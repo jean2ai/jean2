@@ -289,6 +289,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     },
 
     websocket: {
+      idleTimeout: parseInt(process.env.JEAN2_WS_IDLE_TIMEOUT || '255', 10),
       open(ws) {
         const wsData = ws.data as WsData | undefined;
         if (wsData?.path === '/ws/terminal/events') {

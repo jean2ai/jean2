@@ -54,6 +54,7 @@ export class WebSocketTransport {
         try {
           const message = JSON.parse(String(event.data)) as ServerMessage;
           if (message.type === 'ping') {
+            this.resetHeartbeat();
             this.send({ type: 'pong' } as unknown as ClientMessage);
             return;
           }
@@ -93,9 +94,14 @@ export class WebSocketTransport {
 
   async disconnect(): Promise<void> {
     if (!this._ws) return;
+    const ws = this._ws!;
+    if (ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+      this._state = 'disconnected';
+      this._ws = null;
+      return;
+    }
     return new Promise((resolve) => {
       this._state = 'disconnecting';
-      const ws = this._ws!;
       const handler = () => {
         ws.removeEventListener('close', handler);
         resolve();
