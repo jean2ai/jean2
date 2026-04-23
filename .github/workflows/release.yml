@@ -43,6 +43,8 @@ jobs:
       matrix: ${{ steps.matrix.outputs.items }}
       has_server: ${{ steps.matrix.outputs.has_server }}
     steps:
+      - uses: actions/checkout@v4
+
       - id: matrix
         run: |
           ITEMS='[]'
@@ -55,19 +57,17 @@ jobs:
           fi
           
           # Tools - bun
-          BUN_TOOLS=(apply-patch-bun edit-bun file-to-markdown-bun glob-bun grep-bun ls-bun multiedit-bun read-file-bun shell-bun todoread-bun todowrite-bun webfetch-bun write-file-bun)
           if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_bun_tools }}" = "true" ]; then
-            for TOOL in "${BUN_TOOLS[@]}"; do
+            while IFS= read -r TOOL; do
               ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
-            done
+            done < <(jq -r '.bun[]' tools/manifest.json)
           fi
           
           # Tools - node
-          NODE_TOOLS=(apply-patch-node edit-node file-to-markdown-node glob-node grep-node ls-node multiedit-node read-file-node shell-node todoread-node todowrite-node webfetch-node write-file-node)
           if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_node_tools }}" = "true" ]; then
-            for TOOL in "${NODE_TOOLS[@]}"; do
+            while IFS= read -r TOOL; do
               ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
-            done
+            done < <(jq -r '.node[]' tools/manifest.json)
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT

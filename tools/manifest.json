@@ -1,0 +1,36 @@
+{
+  "bun": [
+    "apply-patch-bun",
+    "edit-bun",
+    "file-to-markdown-bun",
+    "glob-bun",
+    "grep-bun",
+    "ls-bun",
+    "multiedit-bun",
+    "read-file-bun",
+    "shell-bun",
+    "tavily-crawl-bun",
+    "tavily-extract-bun",
+    "tavily-map-bun",
+    "tavily-search-bun",
+    "todoread-bun",
+    "todowrite-bun",
+    "webfetch-bun",
+    "write-file-bun"
+  ],
+  "node": [
+    "apply-patch-node",
+    "edit-node",
+    "file-to-markdown-node",
+    "glob-node",
+    "grep-node",
+    "ls-node",
+    "multiedit-node",
+    "read-file-node",
+    "shell-node",
+    "todoread-node",
+    "todowrite-node",
+    "webfetch-node",
+    "write-file-node"
+  ]
+}
