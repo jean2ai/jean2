@@ -204,6 +204,66 @@
       "tags": ["recommended"],
       "dangerous": true
     },
+    "tavily-crawl": {
+      "description": "Crawl a website and extract content from multiple pages using the Tavily API",
+      "packages": [
+        {
+          "name": "tavily-crawl-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["web"],
+      "dangerous": false
+    },
+    "tavily-search": {
+      "description": "Perform web searches using Tavily's search API",
+      "packages": [
+        {
+          "name": "tavily-search-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["web"],
+      "dangerous": false
+    },
+    "tavily-extract": {
+      "description": "Extract clean content from a list of URLs using the Tavily API",
+      "packages": [
+        {
+          "name": "tavily-extract-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["web"],
+      "dangerous": false
+    },
+    "tavily-map": {
+      "description": "Discover and map URLs on a website without extracting content",
+      "packages": [
+        {
+          "name": "tavily-map-bun",
+          "runtime": "bun",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["bun"],
+          "postInstall": "bun install"
+        }
+      ],
+      "extensions": [],
+      "tags": ["web"],
+      "dangerous": false
+    },
     "todoread": {
       "description": "Read the task list for the current session",
       "packages": [
