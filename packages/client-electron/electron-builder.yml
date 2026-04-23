@@ -33,11 +33,19 @@ mac:
 win:
   target:
     - nsis
+    - msi
     - portable
   icon: build/icon.ico
   artifactName: ${productName}-${version}-win.${ext}
 
 nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Jean2
+
+msi:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
