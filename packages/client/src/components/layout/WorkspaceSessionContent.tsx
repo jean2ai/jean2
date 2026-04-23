@@ -290,18 +290,16 @@ export function WorkspaceSessionContent({
 
       {/* Bulk Action Bar */}
       {selectionMode && selectedIds.size > 0 && (
-        <div className="sticky bottom-0 bg-sidebar border-t p-2 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
+        <div className="sticky bottom-0 bg-sidebar border-t px-2 py-1.5 flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground truncate min-w-0">
             {selectedIds.size} selected
           </span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleBulkArchive}>
-              <Archive className="size-4 mr-1" />
-              Archive
+          <div className="flex items-center gap-1 shrink-0">
+            <Button variant="outline" size="icon" onClick={handleBulkArchive} title="Archive" className="size-7">
+              <Archive className="size-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancel}>
-              <X className="size-4 mr-1" />
-              Cancel
+            <Button variant="ghost" size="icon" onClick={handleCancel} title="Cancel" className="size-7">
+              <X className="size-4" />
             </Button>
           </div>
         </div>
