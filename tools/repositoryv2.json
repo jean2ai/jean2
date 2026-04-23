@@ -213,6 +213,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "tavily-crawl-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -228,6 +235,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "tavily-search-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -243,6 +257,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "tavily-extract-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
@@ -258,6 +279,13 @@
           "platforms": ["darwin", "linux", "win32"],
           "requiredRuntimes": ["bun"],
           "postInstall": "bun install"
+        },
+        {
+          "name": "tavily-map-node",
+          "runtime": "node",
+          "platforms": ["darwin", "linux", "win32"],
+          "requiredRuntimes": ["node"],
+          "postInstall": "npm install"
         }
       ],
       "extensions": [],
