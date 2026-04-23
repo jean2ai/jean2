@@ -1,4 +1,4 @@
-import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
+import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { isElectron, isWindows } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ export function AppHeader() {
   const connected = useConnectionStore((s) => s.connected);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
   const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
+  const setShowTools = useUIStore((s) => s.setShowTools);
   const setShowAddServer = useUIStore((s) => s.setShowAddServer);
 
   const location = useLocation();
@@ -83,6 +84,10 @@ export function AppHeader() {
                 <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
                   <SlidersHorizontal className="mr-2 h-4 w-4" />
                   Configuration
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowTools(true)}>
+                  <Wrench className="mr-2 h-4 w-4" />
+                  Tools
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowSettings(true)}>
@@ -160,6 +165,10 @@ export function AppHeader() {
                 <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
                   <SlidersHorizontal className="mr-2 h-4 w-4" />
                   Configuration
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowTools(true)}>
+                  <Wrench className="mr-2 h-4 w-4" />
+                  Tools
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowSettings(true)}>

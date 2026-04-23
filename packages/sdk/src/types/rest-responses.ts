@@ -1,4 +1,4 @@
-import type { Session, Message, Workspace, ToolDefinition, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus } from '../shared';
+import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus } from '../shared';
 
 /**
  * GET /api/sessions
@@ -438,4 +438,29 @@ export interface StartMcpAuthResponse {
  */
 export interface FinishMcpAuthResponse {
   status: McpStatus;
+}
+
+// =============================================================================
+// Tool Env Vars Responses
+// =============================================================================
+
+/**
+ * GET /api/tools/env
+ */
+export interface ListToolEnvVarsResponse {
+  envVars: ToolEnvVarStatus[];
+}
+
+/**
+ * PUT /api/tools/env/:key
+ */
+export interface SetToolEnvVarResponse {
+  envVar: ToolEnvVarStatus;
+}
+
+/**
+ * DELETE /api/tools/env/:key
+ */
+export interface ClearToolEnvVarResponse {
+  envVar: ToolEnvVarStatus;
 }

@@ -53,3 +53,14 @@ export interface ToolApproval {
   requestedAt: string;
   respondedAt?: string | null;
 }
+
+export interface ToolEnvVarStatus {
+  key: string;
+  configured: boolean;
+  sensitive: boolean;
+  value?: string;
+  description?: string;
+  defaultValue?: string;
+  example?: string;
+  usedBy?: string[];
+}

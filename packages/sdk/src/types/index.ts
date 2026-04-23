@@ -45,6 +45,7 @@ export type {
 export type {
   ToolDefinition,
   ToolRuntime,
+  ToolEnvVarStatus,
 } from '../shared';
 
 export type {
@@ -215,6 +216,9 @@ export type {
   ListWorkspaceSessionsResponse,
   ListToolsResponse,
   GetToolResponse,
+  ListToolEnvVarsResponse,
+  SetToolEnvVarResponse,
+  ClearToolEnvVarResponse,
   ListModelsResponse,
   ListPromptsResponse,
   ListProvidersResponse,

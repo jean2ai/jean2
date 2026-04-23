@@ -5,6 +5,7 @@ import type { SavedServer } from '@jean2/sdk';
 interface DialogState {
   showSettings: boolean;
   showConfiguration: boolean;
+  showTools: boolean;
   showMCPDialog: boolean;
   showWorkspacePermissions: boolean;
   showAddServer: boolean;
@@ -14,6 +15,7 @@ interface DialogState {
 interface DialogActions {
   setShowSettings: (show: boolean) => void;
   setShowConfiguration: (show: boolean) => void;
+  setShowTools: (show: boolean) => void;
   setShowMCPDialog: (show: boolean) => void;
   setShowWorkspacePermissions: (show: boolean) => void;
   setShowAddServer: (show: boolean) => void;
@@ -63,6 +65,7 @@ export const useUIStore = create<UIStore>((set) => ({
   // --- Dialogs ---
   showSettings: false,
   showConfiguration: false,
+  showTools: false,
   showMCPDialog: false,
   showWorkspacePermissions: false,
   showAddServer: false,
@@ -70,6 +73,7 @@ export const useUIStore = create<UIStore>((set) => ({
 
   setShowSettings: (show) => set({ showSettings: show }),
   setShowConfiguration: (show) => set({ showConfiguration: show }),
+  setShowTools: (show) => set({ showTools: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowWorkspacePermissions: (show) => set({ showWorkspacePermissions: show }),
   setShowAddServer: (show) => set({ showAddServer: show }),

@@ -5,6 +5,7 @@ import { useServerDataStore } from '@/stores/serverDataStore';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
+import { ToolsDialog } from '@/components/modals/ToolsDialog';
 import { WorkspacePermissionsDialog } from '@/components/modals/WorkspacePermissionsDialog';
 import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
@@ -35,12 +36,14 @@ export function ServerDialogs({
     showSettings,
     showMCPDialog,
     showConfiguration,
+    showTools,
     showWorkspacePermissions,
     showAddServer,
     editServerData,
     setShowSettings,
     setShowMCPDialog,
     setShowConfiguration,
+    setShowTools,
     setShowWorkspacePermissions,
     setShowAddServer,
     setEditServerData,
@@ -49,12 +52,14 @@ export function ServerDialogs({
       showSettings: s.showSettings,
       showMCPDialog: s.showMCPDialog,
       showConfiguration: s.showConfiguration,
+      showTools: s.showTools,
       showWorkspacePermissions: s.showWorkspacePermissions,
       showAddServer: s.showAddServer,
       editServerData: s.editServerData,
       setShowSettings: s.setShowSettings,
       setShowMCPDialog: s.setShowMCPDialog,
       setShowConfiguration: s.setShowConfiguration,
+      setShowTools: s.setShowTools,
       setShowWorkspacePermissions: s.setShowWorkspacePermissions,
       setShowAddServer: s.setShowAddServer,
       setEditServerData: s.setEditServerData,
@@ -108,6 +113,12 @@ export function ServerDialogs({
             onConfigurationClose();
           }
         }}
+        sdkClient={sdkClient}
+      />
+
+      <ToolsDialog
+        open={showTools}
+        onOpenChange={setShowTools}
         sdkClient={sdkClient}
       />
 
