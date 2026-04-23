@@ -594,14 +594,16 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       }
       clients.set(ws, { sessionId: session.id, missedPings: 0 });
 
+      const isRunning = interruptManager.isSessionActive(session.id);
+
       reconcileSessionCompaction(session.id);
-      reconcileOrphanedToolCalls(session.id);
+      if (!isRunning) {
+        reconcileOrphanedToolCalls(session.id);
+      }
 
       const reconciledSession = getSession(msg.sessionId);
 
       const messages = listMessagesWithParts(session.id);
-
-      const isRunning = interruptManager.isSessionActive(session.id);
 
       send(ws, {
         type: 'session.resumed',
