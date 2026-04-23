@@ -8,8 +8,8 @@ import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/sdk';
 import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
-import { MentionHighlighter } from './MentionHighlighter';
 import { FileMentionChip } from './FileMentionChip';
+import { useHighlightBackground } from '@/hooks/useHighlightBackground';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
@@ -108,6 +108,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const openFilePreview = useUIStore((s) => s.openFilePreview);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const mentionPaths = useMemo(() => mentions.map(m => m.path), [mentions]);
+
+  useHighlightBackground(textareaRef, input, mentionPaths);
 
   useEffect(() => {
     if (mentions.length === 0) return;
@@ -515,11 +517,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       )}
       <div className="flex gap-3 items-end">
         <div className="flex-1 relative">
-          <MentionHighlighter
-            content={input}
-            mentions={mentionPaths}
-            textareaRef={textareaRef}
-          />
           <Popover open={showPromptAc || showFileAc} onOpenChange={(open) => {
             if (!open) {
               setAcMode('none');
@@ -537,8 +534,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 disabled={disabled}
                 className={cn(
                   'min-h-[44px] max-h-[150px] resize-none pr-12 chat-input-scrollbar',
-                  'focus-visible:ring-1',
-                  'relative z-[1] text-transparent caret-foreground placeholder:text-muted-foreground'
+                  'focus-visible:ring-1'
                 )}
                 rows={1}
                 data-chat-input="true"
