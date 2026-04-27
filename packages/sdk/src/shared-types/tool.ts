@@ -1,5 +1,4 @@
 import type { AnyVisualization } from './visualization';
-import type { SecurityCheckResult } from './permission';
 
 export type BufferEncoding = 'utf-8' | 'ascii' | 'utf-16le' | 'ucs2' | 'base64' | 'hex' | 'latin1' | 'binary';
 
@@ -49,26 +48,6 @@ export interface ToolExecutionContext {
 export interface ToolModule {
   definition: ToolDefinition;
   execute: (input: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
-  security?: (input: Record<string, unknown>, ctx: SecurityContext) => SecurityCheckResult | Promise<SecurityCheckResult>;
-}
-
-// ===========================================
-// Security Context (limited - no LLM, no askUser)
-// ===========================================
-
-export interface SecurityContext {
-  workspacePath: string;
-  sessionId: string;
-  workspaceId?: string;
-  allowedPaths: string[];
-  env: {
-    get(key: string): string | undefined;
-  };
-
-  resolvePath(path: string): string;
-  isWithinWorkspace(path: string): boolean;
-  isSensitivePath(path: string): boolean;
-  isBlockedPath(path: string): boolean;
 }
 
 // ===========================================
@@ -80,13 +59,19 @@ export interface ToolContext {
   workspacePath: string;
   workspaceId?: string;
   abortSignal: AbortSignal;
+  allowedPaths: string[];
 
   fs: FileSystemApi;
   llm: LlmApi;
-  askUser: AskUserApi;
+  ask: AskApi;
   env: EnvApi;
   logger: ToolLogger;
   fetch: typeof globalThis.fetch;
+
+  resolvePath(path: string): string;
+  isWithinWorkspace(path: string): boolean;
+  isSensitivePath(path: string): boolean;
+  isBlockedPath(path: string): boolean;
 }
 
 // ===========================================
@@ -157,8 +142,13 @@ export interface LlmImage {
 }
 
 // ===========================================
-// Ask User API
+// Ask API (bidirectional tool ↔ client communication)
 // ===========================================
+
+// Who should handle this ask
+export type AskTarget = 'human' | 'client' | 'permission';
+
+// --- Human question types ---
 
 export interface SingleSelectQuestion {
   type: 'single_select';
@@ -191,14 +181,69 @@ export interface ConfirmQuestion {
   defaultValue?: boolean;
 }
 
-export type UserQuestion = SingleSelectQuestion | MultiSelectQuestion | TextQuestion | ConfirmQuestion;
+export type HumanQuestion = SingleSelectQuestion | MultiSelectQuestion | TextQuestion | ConfirmQuestion;
 
-export type AskUserApi = {
-  (request: SingleSelectQuestion): Promise<string>;
-  (request: MultiSelectQuestion): Promise<string[]>;
-  (request: TextQuestion): Promise<string>;
-  (request: ConfirmQuestion): Promise<boolean>;
+// --- Form question (multiple sub-questions) ---
+
+export interface FormQuestion {
+  type: 'form';
+  question: string;
+  description?: string;
+  questions: HumanQuestion[];
+}
+
+// --- Client capability ask ---
+
+export interface ClientCapabilityAsk {
+  type: 'client_capability';
+  capability: string;
+  metadata?: Record<string, unknown>;
+}
+
+// --- Permission ask ---
+
+export interface PermissionAsk {
+  type: 'permission';
+  question: string;
+  description?: string;
+  risk?: 'low' | 'medium' | 'high';
+  metadata?: Record<string, unknown>;
+}
+
+// --- Union of all ask types ---
+
+export type Ask =
+  | (HumanQuestion & { target: 'human' })
+  | (FormQuestion & { target: 'human' })
+  | (ClientCapabilityAsk & { target: 'client' })
+  | (PermissionAsk & { target: 'permission' });
+
+// Legacy alias (tools still import UserQuestion)
+export type UserQuestion = HumanQuestion | FormQuestion;
+
+// --- AskApi overloaded callable ---
+
+export type AskApi = {
+  (request: SingleSelectQuestion & { target: 'human' }): Promise<string>;
+  (request: MultiSelectQuestion & { target: 'human' }): Promise<string[]>;
+  (request: TextQuestion & { target: 'human' }): Promise<string>;
+  (request: ConfirmQuestion & { target: 'human' }): Promise<boolean>;
+  (request: FormQuestion & { target: 'human' }): Promise<AskFormResponse>;
+  (request: ClientCapabilityAsk & { target: 'client' }): Promise<unknown>;
+  (request: PermissionAsk & { target: 'permission' }): Promise<boolean>;
+  (request: Ask): Promise<unknown>;
 };
+
+// Response types
+export interface AskFormResponse {
+  answers: Array<{
+    question: string;
+    answer: unknown;
+  }>;
+}
+
+// Legacy alias
+export type AskUserApi = AskApi;
 
 // ===========================================
 // Env API
@@ -227,7 +272,6 @@ export interface ToolLogger {
 export interface LoadedTool {
   definition: ToolDefinition;
   execute: ToolModule['execute'];
-  security?: ToolModule['security'];
   path: string;
 }
 

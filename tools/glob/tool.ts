@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 
 interface Input {
@@ -56,54 +56,6 @@ export const definition: ToolDefinition = {
   },
   timeout: 30000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const searchPath = input.path || ctx.workspacePath;
-  const normalizedPath = ctx.resolvePath(searchPath);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Globbing system directories is not allowed: ${searchPath}`,
-    };
-  }
-
-  const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
-  const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
-
-  if (jean2TempPrefix && normalizedPath.startsWith(jean2TempPrefix)) {
-    return {
-      allowed: true,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:glob',
-      message: 'Globbing Jean2 temp directory (persisted tool output).',
-      details: { originalPath: searchPath, normalizedPath, pattern: input.pattern },
-    };
-  }
-
-  if (!ctx.isWithinWorkspace(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Globbing outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:glob',
-    message: 'Globbing within workspace.',
-  };
-}
 
 function globToRegex(pattern: string): RegExp {
   const parts = pattern.split('/');
@@ -184,6 +136,28 @@ async function walkDirectory(
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    const searchPath = input.path || ctx.workspacePath;
+    const normalizedPath = ctx.resolvePath(searchPath);
+
+    if (ctx.isBlockedPath(normalizedPath)) {
+      return { success: false, error: `Globbing system directories is not allowed: ${searchPath}` };
+    }
+
+    const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
+    const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
+    const isJean2Temp = jean2TempPrefix && normalizedPath.startsWith(jean2TempPrefix);
+
+    if (!isJean2Temp && !ctx.isWithinWorkspace(normalizedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Globbing outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const cwd = input.path ? ctx.fs.resolve(input.path) : ctx.workspacePath;
 
     const hasWildcard = input.pattern.includes('*') || input.pattern.includes('?');

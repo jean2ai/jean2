@@ -2,7 +2,7 @@ import type { Session } from '../shared-types/session';
 import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-types/message';
 import type { PermissionType, ToolPermission } from '../shared-types/permission';
 import type { SessionInterruptResult } from '../shared-types/interrupt';
-import type { UserQuestion } from '../shared-types/tool';
+import type { Ask } from '../shared-types/tool';
 
 export interface SessionCreatedMessage {
   type: 'session.created';
@@ -295,22 +295,26 @@ export interface ProviderConnectedMessage {
 }
 
 // =============================================================================
-// Ask User Messages (Server → Client)
+// Ask Messages (Server → Client)
 // =============================================================================
 
-export interface AskUserRequestMessage {
-  type: 'ask_user.request';
+export interface AskRequestMessage {
+  type: 'ask.request';
   sessionId: string;
   toolCallId: string;
   toolName: string;
-  question: UserQuestion;
+  ask: Ask;
 }
 
-export interface AskUserTimedOutMessage {
-  type: 'ask_user.timeout';
+export interface AskTimedOutMessage {
+  type: 'ask.timeout';
   sessionId: string;
   toolCallId: string;
 }
+
+// Legacy aliases
+export type AskUserRequestMessage = AskRequestMessage;
+export type AskUserTimedOutMessage = AskTimedOutMessage;
 
 // =============================================================================
 // Heartbeat Messages
@@ -358,6 +362,6 @@ export type ServerMessage =
   | ContextOverflowErrorMessage
   | ProviderStatusMessage
   | ProviderConnectedMessage
-  | AskUserRequestMessage
-  | AskUserTimedOutMessage
+  | AskRequestMessage
+  | AskTimedOutMessage
   | PingMessage;

@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { DiffVisualization } from '@jean2/sdk';
 
 interface Input {
@@ -48,50 +48,6 @@ export const definition: ToolDefinition = {
   },
   timeout: 180000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const normalizedPath = ctx.resolvePath(input.path);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Editing system directories is not allowed: ${input.path}`,
-    };
-  }
-
-  if (!ctx.isWithinWorkspace(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Editing files outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  if (ctx.isSensitivePath(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'file_pattern:sensitive',
-      message: 'Editing sensitive files requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:edit',
-    message: 'Editing file within workspace.',
-  };
-}
 
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
@@ -267,7 +223,33 @@ function multiLineMatch(content: string, search: string): MatchResult[] {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const resolvedPath = ctx.fs.resolve(input.path);
+    const resolvedPath = ctx.resolvePath(input.path);
+
+    if (ctx.isBlockedPath(resolvedPath)) {
+      return { success: false, error: `Editing system directories is not allowed: ${input.path}` };
+    }
+
+    if (!ctx.isWithinWorkspace(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Editing files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (ctx.isSensitivePath(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Editing sensitive files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
 
     const exists = await ctx.fs.exists(resolvedPath);
     if (!exists) {
@@ -357,7 +339,6 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     };
 
     const oldLines = content.split('\n');
-    const newLines = newContent.split('\n');
     const contextSize = 5;
 
     const matchIndex = match.lineNumber - 1;

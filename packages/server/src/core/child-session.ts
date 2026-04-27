@@ -3,7 +3,6 @@ import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
 import { broadcastEvent } from './broadcast';
 import { getLLMSubagentMaxSteps } from '../env';
-import { createPermissionRequestHandler } from '@/index';
 import { streamChatWithRetry } from './retry';
 
 export async function executeChildSession(options: {
@@ -84,7 +83,6 @@ export async function executeChildSession(options: {
       providerId: providerId ?? undefined,
       variant: variant ?? undefined,
       maxSteps: getLLMSubagentMaxSteps(),
-      onPermissionRequest: createPermissionRequestHandler(childSessionId),
     })) {
     if (event.type === 'message.created') {
       broadcastEvent(event);

@@ -7,8 +7,7 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { usePermissionStore } from '@/stores/permissionStore';
-import { useAskUserStore } from '@/stores/askUserStore';
-import type { PendingAskUserRequest } from '@/stores/askUserStore';
+import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
 import { OfflineState } from '@/components/shared/OfflineState';
@@ -29,7 +28,7 @@ export interface AppMainContentProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  onAskUserResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: unknown) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
   onNavigateBack: () => void;
@@ -55,7 +54,7 @@ export function AppMainContent({
   onChangeModel,
   onChangeVariant,
   onPermissionResponse,
-  onAskUserResponse,
+  onAskResponse,
   onRename,
   onNavigateToSubagent,
   onNavigateBack,
@@ -88,7 +87,7 @@ export function AppMainContent({
   const defaultModel = useServerDataStore(s => s.defaultModel);
 
   const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
-  const pendingAskUserRequests = useAskUserStore(s => s.pendingRequests) as PendingAskUserRequest[];
+  const pendingAskRequests = useAskStore(s => s.pendingRequests) as PendingAskRequest[];
 
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
   const isPrimarySession = !currentSession?.parentId;
@@ -171,9 +170,9 @@ export function AppMainContent({
       selectedVariant={selectedVariant}
       variants={currentModelInfo?.variants}
       pendingPermissions={pendingPermissions}
-      pendingAskUserRequests={pendingAskUserRequests}
+      pendingAskRequests={pendingAskRequests}
       onPermissionResponse={onPermissionResponse}
-      onAskUserResponse={onAskUserResponse}
+      onAskResponse={onAskResponse}
       onRename={onRename}
       usage={sessionUsage}
       modelName={currentModel}

@@ -107,7 +107,7 @@ export function registerIpcHandlers(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Audio playback failed:', message);
-      throw new Error(`Audio playback failed: ${message}`);
+      throw new Error(`Audio playback failed: ${message}`, { cause: err });
     }
   });
 

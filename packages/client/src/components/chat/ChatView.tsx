@@ -23,11 +23,11 @@ interface PendingPermissionRequest {
   subagentName?: string;
 }
 
-interface PendingAskUserRequest {
+interface PendingAskRequest {
   toolCallId: string;
   sessionId: string;
   toolName: string;
-  question: import('@jean2/sdk').UserQuestion;
+  ask: import('@jean2/sdk').Ask;
 }
 
 interface Model {
@@ -68,9 +68,9 @@ interface ChatViewProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
   pendingPermissions: PendingPermissionRequest[];
-  pendingAskUserRequests: PendingAskUserRequest[];
+  pendingAskRequests: PendingAskRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  onAskUserResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: unknown) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
     promptTokens: number;
@@ -254,9 +254,9 @@ export function ChatView({
   onChangeModel,
   onChangeVariant,
   pendingPermissions,
-  pendingAskUserRequests,
+  pendingAskRequests,
   onPermissionResponse,
-  onAskUserResponse,
+  onAskResponse,
   onRename,
   usage,
   modelName,
@@ -362,12 +362,12 @@ export function ChatView({
           sessionId={session.id}
           sessionStatus={session.status}
           pendingPermissions={pendingPermissions}
-          pendingAskUserRequests={pendingAskUserRequests}
+          pendingAskRequests={pendingAskRequests}
           isCompacting={isCompacting}
           compactionSuccess={compactionSuccess}
           onClearCompactionSuccess={onClearCompactionSuccess}
           onPermissionResponse={onPermissionResponse}
-          onAskUserResponse={onAskUserResponse}
+          onAskResponse={onAskResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           onRemoveFromQueue={onRemoveFromQueue}
           onRevert={_onRevert}

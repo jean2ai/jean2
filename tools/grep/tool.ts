@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 import ignore from 'ignore';
 
@@ -52,64 +52,6 @@ export const definition: ToolDefinition = {
   },
   timeout: 30000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const targetPath = input.path || ctx.workspacePath;
-  const normalizedPath = ctx.resolvePath(targetPath);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Searching in system directories is not allowed: ${targetPath}`,
-    };
-  }
-
-  const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
-  const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
-
-  if (jean2TempPrefix && normalizedPath.startsWith(jean2TempPrefix)) {
-    return {
-      allowed: true,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:grep',
-      message: 'Searching Jean2 temp directory (persisted tool output).',
-    };
-  }
-
-  if (!ctx.isWithinWorkspace(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Searching in files outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  if (ctx.isSensitivePath(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'file_pattern:sensitive',
-      message: 'Searching in sensitive directories requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:grep',
-    message: 'Searching within workspace.',
-  };
-}
 
 function isBinaryFile(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
@@ -257,6 +199,39 @@ async function walkDirectory(
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    const targetPath = input.path || ctx.workspacePath;
+    const normalizedPath = ctx.resolvePath(targetPath);
+
+    if (ctx.isBlockedPath(normalizedPath)) {
+      return { success: false, error: `Searching in system directories is not allowed: ${targetPath}` };
+    }
+
+    const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
+    const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
+    const isJean2Temp = jean2TempPrefix && normalizedPath.startsWith(jean2TempPrefix);
+
+    if (!isJean2Temp && !ctx.isWithinWorkspace(normalizedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Searching in files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (ctx.isSensitivePath(normalizedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Searching in sensitive directories requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const searchPath = input.path ? ctx.fs.resolve(input.path) : ctx.workspacePath;
 
     let isDirectory = true;

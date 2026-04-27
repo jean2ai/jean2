@@ -1,25 +1,10 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { CodeVisualization } from '@jean2/sdk';
 
 interface Input {
   path: string;
   content: string;
 }
-
-const SENSITIVE_PATTERNS = [
-  /\.env/i,
-  /\.pem$/i,
-  /\.key$/i,
-  /\.ssh\//i,
-  /id_rsa/i,
-  /id_ed25519/i,
-  /\.gitconfig$/i,
-  /\.npmrc$/i,
-  /credentials/i,
-  /secrets?/i,
-  /password/i,
-  /\.htpasswd$/i,
-];
 
 export const definition: ToolDefinition = {
   name: 'write-file',
@@ -40,51 +25,6 @@ export const definition: ToolDefinition = {
   },
   timeout: 30000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const normalizedPath = ctx.resolvePath(input.path);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Writing to system directories is not allowed: ${input.path}`,
-    };
-  }
-
-  if (!ctx.isWithinWorkspace(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Writing to files outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  const isSensitive = SENSITIVE_PATTERNS.some((pattern) => pattern.test(normalizedPath));
-  if (isSensitive) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'file_pattern:sensitive',
-      message: 'Writing to sensitive files requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:write-file',
-    message: 'Writing to file within workspace.',
-  };
-}
 
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
@@ -109,7 +49,34 @@ function detectLanguage(filePath: string): string {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const resolvedPath = ctx.fs.resolve(input.path);
+    const resolvedPath = ctx.resolvePath(input.path);
+
+    if (ctx.isBlockedPath(resolvedPath)) {
+      return { success: false, error: `Writing to system directories is not allowed: ${input.path}` };
+    }
+
+    if (!ctx.isWithinWorkspace(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Writing to files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (ctx.isSensitivePath(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Writing to sensitive files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const existed = await ctx.fs.exists(resolvedPath);
 
     await ctx.fs.writeFile(resolvedPath, input.content);

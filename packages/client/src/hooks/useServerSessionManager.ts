@@ -22,7 +22,7 @@ import { useServerContext } from '@/contexts/ServerContext';
 import { useSessionStore, type SessionUsage } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { usePermissionStore, type PendingPermissionRequest } from '@/stores/permissionStore';
-import { useAskUserStore, type PendingAskUserRequest } from '@/stores/askUserStore';
+import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -30,6 +30,7 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { usePermissionAutoApprove } from '@/hooks/usePermissionAutoApprove';
 
 export interface UseServerSessionManagerParams {
   serverId: string;
@@ -55,7 +56,7 @@ export interface UseServerSessionManagerReturn {
   workspaceSessions: Session[];
   messagesWithParts: MessageWithParts[];
   pendingPermissions: PendingPermissionRequest[];
-  pendingAskUserRequests: PendingAskUserRequest[];
+  pendingAskRequests: PendingAskRequest[];
   queuedMessages: Record<string, QueuedMessage[]>;
   permissions: ToolPermission[];
 
@@ -89,7 +90,7 @@ export interface UseServerSessionManagerReturn {
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  handleAskUserResponse: (toolCallId: string, response: unknown) => void;
+  handleAskResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -299,11 +300,11 @@ export function useServerSessionManager({
   );
 
   const {
-    pendingRequests: pendingAskUserRequests,
-    addPendingRequest: addPendingAskUserRequest,
-    removePendingRequest: removePendingAskUserRequest,
-    clearPendingRequests: clearPendingAskUserRequests,
-  } = useAskUserStore(
+    pendingRequests: pendingAskRequests,
+    addPendingRequest: addPendingAskRequest,
+    removePendingRequest: removePendingAskRequest,
+    clearPendingRequests: clearPendingAskRequests,
+  } = useAskStore(
     useShallow((s) => ({
       pendingRequests: s.pendingRequests,
       addPendingRequest: s.addPendingRequest,
@@ -342,6 +343,9 @@ export function useServerSessionManager({
   );
 
   const { playChatFinishSound, playPermissionSound } = useNotificationSound();
+
+  // Register permission auto-approve handler
+  usePermissionAutoApprove();
 
   const flushPendingPartAppends = useCallback(() => {
     if (partAppendRafRef.current !== null) {
@@ -657,10 +661,38 @@ export function useServerSessionManager({
         navigate({ to: `/server/$serverId${viewPath}` as any, params: { serverId: _serverId } });
       },
       serverId: _serverId,
-      // AskUser handlers
-      addPendingAskUserRequest,
-      removePendingAskUserRequest,
-      clearPendingAskUserRequests,
+      // Ask handlers
+      addPendingAskRequest,
+      removePendingAskRequest,
+      clearPendingAskRequests,
+      runAskHandlers: (target, request) => {
+        const handlers = useAskStore.getState().getHandlers(target);
+        if (handlers.length === 0) return undefined;
+
+        // Run handlers sequentially, first non-undefined result wins
+        return (async () => {
+          for (const handler of handlers) {
+            try {
+              const result = await handler(request);
+              if (result !== undefined) return result;
+            } catch {
+              continue;
+            }
+          }
+          return undefined;
+        })();
+      },
+      sendAskResponse: (toolCallId, response) => {
+        const client = sdkClientRef.current;
+        removePendingAskRequest(toolCallId);
+        if (client && client.connected) {
+          client.send({
+            type: 'ask.response',
+            toolCallId,
+            response,
+          });
+        }
+      },
     };
   });
 
@@ -679,7 +711,7 @@ export function useServerSessionManager({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
-    handleAskUserResponse,
+    handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,
@@ -705,7 +737,7 @@ export function useServerSessionManager({
     setSelectedVariant,
     removePendingPermissionByToolCallId,
     removePendingPermissionsBySessionId,
-    removePendingAskUserRequest,
+    removePendingAskRequest,
     clearStreamingSessions: useConnectionStore.getState().clearStreamingSessions,
     pendingSessionCreateRef,
     partAppendRafRef,
@@ -742,7 +774,7 @@ export function useServerSessionManager({
     workspaceSessions,
     messagesWithParts,
     pendingPermissions,
-    pendingAskUserRequests,
+    pendingAskRequests,
     queuedMessages,
 
     sessionUsage,
@@ -775,7 +807,7 @@ export function useServerSessionManager({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
-    handleAskUserResponse,
+    handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,

@@ -4,8 +4,8 @@ import type { ToolPart, AnyVisualization } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { VisualizationRenderer } from '@/components/visualizations';
-import { AskUserQuestion } from './AskUserQuestion';
-import type { PendingAskUserRequest } from '@/stores/askUserStore';
+import { AskQuestion } from './AskQuestion';
+import type { PendingAskRequest } from '@/stores/askStore';
 
 const LARGE_OUTPUT_THRESHOLD = 1536;
 
@@ -61,9 +61,9 @@ interface PendingPermissionRequest {
 interface ToolCallProps {
   part: ToolPart;
   pendingPermissions: PendingPermissionRequest[];
-  pendingAskUserRequests: PendingAskUserRequest[];
+  pendingAskRequests: PendingAskRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  onAskUserResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
 }
 
@@ -106,18 +106,18 @@ const areToolCallPropsEqual = (
 
   if (prevPerm !== nextPerm) return false;
 
-  const prevAskUser = prev.pendingAskUserRequests.find(r => r.toolCallId === prev.part.callId);
-  const nextAskUser = next.pendingAskUserRequests.find(r => r.toolCallId === next.part.callId);
+  const prevAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
+  const nextAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
 
-  return prevAskUser === nextAskUser;
+  return prevAsk === nextAsk;
 };
 
 export const ToolCall = memo(function ToolCall({
   part,
   pendingPermissions,
-  pendingAskUserRequests,
+  pendingAskRequests,
   onPermissionResponse,
-  onAskUserResponse,
+  onAskResponse,
   onNavigateToSubagent,
 }: ToolCallProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -152,8 +152,8 @@ export const ToolCall = memo(function ToolCall({
     ? pendingPermissions.find((p) => p.toolCallId === part.callId)
     : undefined;
 
-  const pendingAskUserRequest = status === 'pending' || status === 'running'
-    ? pendingAskUserRequests.find((r) => r.toolCallId === part.callId)
+  const pendingAskRequest = status === 'pending' || status === 'running'
+    ? pendingAskRequests.find((r) => r.toolCallId === part.callId)
     : undefined;
 
   const permissionCommandText = pendingPermission
@@ -361,12 +361,12 @@ export const ToolCall = memo(function ToolCall({
         </div>
       )}
 
-      {/* AskUser Question - rendered after permission panel if both exist */}
-      {pendingAskUserRequest && (
+      {/* Ask Question - rendered after permission panel if both exist */}
+      {pendingAskRequest && (
         <div className="mt-2">
-          <AskUserQuestion
-            request={pendingAskUserRequest}
-            onRespond={onAskUserResponse}
+          <AskQuestion
+            request={pendingAskRequest}
+            onRespond={onAskResponse}
           />
         </div>
       )}

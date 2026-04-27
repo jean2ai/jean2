@@ -5,10 +5,10 @@ import type {
   MessageWithParts,
   ToolPermission,
   ProviderStatus,
-  UserQuestion,
+  Ask,
 } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/permissionStore';
-import type { PendingAskUserRequest } from '@/stores/askUserStore';
+import type { PendingAskRequest } from '@/stores/askStore';
 import type { CompletionRecord } from '@/stores/completionStore';
 
 export type SessionUsage = {
@@ -94,10 +94,12 @@ export interface SessionHandlersContext {
   navigateToSession: (sessionId: string) => void;
   navigateToParent: () => void;
   serverId: string;
-  // AskUser related
-  addPendingAskUserRequest: (request: PendingAskUserRequest) => void;
-  removePendingAskUserRequest: (toolCallId: string) => void;
-  clearPendingAskUserRequests: () => void;
+  // Ask related
+  addPendingAskRequest: (request: PendingAskRequest) => void;
+  removePendingAskRequest: (toolCallId: string) => void;
+  clearPendingAskRequests: () => void;
+  runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<unknown | undefined> | undefined;
+  sendAskResponse: (toolCallId: string, response: unknown) => void;
 }
 
 export type SessionHandlers = {
@@ -143,7 +145,7 @@ export type ProviderHandlers = {
 
 export type HandlerContext = SessionHandlersContext;
 
-export type AskUserHandlers = {
-  'ask_user.request': (msg: { type: 'ask_user.request'; sessionId: string; toolCallId: string; toolName: string; question: UserQuestion }, ctx: SessionHandlersContext) => void;
-  'ask_user.timeout': (msg: { type: 'ask_user.timeout'; sessionId: string; toolCallId: string }, ctx: SessionHandlersContext) => void;
+export type AskHandlers = {
+  'ask.request': (msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask }, ctx: SessionHandlersContext) => void;
+  'ask.timeout': (msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string }, ctx: SessionHandlersContext) => void;
 };

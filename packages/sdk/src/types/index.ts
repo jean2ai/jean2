@@ -48,7 +48,6 @@ export type {
   ToolResult,
   ToolModule,
   ToolContext,
-  SecurityContext,
   FileSystemApi,
   DirEntry,
   FileStat,
@@ -56,12 +55,20 @@ export type {
   LlmTextOptions,
   LlmStructuredOptions,
   LlmImage,
+  AskApi,
   AskUserApi,
   UserQuestion,
   SingleSelectQuestion,
   MultiSelectQuestion,
   TextQuestion,
   ConfirmQuestion,
+  FormQuestion,
+  HumanQuestion,
+  ClientCapabilityAsk,
+  PermissionAsk,
+  Ask,
+  AskTarget,
+  AskFormResponse,
   EnvApi,
   ToolLogger,
   LoadedTool,
@@ -147,7 +154,9 @@ export type {
   QueueSendingMessage,
   ProviderStatusMessage,
   ProviderConnectedMessage,
+  AskRequestMessage,
   AskUserRequestMessage,
+  AskTimedOutMessage,
   AskUserTimedOutMessage,
   ErrorMessage,
   RateLimitErrorMessage,
@@ -160,6 +169,7 @@ export type {
 
 // Individual client message types
 export type {
+  AskResponseMessage,
   AskUserResponseMessage,
 } from '../shared';
 

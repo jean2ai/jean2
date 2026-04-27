@@ -7,8 +7,8 @@ import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, SecurityCheckResult, AskUserResponseMessage } from '@jean2/sdk';
-import { resolveAskUser } from '@/tools/ask-user-api';
+import type { ServerMessage, ClientMessage, AskResponseMessage } from '@jean2/sdk';
+import { resolveAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import type { PermissionType } from '@jean2/sdk';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
@@ -36,8 +36,6 @@ import {
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
 import {
-  createToolApproval,
-  updateToolApproval,
   listPendingApprovals,
   listAllPendingApprovals
 } from '@/store/tool-approvals';
@@ -79,10 +77,6 @@ export interface ServerInstance {
 }
 
 const clients = new Map<ServerWebSocket, { sessionId?: string; missedPings: number }>();
-
-const pendingPermissionResolvers = new Map<string, {
-  resolve: (result: { allowed: boolean; alwaysAllow: boolean }) => void
-}>();
 
 const compactionFailureTracker = new Map<string, { count: number; lastFailureAt: number }>();
 const COMPACTION_FAILURE_COOLDOWN_MS = 60_000;
@@ -440,85 +434,6 @@ function send(ws: ServerWebSocket, msg: ServerMessage) {
   ws.send(JSON.stringify(msg));
 }
 
-function createPermissionRequestHandler(sessionId: string) {
-  return async (
-    toolCallId: string,
-    toolName: string,
-    args: Record<string, unknown>,
-    securityResult: SecurityCheckResult
-  ): Promise<{ allowed: boolean; alwaysAllow: boolean }> => {
-    const session = getSession(sessionId);
-
-    let parentSessionId = sessionId;
-    let currentSession = session;
-    while (currentSession?.parentId) {
-      parentSessionId = currentSession.parentId;
-      currentSession = getSession(parentSessionId);
-    }
-
-    let subagentName: string | undefined;
-    if (session?.parentId) {
-      const titleParts = session.title?.split('(');
-      if (titleParts && titleParts.length > 1) {
-        const agentPart = titleParts[1].split('@')[1]?.split(' ')[0];
-        if (agentPart) {
-          subagentName = agentPart;
-        }
-      }
-      if (!subagentName) {
-        subagentName = 'subagent';
-      }
-    }
-
-    broadcast({
-      type: 'permission.request',
-      sessionId: parentSessionId,
-      childSessionId: sessionId !== parentSessionId ? sessionId : undefined,
-      subagentName,
-      toolCallId,
-      toolName,
-      args,
-      permissionType: securityResult.permissionType,
-      permissionKey: securityResult.permissionKey,
-      message: securityResult.message,
-      details: securityResult.details,
-    });
-
-    createToolApproval({
-      id: toolCallId,
-      sessionId: parentSessionId,
-      childSessionId: sessionId !== parentSessionId ? sessionId : undefined,
-      subagentName,
-      toolCallId,
-      toolName,
-      args,
-      permissionType: securityResult.permissionType,
-      permissionKey: securityResult.permissionKey,
-      message: securityResult.message,
-      details: securityResult.details,
-      status: 'pending',
-      requestedAt: new Date().toISOString(),
-    });
-
-    return new Promise((resolve) => {
-      pendingPermissionResolvers.set(toolCallId, { resolve });
-
-      setTimeout(() => {
-        const pending = pendingPermissionResolvers.get(toolCallId);
-        if (pending) {
-          pendingPermissionResolvers.delete(toolCallId);
-          updateToolApproval(toolCallId, {
-            status: 'timeout',
-            respondedAt: new Date().toISOString()
-          });
-          broadcast({ type: 'permission.granted', toolCallId, cached: false });
-          resolve({ allowed: false, alwaysAllow: false });
-        }
-      }, 5 * 60 * 1000);
-    });
-  };
-}
-
 function handleTerminalMessage(ws: ServerWebSocket, message: string | Buffer | undefined): void {
   try {
     if (!message) return;
@@ -732,24 +647,6 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
 
-    case 'permission.response': {
-      const pending = pendingPermissionResolvers.get(msg.toolCallId);
-      if (pending) {
-        pendingPermissionResolvers.delete(msg.toolCallId);
-
-        updateToolApproval(msg.toolCallId, {
-          status: msg.allowed ? 'approved' : 'denied',
-          respondedAt: new Date().toISOString(),
-        });
-
-        pending.resolve({ allowed: msg.allowed, alwaysAllow: msg.alwaysAllow });
-        broadcast({ type: 'permission.granted', toolCallId: msg.toolCallId, cached: false });
-      } else {
-        console.warn('permission.response received for unknown toolCallId:', msg.toolCallId);
-      }
-      break;
-    }
-
     case 'permission.list': {
       const permissions = getWorkspacePermissions(msg.workspaceId, msg.includeRevoked);
       send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, permissions });
@@ -936,9 +833,9 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       break;
     }
 
-    case 'ask_user.response': {
-      const { toolCallId, response } = msg as AskUserResponseMessage;
-      resolveAskUser(toolCallId, response);
+    case 'ask.response': {
+      const { toolCallId, response } = msg as AskResponseMessage;
+      resolveAsk(toolCallId, response);
       break;
     }
 
@@ -1169,7 +1066,10 @@ async function runSingleChatTurn(
   }
 
   const { messages: history } = buildEffectiveContextHistory(sessionId);
-  const onPermissionRequest = createPermissionRequestHandler(sessionId);
+
+  const askBroadcastFn: AskBroadcastFn = (message) => {
+    broadcast(message as ServerMessage);
+  };
 
   let pendingCompaction = false;
 
@@ -1178,12 +1078,12 @@ async function runSingleChatTurn(
       sessionId,
       preconfig,
       messages: history,
-      onPermissionRequest,
       modelId: modelId,
       providerId: provider,
       variant: session.selectedVariant || undefined,
       workspacePath: workspacePath ?? undefined,
       workspaceId: session.workspaceId || undefined,
+      broadcastFn: askBroadcastFn,
     })) {
       switch (event.type) {
         case 'message.created':
@@ -1526,4 +1426,4 @@ if (import.meta.main) {
   });
 }
 
-export { createPermissionRequestHandler, startServer };
+export { startServer };

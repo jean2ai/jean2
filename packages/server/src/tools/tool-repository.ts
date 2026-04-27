@@ -12,7 +12,6 @@ export interface RepositoryTool {
   version: string;
   downloadUrl: string;
   envVars?: ToolEnvVar[];
-  hasSecurity?: boolean;
 }
 
 export interface ToolRepository {

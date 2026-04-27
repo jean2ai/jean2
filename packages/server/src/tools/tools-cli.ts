@@ -58,7 +58,6 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
         version: t.version,
         installed: installedSet.has(t.name),
         description: t.description,
-        hasSecurity: t.hasSecurity,
       }));
       console.log(JSON.stringify(result, null, 2));
       return { success: true };
@@ -82,10 +81,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
       const installed = installedSet.has(tool.name);
       const status = installed ? '✔ installed' : '— available';
 
-      let desc = tool.description;
-      if (tool.hasSecurity) {
-        desc += ' 🔒';
-      }
+      const desc = tool.description;
 
       const namePad = tool.name.padEnd(maxNameLen);
       const versionPad = (tool.version || '?').padEnd(VERS_COL);

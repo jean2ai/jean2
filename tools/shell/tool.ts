@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { ShellOutputVisualization } from '@jean2/sdk';
 
 interface Input {
@@ -71,59 +71,13 @@ This tool is for terminal operations (package managers, build tools, etc). DO NO
   dangerous: true,
 };
 
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const { baseCommand, args } = parseCommand(input.command);
-  const dangerReason = getDangerReason(input.command, ctx);
-
-  const isDangerous = dangerReason !== null;
-
-  const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
-  let pathContext = 'workspace';
-  if (input.cwd && !ctx.isWithinWorkspace(resolvedCwd)) {
-    pathContext = 'outside_workspace';
-  }
-
-  let permissionKey: string;
-  let message: string;
-  let requiresApproval: boolean;
-
-  if (isDangerous && dangerReason) {
-    permissionKey = `command:${baseCommand}`;
-    message = `Command "${input.command.slice(0, 50)}${input.command.length > 50 ? '...' : ''}" ${dangerReason} and requires approval.`;
-    requiresApproval = true;
-  } else if (pathContext === 'outside_workspace') {
-    permissionKey = 'path:outside_workspace';
-    message = 'This command runs outside the workspace directory and requires approval.';
-    requiresApproval = true;
-  } else {
-    permissionKey = 'tool:shell';
-    message = 'Command execution within workspace.';
-    requiresApproval = false;
-  }
-
-  return {
-    allowed: true,
-    requiresApproval,
-    permissionType: isDangerous ? 'action' : 'tool',
-    permissionKey,
-    message,
-    details: {
-      baseCommand,
-      isDangerous,
-      pathContext,
-      cwd: input.cwd || ctx.workspacePath,
-      resolvedCwd,
-    },
-  };
-}
-
 function parseCommand(cmd: string): { baseCommand: string; args: string[] } {
   const parts = cmd.trim().split(/\s+/);
   const baseCommand = parts[0]?.replace(/.*\//, '') || '';
   return { baseCommand, args: parts.slice(1) };
 }
 
-function getDangerReason(cmd: string, ctx: SecurityContext): string | null {
+function getDangerReason(cmd: string, ctx: ToolContext): string | null {
   if (hasPathOutsideWorkspace(cmd, ctx)) {
     return 'references paths outside the workspace';
   }
@@ -165,7 +119,7 @@ function getDangerReason(cmd: string, ctx: SecurityContext): string | null {
   return null;
 }
 
-function hasPathOutsideWorkspace(cmd: string, ctx: SecurityContext): boolean {
+function hasPathOutsideWorkspace(cmd: string, ctx: ToolContext): boolean {
   const paths = extractPathArguments(cmd);
 
   for (const p of paths) {
@@ -199,6 +153,33 @@ function extractPathArguments(cmd: string): string[] {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    const { baseCommand } = parseCommand(input.command);
+    const dangerReason = getDangerReason(input.command, ctx);
+    const isDangerous = dangerReason !== null;
+
+    const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
+    const outsideWorkspace = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
+
+    if (isDangerous) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: `Command "${input.command.slice(0, 50)}${input.command.length > 50 ? '...' : ''}" ${dangerReason} and requires approval.`,
+        risk: 'high',
+        metadata: { permissionKey: `command:${baseCommand}`, permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    } else if (outsideWorkspace) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'This command runs outside the workspace directory and requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const cwd = input.cwd ? ctx.fs.resolve(input.cwd) : ctx.workspacePath;
 
     let shell: string[];

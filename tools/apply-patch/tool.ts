@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { FileListVisualization } from '@jean2/sdk';
 
 interface Input {
@@ -18,21 +18,6 @@ interface ParsedFile {
   newPath: string;
   hunks: ParsedHunk[];
 }
-
-const SENSITIVE_PATTERNS = [
-  /\.env/i,
-  /\.pem$/i,
-  /\.key$/i,
-  /\.ssh\//i,
-  /id_rsa/i,
-  /id_ed25519/i,
-  /\.gitconfig$/i,
-  /\.npmrc$/i,
-  /credentials/i,
-  /secrets?/i,
-  /password/i,
-  /\.htpasswd$/i,
-];
 
 export const definition: ToolDefinition = {
   name: 'apply-patch',
@@ -75,99 +60,6 @@ Lists of applied, created, and deleted files.`,
   },
   timeout: 60000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const parsedFiles = parseFilePathsFromPatch(input.patch);
-
-  if (parsedFiles.length === 0) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:apply-patch',
-      message: 'No valid file paths found in patch',
-    };
-  }
-
-  const blockedFiles: string[] = [];
-  const outsideWorkspaceFiles: { path: string; resolvedPath: string }[] = [];
-  const sensitiveFiles: string[] = [];
-  const deletionFiles: string[] = [];
-
-  for (const file of parsedFiles) {
-    const checkPath = file.newPath || file.originalPath;
-    const resolvedPath = ctx.resolvePath(checkPath);
-
-    if (file.isDeletion) {
-      deletionFiles.push(file.originalPath);
-      continue;
-    }
-
-    if (ctx.isBlockedPath(resolvedPath)) {
-      blockedFiles.push(checkPath);
-      continue;
-    }
-
-    if (!ctx.isWithinWorkspace(resolvedPath)) {
-      outsideWorkspaceFiles.push({ path: checkPath, resolvedPath });
-    }
-
-    if (ctx.isSensitivePath(resolvedPath)) {
-      sensitiveFiles.push(checkPath);
-    }
-  }
-
-  if (blockedFiles.length > 0) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Cannot apply patch to system directories: ${blockedFiles.join(', ')}`,
-      details: { blockedFiles },
-    };
-  }
-
-  let permissionKey: string;
-  let message: string;
-  let requiresApproval = false;
-  let permissionType: 'tool' | 'action' = 'tool';
-
-  if (outsideWorkspaceFiles.length > 0) {
-    permissionKey = 'path:outside_workspace';
-    message = 'Applying patch to files outside the workspace requires approval.';
-    requiresApproval = true;
-    permissionType = 'action';
-  } else if (sensitiveFiles.length > 0) {
-    permissionKey = 'file_pattern:sensitive';
-    message = 'Applying patch to sensitive files requires approval.';
-    requiresApproval = true;
-    permissionType = 'action';
-  } else if (deletionFiles.length > 0) {
-    permissionKey = 'file:deletion';
-    message = 'Applying patch that deletes files requires approval.';
-    requiresApproval = true;
-    permissionType = 'action';
-  } else {
-    permissionKey = 'tool:apply-patch';
-    message = 'Applying patch within workspace.';
-    requiresApproval = false;
-  }
-
-  return {
-    allowed: true,
-    requiresApproval,
-    permissionType,
-    permissionKey,
-    message,
-    details: {
-      parsedFiles,
-      hasOutsideWorkspace: outsideWorkspaceFiles.length > 0,
-      hasSensitive: sensitiveFiles.length > 0,
-      hasDeletion: deletionFiles.length > 0,
-    },
-  };
-}
 
 function parseFilePathsFromPatch(patchContent: string): { originalPath: string; newPath: string; isDeletion: boolean }[] {
   const results: { originalPath: string; newPath: string; isDeletion: boolean }[] = [];
@@ -394,6 +286,73 @@ function applyHunks(content: string, hunks: ParsedHunk[]): string | null {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    const parsedFiles = parseFilePathsFromPatch(input.patch);
+
+    if (parsedFiles.length === 0) {
+      return { success: false, error: 'No valid file paths found in patch' };
+    }
+
+    const blockedFiles: string[] = [];
+    const outsideWorkspaceFiles: { path: string; resolvedPath: string }[] = [];
+    const sensitiveFiles: string[] = [];
+    const deletionFiles: string[] = [];
+
+    for (const file of parsedFiles) {
+      const checkPath = file.newPath || file.originalPath;
+      const resolvedPath = ctx.resolvePath(checkPath);
+
+      if (file.isDeletion) {
+        deletionFiles.push(file.originalPath);
+        continue;
+      }
+
+      if (ctx.isBlockedPath(resolvedPath)) {
+        blockedFiles.push(checkPath);
+        continue;
+      }
+
+      if (!ctx.isWithinWorkspace(resolvedPath)) {
+        outsideWorkspaceFiles.push({ path: checkPath, resolvedPath });
+      }
+
+      if (ctx.isSensitivePath(resolvedPath)) {
+        sensitiveFiles.push(checkPath);
+      }
+    }
+
+    if (blockedFiles.length > 0) {
+      return { success: false, error: `Cannot apply patch to system directories: ${blockedFiles.join(', ')}` };
+    }
+
+    if (outsideWorkspaceFiles.length > 0) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Applying patch to files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    } else if (sensitiveFiles.length > 0) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Applying patch to sensitive files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    } else if (deletionFiles.length > 0) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Applying patch that deletes files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file:deletion', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const files = parsePatch(input.patch);
 
     if (files.length === 0) {

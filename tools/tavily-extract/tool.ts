@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { MarkdownVisualization } from '@jean2/sdk';
 import { tavily } from '@tavily/core';
 
@@ -93,16 +93,6 @@ export const definition: ToolDefinition = {
   ],
 };
 
-export function security(_input: Input, _ctx: SecurityContext): SecurityCheckResult {
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:tavily-extract',
-    message: 'Extracting content from URLs.',
-  };
-}
-
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
     if (!input.urls || input.urls.length === 0) {
@@ -153,7 +143,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       error: r.error,
     }));
 
-    const totalResults = results.length + failedResults.length;
+    const _totalResults = results.length + failedResults.length;
     const content = results.map(r => `## ${r.url}\n\n${r.rawContent}`).join('\n\n');
 
     const visualization: MarkdownVisualization = {

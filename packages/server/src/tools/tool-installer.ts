@@ -26,7 +26,6 @@ export interface InstalledTool {
   name: string;
   version: string | null;
   path: string;
-  hasSecurity: boolean;
 }
 
 function ensureToolsDir(toolsDir: string): string {
@@ -160,7 +159,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
   });
 }
 
-async function validateToolModule(toolPath: string): Promise<{ name: string; hasSecurity: boolean }> {
+async function validateToolModule(toolPath: string): Promise<{ name: string }> {
   try {
     const module = await import(toolPath);
 
@@ -175,7 +174,6 @@ async function validateToolModule(toolPath: string): Promise<{ name: string; has
 
     return {
       name,
-      hasSecurity: typeof module.security === 'function',
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -436,7 +434,6 @@ export async function getInstalledTools(
         name: toolName,
         version,
         path: join(toolsDir, toolName),
-        hasSecurity: typeof loadedTool.security === 'function',
       });
     }
   } catch {

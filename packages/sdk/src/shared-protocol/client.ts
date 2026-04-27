@@ -153,14 +153,17 @@ export interface ProviderDisconnectMessage {
 }
 
 // =============================================================================
-// Ask User Messages (Client → Server)
+// Ask Messages (Client → Server)
 // =============================================================================
 
-export interface AskUserResponseMessage {
-  type: 'ask_user.response';
+export interface AskResponseMessage {
+  type: 'ask.response';
   toolCallId: string;
   response: unknown;
 }
+
+// Legacy alias
+export type AskUserResponseMessage = AskResponseMessage;
 
 // =============================================================================
 // Heartbeat Messages
@@ -193,5 +196,5 @@ export type ClientMessage =
   | QueueRemoveMessage
   | ProviderConnectMessage
   | ProviderDisconnectMessage
-  | AskUserResponseMessage
+  | AskResponseMessage
   | PongMessage;

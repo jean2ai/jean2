@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { DiffsVisualization } from '@jean2/sdk';
 
 interface Edit {
@@ -23,21 +23,6 @@ interface MatchInfo {
   lineNumber: number;
   matchCount: number;
 }
-
-const SENSITIVE_PATTERNS = [
-  /\.env/i,
-  /\.pem$/i,
-  /\.key$/i,
-  /\.ssh\//i,
-  /id_rsa/i,
-  /id_ed25519/i,
-  /\.gitconfig$/i,
-  /\.npmrc$/i,
-  /credentials/i,
-  /secrets?/i,
-  /password/i,
-  /\.htpasswd$/i,
-];
 
 const MAX_EDITS_WITHOUT_APPROVAL = 10;
 
@@ -103,65 +88,6 @@ All edits are applied in sequence - either all succeed or none are applied. Use 
   },
   timeout: 180000,
 };
-
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const normalizedPath = ctx.resolvePath(input.path);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Editing system directories is not allowed: ${input.path}`,
-    };
-  }
-
-  const outsideWorkspace = !ctx.isWithinWorkspace(normalizedPath);
-  const sensitive = ctx.isSensitivePath(normalizedPath);
-  const excessive = input.edits.length > MAX_EDITS_WITHOUT_APPROVAL;
-
-  if (outsideWorkspace) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Editing files outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  if (sensitive) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'file_pattern:sensitive',
-      message: 'Editing sensitive files requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  if (excessive) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'edit_count:excessive',
-      message: `Editing more than ${MAX_EDITS_WITHOUT_APPROVAL} edits at once requires approval.`,
-      details: { editCount: input.edits.length },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:multiedit',
-    message: 'Editing file within workspace.',
-  };
-}
 
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
@@ -401,7 +327,6 @@ function buildDiffVisualization(
   newString: string
 ) {
   const oldLines = oldContent.split('\n');
-  const newLines = newContent.split('\n');
   const contextSize = 5;
 
   const matchIndex = matchLineNumber - 1;
@@ -478,7 +403,44 @@ function buildDiffVisualization(
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const resolvedPath = ctx.fs.resolve(input.path);
+    const resolvedPath = ctx.resolvePath(input.path);
+
+    if (ctx.isBlockedPath(resolvedPath)) {
+      return { success: false, error: `Editing system directories is not allowed: ${input.path}` };
+    }
+
+    if (!ctx.isWithinWorkspace(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Editing files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (ctx.isSensitivePath(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Editing sensitive files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (input.edits.length > MAX_EDITS_WITHOUT_APPROVAL) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: `Editing more than ${MAX_EDITS_WITHOUT_APPROVAL} edits at once requires approval.`,
+        risk: 'medium',
+        metadata: { permissionKey: 'edit_count:excessive', permissionType: 'action', editCount: input.edits.length }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
 
     const exists = await ctx.fs.exists(resolvedPath);
     if (!exists) {

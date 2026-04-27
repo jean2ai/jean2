@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 import TurndownService from 'turndown';
 
@@ -70,74 +70,6 @@ function isPrivateIP(hostname: string): boolean {
   return false;
 }
 
-export function security(input: Input, _ctx: SecurityContext): SecurityCheckResult {
-  try {
-    const urlObj = new URL(input.url);
-
-    if (!['http:', 'https:'].includes(urlObj.protocol)) {
-      return {
-        allowed: false,
-        requiresApproval: false,
-        permissionType: 'action',
-        permissionKey: 'url:blocked_scheme',
-        message: `Only HTTP and HTTPS URLs are allowed. Blocked: ${urlObj.protocol}`,
-      };
-    }
-
-    if (isPrivateIP(urlObj.hostname)) {
-      return {
-        allowed: false,
-        requiresApproval: false,
-        permissionType: 'action',
-        permissionKey: 'url:private_ip',
-        message: `Access to private IP addresses and localhost is not allowed: ${urlObj.hostname}`,
-      };
-    }
-
-    const blockedHostnames = [
-      'metadata.google.internal',
-      '169.254.169.254',
-      'metadata.azure.com',
-      'metadata.googleusercontent.com',
-    ];
-
-    if (blockedHostnames.includes(urlObj.hostname)) {
-      return {
-        allowed: false,
-        requiresApproval: false,
-        permissionType: 'action',
-        permissionKey: 'url:metadata_endpoint',
-        message: `Access to cloud metadata endpoints is not allowed: ${urlObj.hostname}`,
-      };
-    }
-
-    const requiresApproval = urlObj.protocol !== 'https:';
-
-    return {
-      allowed: true,
-      requiresApproval,
-      permissionType: 'tool',
-      permissionKey: 'tool:webfetch',
-      message: requiresApproval
-        ? 'HTTP URL requires approval (unencrypted connection).'
-        : 'HTTPS URL fetch allowed.',
-      details: {
-        protocol: urlObj.protocol,
-        hostname: urlObj.hostname,
-        port: urlObj.port,
-      },
-    };
-  } catch (err: unknown) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:webfetch',
-      message: `Security check failed: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
 function stripHtmlTags(html: string): string {
   return html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -155,6 +87,43 @@ function stripHtmlTags(html: string): string {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    let urlObj: URL;
+    try {
+      urlObj = new URL(input.url);
+    } catch {
+      return { success: false, error: `Invalid URL: ${input.url}` };
+    }
+
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      return { success: false, error: `Only HTTP and HTTPS URLs are allowed. Blocked: ${urlObj.protocol}` };
+    }
+
+    if (isPrivateIP(urlObj.hostname)) {
+      return { success: false, error: `Access to private IP addresses and localhost is not allowed: ${urlObj.hostname}` };
+    }
+
+    const blockedHostnames = [
+      'metadata.google.internal',
+      '169.254.169.254',
+      'metadata.azure.com',
+      'metadata.googleusercontent.com',
+    ];
+
+    if (blockedHostnames.includes(urlObj.hostname)) {
+      return { success: false, error: `Access to cloud metadata endpoints is not allowed: ${urlObj.hostname}` };
+    }
+
+    if (urlObj.protocol !== 'https:') {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'HTTP URL requires approval (unencrypted connection).',
+        risk: 'low',
+        metadata: { permissionKey: 'tool:webfetch', permissionType: 'tool' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     if (!input.url.startsWith('http://') && !input.url.startsWith('https://')) {
       return { success: false, error: 'URL must start with http:// or https://' };
     }

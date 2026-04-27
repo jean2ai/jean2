@@ -1,11 +1,9 @@
 import { homedir } from 'os';
 import { join } from 'path';
 import { tool, jsonSchema, type Tool } from 'ai';
-import type { ToolExecutionContext } from '@jean2/sdk';
-import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
-import type { PermissionRequestCallback } from '@/tools';
+import { getTool, executeTool } from '@/tools';
 import { createLlmApi } from '@/tools/llm-api';
-import { createAskUserApi, type AskUserBroadcastFn } from '@/tools/ask-user-api';
+import { createAskApi, type AskBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
 import { transitionToolToRunningByCallId } from '@/store';
@@ -20,10 +18,9 @@ export interface BuildToolsOptions {
   sessionId: string;
   modelId?: string;
   providerId?: string;
-  onPermissionRequest?: PermissionRequestCallback;
   canSpawnSubagents?: boolean | string[] | null;
   allowedSkills?: string[] | null;
-  broadcastFn?: AskUserBroadcastFn;
+  broadcastFn?: AskBroadcastFn;
 }
 
 export async function buildAiSdkTools(
@@ -36,7 +33,6 @@ export async function buildAiSdkTools(
     sessionId,
     modelId,
     providerId,
-    onPermissionRequest,
     canSpawnSubagents,
     allowedSkills,
     broadcastFn,
@@ -98,64 +94,31 @@ export async function buildAiSdkTools(
         const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
 
         try {
-          const context: ToolExecutionContext = {
-            workspacePath,
-            sessionId,
-            workspaceId,
-            allowedPaths: [join(homedir(), '.jean2', 'data', 'upload')],
-          };
-
           const llmFactory = () => createLlmApi(modelId, providerId);
-          const askUserFactory = (tcId: string) =>
+          const askFactory = (tcId: string) =>
             broadcastFn
-              ? createAskUserApi(sessionId, tcId, definition.name, broadcastFn)
-              : ({} as import('@jean2/sdk').AskUserApi);
+              ? createAskApi(sessionId, tcId, definition.name, broadcastFn, workspaceId)
+              : ({} as import('@jean2/sdk').AskApi);
 
-          if (hasSecurityCheck(loadedTool)) {
-            const result = await executeToolWithSecurity({
-              tool: loadedTool,
-              args,
-              context,
-              toolCallId,
-              onPermissionRequest,
-              abortSignal: toolAbortController.signal,
-              timeout: definition.timeout,
-              createLlmApi: llmFactory,
-              createAskUserApi: askUserFactory,
-            });
-
-            if (!result.success) {
-              if (result.error === 'USER_REJECTION' || result.permissionGranted === false) {
-                return {
-                  error: 'USER_REJECTION',
-                  message: `The user denied permission to execute this tool (${name}). Do NOT retry this tool call.`,
-                  toolName: name,
-                  args,
-                };
-              }
-              return { error: result.error };
-            }
-
-            return truncateToolResult(result.result, sessionId, name);
-          }
-
-          const execResult = await executeTool({
+          const result = await executeTool({
             tool: loadedTool,
             args,
             workspacePath,
             sessionId,
+            workspaceId,
+            allowedPaths: [join(homedir(), '.jean2', 'data', 'upload')],
             toolCallId,
             abortSignal: toolAbortController.signal,
             timeout: definition.timeout,
             createLlmApi: llmFactory,
-            createAskUserApi: askUserFactory,
+            createAskApi: askFactory,
           });
 
-          if (!execResult.success) {
-            return { error: execResult.error };
+          if (!result.success) {
+            return { error: result.error };
           }
 
-          return truncateToolResult(execResult.result, sessionId, name);
+          return truncateToolResult(result.result, sessionId, name);
         } finally {
           interruptManager.unregisterToolExecution(sessionId, toolCallId);
         }

@@ -1,7 +1,7 @@
 import { streamText, stepCountIs } from 'ai';
 import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/sdk';
 import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted } from '@/store';
-import type { PermissionRequestCallback } from '@/tools';
+
 import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
 import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { loadInstructions, formatInstructions } from './instructions';
@@ -35,7 +35,6 @@ export interface ChatOptions {
   variant?: string;
   workspacePath?: string;
   workspaceId?: string;
-  onPermissionRequest?: PermissionRequestCallback;
   maxSteps?: number;
   compactionPolicy?: CompactionPolicy;
   broadcastFn?: BuildToolsOptions['broadcastFn'];
@@ -71,7 +70,7 @@ export interface ChatResult {
 }
 
 export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | ErrorEvent> {
-  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, onPermissionRequest, maxSteps, compactionPolicy } = options;
+  const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, maxSteps, compactionPolicy } = options;
 
   // Register session with interrupt manager
   const abortController = interruptManager.registerSession(_sessionId);
@@ -108,7 +107,6 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     sessionId: _sessionId,
     modelId: resolvedModelId,
     providerId: resolvedProviderId,
-    onPermissionRequest,
     canSpawnSubagents: preconfig.canSpawnSubagents,
     allowedSkills: preconfig.skills,
     broadcastFn: options.broadcastFn,

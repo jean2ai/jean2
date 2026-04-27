@@ -24,7 +24,7 @@ interface UseSessionCommandsParams {
   setSelectedVariant: (variant: string | null) => void;
   removePendingPermissionByToolCallId: (toolCallId: string) => void;
   removePendingPermissionsBySessionId: (sessionId: string) => void;
-  removePendingAskUserRequest: (toolCallId: string) => void;
+  removePendingAskRequest: (toolCallId: string) => void;
   clearStreamingSessions: () => void;
   pendingSessionCreateRef: React.RefObject<boolean>;
   partAppendRafRef: React.RefObject<number | null>;
@@ -49,7 +49,7 @@ interface UseSessionCommandsReturn {
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-  handleAskUserResponse: (toolCallId: string, response: unknown) => void;
+  handleAskResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -77,7 +77,7 @@ export function useSessionCommands({
   setSelectedVariant,
   removePendingPermissionByToolCallId,
   removePendingPermissionsBySessionId,
-  removePendingAskUserRequest,
+  removePendingAskRequest,
   clearStreamingSessions,
   pendingSessionCreateRef,
   partAppendRafRef,
@@ -256,17 +256,17 @@ export function useSessionCommands({
     }
   }, [clientRef, removePendingPermissionByToolCallId]);
 
-  const handleAskUserResponse = useCallback((toolCallId: string, response: unknown) => {
+  const handleAskResponse = useCallback((toolCallId: string, response: unknown) => {
     const client = clientRef.current;
-    removePendingAskUserRequest(toolCallId);
+    removePendingAskRequest(toolCallId);
     if (client && client.connected) {
       client.send({
-        type: 'ask_user.response',
+        type: 'ask.response',
         toolCallId,
         response,
       });
     }
-  }, [clientRef, removePendingAskUserRequest]);
+  }, [clientRef, removePendingAskRequest]);
 
   const handleInterruptSession = useCallback(() => {
     const client = clientRef.current;
@@ -326,7 +326,7 @@ export function useSessionCommands({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
-    handleAskUserResponse,
+    handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,

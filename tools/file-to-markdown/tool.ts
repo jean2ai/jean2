@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolContext, ToolResult, SecurityContext, SecurityCheckResult } from '@jean2/sdk';
+import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 // @ts-expect-error no types available
 import { convertToMarkdown } from 'filetomarkdown';
@@ -39,81 +39,46 @@ export const definition: ToolDefinition = {
   timeout: 60000,
 };
 
-export function security(input: Input, ctx: SecurityContext): SecurityCheckResult {
-  const normalizedPath = ctx.resolvePath(input.path);
-
-  if (ctx.isBlockedPath(normalizedPath)) {
-    return {
-      allowed: false,
-      requiresApproval: false,
-      permissionType: 'action',
-      permissionKey: 'path:system_directory',
-      message: `Reading from system directories is not allowed: ${input.path}`,
-    };
-  }
-
-  const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
-  const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
-
-  if (jean2TempPrefix && normalizedPath.startsWith(jean2TempPrefix)) {
-    return {
-      allowed: true,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:file-to-markdown',
-      message: 'Reading from Jean2 temp directory (persisted tool output).',
-    };
-  }
-
-  const allowedPath = ctx.allowedPaths?.find((p) => normalizedPath.startsWith(p));
-  if (allowedPath) {
-    return {
-      allowed: true,
-      requiresApproval: false,
-      permissionType: 'tool',
-      permissionKey: 'tool:file-to-markdown',
-      message: 'Reading from allowed path.',
-    };
-  }
-
-  if (!ctx.isWithinWorkspace(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'path:outside_workspace',
-      message: 'Reading from files outside the workspace requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  if (ctx.isSensitivePath(normalizedPath)) {
-    return {
-      allowed: true,
-      requiresApproval: true,
-      permissionType: 'action',
-      permissionKey: 'file_pattern:sensitive',
-      message: 'Reading from sensitive files requires approval.',
-      details: { resolvedPath: normalizedPath },
-    };
-  }
-
-  return {
-    allowed: true,
-    requiresApproval: false,
-    permissionType: 'tool',
-    permissionKey: 'tool:file-to-markdown',
-    message: 'Reading from file within workspace.',
-  };
-}
-
 function computeChecksum(filePath: string, size: number, mtimeMs: number): string {
   return Bun.hash(`${filePath}:${size}:${mtimeMs}`).toString(16).padStart(8, '0');
 }
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const resolvedPath = ctx.fs.resolve(input.path);
+    const resolvedPath = ctx.resolvePath(input.path);
+
+    if (ctx.isBlockedPath(resolvedPath)) {
+      return { success: false, error: `Reading from system directories is not allowed: ${input.path}` };
+    }
+
+    const tempDir = ctx.env.get('JEAN2_TEMP_DIR') || ctx.env.get('TMPDIR') || '';
+    const jean2TempPrefix = tempDir ? `${tempDir.replace(/[/\\]$/, '')}/jean2/` : '';
+    const isJean2Temp = jean2TempPrefix && resolvedPath.startsWith(jean2TempPrefix);
+
+    const isAllowedPath = ctx.allowedPaths && ctx.allowedPaths.some(p => resolvedPath.startsWith(p));
+
+    if (!isJean2Temp && !isAllowedPath && !ctx.isWithinWorkspace(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Reading from files outside the workspace requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
+    if (ctx.isSensitivePath(resolvedPath)) {
+      const approved = await ctx.ask({
+        target: 'permission',
+        type: 'permission',
+        question: 'Reading from sensitive files requires approval.',
+        risk: 'medium',
+        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+      });
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
+    }
+
     const stat = await ctx.fs.stat(resolvedPath);
 
     if (!stat) {

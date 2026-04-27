@@ -1,8 +1,19 @@
 import { join, resolve, extname } from 'path';
 import { homedir, tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
-import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, EnvApi, ToolLogger, AskUserApi, LlmApi } from '@jean2/sdk';
+import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
 import { getJean2EnvValue } from '../env';
+
+const BLOCKED_PATHS = [
+  '/etc/', '/usr/', '/bin/', '/sbin/', '/boot/', '/dev/',
+  '/proc/', '/sys/', '/root/',
+];
+
+const SENSITIVE_PATTERNS = [
+  '.env', '.pem', '.key', '.ssh/', 'id_rsa', 'id_ed25519',
+  '.gitconfig', '.npmrc', 'credentials', 'secrets', 'password',
+  '.htpasswd',
+];
 
 const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
   '.ts': 'typescript', '.tsx': 'typescript', '.js': 'javascript', '.jsx': 'javascript',
@@ -22,11 +33,13 @@ export interface ExecuteToolOptions {
   args: Record<string, unknown>;
   workspacePath?: string;
   sessionId: string;
+  workspaceId?: string;
+  allowedPaths?: string[];
   toolCallId?: string;
   abortSignal?: AbortSignal;
   timeout?: number;
   createLlmApi?: (defaultModel?: string) => LlmApi;
-  createAskUserApi?: (toolCallId: string) => AskUserApi;
+  createAskApi?: (toolCallId: string) => AskApi;
   broadcastFn?: (event: { type: string; [key: string]: unknown }) => void;
 }
 
@@ -127,6 +140,36 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
   return api;
 }
 
+function createPathHelpers(workspacePath: string) {
+  function resolvePath(path: string): string {
+    if (path.startsWith('~/') || path === '~') {
+      return join(homedir(), path.slice(1));
+    }
+    if (path.startsWith('/')) {
+      return path;
+    }
+    return resolve(workspacePath, path);
+  }
+
+  function isWithinWorkspace(path: string): boolean {
+    const resolvedPath = resolvePath(path);
+    const normalizedWorkspace = resolve(workspacePath);
+    return resolvedPath.startsWith(normalizedWorkspace);
+  }
+
+  function isSensitivePath(path: string): boolean {
+    const lower = path.toLowerCase();
+    return SENSITIVE_PATTERNS.some(p => lower.includes(p));
+  }
+
+  function isBlockedPath(path: string): boolean {
+    const resolved = resolvePath(path);
+    return BLOCKED_PATHS.some(p => resolved.startsWith(p));
+  }
+
+  return { resolvePath, isWithinWorkspace, isSensitivePath, isBlockedPath };
+}
+
 function createEnvApi(_allowedEnv?: string[]): EnvApi {
   return {
     get(key: string): string | undefined {
@@ -169,22 +212,25 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
     abortSignal,
     timeout = tool.definition.timeout ?? 30000,
     createLlmApi,
-    createAskUserApi,
+    createAskApi,
   } = options;
 
   const effectiveWorkspace = workspacePath || process.cwd();
+  const pathHelpers = createPathHelpers(effectiveWorkspace);
 
   const ctx: ToolContext = {
     sessionId,
     workspacePath: effectiveWorkspace,
+    workspaceId: options.workspaceId,
     abortSignal: abortSignal ?? new AbortController().signal,
-
+    allowedPaths: options.allowedPaths ?? [],
     fs: createFileSystemApi(effectiveWorkspace, sessionId),
     llm: createLlmApi ? createLlmApi() : ({} as LlmApi),
-    askUser: createAskUserApi ? createAskUserApi(options.toolCallId ?? '') : ({} as AskUserApi),
+    ask: createAskApi ? createAskApi(options.toolCallId ?? '') : ({} as AskApi),
     env: createEnvApi(tool.definition.env),
     logger: createLogger(tool.definition.name, sessionId),
     fetch: globalThis.fetch.bind(globalThis),
+    ...pathHelpers,
   };
 
   const executePromise = tool.execute(args, ctx);

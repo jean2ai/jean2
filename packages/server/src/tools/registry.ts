@@ -49,7 +49,6 @@ async function loadToolModule(toolDir: string): Promise<LoadedTool | null> {
     return {
       definition,
       execute: module.execute,
-      security: module.security,
       path: toolDir,
     };
   } catch (e) {

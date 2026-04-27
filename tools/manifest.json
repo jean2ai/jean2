@@ -7,6 +7,7 @@
     "grep",
     "ls",
     "multiedit",
+    "question",
     "read-file",
     "shell",
     "tavily-crawl",
