@@ -35,6 +35,13 @@ interface PendingPermissionRequest {
   subagentName?: string;
 }
 
+interface PendingAskUserRequest {
+  toolCallId: string;
+  sessionId: string;
+  toolName: string;
+  question: import('@jean2/sdk').UserQuestion;
+}
+
 interface DisplayItem {
   message: Message;
   parts: Part[];
@@ -48,7 +55,9 @@ interface VirtualizedTranscriptProps {
   sessionId: string;
   sessionStatus?: string;
   pendingPermissions: PendingPermissionRequest[];
+  pendingAskUserRequests: PendingAskUserRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
+  onAskUserResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
@@ -193,14 +202,18 @@ function CompactionDivider({ part }: { part: CompactionPart }) {
 const MessageParts = memo(function MessageParts({
   parts,
   pendingPermissions,
+  pendingAskUserRequests,
   onPermissionResponse,
+  onAskUserResponse,
   onNavigateToSubagent,
   inverted = false,
   serverUrl,
 }: {
   parts: Part[];
   pendingPermissions: PendingPermissionRequest[];
+  pendingAskUserRequests: PendingAskUserRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
+  onAskUserResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
   serverUrl?: string;
@@ -234,7 +247,9 @@ const MessageParts = memo(function MessageParts({
                 key={part.id}
                 part={part}
                 pendingPermissions={pendingPermissions}
+                pendingAskUserRequests={pendingAskUserRequests}
                 onPermissionResponse={onPermissionResponse}
+                onAskUserResponse={onAskUserResponse}
                 onNavigateToSubagent={onNavigateToSubagent}
               />
             );
@@ -303,6 +318,7 @@ const MessageParts = memo(function MessageParts({
   if (prev.onPermissionResponse !== next.onPermissionResponse) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.serverUrl !== next.serverUrl) return false;
+  if (prev.pendingAskUserRequests !== next.pendingAskUserRequests) return false;
 
   const hasPendingTool = prev.parts.some(
     p => p.type === 'tool' && (p as ToolPart).state.status === 'pending'
@@ -331,7 +347,9 @@ interface MessageRowProps {
   messagesWithParts: MessageWithParts[];
   sessionId: string;
   pendingPermissions: PendingPermissionRequest[];
+  pendingAskUserRequests: PendingAskUserRequest[];
   onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
+  onAskUserResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
@@ -347,7 +365,9 @@ const MessageRow = memo(function MessageRow({
   messagesWithParts,
   sessionId,
   pendingPermissions,
+  pendingAskUserRequests,
   onPermissionResponse,
+  onAskUserResponse,
   onNavigateToSubagent,
   onRemoveFromQueue,
   onRevert,
@@ -401,7 +421,9 @@ const MessageRow = memo(function MessageRow({
         <MessageParts
           parts={item.parts}
           pendingPermissions={pendingPermissions}
+          pendingAskUserRequests={pendingAskUserRequests}
           onPermissionResponse={onPermissionResponse}
+          onAskUserResponse={onAskUserResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           inverted={item.message.role === 'user'}
           serverUrl={serverUrl}
@@ -417,10 +439,12 @@ export function VirtualizedTranscript({
   sessionId,
   sessionStatus,
   pendingPermissions,
+  pendingAskUserRequests,
   isCompacting = false,
   compactionSuccess = false,
   onClearCompactionSuccess,
   onPermissionResponse,
+  onAskUserResponse,
   onNavigateToSubagent,
   onRemoveFromQueue,
   onRevert,
@@ -856,7 +880,9 @@ export function VirtualizedTranscript({
                     messagesWithParts={messagesWithParts}
                     sessionId={sessionId}
                     pendingPermissions={pendingPermissions}
+                    pendingAskUserRequests={pendingAskUserRequests}
                     onPermissionResponse={onPermissionResponse}
+                    onAskUserResponse={onAskUserResponse}
                     onNavigateToSubagent={onNavigateToSubagent}
                     onRemoveFromQueue={onRemoveFromQueue}
                     onRevert={onRevert}

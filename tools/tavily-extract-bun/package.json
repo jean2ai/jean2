@@ -1,8 +1,0 @@
-{
-  "name": "tool-tavily-extract-bun",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@tavily/core": "^0.7.2"
-  }
-}

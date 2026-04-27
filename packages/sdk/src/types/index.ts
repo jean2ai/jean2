@@ -44,8 +44,30 @@ export type {
 
 export type {
   ToolDefinition,
-  ToolRuntime,
   ToolEnvVarStatus,
+  ToolResult,
+  ToolModule,
+  ToolContext,
+  SecurityContext,
+  FileSystemApi,
+  DirEntry,
+  FileStat,
+  LlmApi,
+  LlmTextOptions,
+  LlmStructuredOptions,
+  LlmImage,
+  AskUserApi,
+  UserQuestion,
+  SingleSelectQuestion,
+  MultiSelectQuestion,
+  TextQuestion,
+  ConfirmQuestion,
+  EnvApi,
+  ToolLogger,
+  LoadedTool,
+  ToolApproval,
+  ToolApprovalStatus,
+  BufferEncoding,
 } from '../shared';
 
 export type {
@@ -125,6 +147,8 @@ export type {
   QueueSendingMessage,
   ProviderStatusMessage,
   ProviderConnectedMessage,
+  AskUserRequestMessage,
+  AskUserTimedOutMessage,
   ErrorMessage,
   RateLimitErrorMessage,
   ServerErrorMessage,
@@ -132,6 +156,11 @@ export type {
   AuthErrorMessage,
   InvalidRequestErrorMessage,
   ContextOverflowErrorMessage,
+} from '../shared';
+
+// Individual client message types
+export type {
+  AskUserResponseMessage,
 } from '../shared';
 
 // Terminal types

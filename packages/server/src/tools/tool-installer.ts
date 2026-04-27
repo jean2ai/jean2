@@ -1,74 +1,55 @@
 import { spawn } from 'child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
 import { join } from 'path';
-
+import type { LoadedTool } from '@jean2/sdk';
 import { resolveToolsPath, getDefaultToolsPath } from '../config';
 import { clearCache as clearToolsCache } from './registry';
-import { resolveDownloadUrl, type ResolvedToolEntry, type RegistryConfig } from './tool-repository';
 
 const VERSION_FILE = 'VERSION';
 const INSTALL_MANIFEST = '.install-manifest.json';
 
 export interface InstallManifest {
-  version: string;
+  version: string | null;
   installedAt: string;
-  downloadUrl: string;
-  packageName?: string;
-}
-
-export interface InstallOptions {
-  force?: boolean;
-  skipPostInstall?: boolean;
+  sourcePath?: string;
+  sourceUrl?: string;
 }
 
 export interface InstallResult {
   success: boolean;
   toolName: string;
-  version: string;
-  error?: string;
-  skipped?: boolean;
-  postInstallOutput?: string;
-}
-
-export interface RemoveResult {
-  success: boolean;
-  toolName: string;
+  version?: string;
   error?: string;
 }
 
-export interface ToolVersionInfo {
+export interface InstalledTool {
   name: string;
-  installedVersion: string | null;
-  isInstalled: boolean;
+  version: string | null;
+  path: string;
+  hasSecurity: boolean;
 }
 
-function getToolDir(toolName: string): string {
-  return join(resolveToolsPath(), toolName);
-}
-
-function getVersionFilePath(toolName: string): string {
-  return join(getToolDir(toolName), VERSION_FILE);
-}
-
-function getManifestPath(toolName: string): string {
-  return join(getToolDir(toolName), INSTALL_MANIFEST);
-}
-
-function getInstalledVersion(toolName: string): string | null {
-  const versionPath = getVersionFilePath(toolName);
-  if (!existsSync(versionPath)) {
-    return null;
+function ensureToolsDir(toolsDir: string): string {
+  if (!existsSync(toolsDir)) {
+    mkdirSync(toolsDir, { recursive: true });
   }
-  try {
-    return readFileSync(versionPath, 'utf-8').trim();
-  } catch {
-    return null;
-  }
+  return toolsDir;
 }
 
-export function getInstalledManifest(toolName: string): InstallManifest | null {
-  const manifestPath = getManifestPath(toolName);
+function getToolDir(toolsDir: string, toolName: string): string {
+  return join(toolsDir, toolName);
+}
+
+function getManifestPath(toolsDir: string, toolName: string): string {
+  return join(getToolDir(toolsDir, toolName), INSTALL_MANIFEST);
+}
+
+function getVersionPath(toolsDir: string, toolName: string): string {
+  return join(getToolDir(toolsDir, toolName), VERSION_FILE);
+}
+
+function readManifest(toolsDir: string, toolName: string): InstallManifest | null {
+  const manifestPath = getManifestPath(toolsDir, toolName);
   if (!existsSync(manifestPath)) {
     return null;
   }
@@ -80,32 +61,55 @@ export function getInstalledManifest(toolName: string): InstallManifest | null {
   }
 }
 
-function saveManifest(toolName: string, manifest: InstallManifest): void {
-  const manifestPath = getManifestPath(toolName);
+function saveManifest(toolsDir: string, toolName: string, manifest: InstallManifest): void {
+  const manifestPath = getManifestPath(toolsDir, toolName);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
-function ensureToolsDir(): string {
-  const toolsDir = resolveToolsPath();
-  if (!existsSync(toolsDir)) {
-    mkdirSync(toolsDir, { recursive: true });
+function readVersion(toolsDir: string, toolName: string): string | null {
+  const versionPath = getVersionPath(toolsDir, toolName);
+  if (!existsSync(versionPath)) {
+    return null;
   }
-  return toolsDir;
+  try {
+    return readFileSync(versionPath, 'utf-8').trim() || null;
+  } catch {
+    return null;
+  }
 }
 
-async function downloadFile(url: string, destPath: string): Promise<void> {
-  const response = await fetch(url, {
-    redirect: 'follow',
-    headers: {
-      'User-Agent': 'jean2-tool-installer',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+function copyDirectoryRecursive(src: string, dest: string): void {
+  if (!existsSync(dest)) {
+    mkdirSync(dest, { recursive: true });
   }
 
-  await Bun.write(destPath, response);
+  const entries = readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(srcPath, destPath);
+    } else {
+      const content = readFileSync(srcPath);
+      writeFileSync(destPath, content);
+    }
+  }
+}
+
+async function extractArchive(
+  archivePath: string,
+  destDir: string,
+): Promise<void> {
+  const ext = archivePath.toLowerCase();
+
+  if (ext.endsWith('.tar.gz') || ext.endsWith('.tgz')) {
+    return extractTarGz(archivePath, destDir);
+  } else if (ext.endsWith('.zip')) {
+    return extractZip(archivePath, destDir);
+  } else {
+    throw new Error(`Unsupported archive format: ${ext}`);
+  }
 }
 
 async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
@@ -124,7 +128,7 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`tar extraction failed with code ${code}: ${stderr}`));
+        reject(new Error(`tar extraction failed: ${stderr}`));
       }
     });
 
@@ -132,49 +136,23 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
   });
 }
 
-async function runPostInstall(toolDir: string, command: string): Promise<string> {
+async function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    let shell: string;
-    let shellArgs: string[];
-
-    if (process.platform === 'win32') {
-      if (Bun.which('pwsh')) {
-        shell = 'pwsh';
-        shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
-      } else if (Bun.which('powershell')) {
-        shell = 'powershell';
-        shellArgs = ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
-      } else {
-        shell = 'cmd.exe';
-        shellArgs = ['/c', command];
-      }
-    } else {
-      shell = 'sh';
-      shellArgs = ['-c', command];
-    }
-
-    const child = spawn(shell, shellArgs, {
-      cwd: toolDir,
+    const child = spawn('unzip', ['-o', zipPath, '-d', destDir], {
+      cwd: destDir,
       stdio: 'pipe',
-      env: { ...process.env, HOME: homedir() },
     });
 
-    let stdout = '';
     let stderr = '';
-
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
-
     child.stderr?.on('data', (data) => {
       stderr += data.toString();
     });
 
     child.on('close', (code) => {
       if (code === 0) {
-        resolve(stdout.trim());
+        resolve();
       } else {
-        reject(new Error(`postInstall failed with code ${code}: ${stderr}`));
+        reject(new Error(`unzip extraction failed: ${stderr}`));
       }
     });
 
@@ -182,110 +160,221 @@ async function runPostInstall(toolDir: string, command: string): Promise<string>
   });
 }
 
-function clearRegistryCache(): void {
-  clearToolsCache();
+async function validateToolModule(toolPath: string): Promise<{ name: string; hasSecurity: boolean }> {
+  try {
+    const module = await import(toolPath);
+
+    if (!module.definition || typeof module.execute !== 'function') {
+      throw new Error('Tool must export "definition" and "execute"');
+    }
+
+    const name = module.definition.name;
+    if (!name) {
+      throw new Error('tool.definition.name is required');
+    }
+
+    return {
+      name,
+      hasSecurity: typeof module.security === 'function',
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to load tool module: ${message}`, { cause: err });
+  }
+}
+
+export interface RemoveResult {
+  success: boolean;
+  toolName: string;
+  error?: string;
 }
 
 export async function installTool(
-  tool: ResolvedToolEntry,
-  registry: RegistryConfig,
-  options: InstallOptions = {},
+  sourcePath: string,
+  toolsDir: string,
 ): Promise<InstallResult> {
-  const toolDir = getToolDir(tool.name);
-  const downloadUrl = resolveDownloadUrl(registry, tool.packageName, tool.version, tool.name);
+  ensureToolsDir(toolsDir);
 
-  const installedVersion = getInstalledVersion(tool.name);
-
-  if (installedVersion === tool.version && !options.force) {
+  if (!existsSync(sourcePath)) {
     return {
-      success: true,
-      toolName: tool.name,
-      version: tool.version,
-      skipped: true,
+      success: false,
+      toolName: '',
+      error: `Source path does not exist: ${sourcePath}`,
     };
   }
 
-  ensureToolsDir();
-
-  if (existsSync(toolDir)) {
-    if (options.force) {
-      rmSync(toolDir, { recursive: true, force: true });
-    } else {
-      return {
-        success: false,
-        toolName: tool.name,
-        version: tool.version,
-        error: `Tool already installed at ${toolDir}. Use --force to reinstall.`,
-      };
-    }
+  const toolJsPath = join(sourcePath, 'tool.js');
+  const toolTsPath = join(sourcePath, 'tool.ts');
+  if (!existsSync(toolJsPath) && !existsSync(toolTsPath)) {
+    return {
+      success: false,
+      toolName: '',
+      error: 'Source directory must contain tool.js or tool.ts',
+    };
   }
+  const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
 
-  mkdirSync(toolDir, { recursive: true });
-
-  const tarPath = join(toolDir, 'download.tar.gz');
+  let toolName: string;
 
   try {
-    await downloadFile(downloadUrl, tarPath);
+    const validated = await validateToolModule(modulePath);
+    toolName = validated.name;
   } catch (err: unknown) {
-    rmSync(toolDir, { recursive: true, force: true });
     const message = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      toolName: tool.name,
-      version: tool.version,
+      toolName: '',
       error: message,
     };
   }
 
+  const targetDir = getToolDir(toolsDir, toolName);
+
+  if (existsSync(targetDir)) {
+    rmSync(targetDir, { recursive: true, force: true });
+  }
+
+  mkdirSync(targetDir, { recursive: true });
+  copyDirectoryRecursive(sourcePath, targetDir);
+
+  const version = readVersion(toolsDir, toolName);
+
+  const manifest: InstallManifest = {
+    version,
+    installedAt: new Date().toISOString(),
+    sourcePath,
+  };
+  saveManifest(toolsDir, toolName, manifest);
+
+  clearToolsCache();
+
+  return {
+    success: true,
+    toolName,
+    version: version || undefined,
+  };
+}
+
+export async function installToolFromUrl(
+  url: string,
+  toolName: string,
+  toolsDir: string,
+): Promise<InstallResult> {
+  ensureToolsDir(toolsDir);
+
+  const tempDir = join(toolsDir, `.install-temp-${Date.now()}`);
+
+  mkdirSync(tempDir, { recursive: true });
+
+  const archivePath = join(tempDir, 'archive');
+
+  let response: Response;
   try {
-    await extractTarGz(tarPath, toolDir);
-    rmSync(tarPath, { force: true });
+    response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const buffer = await response.arrayBuffer();
+    await Bun.write(archivePath, buffer);
   } catch (err: unknown) {
-    rmSync(toolDir, { recursive: true, force: true });
+    rmSync(tempDir, { recursive: true, force: true });
     const message = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      toolName: tool.name,
-      version: tool.version,
+      toolName,
+      error: `Download failed: ${message}`,
+    };
+  }
+
+  try {
+    await extractArchive(archivePath, tempDir);
+  } catch (err: unknown) {
+    rmSync(tempDir, { recursive: true, force: true });
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      toolName,
       error: `Extraction failed: ${message}`,
     };
   }
 
-  const manifest: InstallManifest = {
-    version: tool.version,
-    installedAt: new Date().toISOString(),
-    downloadUrl,
-    packageName: tool.packageName,
-  };
-  saveManifest(tool.name, manifest);
+  const entries = readdirSync(tempDir, { withFileTypes: true });
+  const extractedDir = entries.length === 1 && entries[0].isDirectory()
+    ? join(tempDir, entries[0].name)
+    : tempDir;
 
-  let postInstallOutput: string | undefined;
-  if (tool.postInstall && !options.skipPostInstall) {
-    try {
-      postInstallOutput = await runPostInstall(toolDir, tool.postInstall);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return {
-        success: false,
-        toolName: tool.name,
-        version: tool.version,
-        error: `Post-install failed: ${message}`,
-      };
+  const toolJsPath = join(extractedDir, 'tool.js');
+  const toolTsPath = join(extractedDir, 'tool.ts');
+  if (!existsSync(toolJsPath) && !existsSync(toolTsPath)) {
+    rmSync(tempDir, { recursive: true, force: true });
+    return {
+      success: false,
+      toolName,
+      error: 'Archive does not contain tool.js or tool.ts',
+    };
+  }
+  const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
+
+  let resolvedToolName: string;
+
+  try {
+    const validated = await validateToolModule(modulePath);
+    resolvedToolName = validated.name;
+  } catch (err: unknown) {
+    rmSync(tempDir, { recursive: true, force: true });
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      toolName,
+      error: message,
+    };
+  }
+
+  const finalTargetDir = getToolDir(toolsDir, resolvedToolName);
+
+  if (existsSync(finalTargetDir)) {
+    rmSync(finalTargetDir, { recursive: true, force: true });
+  }
+
+  mkdirSync(finalTargetDir, { recursive: true });
+
+  const files = readdirSync(extractedDir, { withFileTypes: true });
+  for (const entry of files) {
+    const src = join(extractedDir, entry.name);
+    const dest = join(finalTargetDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(src, dest);
+    } else {
+      const content = readFileSync(src);
+      writeFileSync(dest, content);
     }
   }
 
-  clearRegistryCache();
+  rmSync(tempDir, { recursive: true, force: true });
+
+  const version = readVersion(toolsDir, resolvedToolName);
+
+  const manifest: InstallManifest = {
+    version,
+    installedAt: new Date().toISOString(),
+    sourceUrl: url,
+  };
+  saveManifest(toolsDir, resolvedToolName, manifest);
+
+  clearToolsCache();
 
   return {
     success: true,
-    toolName: tool.name,
-    version: tool.version,
-    postInstallOutput,
+    toolName: resolvedToolName,
+    version: version || undefined,
   };
 }
 
-export async function removeTool(toolName: string): Promise<RemoveResult> {
-  const toolDir = getToolDir(toolName);
+export async function removeTool(
+  toolName: string,
+  toolsDir: string,
+): Promise<RemoveResult> {
+  const toolDir = getToolDir(toolsDir, toolName);
 
   if (!existsSync(toolDir)) {
     return {
@@ -295,55 +384,96 @@ export async function removeTool(toolName: string): Promise<RemoveResult> {
     };
   }
 
-  try {
-    rmSync(toolDir, { recursive: true, force: true });
-    clearRegistryCache();
-    return {
-      success: true,
-      toolName,
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      success: false,
-      toolName,
-      error: `Failed to remove tool: ${message}`,
-    };
-  }
+  rmSync(toolDir, { recursive: true, force: true });
+  clearToolsCache();
+
+  return {
+    success: true,
+    toolName,
+  };
 }
 
-export function getInstalledTools(): ToolVersionInfo[] {
-  const toolsDir = resolveToolsPath();
-
+export async function getInstalledTools(
+  toolsDir: string,
+): Promise<InstalledTool[]> {
   if (!existsSync(toolsDir)) {
     return [];
   }
 
+  const tools: InstalledTool[] = [];
+
   try {
     const entries = readdirSync(toolsDir, { withFileTypes: true });
 
-    return entries
-      .filter((entry: { isDirectory: () => boolean }) => entry.isDirectory())
-      .map((entry: { name: string }) => {
-        const name = entry.name;
-        const version = getInstalledVersion(name);
-        return {
-          name,
-          installedVersion: version,
-          isInstalled: version !== null,
-        };
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const toolName = entry.name;
+      const toolJsPath = join(toolsDir, toolName, 'tool.js');
+      const toolTsPath = join(toolsDir, toolName, 'tool.ts');
+
+      if (!existsSync(toolJsPath) && !existsSync(toolTsPath)) continue;
+
+      const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
+
+      let loadedTool: LoadedTool | null = null;
+      try {
+        const module = await import(modulePath);
+        if (module.definition && typeof module.execute === 'function') {
+          loadedTool = module as LoadedTool;
+        }
+      } catch {
+        continue;
+      }
+
+      if (!loadedTool) continue;
+
+      const version = readVersion(toolsDir, toolName) ||
+        readManifest(toolsDir, toolName)?.version ||
+        null;
+
+      tools.push({
+        name: toolName,
+        version,
+        path: join(toolsDir, toolName),
+        hasSecurity: typeof loadedTool.security === 'function',
       });
+    }
   } catch {
     return [];
   }
+
+  return tools;
 }
 
-export function isToolInstalled(toolName: string): boolean {
-  return getInstalledVersion(toolName) !== null;
+export async function isToolInstalled(
+  toolName: string,
+  toolsDir: string,
+): Promise<boolean> {
+  const toolDir = getToolDir(toolsDir, toolName);
+  if (!existsSync(toolDir)) {
+    return false;
+  }
+  const toolJsPath = join(toolDir, 'tool.js');
+  const toolTsPath = join(toolDir, 'tool.ts');
+  return existsSync(toolJsPath) || existsSync(toolTsPath);
+}
+
+export async function getInstalledToolVersion(
+  toolName: string,
+  toolsDir: string,
+): Promise<string | null> {
+  const version = readVersion(toolsDir, toolName);
+  if (version !== null) {
+    return version;
+  }
+
+  const manifest = readManifest(toolsDir, toolName);
+  return manifest?.version ?? null;
 }
 
 export function getToolInstallDir(toolName: string): string {
-  return getToolDir(toolName);
+  return getToolDir(resolveToolsPath(), toolName);
 }
 
 export function getToolsBaseDir(): string {
@@ -355,5 +485,5 @@ export function getDefaultToolsBaseDir(): string {
 }
 
 export function clearCache(): void {
-  clearRegistryCache();
+  clearToolsCache();
 }

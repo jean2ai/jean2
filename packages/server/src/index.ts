@@ -7,7 +7,8 @@ import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, SecurityCheckResult } from '@jean2/sdk';
+import type { ServerMessage, ClientMessage, SecurityCheckResult, AskUserResponseMessage } from '@jean2/sdk';
+import { resolveAskUser } from '@/tools/ask-user-api';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import type { PermissionType } from '@jean2/sdk';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
@@ -932,6 +933,12 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
       if (clientData) {
         clientData.missedPings = 0;
       }
+      break;
+    }
+
+    case 'ask_user.response': {
+      const { toolCallId, response } = msg as AskUserResponseMessage;
+      resolveAskUser(toolCallId, response);
       break;
     }
 

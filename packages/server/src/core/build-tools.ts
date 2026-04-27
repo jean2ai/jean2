@@ -4,6 +4,8 @@ import { tool, jsonSchema, type Tool } from 'ai';
 import type { ToolExecutionContext } from '@jean2/sdk';
 import { getTool, executeTool, executeToolWithSecurity, hasSecurityCheck } from '@/tools';
 import type { PermissionRequestCallback } from '@/tools';
+import { createLlmApi } from '@/tools/llm-api';
+import { createAskUserApi, type AskUserBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
 import { transitionToolToRunningByCallId } from '@/store';
@@ -11,25 +13,41 @@ import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type Suba
 import { createSkillTool } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 
+export interface BuildToolsOptions {
+  toolNames: string[];
+  workspacePath: string | undefined;
+  workspaceId: string | undefined;
+  sessionId: string;
+  modelId?: string;
+  providerId?: string;
+  onPermissionRequest?: PermissionRequestCallback;
+  canSpawnSubagents?: boolean | string[] | null;
+  allowedSkills?: string[] | null;
+  broadcastFn?: AskUserBroadcastFn;
+}
+
 export async function buildAiSdkTools(
-  toolNames: string[],
-  workspacePath: string | undefined,
-  workspaceId: string | undefined,
-  sessionId: string,
-  onPermissionRequest?: PermissionRequestCallback,
-  canSpawnSubagents?: boolean | string[] | null,
-  allowedSkills?: string[] | null
+  options: BuildToolsOptions
 ): Promise<Record<string, Tool>> {
+  const {
+    toolNames,
+    workspacePath,
+    workspaceId,
+    sessionId,
+    modelId,
+    providerId,
+    onPermissionRequest,
+    canSpawnSubagents,
+    allowedSkills,
+    broadcastFn,
+  } = options;
+
   const tools: Record<string, Tool> = {};
 
-  // Determine if task tool should be included at all
   const canSpawn = canSpawnSubagents === true
     || (Array.isArray(canSpawnSubagents) && canSpawnSubagents.length > 0);
   const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && canSpawn;
-
-  // Resolve the allowed subagent IDs for filtering
   const allowedSubagentIds = Array.isArray(canSpawnSubagents) ? canSpawnSubagents : undefined;
-
   const effectiveToolNames = shouldIncludeTask ? [...toolNames, 'task'] : toolNames;
 
   for (const name of effectiveToolNames) {
@@ -68,10 +86,10 @@ export async function buildAiSdkTools(
       continue;
     }
 
-    const discoveredTool = await getTool(name);
-    if (!discoveredTool) continue;
+    const loadedTool = await getTool(name);
+    if (!loadedTool) continue;
 
-    const { definition } = discoveredTool;
+    const { definition } = loadedTool;
 
     tools[name] = tool({
       description: definition.description,
@@ -87,38 +105,34 @@ export async function buildAiSdkTools(
             allowedPaths: [join(homedir(), '.jean2', 'data', 'upload')],
           };
 
-          if (hasSecurityCheck(discoveredTool)) {
+          const llmFactory = () => createLlmApi(modelId, providerId);
+          const askUserFactory = (tcId: string) =>
+            broadcastFn
+              ? createAskUserApi(sessionId, tcId, definition.name, broadcastFn)
+              : ({} as import('@jean2/sdk').AskUserApi);
+
+          if (hasSecurityCheck(loadedTool)) {
             const result = await executeToolWithSecurity({
-              tool: discoveredTool,
+              tool: loadedTool,
               args,
               context,
               toolCallId,
               onPermissionRequest,
               abortSignal: toolAbortController.signal,
               timeout: definition.timeout,
+              createLlmApi: llmFactory,
+              createAskUserApi: askUserFactory,
             });
 
             if (!result.success) {
               if (result.error === 'USER_REJECTION' || result.permissionGranted === false) {
                 return {
                   error: 'USER_REJECTION',
-                  message: `The user denied permission to execute this tool (${name}). ` +
-                           `Do NOT retry this tool call. Acknowledge this rejection and ask what they would like to do instead.`,
+                  message: `The user denied permission to execute this tool (${name}). Do NOT retry this tool call.`,
                   toolName: name,
                   args,
                 };
               }
-
-              if (result.interrupted) {
-                return {
-                  error: 'INTERRUPTED',
-                  message: `Tool execution was interrupted`,
-                  toolName: name,
-                  args,
-                  partialOutput: result.partialOutput,
-                };
-              }
-
               return { error: result.error };
             }
 
@@ -126,25 +140,18 @@ export async function buildAiSdkTools(
           }
 
           const execResult = await executeTool({
-            tool: discoveredTool,
+            tool: loadedTool,
             args,
             workspacePath,
             sessionId,
             toolCallId,
             abortSignal: toolAbortController.signal,
             timeout: definition.timeout,
+            createLlmApi: llmFactory,
+            createAskUserApi: askUserFactory,
           });
 
           if (!execResult.success) {
-            if (execResult.interrupted) {
-              return {
-                error: 'INTERRUPTED',
-                message: `Tool execution was interrupted`,
-                toolName: name,
-                args,
-                partialOutput: execResult.partialOutput,
-              };
-            }
             return { error: execResult.error };
           }
 

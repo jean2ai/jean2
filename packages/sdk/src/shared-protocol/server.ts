@@ -2,6 +2,7 @@ import type { Session } from '../shared-types/session';
 import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-types/message';
 import type { PermissionType, ToolPermission } from '../shared-types/permission';
 import type { SessionInterruptResult } from '../shared-types/interrupt';
+import type { UserQuestion } from '../shared-types/tool';
 
 export interface SessionCreatedMessage {
   type: 'session.created';
@@ -294,6 +295,24 @@ export interface ProviderConnectedMessage {
 }
 
 // =============================================================================
+// Ask User Messages (Server → Client)
+// =============================================================================
+
+export interface AskUserRequestMessage {
+  type: 'ask_user.request';
+  sessionId: string;
+  toolCallId: string;
+  toolName: string;
+  question: UserQuestion;
+}
+
+export interface AskUserTimedOutMessage {
+  type: 'ask_user.timeout';
+  sessionId: string;
+  toolCallId: string;
+}
+
+// =============================================================================
 // Heartbeat Messages
 // =============================================================================
 
@@ -339,4 +358,6 @@ export type ServerMessage =
   | ContextOverflowErrorMessage
   | ProviderStatusMessage
   | ProviderConnectedMessage
+  | AskUserRequestMessage
+  | AskUserTimedOutMessage
   | PingMessage;

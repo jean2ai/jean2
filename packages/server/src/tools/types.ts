@@ -1,16 +1,5 @@
-import type { ToolDefinition, ToolRuntime } from '@jean2/sdk';
+import type { ToolDefinition, ToolResult, ToolModule, LoadedTool } from '@jean2/sdk';
 
-export type { ToolDefinition, ToolRuntime };
+export type { ToolDefinition, ToolResult, ToolModule, LoadedTool };
 
-export interface DiscoveredTool {
-  definition: ToolDefinition;
-  path: string;
-}
-
-export interface ToolResult {
-  success: boolean;
-  result?: unknown;
-  error?: string;
-  interrupted?: boolean;
-  partialOutput?: string;
-}
+export { type ToolApprovalStatus, type ToolApproval, type ToolEnvVarStatus } from '@jean2/sdk';

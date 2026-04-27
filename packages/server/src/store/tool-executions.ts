@@ -31,7 +31,7 @@ export function createToolExecution(execution: Omit<ToolExecution, 'completedAt'
     e.toolName,
     JSON.stringify(e.args),
     e.result !== undefined ? JSON.stringify(e.result) : null,
-    e.error,
+    e.error ?? null,
     e.startedAt,
     e.completedAt
   ]);
@@ -84,8 +84,8 @@ function mapRowToToolExecution(row: ToolExecutionRow): ToolExecution {
     toolName: row.tool_name,
     args: JSON.parse(row.args),
     result: row.result ? JSON.parse(row.result) : undefined,
-    error: row.error,
+    error: row.error ?? undefined,
     startedAt: row.started_at,
-    completedAt: row.completed_at,
+    completedAt: row.completed_at ?? null,
   };
 }

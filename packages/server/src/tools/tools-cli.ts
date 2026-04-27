@@ -1,98 +1,27 @@
-/**
- * Jean2 Tools CLI
- *
- * Interactive and non-interactive tool management via @clack/prompts.
- */
-
-import { spawn } from 'child_process';
-import { existsSync } from 'fs';
 import { log, multiselect, confirm, isCancel, cancel, spinner } from '@clack/prompts';
-import { join } from 'path';
-import { homedir } from 'os';
 
 import { restoreTerminalState } from './clack-utils';
 
 import {
   fetchRepositoryWithVersions,
-  collectRequiredRuntimes,
-  getRequiredExtensions,
-  getOptionalExtensions,
-  collectEnvVars,
-  type ResolvedToolEntry,
-  type ExtensionDef,
-  type EnvVarDef,
+  resolveDownloadUrl,
+  type RepositoryTool,
 } from './tool-repository';
 
 import {
-  installTool,
+  installToolFromUrl,
   removeTool,
   getInstalledTools,
-  isToolInstalled,
   getToolsBaseDir,
-  getInstalledManifest,
 } from './tool-installer';
 
-import {
-  hasSetupForRuntime,
-  offerRuntimeSetup,
-  getRuntimeSetup,
-} from './runtime-setup';
-
-// ─── Runtime Checks ───────────────────────────────────────────────────────
-
-export interface RuntimeCheckResult {
-  found: boolean;
-  version?: string;
+function pluralize(count: number, singular: string, plural?: string): string {
+  return count === 1 ? singular : (plural || `${singular}s`);
 }
 
-export async function checkRuntime(runtime: string): Promise<RuntimeCheckResult> {
-  const pathSep = process.platform === 'win32' ? ';' : ':';
-  const pathDirs = process.env.PATH?.split(pathSep) || [];
-  const candidates = [runtime, `${runtime}.exe`];
-
-  for (const dir of pathDirs) {
-    for (const candidate of candidates) {
-      const fullPath = join(dir, candidate);
-      if (existsSync(fullPath)) {
-        const version = await getRuntimeVersion(runtime);
-        return { found: true, version };
-      }
-    }
-  }
-
-  return { found: false };
-}
-
-async function getRuntimeVersion(runtime: string): Promise<string | undefined> {
-  return new Promise<string | undefined>((resolve) => {
-    let settled = false;
-    const done = (result: string | undefined) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-
-    const child = spawn(runtime, ['--version'], { stdio: 'pipe' });
-    let output = '';
-    child.stdout?.on('data', (data) => { output += data.toString(); });
-    child.on('close', () => {
-      const match = output.match(/v?(\d+[\d.]*)/);
-      done(match ? match[1] : undefined);
-    });
-    child.on('error', () => done(undefined));
-    const timer = setTimeout(() => {
-      child.kill();
-      done(undefined);
-    }, 2000);
-  });
-}
-
-// ─── Shared Types ──────────────────────────────────────────────────────────
-
-export interface ToolsCliOptions {
-  skipRuntimeCheck?: boolean;
-  force?: boolean;
+export interface ListOptions {
+  installed?: boolean;
+  json?: boolean;
 }
 
 export interface ToolsCliResult {
@@ -101,254 +30,35 @@ export interface ToolsCliResult {
   exitCode?: number;
 }
 
-interface OutdatedResult {
-  name: string;
-  currentVersion: string;
-  latestVersion: string;
-}
-
-// ─── Utility ───────────────────────────────────────────────────────────────
-
-interface RuntimeCheckSummary {
-  ok: boolean;
-  messages: string[];
-  missingWithSetup: string[];
-}
-
-async function formatRuntimeCheck(requiredRuntimes: string[], skipCheck: boolean): Promise<RuntimeCheckSummary> {
-  const messages: string[] = [];
-  const missingWithSetup: string[] = [];
-  let ok = true;
-
-  for (const rt of requiredRuntimes) {
-    const result = await checkRuntime(rt);
-    if (result.found) {
-      messages.push(`${rt} (found v${result.version ?? '?'})`);
-    } else {
-      messages.push(`${rt} (not found)`);
-      ok = false;
-      if (skipCheck) {
-        messages.push(`  Skipping check via --skip-runtime-check`);
-      }
-      if (hasSetupForRuntime(rt)) {
-        missingWithSetup.push(rt);
-      }
-    }
-  }
-
-  return { ok: skipCheck || ok, messages, missingWithSetup };
-}
-
-function pluralize(count: number, singular: string, plural?: string): string {
-  return count === 1 ? singular : (plural || `${singular}s`);
-}
-
-async function buildAvailableRuntimes(): Promise<Set<string>> {
-  const candidates = ['bun', 'node', 'python3', 'python', 'bash', 'go'];
-  const available = new Set<string>();
-  const results = await Promise.all(candidates.map((rt) => checkRuntime(rt)));
-  for (let i = 0; i < candidates.length; i++) {
-    if (results[i].found) {
-      available.add(candidates[i]);
-    }
-  }
-  return available;
-}
-
-/**
- * Normalize user-facing paths that may contain `~` or `~/.jean2/`.
- * Ensures consistent absolute path display in CLI output.
- */
-function normalizePath(value: string): string {
-  if (value.startsWith('~/') || value === '~') {
-    return value.replace('~', homedir());
-  }
-  return value;
-}
-
-function formatDefault(value: string): string {
-  return normalizePath(value);
-}
-
-// ─── Extension Tips ─────────────────────────────────────────────────────────
-
-function displayExtensionTips(
-  tools: ResolvedToolEntry[],
-  extensions: Record<string, ExtensionDef>,
-  envConfig: Record<string, EnvVarDef>,
-): void {
-  const required = getRequiredExtensions(tools, extensions);
-  const optional = getOptionalExtensions(tools, extensions);
-  const envVars = collectEnvVars(tools, extensions, envConfig);
-
-  if (required.length === 0 && optional.length === 0 && envVars.length === 0) return;
-
-  log.step('Setup tips:');
-
-  for (const ext of required) {
-    log.warn(`  ⚡ ${ext.name} (required for ${ext.requiredFor.join(', ')})`);
-    log.step(`    ${ext.installCommand}`);
-    if (ext.setupSteps.length > 0) {
-      log.step(`    Then: ${ext.setupSteps.join(' && ')}`);
-    }
-    if (ext.envConfig) {
-      for (const [key, def] of Object.entries(ext.envConfig)) {
-        log.step(`    Config: ${key} in ${normalizePath(def.configFile)} (default: ${formatDefault(def.default)})`);
-      }
-    }
-  }
-
-  for (const ext of optional) {
-    log.info(`  ↗ ${ext.name} (enhances ${ext.optionalFor.join(', ')})`);
-    log.step(`    ${ext.installCommand}`);
-    if (ext.envConfig) {
-      for (const [key, def] of Object.entries(ext.envConfig)) {
-        log.step(`    Config: ${key} in ${normalizePath(def.configFile)} (default: ${formatDefault(def.default)})`);
-      }
-    }
-  }
-
-  const extEnvKeys = new Set<string>();
-  for (const ext of [...required, ...optional]) {
-    if (ext.envConfig) {
-      for (const key of Object.keys(ext.envConfig)) {
-        extEnvKeys.add(key);
-      }
-    }
-  }
-
-  const topLevelEnvVars = envVars.filter((ev) => ev.source === 'global' && !extEnvKeys.has(ev.key));
-  if (topLevelEnvVars.length > 0) {
-    log.step(`  Environment variables (all configured in ${normalizePath('~/.jean2/.env')}):`);
-    for (const { key, def } of topLevelEnvVars) {
-      log.step(`    ${key} — ${def.description}`);
-      log.step(`    Default: ${formatDefault(def.default)}`);
-    }
-  }
-}
-
-// ─── Display Extension Details ─────────────────────────────────────────────
-
-function displayExtensionsDetail(
-  extensions: Record<string, ExtensionDef>,
-  envConfig: Record<string, EnvVarDef>,
-): void {
-  const extEntries = Object.entries(extensions);
-  if (extEntries.length === 0) {
-    log.step('  No extensions defined.');
-    return;
-  }
-
-  for (const [_id, ext] of extEntries) {
-    const usedBy = [...ext.requiredFor, ...ext.optionalFor].join(', ');
-
-    log.step(`  ${ext.name}`);
-    if (ext.description) log.step(`    ${ext.description}`);
-    if (usedBy) log.step(`    Used by: ${usedBy}`);
-    log.step(`    Install: ${ext.installCommand}`);
-    if (ext.setupSteps.length > 0) {
-      log.step(`    Setup: ${ext.setupSteps.join(' && ')}`);
-    }
-    if (ext.envConfig) {
-      for (const [key, def] of Object.entries(ext.envConfig)) {
-        log.step(`    Config: ${key} in ${normalizePath(def.configFile)} (default: ${formatDefault(def.default)})`);
-      }
-    }
-    if (ext.languageServers.length > 0) {
-      log.step('    Language servers:');
-      for (const ls of ext.languageServers) {
-        const opt = ls.optional ? ' (optional)' : '';
-        log.step(`      ├── ${ls.name}${opt} (${ls.languages.join(', ')})`);
-        log.step(`      │   └── ${ls.installCommand}`);
-      }
-    }
-  }
-
-  // Top-level env vars
-  const topLevelEntries = Object.entries(envConfig).filter(([key]) => {
-    // Check if this key is already covered by an extension
-    for (const ext of Object.values(extensions)) {
-      if (ext.envConfig && key in ext.envConfig) return false;
-    }
-    return true;
-  });
-    if (topLevelEntries.length > 0) {
-    log.step('');
-    log.step(`  Environment variables (all configured in ${normalizePath('~/.jean2/.env')}):`);
-    for (const [key, def] of topLevelEntries) {
-      log.step(`    ${key}  ${def.description}`);
-      log.step(`    Default: ${formatDefault(def.default)}`);
-    }
-  }
-}
-
-// ─── Filter Tools ───────────────────────────────────────────────────────────
-
-function filterToolsByTag(tools: ResolvedToolEntry[], tag: string): ResolvedToolEntry[] {
-  return tools.filter((t) => t.tags.includes(tag));
-}
-
-function filterToolsByInstalled(tools: ResolvedToolEntry[]): ResolvedToolEntry[] {
-  return tools.filter((t) => isToolInstalled(t.name));
-}
-
-function filterToolsByName(tools: ResolvedToolEntry[], names: string[]): ResolvedToolEntry[] {
-  const nameSet = new Set(names);
-  return tools.filter((t) => nameSet.has(t.name));
-}
-
-function getRecommendedTools(tools: ResolvedToolEntry[]): ResolvedToolEntry[] {
-  return tools.filter((t) => t.tags.includes('recommended'));
-}
-
-// ─── tools list ─────────────────────────────────────────────────────────────
-
-export interface ListOptions {
-  installed?: boolean;
-  extensions?: boolean;
-  json?: boolean;
-  tag?: string;
-}
-
 export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
   try {
     const fetchSpinner = spinner();
     fetchSpinner.start('Fetching tool registry...');
-    const { tools, extensions, envConfig } = await fetchRepositoryWithVersions();
+    const tools = await fetchRepositoryWithVersions();
     fetchSpinner.stop('Fetching tool registry... done');
     restoreTerminalState();
 
-    const installedSet = new Set(getInstalledTools().map((t) => t.name));
-
-    if (options.extensions) {
-      log.step('jean2 tools · extensions');
-      log.step('');
-      log.step('  Extensions:');
-      log.step('');
-      displayExtensionsDetail(extensions, envConfig);
-      log.step('✨ Done');
-      return { success: true };
-    }
+    const toolsDir = getToolsBaseDir();
+    const installedTools = await getInstalledTools(toolsDir);
+    const installedSet = new Set(installedTools.map((t) => t.name));
 
     let displayTools = tools;
-    if (options.tag) {
-      displayTools = filterToolsByTag(tools, options.tag);
-    } else if (options.installed) {
-      displayTools = filterToolsByInstalled(tools);
+    if (options.installed) {
+      displayTools = [];
+      for (const tool of tools) {
+        if (installedSet.has(tool.name)) {
+          displayTools.push(tool);
+        }
+      }
     }
 
     if (options.json) {
       const result = displayTools.map((t) => ({
         name: t.name,
-        packageName: t.packageName,
         version: t.version,
         installed: installedSet.has(t.name),
         description: t.description,
-        runtime: t.runtime,
-        tags: t.tags,
-        extensions: t.extensions,
-        dangerous: t.dangerous,
-        postInstall: t.postInstall,
+        hasSecurity: t.hasSecurity,
       }));
       console.log(JSON.stringify(result, null, 2));
       return { success: true };
@@ -362,8 +72,7 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
 
     let maxNameLen = TOOL_COL;
     for (const tool of displayTools) {
-      const v = tool.packageName !== tool.name ? ` (${tool.packageName})` : '';
-      maxNameLen = Math.max(maxNameLen, (tool.name + v).length);
+      maxNameLen = Math.max(maxNameLen, tool.name.length);
     }
 
     log.step(`  ${'Tool'.padEnd(maxNameLen)}${'Version'.padEnd(VERS_COL)}${'Status'.padEnd(STATUS_COL)}Description`);
@@ -372,44 +81,21 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
     for (const tool of displayTools) {
       const installed = installedSet.has(tool.name);
       const status = installed ? '✔ installed' : '— available';
-      const variant = tool.packageName !== tool.name ? ` (${tool.packageName})` : '';
-
-
-      const extHints: string[] = [];
-      for (const extId of tool.extensions) {
-        const ext = extensions[extId];
-        if (!ext) continue;
-        if (ext.requiredFor.includes(tool.name)) {
-          extHints.push(`⚡ ${extId} required`);
-        } else {
-          extHints.push(`↗ ${extId}`);
-        }
-      }
 
       let desc = tool.description;
-      if (tool.dangerous) {
-        desc += ' ⚠ dangerous';
-      }
-      if (extHints.length > 0) {
-        desc += '  ' + extHints.join('  ');
+      if (tool.hasSecurity) {
+        desc += ' 🔒';
       }
 
-      const namePad = (tool.name + variant).padEnd(maxNameLen);
+      const namePad = tool.name.padEnd(maxNameLen);
       const versionPad = (tool.version || '?').padEnd(VERS_COL);
       const statusPad = status.padEnd(STATUS_COL);
       log.step(`  ${namePad}${versionPad}${statusPad}${desc}`);
     }
 
     log.step('');
-    const installedCount = tools.filter((t) => installedSet.has(t.name)).length;
-    const runtime = tools[0]?.runtime || 'bun';
-    log.step(`  ${installedCount} installed, ${tools.length} available  ·  Runtime: ${runtime}`);
-
-    if (Object.keys(extensions).length > 0) {
-      log.step('');
-      log.step('  Extensions:');
-      log.step('    ↗ optional  ·  ⚡ required  ·  run `jean2 tools list --extensions` for details');
-    }
+    const installedCount = installedTools.length;
+    log.step(`  ${installedCount} installed, ${tools.length} available`);
 
     log.step('✨ Done');
     return { success: true };
@@ -420,12 +106,10 @@ export async function toolsList(options: ListOptions): Promise<ToolsCliResult> {
   }
 }
 
-// ─── tools install ──────────────────────────────────────────────────────────
-
-export interface CliInstallOptions extends ToolsCliOptions {
+export interface CliInstallOptions {
   names?: string[];
   all?: boolean;
-  recommended?: boolean;
+  force?: boolean;
 }
 
 interface TaskResult {
@@ -436,15 +120,14 @@ interface TaskResult {
 
 export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCliResult> {
   const toolArgs = options.names || [];
-  const isInteractive = toolArgs.length === 0 && !options.all && !options.recommended;
+  const isInteractive = toolArgs.length === 0 && !options.all;
 
-  let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
+  let tools: RepositoryTool[];
 
   try {
     const fetchSpinner = spinner();
     fetchSpinner.start('Fetching tool registry...');
-    const availableRuntimes = await buildAvailableRuntimes();
-    repoData = await fetchRepositoryWithVersions({ availableRuntimes });
+    tools = await fetchRepositoryWithVersions();
     fetchSpinner.stop('Fetching tool registry... done');
     restoreTerminalState();
   } catch (err: unknown) {
@@ -453,36 +136,16 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     return { success: false, error: message };
   }
 
-  const { tools, registry, extensions, envConfig } = repoData;
-
-  // Resolve which tools to install
-  let selected: ResolvedToolEntry[];
+  let selected: RepositoryTool[];
 
   if (options.all) {
     selected = tools;
-  } else if (options.recommended) {
-    selected = getRecommendedTools(tools);
   } else if (isInteractive) {
-    // Interactive multiselect
-    const choices = tools.map((tool) => {
-      const extHints: string[] = [];
-      for (const extId of tool.extensions) {
-        const ext = extensions[extId];
-        if (!ext) continue;
-        if (ext.requiredFor.includes(tool.name)) {
-          extHints.push(`⚡ requires ${extId}`);
-        }
-      }
-      let hint = '';
-      if (tool.dangerous) hint = ' ⚠ dangerous';
-      if (extHints.length > 0) hint += ' ' + extHints.join(' ');
-
-      return {
-        value: tool.name,
-        label: tool.name,
-        hint: `v${tool.version}   ${tool.description}${hint}`,
-      };
-    });
+    const choices = tools.map((tool) => ({
+      value: tool.name,
+      label: tool.name,
+      hint: `v${tool.version}   ${tool.description}`,
+    }));
 
     const selectedNames = await multiselect({
       message: 'Select tools to install:',
@@ -501,100 +164,36 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
       return { success: true };
     }
 
-    selected = filterToolsByName(tools, selectedNames as string[]);
+    const nameSet = new Set(selectedNames as string[]);
+    selected = tools.filter((t) => nameSet.has(t.name));
   } else {
-    // Non-interactive: specific tool names
     const unknownNames = toolArgs.filter((n) => !tools.find((t) => t.name === n));
     if (unknownNames.length > 0) {
       log.error(`Unknown tools: ${unknownNames.join(', ')}`);
       return { success: false, error: `Unknown tools: ${unknownNames.join(', ')}` };
     }
-    selected = filterToolsByName(tools, toolArgs);
+    const nameSet = new Set(toolArgs);
+    selected = tools.filter((t) => nameSet.has(t.name));
   }
 
-  // Early return for no selection
   if (selected.length === 0) {
     return { success: true };
-  }
-
-  // Runtime check for selected tools (unified)
-  const requiredRuntimes = collectRequiredRuntimes(selected);
-  const runtimeCheck = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
-
-  // Display runtime check results
-  log.step('');
-  for (const msg of runtimeCheck.messages) {
-    log.step(`  Runtime required: ${msg}`);
-  }
-
-  if (!options.skipRuntimeCheck && runtimeCheck.missingWithSetup.length > 0) {
-    for (const rt of runtimeCheck.missingWithSetup) {
-      const setup = getRuntimeSetup(rt);
-      const displayName = setup?.displayName ?? rt;
-      log.warn(`  ⚠ ${displayName} is required but not found.`);
-
-      const shouldOffer = await confirm({
-        message: `Would you like help installing ${displayName}?`,
-        active: 'Yes',
-        inactive: 'No',
-      });
-
-      restoreTerminalState();
-
-      if (isCancel(shouldOffer) || !shouldOffer) {
-        if (isInteractive) {
-          continue;
-        }
-        log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-        return { success: false, error: 'Required runtimes not found' };
-      }
-
-      const result = await offerRuntimeSetup(rt);
-      if (!isInteractive && !result.success) {
-        log.error('Required runtimes not found. Aborting. Use --skip-runtime-check to bypass.');
-        return { success: false, error: 'Required runtimes not found' };
-      }
-    }
-
-    const afterSetup = await formatRuntimeCheck(requiredRuntimes, !!options.skipRuntimeCheck);
-    runtimeCheck.messages.length = 0;
-    runtimeCheck.messages.push(...afterSetup.messages);
-    runtimeCheck.missingWithSetup = afterSetup.missingWithSetup;
-    runtimeCheck.ok = afterSetup.ok;
-
-    if (runtimeCheck.missingWithSetup.length > 0) {
-      log.warn(`  ⚠ Still missing runtimes without setup available: ${runtimeCheck.missingWithSetup.join(', ')}`);
-    }
-  }
-
-  if (!runtimeCheck.ok) {
-    log.error('  Required runtimes not found. Use --skip-runtime-check to bypass.');
-    return { success: false, error: 'Required runtimes not found' };
   }
 
   log.step('jean2 tools · install');
   log.step('');
 
+  const toolsDir = getToolsBaseDir();
   const results: TaskResult[] = [];
+
   for (const tool of selected) {
     try {
-      const result = await installTool(tool, registry, {
-        force: options.force,
-        skipPostInstall: false,
-      });
+      const downloadUrl = resolveDownloadUrl(tool.name, tool.version);
+      const result = await installToolFromUrl(downloadUrl, tool.name, toolsDir);
 
       if (result.success) {
-        if (result.skipped) {
-          log.step(`  ${tool.name} already installed`);
-          results.push({ status: 'ok', value: 'skipped' });
-        } else {
-          let msg = `${tool.name} installed`;
-          if (tool.postInstall) {
-            msg += ` (post-install: ${tool.postInstall})`;
-          }
-          log.step(`  ✔ ${msg}`);
-          results.push({ status: 'ok', value: msg });
-        }
+        log.step(`  ✔ ${tool.name} installed`);
+        results.push({ status: 'ok', value: tool.name });
       } else {
         log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
         results.push({ status: 'error', reason: result.error });
@@ -620,16 +219,9 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     }
   }
 
-  // Show extension tips for installed tools
-  if (successCount > 0) {
-    displayExtensionTips(selected, extensions, envConfig);
-  }
-
   log.step('✨ Done');
   return { success: errorCount === 0 };
 }
-
-// ─── tools update ───────────────────────────────────────────────────────────
 
 export interface UpdateOptions {
   names?: string[];
@@ -639,20 +231,12 @@ export interface UpdateOptions {
 export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResult> {
   const toolArgs = options.names || [];
 
-  let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
+  let tools: RepositoryTool[];
 
   try {
     const fetchSpinner = spinner();
     fetchSpinner.start('Fetching tool registry...');
-    const availableRuntimes = await buildAvailableRuntimes();
-    const installedPackages = new Map<string, string>();
-    for (const tool of getInstalledTools()) {
-      const manifest = getInstalledManifest(tool.name);
-      if (manifest?.packageName) {
-        installedPackages.set(tool.name, manifest.packageName);
-      }
-    }
-    repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
+    tools = await fetchRepositoryWithVersions();
     fetchSpinner.stop('Fetching tool registry... done');
     restoreTerminalState();
   } catch (err: unknown) {
@@ -661,12 +245,11 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     return { success: false, error: message };
   }
 
-  const { tools, registry, extensions, envConfig } = repoData;
+  const toolsDir = getToolsBaseDir();
+  const installedTools = await getInstalledTools(toolsDir);
+  const installedMap = new Map(installedTools.map((t) => [t.name, t]));
 
-  const installed = getInstalledTools();
-  const installedSet = new Set(installed.map((t) => t.name));
-
-  let toUpdate = tools.filter((t) => installedSet.has(t.name));
+  let toUpdate = tools.filter((t) => installedMap.has(t.name));
 
   if (toolArgs.length > 0) {
     const nameSet = new Set(toolArgs);
@@ -681,14 +264,19 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     return { success: true };
   }
 
-  const outdated: Array<{ tool: ResolvedToolEntry; installedVersion: string }> = [];
+  interface OutdatedItem {
+    tool: RepositoryTool;
+    installedVersion: string;
+  }
+
+  const outdated: OutdatedItem[] = [];
   const upToDate: string[] = [];
 
   for (const tool of toUpdate) {
-    const installed = getInstalledTools().find((t) => t.name === tool.name);
-    if (installed && installed.installedVersion !== tool.version) {
-      outdated.push({ tool, installedVersion: installed.installedVersion || 'unknown' });
-    } else if (installed) {
+    const installedInfo = installedMap.get(tool.name);
+    if (installedInfo && installedInfo.version !== tool.version) {
+      outdated.push({ tool, installedVersion: installedInfo.version || 'unknown' });
+    } else if (installedInfo) {
       upToDate.push(tool.name);
     }
   }
@@ -700,27 +288,28 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     log.step('✨ Done');
     return { success: true };
   }
-    if (options.dryRun) {
-      log.step('jean2 tools · update (dry run)');
-      log.step('');
-      const COL_TOOL = 11;
-      const COL_CURR = 10;
 
+  if (options.dryRun) {
+    log.step('jean2 tools · update (dry run)');
+    log.step('');
+    const COL_TOOL = 11;
+    const COL_CURR = 10;
 
-      let maxToolLen = COL_TOOL;
-      for (const { tool } of outdated) {
-        maxToolLen = Math.max(maxToolLen, tool.name.length);
-      }
-
-      log.step(`  ${'Tool'.padEnd(maxToolLen)}${'Current'.padEnd(COL_CURR)}Latest`);
-      log.step(`  ${'─'.repeat(maxToolLen)}${'─'.repeat(COL_CURR)}${'─'.repeat(6)}`);
-      for (const { tool, installedVersion } of outdated) {
-        log.step(`  ${tool.name.padEnd(maxToolLen)}${installedVersion.padEnd(COL_CURR)}${tool.version}`);
-      }
-      log.step('');
-      log.step('✨ Done');
-      return { success: true };
+    let maxToolLen = COL_TOOL;
+    for (const { tool } of outdated) {
+      maxToolLen = Math.max(maxToolLen, tool.name.length);
     }
+
+    log.step(`  ${'Tool'.padEnd(maxToolLen)}${'Current'.padEnd(COL_CURR)}Latest`);
+    log.step(`  ${'─'.repeat(maxToolLen)}${'─'.repeat(COL_CURR)}${'─'.repeat(6)}`);
+    for (const { tool, installedVersion } of outdated) {
+      log.step(`  ${tool.name.padEnd(maxToolLen)}${installedVersion.padEnd(COL_CURR)}${tool.version}`);
+    }
+    log.step('');
+    log.step('✨ Done');
+    return { success: true };
+  }
+
   log.step('jean2 tools · update');
   log.step('');
   for (const { tool, installedVersion } of outdated) {
@@ -748,13 +337,10 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   const updateResults: TaskResult[] = [];
   for (const { tool } of outdated) {
     try {
-      const result = await installTool(tool, registry, { force: true });
+      const downloadUrl = resolveDownloadUrl(tool.name, tool.version);
+      const result = await installToolFromUrl(downloadUrl, tool.name, toolsDir);
       if (result.success) {
-        let msg = `${tool.name} updated`;
-        if (tool.postInstall) {
-          msg += ` (post-install: ${tool.postInstall})`;
-        }
-        log.step(`  ✔ ${msg}`);
+        log.step(`  ✔ ${tool.name} updated`);
         updateResults.push({ status: 'ok', value: tool.name });
       } else {
         log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
@@ -781,18 +367,9 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
     }
   }
 
-  // Show extension tips after updates
-  // Filter by index to correctly identify which outdated entries succeeded
-  const updatedTools = outdated
-    .filter((_, i) => updateResults[i]?.status === 'ok')
-    .map((o) => o.tool);
-  displayExtensionTips(updatedTools, extensions, envConfig);
-
   log.step('✨ Done');
   return { success: updateErrorCount === 0 };
 }
-
-// ─── tools remove ────────────────────────────────────────────────────────────
 
 export interface RemoveOptions {
   names?: string[];
@@ -807,13 +384,14 @@ export async function toolsRemove(options: RemoveOptions): Promise<ToolsCliResul
     return { success: false, error: 'No tools specified' };
   }
 
-  const installed = getInstalledTools();
-  const installedSet = new Set(installed.map((t) => t.name));
+  const toolsDir = getToolsBaseDir();
+  const installedTools = await getInstalledTools(toolsDir);
+  const installedSet = new Set(installedTools.map((t) => t.name));
 
   let toRemove: string[];
 
   if (options.all) {
-    toRemove = installed.map((t) => t.name);
+    toRemove = installedTools.map((t) => t.name);
   } else {
     toRemove = toolArgs.filter((n) => installedSet.has(n));
     const notInstalled = toolArgs.filter((n) => !installedSet.has(n));
@@ -833,12 +411,18 @@ export async function toolsRemove(options: RemoveOptions): Promise<ToolsCliResul
   let failedCount = 0;
 
   for (const name of toRemove) {
-    const result = await removeTool(name);
-    if (result.success) {
-      successCount++;
-    } else {
+    try {
+      const result = await removeTool(name, toolsDir);
+      if (result.success) {
+        successCount++;
+      } else {
+        failedCount++;
+        log.step(`  Failed to remove ${name}: ${result.error}`);
+      }
+    } catch (err: unknown) {
       failedCount++;
-      log.step(`  Failed to remove ${name}: ${result.error}`);
+      const message = err instanceof Error ? err.message : String(err);
+      log.step(`  Failed to remove ${name}: ${message}`);
     }
   }
 
@@ -851,30 +435,23 @@ export async function toolsRemove(options: RemoveOptions): Promise<ToolsCliResul
   return { success: failedCount === 0 };
 }
 
-// ─── installRecommendedTools (for init integration) ─────────────────────────
-
 export interface InstallRecommendedToolsResult {
   success: boolean;
   toolsInstalled: boolean;
   error?: string;
 }
 
-/**
- * Install recommended tools.
- * Used by `jean2 init` to install recommended tools after setup.
- */
 export async function installRecommendedTools(): Promise<InstallRecommendedToolsResult> {
   try {
     const result = await toolsInstall({
-      recommended: true,
-      skipRuntimeCheck: false,
+      all: true,
     });
 
     if (!result.success) {
       return {
         success: false,
         toolsInstalled: false,
-        error: `${result.error}\nRun 'jean2 tools install --recommended' to try again.`,
+        error: `${result.error}\nRun 'jean2 tools install --all' to try again.`,
       };
     }
 
@@ -892,27 +469,17 @@ export async function installRecommendedTools(): Promise<InstallRecommendedTools
   }
 }
 
-// ─── tools outdated ─────────────────────────────────────────────────────────
-
 export interface OutdatedOptions {
   names?: string[];
 }
 
 export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<ToolsCliResult> {
-  let repoData: Awaited<ReturnType<typeof fetchRepositoryWithVersions>>;
+  let tools: RepositoryTool[];
 
   try {
     const fetchSpinner = spinner();
     fetchSpinner.start('Fetching tool registry...');
-    const availableRuntimes = await buildAvailableRuntimes();
-    const installedPackages = new Map<string, string>();
-    for (const tool of getInstalledTools()) {
-      const manifest = getInstalledManifest(tool.name);
-      if (manifest?.packageName) {
-        installedPackages.set(tool.name, manifest.packageName);
-      }
-    }
-    repoData = await fetchRepositoryWithVersions({ availableRuntimes, installedPackages });
+    tools = await fetchRepositoryWithVersions();
     fetchSpinner.stop('Fetching tool registry... done');
     restoreTerminalState();
   } catch (err: unknown) {
@@ -921,20 +488,26 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
     return { success: false, error: message, exitCode: 1 };
   }
 
-  const { tools } = repoData;
-  const installed = getInstalledTools();
-  const installedMap = new Map(installed.map((t) => [t.name, t]));
+  const toolsDir = getToolsBaseDir();
+  const installedTools = await getInstalledTools(toolsDir);
+  const installedMap = new Map(installedTools.map((t) => [t.name, t]));
+
+  interface OutdatedResult {
+    name: string;
+    currentVersion: string;
+    latestVersion: string;
+  }
 
   const outdated: OutdatedResult[] = [];
 
   for (const tool of tools) {
     const installedInfo = installedMap.get(tool.name);
-    if (!installedInfo || !installedInfo.isInstalled) continue;
+    if (!installedInfo || !installedInfo.version) continue;
 
-    if (installedInfo.installedVersion !== tool.version) {
+    if (installedInfo.version !== tool.version) {
       outdated.push({
         name: tool.name,
-        currentVersion: installedInfo.installedVersion || 'unknown',
+        currentVersion: installedInfo.version || 'unknown',
         latestVersion: tool.version,
       });
     }
@@ -946,7 +519,7 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
   if (outdated.length === 0) {
     log.step('  All installed tools are up to date.');
     log.step('');
-    log.step(`  ${installed.length} installed, all up-to-date`);
+    log.step(`  ${installedTools.length} installed, all up-to-date`);
     log.step('✨ Done');
     return { success: true, exitCode: 0 };
   }
@@ -966,14 +539,12 @@ export async function toolsOutdated(_options: OutdatedOptions = {}): Promise<Too
   }
 
   log.step('');
-  log.step(`  ${outdated.length} of ${installed.length} installed ${pluralize(installed.length, 'tool')} are outdated`);
+  log.step(`  ${outdated.length} of ${installedTools.length} installed ${pluralize(installedTools.length, 'tool')} are outdated`);
   log.step('  Run `jean2 tools update` to update');
 
   log.step('✨ Done');
   return { success: true, exitCode: 1 };
 }
-
-// ─── Help ───────────────────────────────────────────────────────────────────
 
 export function toolsHelp(): void {
   console.log(`
@@ -981,15 +552,11 @@ export function toolsHelp(): void {
 
     list                  List available and installed tools
       --installed           Only show installed tools
-      --extensions          Show extension and env config details
-      --tag <tag>           Filter by tag
       --json                JSON output
 
     install [names...]    Install tools (interactive if no args)
       --all                 Install all available tools
-      --recommended         Install recommended tools only
       --force               Reinstall even if already installed
-      --skip-runtime-check  Skip runtime requirement check
 
     update [names...]     Update installed tools to latest
       --dry-run             Preview updates without installing
@@ -1002,33 +569,22 @@ export function toolsHelp(): void {
   Environment:
     JEAN2_TOOL_REGISTRY_URL  Custom registry URL (default: GitHub raw)
 
-  Configuration:
-    All tool env vars are configured in ${normalizePath('~/.jean2/.env')}
-    Run \`jean2 tools list --extensions\` to see available env vars
-
   Examples:
     jean2 tools install                Interactive selection
-    jean2 tools install --recommended  Install recommended set
+    jean2 tools install --all           Install all tools
     jean2 tools install grep glob      Install specific tools
-    jean2 tools list --extensions     Show extension/env dependencies
     jean2 tools update                 Update all installed tools
     jean2 tools outdated               Check for updates
 `);
 }
 
-// ─── Main Entry Point ────────────────────────────────────────────────────────
-
 export interface ToolsCommandArgs {
   subCommand?: string;
   flags: {
     installed?: boolean;
-    extensions?: boolean;
     json?: boolean;
-    tag?: string;
     all?: boolean;
-    recommended?: boolean;
     force?: boolean;
-    skipRuntimeCheck?: boolean;
     dryRun?: boolean;
   };
   names?: string[];
@@ -1042,26 +598,22 @@ export async function runToolsCommand(args: ToolsCommandArgs): Promise<ToolsCliR
     case 'ls': {
       return toolsList({
         installed: flags.installed,
-        extensions: flags.extensions,
         json: flags.json,
-        tag: flags.tag,
       });
     }
 
     case 'install':
     case 'add': {
       return toolsInstall({
-        names,
+        names: names ?? [],
         all: flags.all,
-        recommended: flags.recommended,
         force: flags.force,
-        skipRuntimeCheck: flags.skipRuntimeCheck,
       });
     }
 
     case 'update': {
       return toolsUpdate({
-        names,
+        names: names ?? [],
         dryRun: flags.dryRun,
       });
     }
@@ -1070,7 +622,7 @@ export async function runToolsCommand(args: ToolsCommandArgs): Promise<ToolsCliR
     case 'rm':
     case 'uninstall': {
       return toolsRemove({
-        names,
+        names: names ?? [],
         all: flags.all,
       });
     }

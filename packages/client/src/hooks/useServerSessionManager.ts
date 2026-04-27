@@ -22,6 +22,7 @@ import { useServerContext } from '@/contexts/ServerContext';
 import { useSessionStore, type SessionUsage } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { usePermissionStore, type PendingPermissionRequest } from '@/stores/permissionStore';
+import { useAskUserStore, type PendingAskUserRequest } from '@/stores/askUserStore';
 import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -54,6 +55,7 @@ export interface UseServerSessionManagerReturn {
   workspaceSessions: Session[];
   messagesWithParts: MessageWithParts[];
   pendingPermissions: PendingPermissionRequest[];
+  pendingAskUserRequests: PendingAskUserRequest[];
   queuedMessages: Record<string, QueuedMessage[]>;
   permissions: ToolPermission[];
 
@@ -87,6 +89,7 @@ export interface UseServerSessionManagerReturn {
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
+  handleAskUserResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -292,6 +295,20 @@ export function useServerSessionManager({
       addPendingPermission: s.addPendingPermission,
       removePendingPermissionByToolCallId: s.removePendingPermissionByToolCallId,
       removePendingPermissionsBySessionId: s.removePendingPermissionsBySessionId,
+    })),
+  );
+
+  const {
+    pendingRequests: pendingAskUserRequests,
+    addPendingRequest: addPendingAskUserRequest,
+    removePendingRequest: removePendingAskUserRequest,
+    clearPendingRequests: clearPendingAskUserRequests,
+  } = useAskUserStore(
+    useShallow((s) => ({
+      pendingRequests: s.pendingRequests,
+      addPendingRequest: s.addPendingRequest,
+      removePendingRequest: s.removePendingRequest,
+      clearPendingRequests: s.clearPendingRequests,
     })),
   );
 
@@ -640,6 +657,10 @@ export function useServerSessionManager({
         navigate({ to: `/server/$serverId${viewPath}` as any, params: { serverId: _serverId } });
       },
       serverId: _serverId,
+      // AskUser handlers
+      addPendingAskUserRequest,
+      removePendingAskUserRequest,
+      clearPendingAskUserRequests,
     };
   });
 
@@ -658,6 +679,7 @@ export function useServerSessionManager({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
+    handleAskUserResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,
@@ -683,6 +705,7 @@ export function useServerSessionManager({
     setSelectedVariant,
     removePendingPermissionByToolCallId,
     removePendingPermissionsBySessionId,
+    removePendingAskUserRequest,
     clearStreamingSessions: useConnectionStore.getState().clearStreamingSessions,
     pendingSessionCreateRef,
     partAppendRafRef,
@@ -719,6 +742,7 @@ export function useServerSessionManager({
     workspaceSessions,
     messagesWithParts,
     pendingPermissions,
+    pendingAskUserRequests,
     queuedMessages,
 
     sessionUsage,
@@ -751,6 +775,7 @@ export function useServerSessionManager({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
+    handleAskUserResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,

@@ -1,9 +1,0 @@
-{
-  "name": "tool-grep-node",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "ignore": "^7.0.3"
-  }
-}

@@ -97,8 +97,6 @@ Usage notes:
 5. If the agent description mentions that it should be proactively used, then you should try your best to use it without the user having to ask you to do so first. Use your judgement.
 
 Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents at the maximum depth.`,
-    script: 'internal',
-    runtime: 'bun',
     timeout: 300000,
     requireApproval: false,
     dangerous: false,

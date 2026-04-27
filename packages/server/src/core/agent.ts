@@ -13,7 +13,7 @@ import { getModelWithMetadata } from './model-utils';
 import { createStepCallbacks, type CallbackEvent } from './step-handlers';
 import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
-import { buildAiSdkTools } from './build-tools';
+import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
 import {
   getLLMTemperature,
   getLLMMaxSteps,
@@ -38,6 +38,7 @@ export interface ChatOptions {
   onPermissionRequest?: PermissionRequestCallback;
   maxSteps?: number;
   compactionPolicy?: CompactionPolicy;
+  broadcastFn?: BuildToolsOptions['broadcastFn'];
 }
 
 function collectInterruptedToolPartEvents(
@@ -99,7 +100,19 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const resolvedModelId = modelId || (preconfig.model ?? undefined);
 
   const toolNames = preconfig.tools || [];
-  const aiTools = await buildAiSdkTools(toolNames, workspacePath, workspaceId, _sessionId, onPermissionRequest, preconfig.canSpawnSubagents, preconfig.skills);
+  const resolvedProviderId = providerId;
+  const aiTools = await buildAiSdkTools({
+    toolNames,
+    workspacePath,
+    workspaceId,
+    sessionId: _sessionId,
+    modelId: resolvedModelId,
+    providerId: resolvedProviderId,
+    onPermissionRequest,
+    canSpawnSubagents: preconfig.canSpawnSubagents,
+    allowedSkills: preconfig.skills,
+    broadcastFn: options.broadcastFn,
+  });
 
   // Build system message with workspace context
   let systemMessage = preconfig.systemPrompt || '';

@@ -24,6 +24,7 @@ interface UseSessionCommandsParams {
   setSelectedVariant: (variant: string | null) => void;
   removePendingPermissionByToolCallId: (toolCallId: string) => void;
   removePendingPermissionsBySessionId: (sessionId: string) => void;
+  removePendingAskUserRequest: (toolCallId: string) => void;
   clearStreamingSessions: () => void;
   pendingSessionCreateRef: React.RefObject<boolean>;
   partAppendRafRef: React.RefObject<number | null>;
@@ -48,6 +49,7 @@ interface UseSessionCommandsReturn {
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
+  handleAskUserResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -75,6 +77,7 @@ export function useSessionCommands({
   setSelectedVariant,
   removePendingPermissionByToolCallId,
   removePendingPermissionsBySessionId,
+  removePendingAskUserRequest,
   clearStreamingSessions,
   pendingSessionCreateRef,
   partAppendRafRef,
@@ -253,6 +256,18 @@ export function useSessionCommands({
     }
   }, [clientRef, removePendingPermissionByToolCallId]);
 
+  const handleAskUserResponse = useCallback((toolCallId: string, response: unknown) => {
+    const client = clientRef.current;
+    removePendingAskUserRequest(toolCallId);
+    if (client && client.connected) {
+      client.send({
+        type: 'ask_user.response',
+        toolCallId,
+        response,
+      });
+    }
+  }, [clientRef, removePendingAskUserRequest]);
+
   const handleInterruptSession = useCallback(() => {
     const client = clientRef.current;
     if (client && client.connected && currentSession) {
@@ -311,6 +326,7 @@ export function useSessionCommands({
     removeFromQueue,
     sendChatMessage,
     handlePermissionResponse,
+    handleAskUserResponse,
     handleInterruptSession,
     updateSessionPreconfig,
     updateSessionModel,

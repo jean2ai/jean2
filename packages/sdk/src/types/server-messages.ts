@@ -30,6 +30,8 @@ import type {
   QueueSendingMessage,
   ProviderStatusMessage,
   ProviderConnectedMessage,
+  AskUserRequestMessage,
+  AskUserTimedOutMessage,
   ErrorMessage,
   RateLimitErrorMessage,
   ServerErrorMessage,
@@ -145,6 +147,17 @@ export interface SdkEventMap {
     connected: ProviderConnectedMessage['connected'],
     connectedAt: ProviderConnectedMessage['connectedAt'],
     accountId: ProviderConnectedMessage['accountId'],
+  ];
+
+  'ask_user.request': [
+    sessionId: AskUserRequestMessage['sessionId'],
+    toolCallId: AskUserRequestMessage['toolCallId'],
+    toolName: AskUserRequestMessage['toolName'],
+    question: AskUserRequestMessage['question'],
+  ];
+  'ask_user.timeout': [
+    sessionId: AskUserTimedOutMessage['sessionId'],
+    toolCallId: AskUserTimedOutMessage['toolCallId'],
   ];
 
   'error': [code: ErrorMessage['code'], message: ErrorMessage['message']];
@@ -282,6 +295,12 @@ export function routeServerMessage(
       break;
     case 'provider.connected':
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);
+      break;
+    case 'ask_user.request':
+      emitter.emit('ask_user.request', msg.sessionId, msg.toolCallId, msg.toolName, msg.question);
+      break;
+    case 'ask_user.timeout':
+      emitter.emit('ask_user.timeout', msg.sessionId, msg.toolCallId);
       break;
     case 'error':
       emitter.emit('error', msg.code, msg.message);

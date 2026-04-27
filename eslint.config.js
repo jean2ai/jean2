@@ -11,7 +11,6 @@ export default tseslint.config(
       '**/dist/**',
       '**/data/**',
       '**/src-tauri/target/**',
-      'tools/**',
     ],
   },
   
@@ -100,6 +99,23 @@ export default tseslint.config(
         crypto: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
+      },
+    },
+  },
+
+  // Tools package - Bun globals
+  {
+    files: ['tools/**/*.ts'],
+    ignores: [
+      'tools/dist/**',
+      'tools/node_modules/**',
+    ],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        Bun: 'readonly',
       },
     },
   }

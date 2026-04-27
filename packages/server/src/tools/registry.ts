@@ -1,123 +1,171 @@
-import { readdir, readFile } from 'fs/promises';
+import { readdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import matter from 'gray-matter';
-import { join, resolve } from 'path';
-import type { ToolDefinition } from '@jean2/sdk';
-import type { DiscoveredTool } from './types';
+import { watch } from 'fs';
+import { join, resolve, relative } from 'path';
+import type { ToolDefinition, LoadedTool } from '@jean2/sdk';
 import { resolveToolsPath } from '../config';
+
+const toolsCache: Map<string, LoadedTool> = new Map();
+let lastScanTime = 0;
+const CACHE_TTL = 60000;
+
+let watcher: ReturnType<typeof watch> | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let watcherToolsPath: string | null = null;
 
 function getDefaultToolsPath(): string {
   return resolveToolsPath();
 }
 
-function getToolMdPath(toolDir: string): string {
-  return join(toolDir, 'tool.md');
+async function loadToolModule(toolDir: string): Promise<LoadedTool | null> {
+  const toolJsPath = join(toolDir, 'tool.js');
+  const toolTsPath = join(toolDir, 'tool.ts');
+
+  let modulePath: string | null = null;
+  if (existsSync(toolJsPath)) {
+    modulePath = toolJsPath;
+  } else if (existsSync(toolTsPath)) {
+    modulePath = toolTsPath;
+  }
+
+  if (!modulePath) {
+    return null;
+  }
+
+  try {
+    const module = await import(modulePath);
+
+    if (!module.definition || typeof module.execute !== 'function') {
+      console.warn(`Tool at ${toolDir} missing required exports (definition, execute)`);
+      return null;
+    }
+
+    const definition: ToolDefinition = module.definition;
+    if (!definition.name || !definition.inputSchema) {
+      console.warn(`Tool at ${toolDir} has invalid definition (missing name or inputSchema)`);
+      return null;
+    }
+
+    return {
+      definition,
+      execute: module.execute,
+      security: module.security,
+      path: toolDir,
+    };
+  } catch (e) {
+    console.warn(`Failed to load tool module at ${toolDir}:`, e);
+    return null;
+  }
 }
 
-function getToolJsonPath(toolDir: string): string {
-  return join(toolDir, 'tool.json');
+function invalidateToolAtPath(filePath: string): void {
+  if (!watcherToolsPath) return;
+
+  const relativePath = relative(watcherToolsPath, filePath);
+  const pathParts = relativePath.split(/[\\/]/);
+  const toolDir = pathParts[0];
+
+  if (!toolDir || toolDir === '.' || toolDir === '..') return;
+
+  const toolPath = join(watcherToolsPath, toolDir);
+  const toolCacheKey = Array.from(toolsCache.keys()).find(key => {
+    const cachedTool = toolsCache.get(key);
+    return cachedTool?.path === toolPath;
+  });
+
+  if (toolCacheKey) {
+    toolsCache.delete(toolCacheKey);
+    console.log(`Cache invalidated for tool: ${toolCacheKey}`);
+  }
 }
 
-function parseToolMd(content: string): ToolDefinition {
-  const { data, content: body } = matter(content);
-  return {
-    name: data.name || '',
-    description: body.trim(),
-    script: data.script || '',
-    runtime: data.runtime || 'bun',
-    inputSchema: data.inputSchema || { type: 'object', properties: {} },
-    outputSchema: data.outputSchema || { type: 'object', properties: {} },
-    timeout: data.timeout ?? 30000,
-    requireApproval: data.requireApproval ?? false,
-    dangerous: data.dangerous ?? false,
-    ...(data.env !== undefined && { env: data.env }),
-    ...(data.hasSecurityCheck !== undefined && { hasSecurityCheck: data.hasSecurityCheck }),
-    ...(data.securityScript !== undefined && { securityScript: data.securityScript }),
-    ...(data.securityTimeout !== undefined && { securityTimeout: data.securityTimeout }),
-  };
+function scheduleInvalidation(filePath: string): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+
+  debounceTimer = setTimeout(() => {
+    invalidateToolAtPath(filePath);
+    debounceTimer = null;
+  }, 100);
 }
 
-const toolsCache: Map<string, DiscoveredTool> = new Map();
-let lastScanTime = 0;
-const CACHE_TTL = 60000; // 1 minute cache
+export function watchTools(toolsPath: string = getDefaultToolsPath()): void {
+  if (watcher) {
+    stopWatching();
+  }
 
-export async function scanTools(toolsPath: string = getDefaultToolsPath()): Promise<DiscoveredTool[]> {
-  const tools: DiscoveredTool[] = [];
-  let skippedCount = 0;
-  const runtimeFilter = process.env.JEAN2_TOOLS_RUNTIME || null;
-  
-  // Resolve to absolute path to ensure tool paths are absolute
   const absoluteToolsPath = resolve(toolsPath);
-  
+  watcherToolsPath = absoluteToolsPath;
+
+  try {
+    watcher = watch(absoluteToolsPath, { recursive: true }, (_event, filename) => {
+      if (!filename) return;
+      const filePath = join(absoluteToolsPath, filename);
+      scheduleInvalidation(filePath);
+    });
+
+    watcher.on('error', (err) => {
+      console.warn(`Tool watcher error: ${err}`);
+    });
+
+    console.log(`Watching tools directory for changes: ${absoluteToolsPath}`);
+  } catch (_e) {
+    console.warn(`Failed to start tool watcher for: ${absoluteToolsPath}`);
+    watcherToolsPath = null;
+  }
+}
+
+export function stopWatching(): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+
+  watcherToolsPath = null;
+  console.log('Tool watcher stopped');
+}
+
+export async function scanTools(toolsPath: string = getDefaultToolsPath()): Promise<LoadedTool[]> {
+  const tools: LoadedTool[] = [];
+  const absoluteToolsPath = resolve(toolsPath);
+
   try {
     const entries = await readdir(absoluteToolsPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      
+
       const toolDir = join(absoluteToolsPath, entry.name);
-      const toolMdPath = getToolMdPath(toolDir);
-      const toolJsonPath = getToolJsonPath(toolDir);
+      const loaded = await loadToolModule(toolDir);
 
-      try {
-        let definition: ToolDefinition;
-
-        if (existsSync(toolMdPath)) {
-          const content = await readFile(toolMdPath, 'utf-8');
-          definition = parseToolMd(content);
-        } else if (existsSync(toolJsonPath)) {
-          const content = await readFile(toolJsonPath, 'utf-8');
-          definition = JSON.parse(content) as ToolDefinition;
-        } else {
-          console.warn(`No tool definition found in ${entry.name} (expected tool.md or tool.json)`);
-          continue;
-        }
-
-        // Validate required fields
-        if (!definition.name || !definition.script || !definition.runtime) {
-          console.warn(`Invalid tool definition in ${entry.name}: missing required fields`);
-          continue;
-        }
-
-        if (runtimeFilter && definition.runtime !== runtimeFilter) {
-          skippedCount++;
-          continue;
-        }
-
-        tools.push({
-          definition,
-          path: toolDir,
-        });
-      } catch (e) {
-        console.warn(`Failed to read tool definition in ${entry.name}:`, e);
+      if (loaded) {
+        tools.push(loaded);
       }
     }
   } catch (_e) {
-    // Tools directory doesn't exist yet
     console.warn(`Tools directory not found: ${absoluteToolsPath}`);
   }
 
-  if (skippedCount > 0) {
-    console.log(`  Skipped ${skippedCount} tool(s) (runtime filter: ${runtimeFilter})`);
-  }
-
-  // Update cache
   toolsCache.clear();
   for (const tool of tools) {
     toolsCache.set(tool.definition.name, tool);
   }
   lastScanTime = Date.now();
-  
+
   return tools;
 }
 
-export async function getTool(name: string): Promise<DiscoveredTool | null> {
-  // Return cached if fresh
+export async function getTool(name: string): Promise<LoadedTool | null> {
   if (Date.now() - lastScanTime < CACHE_TTL && toolsCache.has(name)) {
     return toolsCache.get(name) || null;
   }
-  
-  // Rescan
+
   await scanTools();
   return toolsCache.get(name) || null;
 }
@@ -126,7 +174,7 @@ export async function listTools(): Promise<ToolDefinition[]> {
   if (Date.now() - lastScanTime >= CACHE_TTL) {
     await scanTools();
   }
-  
+
   return Array.from(toolsCache.values()).map(t => t.definition);
 }
 

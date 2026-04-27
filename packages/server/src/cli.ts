@@ -443,7 +443,7 @@ async function runToolsCommandFromCLI(args: string[]): Promise<void> {
       if (!toolsArgs.subCommand) {
         toolsArgs.subCommand = arg;
       } else {
-        toolsArgs.names = toolsArgs.names || [];
+        toolsArgs.names = toolsArgs.names ?? [];
         toolsArgs.names.push(arg);
       }
       i++;
@@ -454,27 +454,15 @@ async function runToolsCommandFromCLI(args: string[]): Promise<void> {
       case '--installed':
         toolsArgs.flags.installed = true;
         break;
-      case '--extensions':
-        toolsArgs.flags.extensions = true;
-        break;
       case '--json':
         toolsArgs.flags.json = true;
-        break;
-      case '--tag':
-        toolsArgs.flags.tag = args[++i];
         break;
       case '--all':
         toolsArgs.flags.all = true;
         break;
-      case '--recommended':
-        toolsArgs.flags.recommended = true;
-        break;
       case '--force':
       case '-f':
         toolsArgs.flags.force = true;
-        break;
-      case '--skip-runtime-check':
-        toolsArgs.flags.skipRuntimeCheck = true;
         break;
       case '--dry-run':
         toolsArgs.flags.dryRun = true;

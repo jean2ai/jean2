@@ -5,8 +5,10 @@ import type {
   MessageWithParts,
   ToolPermission,
   ProviderStatus,
+  UserQuestion,
 } from '@jean2/sdk';
 import type { PendingPermissionRequest } from '@/stores/permissionStore';
+import type { PendingAskUserRequest } from '@/stores/askUserStore';
 import type { CompletionRecord } from '@/stores/completionStore';
 
 export type SessionUsage = {
@@ -92,6 +94,10 @@ export interface SessionHandlersContext {
   navigateToSession: (sessionId: string) => void;
   navigateToParent: () => void;
   serverId: string;
+  // AskUser related
+  addPendingAskUserRequest: (request: PendingAskUserRequest) => void;
+  removePendingAskUserRequest: (toolCallId: string) => void;
+  clearPendingAskUserRequests: () => void;
 }
 
 export type SessionHandlers = {
@@ -136,3 +142,8 @@ export type ProviderHandlers = {
 };
 
 export type HandlerContext = SessionHandlersContext;
+
+export type AskUserHandlers = {
+  'ask_user.request': (msg: { type: 'ask_user.request'; sessionId: string; toolCallId: string; toolName: string; question: UserQuestion }, ctx: SessionHandlersContext) => void;
+  'ask_user.timeout': (msg: { type: 'ask_user.timeout'; sessionId: string; toolCallId: string }, ctx: SessionHandlersContext) => void;
+};

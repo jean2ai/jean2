@@ -1,0 +1,192 @@
+{
+  "version": 3,
+  "format": "bundled",
+  "lastUpdated": "2026-04-27T16:50:12.000Z",
+  "registry": {
+    "baseUrl": "https://github.com/rabbyte-tech/jean2/releases/download",
+    "urlTemplate": "{baseUrl}/tool-{name}%2Fv{version}/{name}.tar.gz",
+    "versionUrlTemplate": "https://raw.githubusercontent.com/rabbyte-tech/jean2/main/tools/{name}/VERSION"
+  },
+  "tools": [
+    {
+      "name": "apply-patch",
+      "description": "Apply unified diff patches to files atomically.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-apply-patch%2Fv1.0.0/apply-patch.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "edit",
+      "description": "Performs string replacements in files with fuzzy matching support.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-edit%2Fv1.0.0/edit.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "file-to-markdown",
+      "description": "Converts files to Markdown format using the `filetomarkdown` npm package.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-file-to-markdown%2Fv1.0.0/file-to-markdown.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "glob",
+      "description": "Find files matching a glob pattern. Returns matching file paths sorted by modification time.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-glob%2Fv1.0.0/glob.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "grep",
+      "description": "Search for text patterns in files using regular expressions.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-grep%2Fv1.0.0/grep.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "ls",
+      "description": "List directory contents with tree formatting.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-ls%2Fv1.0.0/ls.tar.gz",
+      "hasSecurity": false
+    },
+    {
+      "name": "multiedit",
+      "description": "Performs multiple string replacements in a single file atomically.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-multiedit%2Fv1.0.0/multiedit.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "read-file",
+      "description": "Read a file or directory from the filesystem.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-read-file%2Fv1.0.0/read-file.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "shell",
+      "description": "Execute a shell command in a persistent session.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-shell%2Fv1.0.0/shell.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "tavily-crawl",
+      "description": "Crawl a website and extract content from multiple pages using the Tavily API.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-tavily-crawl%2Fv1.0.0/tavily-crawl.tar.gz",
+      "hasSecurity": false,
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "required": true,
+          "sensitive": true
+        }
+      ]
+    },
+    {
+      "name": "tavily-extract",
+      "description": "Extract structured content from URLs using the Tavily API.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-tavily-extract%2Fv1.0.0/tavily-extract.tar.gz",
+      "hasSecurity": true,
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "required": true,
+          "sensitive": true
+        }
+      ]
+    },
+    {
+      "name": "tavily-map",
+      "description": "Discover and map URLs on a website without extracting content using the Tavily API.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-tavily-map%2Fv1.0.0/tavily-map.tar.gz",
+      "hasSecurity": false,
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "required": true,
+          "sensitive": true
+        }
+      ]
+    },
+    {
+      "name": "tavily-search",
+      "description": "Perform web searches using Tavily's search API.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-tavily-search%2Fv1.0.0/tavily-search.tar.gz",
+      "hasSecurity": false,
+      "envVars": [
+        {
+          "name": "TAVILY_API_KEY",
+          "required": true,
+          "sensitive": true
+        }
+      ]
+    },
+    {
+      "name": "todoread",
+      "description": "Read the current task list for the session from SQLite database.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-todoread%2Fv1.0.0/todoread.tar.gz",
+      "hasSecurity": false,
+      "envVars": [
+        {
+          "name": "TODOS_DB_PATH",
+          "required": false,
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "name": "todowrite",
+      "description": "Update the task list for the current session in SQLite database.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-todowrite%2Fv1.0.0/todowrite.tar.gz",
+      "hasSecurity": false,
+      "envVars": [
+        {
+          "name": "TODOS_DB_PATH",
+          "required": false,
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "name": "webfetch",
+      "description": "Fetch content from a URL and convert to readable format.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-webfetch%2Fv1.0.0/webfetch.tar.gz",
+      "hasSecurity": true
+    },
+    {
+      "name": "write-file",
+      "description": "Write content to a file, creating it if it doesn't exist or overwriting if it does.",
+      "version": "1.0.0",
+      "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-write-file%2Fv1.0.0/write-file.tar.gz",
+      "hasSecurity": true
+    }
+  ],
+  "envConfig": {
+    "TAVILY_API_KEY": {
+      "description": "API key for Tavily web search/crawl/extract/map tools",
+      "sensitive": true,
+      "required": true,
+      "configFile": "~/.jean2/.env",
+      "example": "TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxx",
+      "usedBy": ["tavily-search", "tavily-crawl", "tavily-map", "tavily-extract"]
+    },
+    "TODOS_DB_PATH": {
+      "description": "Custom path for the todos SQLite database. Must be an absolute path.",
+      "sensitive": false,
+      "required": false,
+      "default": "~/.jean2/data/todos.db",
+      "configFile": "~/.jean2/.env",
+      "example": "TODOS_DB_PATH=~/.jean2/data/todos.db",
+      "usedBy": ["todoread", "todowrite"]
+    }
+  }
+}

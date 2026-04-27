@@ -1,8 +1,0 @@
-{
-  "name": "tool-webfetch",
-  "version": "0.2.0",
-  "private": true,
-  "dependencies": {
-    "turndown": "^7.2.0"
-  }
-}

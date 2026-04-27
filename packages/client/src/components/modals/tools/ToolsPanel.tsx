@@ -131,9 +131,6 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{tool.name}</span>
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {tool.runtime}
-                    </Badge>
                     {tool.dangerous && (
                       <Badge variant="destructive" className="text-xs shrink-0">
                         dangerous

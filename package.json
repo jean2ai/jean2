@@ -5,7 +5,8 @@
   "private": true,
   "description": "Jean2 - AI Agent Monorepo",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "tools"
   ],
   "scripts": {
     "dev": "bun run dev:server & bun run dev:client",
@@ -21,6 +22,7 @@
     "build:bin:linux": "cd packages/server && bun run build:bin:linux",
     "build:bin:windows": "cd packages/server && bun run build:bin:windows",
     "build:all": "cd packages/server && bun run build:all",
+    "build:tools": "bun run tools/build.ts",
     "tauri:build:windows": "cd packages/client && bun run tauri:build:windows",
     "dev:electron": "cd packages/client-electron && bun run electron:dev",
     "electron:build": "cd packages/client-electron && bun run electron:build",

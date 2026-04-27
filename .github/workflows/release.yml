@@ -9,17 +9,7 @@ on:
         default: false
         type: boolean
       release_all_tools:
-        description: 'Release all tools (bun + node)'
-        required: false
-        default: false
-        type: boolean
-      release_bun_tools:
-        description: 'Release all bun tools only'
-        required: false
-        default: false
-        type: boolean
-      release_node_tools:
-        description: 'Release all node tools only'
+        description: 'Release all tools'
         required: false
         default: false
         type: boolean
@@ -56,18 +46,11 @@ jobs:
             HAS_SERVER="true"
           fi
           
-          # Tools - bun
-          if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_bun_tools }}" = "true" ]; then
+          # Tools
+          if [ "${{ inputs.release_all_tools }}" = "true" ]; then
             while IFS= read -r TOOL; do
               ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
-            done < <(jq -r '.bun[]' tools/manifest.json)
-          fi
-          
-          # Tools - node
-          if [ "${{ inputs.release_all_tools }}" = "true" ] || [ "${{ inputs.release_node_tools }}" = "true" ]; then
-            while IFS= read -r TOOL; do
-              ITEMS=$(echo "$ITEMS" | jq -c --arg t "$TOOL" '. += [{"type": "tool", "packageName": $t}]')
-            done < <(jq -r '.node[]' tools/manifest.json)
+            done < <(jq -r '.tools[]' tools/manifest.json)
           fi
           
           echo "items=$ITEMS" >> $GITHUB_OUTPUT
@@ -231,14 +214,20 @@ jobs:
 
           elif [ "$RELEASE_TYPE" = "tool" ]; then
             P="tools/$PACKAGE_NAME"
-            V=$(cat "$P/VERSION") && TAG="tool-$PACKAGE_NAME/v${V}"
+            V=$(cat "$P/VERSION" 2>/dev/null || echo "1.0.0") && TAG="tool-$PACKAGE_NAME/v${V}"
             if gh release view "$TAG" 2>/dev/null; then
               echo "Skipping $TAG - release already exists"
               exit 0
             fi
             git tag -f "$TAG"
             git push origin "$TAG" --force
-            tar -czf "$PACKAGE_NAME.tar.gz" -C "$P" .
+
+            # Build the tool
+            bun run tools/build.ts --tool "$PACKAGE_NAME" --output dist/tools
+
+            # Package built output
+            tar -czf "$PACKAGE_NAME.tar.gz" -C "dist/tools/$PACKAGE_NAME" .
+
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             NOTES_FLAG=""
             if [ -s "changelogs/tools/$PACKAGE_NAME/v${V}.md" ]; then

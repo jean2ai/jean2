@@ -40,8 +40,6 @@ export async function buildSkillToolDefinition(
   return {
     name: 'skill',
     description,
-    script: '',  // Not used for built-in tools
-    runtime: 'bun',
     inputSchema: {
       type: 'object',
       properties: {

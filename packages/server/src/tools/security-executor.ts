@@ -1,17 +1,17 @@
-import { spawn } from 'child_process';
-import { join } from 'path';
-import type { SecurityCheckInput, SecurityCheckResult } from '@jean2/sdk';
-import type { DiscoveredTool } from './types';
-import { RUNTIME_COMMANDS } from './executor';
-import { getToolEnv } from '../env';
+import type { SecurityCheckResult, SecurityContext, LoadedTool } from '@jean2/sdk';
+import { homedir } from 'os';
+import { join, resolve } from 'path';
 
-const DEFAULT_SECURITY_TIMEOUT = 10000; // 10 seconds for security checks
+const BLOCKED_PATHS = [
+  '/etc/', '/usr/', '/bin/', '/sbin/', '/boot/', '/dev/',
+  '/proc/', '/sys/', '/root/',
+];
 
-export interface RunSecurityCheckOptions {
-  tool: DiscoveredTool;
-  input: SecurityCheckInput;
-  timeout?: number;
-}
+const SENSITIVE_PATTERNS = [
+  '.env', '.pem', '.key', '.ssh/', 'id_rsa', 'id_ed25519',
+  '.gitconfig', '.npmrc', 'credentials', 'secrets', 'password',
+  '.htpasswd',
+];
 
 export interface SecurityCheckOutcome {
   success: boolean;
@@ -19,110 +19,85 @@ export interface SecurityCheckOutcome {
   error?: string;
 }
 
+export interface RunSecurityCheckOptions {
+  tool: LoadedTool;
+  input: {
+    args: Record<string, unknown>;
+    workspacePath: string;
+    sessionId: string;
+    allowedPaths?: string[];
+  };
+}
+
+function createSecurityContext(input: RunSecurityCheckOptions['input']): SecurityContext {
+  const { workspacePath, sessionId, allowedPaths = [] } = input;
+
+  return {
+    workspacePath,
+    sessionId,
+    allowedPaths,
+    env: {
+      get: (key: string) => process.env[key],
+    },
+
+    resolvePath(path: string): string {
+      if (path.startsWith('~/') || path === '~') {
+        return join(homedir(), path.slice(1));
+      }
+      if (path.startsWith('/')) {
+        return path;
+      }
+      return resolve(workspacePath, path);
+    },
+
+    isWithinWorkspace(path: string): boolean {
+      const resolved = this.resolvePath(path);
+      const normalizedWorkspace = resolve(workspacePath);
+      return resolved.startsWith(normalizedWorkspace);
+    },
+
+    isSensitivePath(path: string): boolean {
+      const lower = path.toLowerCase();
+      return SENSITIVE_PATTERNS.some(p => lower.includes(p));
+    },
+
+    isBlockedPath(path: string): boolean {
+      const resolved = this.resolvePath(path);
+      return BLOCKED_PATHS.some(p => resolved.startsWith(p));
+    },
+  };
+}
+
 export async function runSecurityCheck(
   options: RunSecurityCheckOptions
 ): Promise<SecurityCheckOutcome> {
-  const { tool, input, timeout = DEFAULT_SECURITY_TIMEOUT } = options;
-  const { definition, path: toolPath } = tool;
+  const { tool, input } = options;
 
-  // Determine the security script filename
-  const securityScript = definition.securityScript || 'security.ts';
-  const scriptPath = join(toolPath, securityScript);
+  if (!tool.security) {
+    return { success: true, result: { allowed: true, requiresApproval: false, permissionType: 'tool', permissionKey: 'none', message: '' } };
+  }
 
-  const runtimeCmd = RUNTIME_COMMANDS[definition.runtime];
-  const command = definition.runtime === 'binary'
-    ? [scriptPath]
-    : [...runtimeCmd, scriptPath];
+  try {
+    const ctx = createSecurityContext(input);
+    const result = await tool.security(input.args, ctx);
 
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-
-    const proc = spawn(command[0], command.slice(1), {
-      cwd: toolPath, // Run from tool directory
-      env: { ...getToolEnv(tool.definition.env) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
-    });
-
-    // Set timeout (shorter for security checks)
-    const timeoutId = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, timeout);
-
-    // Send input via stdin
-    proc.stdin?.write(JSON.stringify(input));
-    proc.stdin?.end();
-
-    proc.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      clearTimeout(timeoutId);
-
-      if (timedOut) {
-        resolve({
-          success: false,
-          error: `Security check timed out after ${timeout}ms`,
-        });
-        return;
-      }
-
-      if (code !== 0) {
-        resolve({
-          success: false,
-          error: stderr || `Security script exited with code ${code}`,
-        });
-        return;
-      }
-
-      try {
-        const result = JSON.parse(stdout) as SecurityCheckResult;
-        
-        // Validate the result has required fields
-        if (typeof result.allowed !== 'boolean' || 
-            typeof result.requiresApproval !== 'boolean' ||
-            !result.permissionType ||
-            !result.permissionKey) {
-          resolve({
-            success: false,
-            error: 'Security script returned invalid result structure',
-          });
-          return;
-        }
-
-        resolve({
-          success: true,
-          result,
-        });
-      } catch (_e) {
-        resolve({
-          success: false,
-          error: `Failed to parse security check output: ${stdout.slice(0, 200)}`,
-        });
-      }
-    });
-
-    proc.on('error', (err) => {
-      clearTimeout(timeoutId);
-      resolve({
+    if (typeof result.allowed !== 'boolean' ||
+        typeof result.requiresApproval !== 'boolean' ||
+        !result.permissionType ||
+        !result.permissionKey) {
+      return {
         success: false,
-        error: `Failed to execute security script: ${err.message}`,
-      });
-    });
-  });
+        error: 'Security function returned invalid result structure',
+      };
+    }
+
+    return { success: true, result };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { success: false, error: `Security check failed: ${message}` };
+  }
 }
 
-/**
- * Check if a tool has a security check configured
- */
-export function hasSecurityCheck(tool: DiscoveredTool): boolean {
-  return tool.definition.hasSecurityCheck === true;
+export function hasSecurityCheck(tool: LoadedTool): boolean {
+  return typeof tool.security === 'function';
 }

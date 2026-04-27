@@ -1,195 +1,219 @@
-import { spawn } from 'child_process';
-import { join } from 'path';
-import { homedir } from 'os';
-import { existsSync } from 'fs';
-import type { ToolRuntime } from '@jean2/sdk';
-import type { DiscoveredTool, ToolResult } from './types';
-import { getToolEnv } from '../env';
+import { join, resolve, extname } from 'path';
+import { homedir, tmpdir } from 'os';
+import { existsSync, mkdirSync } from 'fs';
+import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, EnvApi, ToolLogger, AskUserApi, LlmApi } from '@jean2/sdk';
+import { getJean2EnvValue } from '../env';
 
-const RUNTIME_COMMANDS: Record<ToolRuntime, string[]> = {
-  bun: ['bun', 'run'],
-  node: ['node'],
-  python: ['python3'],
-  bash: ['bash'],
-  go: ['go', 'run'],
-  binary: [],
-  powershell: ['pwsh', '-File'],
+const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
+  '.ts': 'typescript', '.tsx': 'typescript', '.js': 'javascript', '.jsx': 'javascript',
+  '.py': 'python', '.rb': 'ruby', '.go': 'go', '.rs': 'rust', '.java': 'java',
+  '.kt': 'kotlin', '.swift': 'swift', '.c': 'c', '.cpp': 'cpp', '.h': 'c', '.hpp': 'cpp',
+  '.cs': 'csharp', '.php': 'php', '.sh': 'bash', '.bash': 'bash', '.zsh': 'zsh', '.fish': 'fish', '.ps1': 'powershell',
+  '.html': 'html', '.css': 'css', '.scss': 'scss', '.less': 'less',
+  '.json': 'json', '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml',
+  '.xml': 'xml', '.sql': 'sql', '.md': 'markdown', '.txt': 'text',
+  '.env': 'dotenv', '.gitignore': 'gitignore', '.dockerfile': 'dockerfile',
+  '.graphql': 'graphql', '.proto': 'protobuf',
+  '.svelte': 'svelte', '.vue': 'vue',
 };
 
-/**
- * Expands ~ in paths to the user's home directory
- */
-function expandPath(path: string): string {
-  if (path.startsWith('~/')) {
-    return path.replace('~', homedir());
-  }
-  return path;
-}
-
 export interface ExecuteToolOptions {
-  tool: DiscoveredTool;
+  tool: LoadedTool;
   args: Record<string, unknown>;
   workspacePath?: string;
   sessionId: string;
   toolCallId?: string;
   abortSignal?: AbortSignal;
   timeout?: number;
+  createLlmApi?: (defaultModel?: string) => LlmApi;
+  createAskUserApi?: (toolCallId: string) => AskUserApi;
+  broadcastFn?: (event: { type: string; [key: string]: unknown }) => void;
 }
 
-export async function executeTool(
-  options: ExecuteToolOptions
-): Promise<ToolResult> {
-  const { tool, args, workspacePath, sessionId, toolCallId: _toolCallId, abortSignal, timeout = 30000 } = options;
-  const { definition, path: toolPath } = tool;
-  const scriptPath = join(toolPath, definition.script);
-  
-  const runtimeCmd = RUNTIME_COMMANDS[definition.runtime];
-  const command = definition.runtime === 'binary' 
-    ? [scriptPath]
-    : [...runtimeCmd, scriptPath];
-  
-  // Determine the working directory for tool execution
-  let cwd: string;
-  if (workspacePath) {
-    const expandedWorkspacePath = expandPath(workspacePath);
-    // Validate that the workspace path exists
-    if (!existsSync(expandedWorkspacePath)) {
+function createFileSystemApi(workspacePath: string, sessionId: string): FileSystemApi {
+  const tempDir = join(tmpdir(), 'jean2', sessionId);
+
+  const api: FileSystemApi = {
+    tempDir,
+
+    async readFile(path: string, encoding?: any): Promise<any> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      if (encoding) {
+        return fs.readFile(resolved, encoding);
+      }
+      const buffer = await fs.readFile(resolved);
+      return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    },
+
+    async writeFile(path: string, data: string | Uint8Array): Promise<void> {
+      const resolved = api.resolve(path);
+      const dir = resolve(resolved, '..');
+      const fs = await import('fs/promises');
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(resolved, data);
+    },
+
+    async appendFile(path: string, data: string | Uint8Array): Promise<void> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      await fs.appendFile(resolved, data);
+    },
+
+    async readDir(path: string): Promise<any[]> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      const entries = await fs.readdir(resolved, { withFileTypes: true });
+      return entries.map(e => ({
+        name: e.name,
+        isDirectory: e.isDirectory(),
+        isFile: e.isFile(),
+      }));
+    },
+
+    async exists(path: string): Promise<boolean> {
+      const resolved = api.resolve(path);
+      return existsSync(resolved);
+    },
+
+    async stat(path: string): Promise<any> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      const stat = await fs.stat(resolved);
+      return {
+        size: stat.size,
+        isDirectory: stat.isDirectory(),
+        isFile: stat.isFile(),
+        modifiedAt: stat.mtime,
+        createdAt: stat.birthtime,
+      };
+    },
+
+    async mkdir(path: string, options?: { recursive?: boolean }): Promise<void> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      await fs.mkdir(resolved, options);
+    },
+
+    async rm(path: string, options?: { recursive?: boolean }): Promise<void> {
+      const resolved = api.resolve(path);
+      const fs = await import('fs/promises');
+      await fs.rm(resolved, options);
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      const fs = await import('fs/promises');
+      await fs.rename(api.resolve(oldPath), api.resolve(newPath));
+    },
+
+    resolve(path: string): string {
+      if (path.startsWith('~')) {
+        return join(homedir(), path.slice(1));
+      }
+      if (path.startsWith('/')) {
+        return path;
+      }
+      return resolve(workspacePath, path);
+    },
+
+    detectLanguage(path: string): string {
+      const ext = extname(path);
+      return EXTENSION_LANGUAGE_MAP[ext] || 'text';
+    },
+  };
+
+  mkdirSync(tempDir, { recursive: true });
+
+  return api;
+}
+
+function createEnvApi(_allowedEnv?: string[]): EnvApi {
+  return {
+    get(key: string): string | undefined {
+      return getJean2EnvValue(key) ?? process.env[key];
+    },
+    require(key: string): string {
+      const value = getJean2EnvValue(key) ?? process.env[key];
+      if (!value) {
+        throw new Error(`Required environment variable not set: ${key}`);
+      }
+      return value;
+    },
+  };
+}
+
+function createLogger(toolName: string, sessionId: string): ToolLogger {
+  const prefix = `[tool:${toolName}:${sessionId.slice(0, 8)}]`;
+  return {
+    debug(message: string, data?: Record<string, unknown>): void {
+      console.debug(prefix, message, data || '');
+    },
+    info(message: string, data?: Record<string, unknown>): void {
+      console.info(prefix, message, data || '');
+    },
+    warn(message: string, data?: Record<string, unknown>): void {
+      console.warn(prefix, message, data || '');
+    },
+    error(message: string, data?: Record<string, unknown>): void {
+      console.error(prefix, message, data || '');
+    },
+  };
+}
+
+export async function executeTool(options: ExecuteToolOptions): Promise<ToolResult> {
+  const {
+    tool,
+    args,
+    workspacePath,
+    sessionId,
+    abortSignal,
+    timeout = tool.definition.timeout ?? 30000,
+    createLlmApi,
+    createAskUserApi,
+  } = options;
+
+  const effectiveWorkspace = workspacePath || process.cwd();
+
+  const ctx: ToolContext = {
+    sessionId,
+    workspacePath: effectiveWorkspace,
+    abortSignal: abortSignal ?? new AbortController().signal,
+
+    fs: createFileSystemApi(effectiveWorkspace, sessionId),
+    llm: createLlmApi ? createLlmApi() : ({} as LlmApi),
+    askUser: createAskUserApi ? createAskUserApi(options.toolCallId ?? '') : ({} as AskUserApi),
+    env: createEnvApi(tool.definition.env),
+    logger: createLogger(tool.definition.name, sessionId),
+    fetch: globalThis.fetch.bind(globalThis),
+  };
+
+  const executePromise = tool.execute(args, ctx);
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Tool execution timed out after ${timeout}ms`));
+    }, timeout);
+  });
+
+  try {
+    const result = await Promise.race([executePromise, timeoutPromise]);
+    return result;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    if (abortSignal?.aborted) {
       return {
         success: false,
-        error: `Workspace path does not exist: ${expandedWorkspacePath}`,
+        error: 'Tool execution interrupted',
       };
     }
-    cwd = expandedWorkspacePath;
-  } else {
-    cwd = process.cwd();
+
+    return {
+      success: false,
+      error: message,
+    };
+  } finally {
+    clearTimeout(timeoutId);
   }
-  
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    let interrupted = false;
-    
-    // Check if already aborted before spawning
-    if (abortSignal?.aborted) {
-      resolve({
-        success: false,
-        error: 'Tool execution interrupted before start',
-        interrupted: true,
-      });
-      return;
-    }
-    
-    const proc = spawn(command[0], command.slice(1), {
-      cwd,
-      env: { ...getToolEnv(definition.env) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
-    });
-    
-    // Set timeout
-    const timeoutId = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, timeout);
-    
-    // Handle abort signal
-    const abortHandler = () => {
-      interrupted = true;
-      proc.kill('SIGTERM');
-    };
-    
-    if (abortSignal) {
-      abortSignal.addEventListener('abort', abortHandler);
-    }
-    
-    // Build input with Jean2-provided context
-    const scriptInput = {
-      ...args,
-      workspacePath: workspacePath || process.cwd(),
-      sessionId,
-    };
-
-    // Send input via stdin
-    proc.stdin?.write(JSON.stringify(scriptInput));
-    proc.stdin?.end();
-    
-    proc.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
-    
-    proc.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-    
-    proc.on('close', (code) => {
-      clearTimeout(timeoutId);
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', abortHandler);
-      }
-      
-      if (interrupted) {
-        resolve({
-          success: false,
-          error: 'Tool execution interrupted',
-          interrupted: true,
-          partialOutput: stdout || undefined,
-        });
-        return;
-      }
-      
-      if (timedOut) {
-        resolve({
-          success: false,
-          error: `Tool execution timed out after ${timeout}ms`,
-        });
-        return;
-      }
-      
-      if (code !== 0) {
-        resolve({
-          success: false,
-          error: stderr || `Tool exited with code ${code}`,
-        });
-        return;
-      }
-      
-      try {
-        const result = JSON.parse(stdout);
-        resolve({
-          success: true,
-          result,
-        });
-      } catch (_e) {
-        resolve({
-          success: false,
-          error: `Failed to parse tool output: ${stdout.slice(0, 200)}`,
-        });
-      }
-    });
-    
-    proc.on('error', (err) => {
-      clearTimeout(timeoutId);
-      if (abortSignal) {
-        abortSignal.removeEventListener('abort', abortHandler);
-      }
-      
-      if (interrupted) {
-        resolve({
-          success: false,
-          error: 'Tool execution interrupted',
-          interrupted: true,
-          partialOutput: stdout || undefined,
-        });
-        return;
-      }
-      
-      resolve({
-        success: false,
-        error: `Failed to execute tool: ${err.message}`,
-      });
-    });
-  });
 }
-
-export { RUNTIME_COMMANDS };

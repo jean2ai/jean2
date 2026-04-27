@@ -1,11 +1,12 @@
 import type { Jean2Client } from '@jean2/sdk';
 import type { RefObject } from 'react';
-import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, PermissionType } from '@jean2/sdk';
+import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, PermissionType, UserQuestion } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
 import { sessionHandlers } from '@/handlers/serverMessage';
 import { messagePartHandlers } from '@/handlers/serverMessage';
 import { permissionQueueHandlers } from '@/handlers/serverMessage';
 import { providerHandlers } from '@/handlers/serverMessage';
+import { askUserHandlers } from '@/handlers/serverMessage';
 
 type CtxRef = RefObject<SessionHandlersContext | null>;
 
@@ -117,6 +118,13 @@ export function subscribeToServerEvents(
   });
   add('provider.connected', (provider: unknown, connected: unknown, connectedAt: unknown, accountId: unknown) => {
     providerHandlers['provider.connected']({ type: 'provider.connected', provider: provider as string, connected: connected as boolean, connectedAt: connectedAt as string | undefined, accountId: accountId as string | undefined }, ctx()!);
+  });
+
+  add('ask_user.request', (sessionId: unknown, toolCallId: unknown, toolName: unknown, question: unknown) => {
+    askUserHandlers['ask_user.request']({ type: 'ask_user.request', sessionId: sessionId as string, toolCallId: toolCallId as string, toolName: toolName as string, question: question as UserQuestion }, ctx()!);
+  });
+  add('ask_user.timeout', (sessionId: unknown, toolCallId: unknown) => {
+    askUserHandlers['ask_user.timeout']({ type: 'ask_user.timeout', sessionId: sessionId as string, toolCallId: toolCallId as string }, ctx()!);
   });
 
   add('error', (code: unknown, message: unknown) => {

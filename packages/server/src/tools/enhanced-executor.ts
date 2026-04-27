@@ -1,9 +1,11 @@
 import type {
-  SecurityCheckInput,
   SecurityCheckResult,
   ToolExecutionContext,
+  LoadedTool,
+  ToolResult,
+  LlmApi,
+  AskUserApi,
 } from '@jean2/sdk';
-import type { DiscoveredTool, ToolResult } from './types';
 import { executeTool } from './executor';
 import { runSecurityCheck, hasSecurityCheck } from './security-executor';
 import { checkCachedPermission, grantPermission } from '@/store';
@@ -18,13 +20,15 @@ export interface PermissionRequestCallback {
 }
 
 export interface EnhancedExecuteOptions {
-  tool: DiscoveredTool;
+  tool: LoadedTool;
   args: Record<string, unknown>;
   context: ToolExecutionContext;
   toolCallId: string;
   timeout?: number;
   onPermissionRequest?: PermissionRequestCallback;
   abortSignal?: AbortSignal;
+  createLlmApi?: () => LlmApi;
+  createAskUserApi?: (toolCallId: string) => AskUserApi;
 }
 
 export type ExecutionDecision =
@@ -37,36 +41,21 @@ export interface EnhancedExecuteResult extends ToolResult {
   permissionCached?: boolean;
 }
 
-/**
- * Execute a tool with security checks and permission management.
- *
- * Flow:
- * 1. If tool has security check, run it
- * 2. If security check blocks execution, return error
- * 3. If security check requires approval, check cache first
- * 4. If not cached and requires approval, call callback
- * 5. If approved with alwaysAllow, cache the permission
- * 6. Execute the tool
- */
 export async function executeToolWithSecurity(
   options: EnhancedExecuteOptions
 ): Promise<EnhancedExecuteResult> {
   const { tool, args, context, toolCallId, timeout, onPermissionRequest, abortSignal } = options;
   const { definition } = tool;
 
-  // Phase 1: Run security check if configured
   if (hasSecurityCheck(tool)) {
-    const securityInput: SecurityCheckInput = {
-      args,
-      workspacePath: context.workspacePath || '',
-      sessionId: context.sessionId,
-      allowedPaths: context.allowedPaths,
-    };
-
     const securityOutcome = await runSecurityCheck({
       tool,
-      input: securityInput,
-      timeout: definition.securityTimeout,
+      input: {
+        args,
+        workspacePath: context.workspacePath || '',
+        sessionId: context.sessionId,
+        allowedPaths: context.allowedPaths,
+      },
     });
 
     if (!securityOutcome.success) {
@@ -78,7 +67,6 @@ export async function executeToolWithSecurity(
 
     const securityResult = securityOutcome.result!;
 
-    // Phase 2: Check if blocked
     if (!securityResult.allowed && !securityResult.requiresApproval) {
       return {
         success: false,
@@ -86,9 +74,7 @@ export async function executeToolWithSecurity(
       };
     }
 
-    // Phase 3: Handle approval requirement
     if (securityResult.requiresApproval) {
-      // Check cache first
       if (context.workspaceId) {
         const cached = checkCachedPermission(
           context.workspaceId,
@@ -98,14 +84,16 @@ export async function executeToolWithSecurity(
         );
 
         if (cached) {
-          // Permission already granted - proceed to execution
           return executeTool({
             tool,
             args,
             workspacePath: context.workspacePath,
             sessionId: context.sessionId,
+            toolCallId,
             timeout,
             abortSignal,
+            createLlmApi: options.createLlmApi,
+            createAskUserApi: options.createAskUserApi,
           }).then((result) => ({
             ...result,
             permissionGranted: true,
@@ -114,7 +102,6 @@ export async function executeToolWithSecurity(
         }
       }
 
-      // Need to request approval
       if (onPermissionRequest) {
         const response = await onPermissionRequest(
           toolCallId,
@@ -131,7 +118,6 @@ export async function executeToolWithSecurity(
           };
         }
 
-        // Cache permission if requested
         if (response.alwaysAllow && context.workspaceId) {
           grantPermission({
             workspaceId: context.workspaceId,
@@ -144,7 +130,6 @@ export async function executeToolWithSecurity(
           });
         }
       } else {
-        // No callback provided - deny by default for safety
         return {
           success: false,
           error: `Tool requires approval but no permission callback was configured: ${securityResult.message}`,
@@ -154,14 +139,16 @@ export async function executeToolWithSecurity(
     }
   }
 
-  // Phase 4: Execute the tool
   const result = await executeTool({
     tool,
     args,
     workspacePath: context.workspacePath,
     sessionId: context.sessionId,
+    toolCallId,
     timeout,
     abortSignal,
+    createLlmApi: options.createLlmApi,
+    createAskUserApi: options.createAskUserApi,
   });
 
   return {
@@ -170,12 +157,8 @@ export async function executeToolWithSecurity(
   };
 }
 
-/**
- * Determine execution decision without actually executing.
- * Useful for pre-flight checks.
- */
 export async function getExecutionDecision(
-  tool: DiscoveredTool,
+  tool: LoadedTool,
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ExecutionDecision> {
@@ -185,17 +168,14 @@ export async function getExecutionDecision(
     return { type: 'execute' };
   }
 
-  const securityInput: SecurityCheckInput = {
-    args,
-    workspacePath: context.workspacePath || '',
-    sessionId: context.sessionId,
-    allowedPaths: context.allowedPaths,
-  };
-
   const securityOutcome = await runSecurityCheck({
     tool,
-    input: securityInput,
-    timeout: definition.securityTimeout,
+    input: {
+      args,
+      workspacePath: context.workspacePath || '',
+      sessionId: context.sessionId,
+      allowedPaths: context.allowedPaths,
+    },
   });
 
   if (!securityOutcome.success) {
@@ -215,7 +195,6 @@ export async function getExecutionDecision(
   }
 
   if (securityResult.requiresApproval) {
-    // Check cache
     if (context.workspaceId) {
       const cached = checkCachedPermission(
         context.workspaceId,
