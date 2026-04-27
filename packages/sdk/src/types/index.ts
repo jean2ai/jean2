@@ -106,7 +106,6 @@ export type {
   SessionReopenMessage,
   SessionDeleteMessage,
   SessionRenameMessage,
-  PermissionResponseMessage,
   PermissionListRequestMessage,
   PermissionRevokeMessage,
   PermissionRevokeAllMessage,

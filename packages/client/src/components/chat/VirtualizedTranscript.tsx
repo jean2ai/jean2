@@ -21,20 +21,6 @@ import { ToolCall } from './ToolCall';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
-interface PendingPermissionRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: string;
-  permissionKey?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-  childSessionId?: string;
-  subagentName?: string;
-}
-
 interface PendingAskRequest {
   toolCallId: string;
   sessionId: string;
@@ -54,9 +40,7 @@ interface VirtualizedTranscriptProps {
   messagesWithParts: MessageWithParts[];
   sessionId: string;
   sessionStatus?: string;
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
@@ -201,18 +185,14 @@ function CompactionDivider({ part }: { part: CompactionPart }) {
 
 const MessageParts = memo(function MessageParts({
   parts,
-  pendingPermissions,
   pendingAskRequests,
-  onPermissionResponse,
   onAskResponse,
   onNavigateToSubagent,
   inverted = false,
   serverUrl,
 }: {
   parts: Part[];
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
@@ -246,9 +226,7 @@ const MessageParts = memo(function MessageParts({
               <ToolCall
                 key={part.id}
                 part={part}
-                pendingPermissions={pendingPermissions}
                 pendingAskRequests={pendingAskRequests}
-                onPermissionResponse={onPermissionResponse}
                 onAskResponse={onAskResponse}
                 onNavigateToSubagent={onNavigateToSubagent}
               />
@@ -315,29 +293,9 @@ const MessageParts = memo(function MessageParts({
 }, (prev, next) => {
   if (prev.parts !== next.parts) return false;
   if (prev.inverted !== next.inverted) return false;
-  if (prev.onPermissionResponse !== next.onPermissionResponse) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.serverUrl !== next.serverUrl) return false;
   if (prev.pendingAskRequests !== next.pendingAskRequests) return false;
-
-  const hasPendingTool = prev.parts.some(
-    p => p.type === 'tool' && (p as ToolPart).state.status === 'pending'
-  );
-  if (!hasPendingTool) return true;
-
-  const prevToolCallIds = new Set(
-    prev.parts
-      .filter((p): p is ToolPart => p.type === 'tool')
-      .map(p => p.callId)
-  );
-
-  const prevRelevantPerms = prev.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
-  const nextRelevantPerms = next.pendingPermissions.filter(p => prevToolCallIds.has(p.toolCallId));
-
-  if (prevRelevantPerms.length !== nextRelevantPerms.length) return false;
-  for (let i = 0; i < prevRelevantPerms.length; i++) {
-    if (prevRelevantPerms[i].toolCallId !== nextRelevantPerms[i].toolCallId) return false;
-  }
 
   return true;
 });
@@ -346,9 +304,7 @@ interface MessageRowProps {
   item: DisplayItem;
   messagesWithParts: MessageWithParts[];
   sessionId: string;
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
@@ -364,9 +320,7 @@ const MessageRow = memo(function MessageRow({
   item,
   messagesWithParts,
   sessionId,
-  pendingPermissions,
   pendingAskRequests,
-  onPermissionResponse,
   onAskResponse,
   onNavigateToSubagent,
   onRemoveFromQueue,
@@ -420,9 +374,7 @@ const MessageRow = memo(function MessageRow({
       ) : (
         <MessageParts
           parts={item.parts}
-          pendingPermissions={pendingPermissions}
           pendingAskRequests={pendingAskRequests}
-          onPermissionResponse={onPermissionResponse}
           onAskResponse={onAskResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           inverted={item.message.role === 'user'}
@@ -438,12 +390,10 @@ export function VirtualizedTranscript({
   messagesWithParts,
   sessionId,
   sessionStatus,
-  pendingPermissions,
   pendingAskRequests,
   isCompacting = false,
   compactionSuccess = false,
   onClearCompactionSuccess,
-  onPermissionResponse,
   onAskResponse,
   onNavigateToSubagent,
   onRemoveFromQueue,
@@ -879,9 +829,7 @@ export function VirtualizedTranscript({
                     item={item}
                     messagesWithParts={messagesWithParts}
                     sessionId={sessionId}
-                    pendingPermissions={pendingPermissions}
                     pendingAskRequests={pendingAskRequests}
-                    onPermissionResponse={onPermissionResponse}
                     onAskResponse={onAskResponse}
                     onNavigateToSubagent={onNavigateToSubagent}
                     onRemoveFromQueue={onRemoveFromQueue}

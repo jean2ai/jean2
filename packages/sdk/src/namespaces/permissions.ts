@@ -3,14 +3,6 @@ import type { ClientMessage } from '../shared';
 export class PermissionsNamespace {
   constructor(private send: (msg: ClientMessage) => void) {}
 
-  respond(
-    toolCallId: string,
-    allowed: boolean,
-    alwaysAllow: boolean,
-  ): void {
-    this.send({ type: 'permission.response', toolCallId, allowed, alwaysAllow });
-  }
-
   list(workspaceId: string, includeRevoked?: boolean): void {
     this.send({ type: 'permission.list', workspaceId, includeRevoked });
   }

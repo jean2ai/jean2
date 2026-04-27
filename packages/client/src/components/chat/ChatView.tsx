@@ -1,27 +1,11 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Lock, ChevronRight, Eye, ArrowDown } from 'lucide-react';
+import { Lock, Eye, ArrowDown } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { Session, Preconfig, MessageWithParts, ToolPart, QueuedMessage, AttachmentKind } from '@jean2/sdk';
+import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind } from '@jean2/sdk';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Button } from '@/components/ui/button';
-
-interface PendingPermissionRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: string;
-  permissionKey?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-  childSessionId?: string;
-  subagentName?: string;
-}
 
 interface PendingAskRequest {
   toolCallId: string;
@@ -67,9 +51,7 @@ interface ChatViewProps {
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
@@ -168,78 +150,6 @@ function mergeMessagesWithQueue(
   return [...sortedRegularItems, ...sortedQueuedItems];
 }
 
-// Permission requests panel - rendered at the bottom outside the virtualized scroll container
-// This ensures permissions are always reachable and visible near the input area
-function PermissionRequestsPanel({
-  permissions,
-  onPermissionResponse,
-}: {
-  permissions: PendingPermissionRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
-}) {
-  if (permissions.length === 0) return null;
-
-  return (
-    <div className="border-t border-border bg-muted/30 flex flex-col gap-2 p-4" style={{overflow: "overlay"}}>
-      <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-        Pending Requests
-      </div>
-      {permissions.map((p) => {
-        const commandText = typeof p.args?.command === 'string'
-          ? p.args.command
-          : JSON.stringify(p.args, null, 2);
-
-        return (
-          <div
-            key={p.toolCallId}
-            className="p-3 bg-warning/10 border border-warning/30 rounded-lg flex flex-col gap-2"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{p.toolName}</span>
-            </div>
-            <p className="text-sm">{p.message}</p>
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
-                  <ChevronRight className="size-3" />
-                  <span className="uppercase tracking-wide">Command</span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words">
-                  {commandText}
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
-            <div className="flex justify-end gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onPermissionResponse(p.toolCallId, false, false)}
-              >
-                Deny
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => onPermissionResponse(p.toolCallId, true, false)}
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => onPermissionResponse(p.toolCallId, true, true)}
-              >
-                Always Allow
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function ChatView({
   session,
   messagesWithParts,
@@ -253,9 +163,7 @@ export function ChatView({
   onChangePreconfig,
   onChangeModel,
   onChangeVariant,
-  pendingPermissions,
   pendingAskRequests,
-  onPermissionResponse,
   onAskResponse,
   onRename,
   usage,
@@ -316,20 +224,6 @@ export function ChatView({
     [messagesWithParts, queuedMessages, sdkClient]
   );
 
-  // Permission requests that don't have matching tool parts in the transcript
-  // These are shown in the PermissionRequestsPanel at the bottom
-  const orphanedPermissions = useMemo(() =>
-    pendingPermissions.filter((p) => {
-      if (p.sessionId !== session.id) return false;
-      return !messagesWithParts.some((mwp) =>
-        mwp.parts.some(
-          (part) => part.type === 'tool' && (part as ToolPart).callId === p.toolCallId
-        )
-      );
-    }),
-    [pendingPermissions, session.id, messagesWithParts]
-  );
-
   return (
     <div className="flex flex-col flex-1 min-h-0 relative">
       <ChatHeader
@@ -361,12 +255,10 @@ export function ChatView({
           messagesWithParts={messagesWithParts}
           sessionId={session.id}
           sessionStatus={session.status}
-          pendingPermissions={pendingPermissions}
           pendingAskRequests={pendingAskRequests}
           isCompacting={isCompacting}
           compactionSuccess={compactionSuccess}
           onClearCompactionSuccess={onClearCompactionSuccess}
-          onPermissionResponse={onPermissionResponse}
           onAskResponse={onAskResponse}
           onNavigateToSubagent={onNavigateToSubagent}
           onRemoveFromQueue={onRemoveFromQueue}
@@ -393,14 +285,6 @@ export function ChatView({
           )}
         </button>
       </div>
-
-      {/* Permission requests panel rendered at the bottom - visible near input area */}
-      {orphanedPermissions.length > 0 && (
-        <PermissionRequestsPanel
-          permissions={orphanedPermissions}
-          onPermissionResponse={onPermissionResponse}
-        />
-      )}
 
       {session.status === 'active' && !session.parentId && (          <MessageInput
           ref={inputRef}

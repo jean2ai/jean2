@@ -22,7 +22,6 @@ interface UseSessionCommandsParams {
   setCompactionSuccess: (success: boolean) => void;
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
-  removePendingPermissionByToolCallId: (toolCallId: string) => void;
   removePendingPermissionsBySessionId: (sessionId: string) => void;
   removePendingAskRequest: (toolCallId: string) => void;
   clearStreamingSessions: () => void;
@@ -48,7 +47,6 @@ interface UseSessionCommandsReturn {
   addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
-  handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   handleAskResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -75,7 +73,6 @@ export function useSessionCommands({
   setCompactionSuccess,
   setCurrentModel,
   setSelectedVariant,
-  removePendingPermissionByToolCallId,
   removePendingPermissionsBySessionId,
   removePendingAskRequest,
   clearStreamingSessions,
@@ -248,14 +245,6 @@ export function useSessionCommands({
     }
   }, [clientRef, currentSession, streamingSessionIds, isCompacting, addToQueue]);
 
-  const handlePermissionResponse = useCallback((toolCallId: string, allowed: boolean, alwaysAllow: boolean) => {
-    const client = clientRef.current;
-    removePendingPermissionByToolCallId(toolCallId);
-    if (client && client.connected) {
-      client.permissions.respond(toolCallId, allowed, alwaysAllow);
-    }
-  }, [clientRef, removePendingPermissionByToolCallId]);
-
   const handleAskResponse = useCallback((toolCallId: string, response: unknown) => {
     const client = clientRef.current;
     removePendingAskRequest(toolCallId);
@@ -325,7 +314,6 @@ export function useSessionCommands({
     addToQueue,
     removeFromQueue,
     sendChatMessage,
-    handlePermissionResponse,
     handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,

@@ -127,29 +127,6 @@ function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_type ON parts(type)');
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS tool_approvals (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      child_session_id TEXT,
-      subagent_name TEXT,
-      tool_call_id TEXT NOT NULL,
-      tool_name TEXT NOT NULL,
-      args TEXT NOT NULL,
-      permission_type TEXT,
-      permission_key TEXT,
-      message TEXT,
-      details TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      requested_at TEXT NOT NULL,
-      responded_at TEXT,
-      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-    )
-  `);
-
-  db.run('CREATE INDEX IF NOT EXISTS idx_tool_approvals_session ON tool_approvals(session_id, status)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_tool_approvals_tool_call ON tool_approvals(tool_call_id)');
-
-  db.run(`
     CREATE TABLE IF NOT EXISTS tool_permissions (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,
@@ -177,6 +154,28 @@ function initializeSchema(db: Database): void {
   // Index for history queries
   db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history
     ON tool_permissions(workspace_id, granted_at)`);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pending_asks (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      tool_call_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      ask_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_session ON pending_asks(session_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_tool_call ON pending_asks(tool_call_id)');
+
+  // Migration: drop orphaned tool_approvals table (superseded by ask system)
+  try {
+    db.run('DROP TABLE IF EXISTS tool_approvals');
+  } catch (_e: unknown) {
+    // Table may not exist
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS queued_messages (
@@ -244,7 +243,6 @@ export { Database };
 // Re-export all store modules
 export * from './sessions';
 export * from './messages';
-export * from './tool-approvals';
 export * from './workspaces';
 export * from './permissions';
 export * from './queued-messages';
@@ -260,3 +258,6 @@ export { reconcileSessionCompaction, reconcileAllSessionsCompaction } from './co
 // Re-export attachment functions
 export * from './attachments';
 export { deleteAttachmentsForSession, deleteAttachmentsForWorkspace, getAttachment } from './attachments';
+
+// Re-export pending asks functions
+export * from './pending-asks';

@@ -8,9 +8,8 @@ import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './cor
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
 import type { ServerMessage, ClientMessage, AskResponseMessage } from '@jean2/sdk';
-import { resolveAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
+import { resolveAsk, listPendingAsksBySession, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
-import type { PermissionType } from '@jean2/sdk';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
   createSession,
@@ -35,10 +34,6 @@ import {
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
-import {
-  listPendingApprovals,
-  listAllPendingApprovals
-} from '@/store/tool-approvals';
 import { streamChatWithRetry } from './core/retry';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
 import { executeCompaction } from './core/compaction-executor';
@@ -533,30 +528,24 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         isRunning,
       });
 
-      const pendingApprovals = listPendingApprovals(msg.sessionId);
-
-      for (const approval of pendingApprovals) {
-        send(ws, {
-          type: 'permission.request',
-          sessionId: approval.sessionId,
-          childSessionId: approval.childSessionId,
-          subagentName: approval.subagentName,
-          toolCallId: approval.toolCallId,
-          toolName: approval.toolName,
-          args: approval.args,
-          permissionType: (approval.permissionType || 'tool') as PermissionType,
-          permissionKey: approval.permissionKey || '',
-          message: approval.message || '',
-          details: approval.details,
-        });
-      }
-
       const queuedMessages = listQueuedMessages(msg.sessionId);
       if (queuedMessages.length > 0) {
         send(ws, {
           type: 'queue.list',
           sessionId: msg.sessionId,
           messages: queuedMessages,
+        });
+      }
+
+      // Re-send pending asks for this session
+      const pendingAsks = listPendingAsksBySession(msg.sessionId);
+      for (const ask of pendingAsks) {
+        send(ws, {
+          type: 'ask.request',
+          sessionId: ask.sessionId,
+          toolCallId: ask.toolCallId,
+          toolName: ask.toolName,
+          ask: ask.ask,
         });
       }
       break;
@@ -650,26 +639,6 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
     case 'permission.list': {
       const permissions = getWorkspacePermissions(msg.workspaceId, msg.includeRevoked);
       send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, permissions });
-      break;
-    }
-
-    case 'permissions.sync': {
-      const approvals = listAllPendingApprovals();
-      send(ws, {
-        type: 'permissions.sync',
-        approvals: approvals.map(a => ({
-          sessionId: a.sessionId,
-          childSessionId: a.childSessionId,
-          subagentName: a.subagentName,
-          toolCallId: a.toolCallId,
-          toolName: a.toolName,
-          args: a.args,
-          permissionType: (a.permissionType || 'tool') as PermissionType,
-          permissionKey: a.permissionKey || '',
-          message: a.message || '',
-          details: a.details,
-        })),
-      });
       break;
     }
 

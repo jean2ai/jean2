@@ -1,5 +1,5 @@
 import { memo, useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, AlertTriangle, Pause } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, Pause } from 'lucide-react';
 import type { ToolPart, AnyVisualization } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -44,25 +44,9 @@ const LazyOutput = memo(function LazyOutput({ content, className }: LazyOutputPr
   );
 });
 
-interface PendingPermissionRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: string;
-  permissionKey?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-  childSessionId?: string;
-  subagentName?: string;
-}
-
 interface ToolCallProps {
   part: ToolPart;
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
 }
@@ -101,11 +85,6 @@ const areToolCallPropsEqual = (
   const status = prev.part.state.status;
   if (status !== 'pending') return true;
 
-  const prevPerm = prev.pendingPermissions.find(p => p.toolCallId === prev.part.callId);
-  const nextPerm = next.pendingPermissions.find(p => p.toolCallId === next.part.callId);
-
-  if (prevPerm !== nextPerm) return false;
-
   const prevAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
   const nextAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
 
@@ -114,9 +93,7 @@ const areToolCallPropsEqual = (
 
 export const ToolCall = memo(function ToolCall({
   part,
-  pendingPermissions,
   pendingAskRequests,
-  onPermissionResponse,
   onAskResponse,
   onNavigateToSubagent,
 }: ToolCallProps) {
@@ -148,19 +125,9 @@ export const ToolCall = memo(function ToolCall({
     ? extractVisualization(state.output)
     : undefined;
 
-  const pendingPermission = status === 'pending'
-    ? pendingPermissions.find((p) => p.toolCallId === part.callId)
-    : undefined;
-
   const pendingAskRequest = status === 'pending' || status === 'running'
     ? pendingAskRequests.find((r) => r.toolCallId === part.callId)
     : undefined;
-
-  const permissionCommandText = pendingPermission
-    ? (typeof pendingPermission.args?.command === 'string'
-        ? pendingPermission.args.command
-        : JSON.stringify(pendingPermission.args, null, 2))
-    : null;
 
   let taskSessionId: string | null = null;
   if (part.name === 'task') {
@@ -301,67 +268,7 @@ export const ToolCall = memo(function ToolCall({
         </CollapsibleContent>}
       </Collapsible>
 
-      {/* Pending Permission Request - outside Collapsible, always visible when pending */}
-      {status === 'pending' && pendingPermission && (
-        <div className="border border-warning/50 bg-warning/10 rounded-md p-3 flex flex-col gap-3 mt-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="size-4 text-warning" />
-            <span className="text-sm font-medium">Permission Required</span>
-          </div>
-
-          {pendingPermission.message && (
-            <p className="text-sm">{pendingPermission.message}</p>
-          )}
-
-          {pendingPermission.dangerous && (
-            <div className="flex items-center gap-2 text-sm text-destructive font-medium">
-              <AlertTriangle className="size-4" />
-              This operation is marked as dangerous
-            </div>
-          )}
-
-          {permissionCommandText && (
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-left">
-                  <ChevronRight className="size-3" />
-                  <span className="uppercase tracking-wide">Command</span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <pre className="text-xs bg-background border rounded-md p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-words overflow-wrap-break">
-                  {permissionCommandText}
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
-          <div className="flex justify-end gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPermissionResponse(part.callId, false, false)}
-            >
-              Deny
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => onPermissionResponse(part.callId, true, false)}
-            >
-              Approve
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onPermissionResponse(part.callId, true, true)}
-            >
-              Always Allow
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Ask Question - rendered after permission panel if both exist */}
+      {/* Ask Question */}
       {pendingAskRequest && (
         <div className="mt-2">
           <AskQuestion

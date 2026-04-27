@@ -1,5 +1,11 @@
 import type { Ask, AskApi, PermissionAsk } from '@jean2/sdk';
 import { checkCachedPermission, grantPermission } from '@/store';
+import { createPendingAsk, removePendingAsksByToolCallId } from '@/store/pending-asks';
+
+function getBaseToolCallId(askId: string): string {
+  const idx = askId.indexOf('#');
+  return idx >= 0 ? askId.substring(0, idx) : askId;
+}
 
 interface PendingAsk {
   resolve: (response: unknown) => void;
@@ -84,6 +90,15 @@ export function createAskApi(
         ask: request,
       });
 
+      // Persist to DB for recovery on client reconnection
+      createPendingAsk({
+        sessionId,
+        toolCallId,
+        toolName,
+        ask: request,
+        createdAt: Date.now(),
+      });
+
       setTimeout(() => {
         if (pendingAsks.has(askId)) {
           pendingAsks.delete(askId);
@@ -102,6 +117,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
     const pending = pendingAsks.get(toolCallId)!;
     pending.resolve(response);
     pendingAsks.delete(toolCallId);
+    removePendingAsksByToolCallId(toolCallId);
     return true;
   }
 
@@ -110,6 +126,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
     if (key.startsWith(`${toolCallId}#`) || key === toolCallId) {
       pending.resolve(response);
       pendingAsks.delete(key);
+      removePendingAsksByToolCallId(toolCallId);
       return true;
     }
   }
@@ -122,6 +139,7 @@ export function rejectAsk(toolCallId: string, error: Error): boolean {
     const pending = pendingAsks.get(toolCallId)!;
     pending.reject(error);
     pendingAsks.delete(toolCallId);
+    removePendingAsksByToolCallId(toolCallId);
     return true;
   }
 
@@ -129,6 +147,7 @@ export function rejectAsk(toolCallId: string, error: Error): boolean {
     if (key.startsWith(`${toolCallId}#`) || key === toolCallId) {
       pending.reject(error);
       pendingAsks.delete(key);
+      removePendingAsksByToolCallId(toolCallId);
       return true;
     }
   }
@@ -142,6 +161,7 @@ export function cleanupExpiredAskRequests(): void {
     if (now - pending.createdAt > ASK_TIMEOUT) {
       pending.reject(new Error('User did not respond in time'));
       pendingAsks.delete(id);
+      removePendingAsksByToolCallId(getBaseToolCallId(id));
     }
   }
 }
@@ -156,3 +176,6 @@ export function hasPendingAsk(toolCallId: string): boolean {
 
 // Legacy aliases for backward compatibility
 export { resolveAsk as resolveAskUser, rejectAsk as rejectAskUser, hasPendingAsk as hasPendingAskUser, cleanupExpiredAskRequests as cleanupExpiredAskUserRequests };
+
+// Export for recovery on client reconnection
+export { listPendingAsksBySession } from '@/store/pending-asks';

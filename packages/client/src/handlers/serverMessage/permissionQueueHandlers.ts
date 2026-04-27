@@ -1,20 +1,6 @@
 import type { ToolPermission, QueuedMessage, PermissionType } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 
-interface PendingPermissionRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: PermissionType;
-  permissionKey?: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-  childSessionId?: string;
-  subagentName?: string;
-}
-
 export function handlePermissionList(
   msg: { type: 'permission.list'; workspaceId: string; permissions: ToolPermission[] },
   ctx: SessionHandlersContext,
@@ -72,50 +58,6 @@ export function handlePermissionAllRevoked(
   });
 }
 
-export function handlePermissionRequest(
-  msg: { type: 'permission.request'; sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean },
-  ctx: SessionHandlersContext,
-): void {
-  const { sessionId, toolCallId, toolName, args, permissionType, permissionKey, message, details, dangerous, childSessionId, subagentName } = msg;
-  const {
-    addPendingPermission,
-    sessionsRef,
-    notifiedToolCallIdsRef,
-    permissionSoundEnabledRef,
-    playPermissionSound,
-  } = ctx;
-
-  const request: PendingPermissionRequest = {
-    toolCallId,
-    sessionId,
-    toolName,
-    args,
-    permissionType,
-    permissionKey,
-    message,
-    details,
-    dangerous,
-    childSessionId,
-    subagentName,
-  };
-  addPendingPermission(request);
-
-  const session = sessionsRef.current.find(s => s.id === sessionId);
-  if (session?.parentId === null && permissionSoundEnabledRef.current && !notifiedToolCallIdsRef.current.has(toolCallId)) {
-    playPermissionSound();
-    notifiedToolCallIdsRef.current.add(toolCallId);
-  }
-}
-
-export function handlePermissionGranted(
-  msg: { type: 'permission.granted'; toolCallId: string; cached: boolean },
-  ctx: SessionHandlersContext,
-): void {
-  const { toolCallId } = msg;
-  const { removePendingPermissionByToolCallId } = ctx;
-  removePendingPermissionByToolCallId(toolCallId);
-}
-
 export function handleQueueList(
   msg: { type: 'queue.list'; sessionId: string; messages: QueuedMessage[] },
   ctx: SessionHandlersContext,
@@ -157,8 +99,6 @@ export const permissionQueueHandlers = {
   'permissions.sync': handlePermissionsSync,
   'permission.revoked': handlePermissionRevoked,
   'permission.all_revoked': handlePermissionAllRevoked,
-  'permission.request': handlePermissionRequest,
-  'permission.granted': handlePermissionGranted,
   'queue.list': handleQueueList,
   'queue.added': handleQueueAdded,
   'queue.removed': handleQueueRemoved,

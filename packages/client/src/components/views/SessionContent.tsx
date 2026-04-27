@@ -19,7 +19,6 @@ export default function SessionContent() {
     compactSession,
     removeFromQueue,
     sendChatMessage,
-    handlePermissionResponse,
     handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,
@@ -51,7 +50,6 @@ export default function SessionContent() {
       onChangePreconfig={updateSessionPreconfig}
       onChangeModel={updateSessionModel}
       onChangeVariant={updateSessionVariant}
-      onPermissionResponse={handlePermissionResponse}
       onAskResponse={handleAskResponse}
       onRename={handleRenameSession}
       onNavigateToSubagent={resumeSession}

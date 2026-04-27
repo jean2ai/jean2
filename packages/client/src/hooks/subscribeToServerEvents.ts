@@ -94,12 +94,6 @@ export function subscribeToServerEvents(
   add('permission.all_revoked', (workspaceId: unknown, count: unknown) => {
     permissionQueueHandlers['permission.all_revoked']({ type: 'permission.all_revoked', workspaceId: workspaceId as string, count: count as number }, ctx()!);
   });
-  add('permission.request', (sessionId: unknown, childSessionId: unknown, subagentName: unknown, toolCallId: unknown, toolName: unknown, args: unknown, permissionType: unknown, permissionKey: unknown, message: unknown, details: unknown, dangerous: unknown) => {
-    permissionQueueHandlers['permission.request']({ type: 'permission.request', sessionId: sessionId as string, childSessionId: childSessionId as string | undefined, subagentName: subagentName as string | undefined, toolCallId: toolCallId as string, toolName: toolName as string, args: args as Record<string, unknown>, permissionType: permissionType as PermissionType, permissionKey: permissionKey as string, message: message as string, details: details as Record<string, unknown> | undefined, dangerous: dangerous as boolean | undefined }, ctx()!);
-  });
-  add('permission.granted', (toolCallId: unknown, cached: unknown) => {
-    permissionQueueHandlers['permission.granted']({ type: 'permission.granted', toolCallId: toolCallId as string, cached: cached as boolean }, ctx()!);
-  });
   add('queue.list', (sessionId: unknown, messages: unknown) => {
     permissionQueueHandlers['queue.list']({ type: 'queue.list', sessionId: sessionId as string, messages: messages as QueuedMessage[] }, ctx()!);
   });

@@ -89,7 +89,6 @@ export interface UseServerSessionManagerReturn {
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
-  handlePermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   handleAskResponse: (toolCallId: string, response: unknown) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -710,7 +709,6 @@ export function useServerSessionManager({
     compactSession,
     removeFromQueue,
     sendChatMessage,
-    handlePermissionResponse,
     handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,
@@ -735,7 +733,6 @@ export function useServerSessionManager({
     setCompactionSuccess,
     setCurrentModel,
     setSelectedVariant,
-    removePendingPermissionByToolCallId,
     removePendingPermissionsBySessionId,
     removePendingAskRequest,
     clearStreamingSessions: useConnectionStore.getState().clearStreamingSessions,
@@ -806,7 +803,6 @@ export function useServerSessionManager({
     compactSession,
     removeFromQueue,
     sendChatMessage,
-    handlePermissionResponse,
     handleAskResponse,
     handleInterruptSession,
     updateSessionPreconfig,

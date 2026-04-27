@@ -6,7 +6,6 @@ import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { usePermissionStore } from '@/stores/permissionStore';
 import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import type { ModelInfo } from '@/handlers/serverMessage/types';
 import { ConnectingState } from '@/components/shared/LoadingSkeleton';
@@ -27,7 +26,6 @@ export interface AppMainContentProps {
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
-  onPermissionResponse: (toolCallId: string, allowed: boolean, alwaysAllow: boolean) => void;
   onAskResponse: (toolCallId: string, response: unknown) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
@@ -53,7 +51,6 @@ export function AppMainContent({
   onChangePreconfig,
   onChangeModel,
   onChangeVariant,
-  onPermissionResponse,
   onAskResponse,
   onRename,
   onNavigateToSubagent,
@@ -86,7 +83,6 @@ export function AppMainContent({
   const models = useServerDataStore(s => s.models) as ModelInfo[];
   const defaultModel = useServerDataStore(s => s.defaultModel);
 
-  const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
   const pendingAskRequests = useAskStore(s => s.pendingRequests) as PendingAskRequest[];
 
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
@@ -169,9 +165,7 @@ export function AppMainContent({
       onChangeVariant={handleChangeVariant}
       selectedVariant={selectedVariant}
       variants={currentModelInfo?.variants}
-      pendingPermissions={pendingPermissions}
       pendingAskRequests={pendingAskRequests}
-      onPermissionResponse={onPermissionResponse}
       onAskResponse={onAskResponse}
       onRename={onRename}
       usage={sessionUsage}
