@@ -83,7 +83,7 @@ const areToolCallPropsEqual = (
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
 
   const status = prev.part.state.status;
-  if (status !== 'pending') return true;
+  if (status !== 'pending' && status !== 'running') return true;
 
   const prevAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
   const nextAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);

@@ -295,7 +295,12 @@ const MessageParts = memo(function MessageParts({
   if (prev.inverted !== next.inverted) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.serverUrl !== next.serverUrl) return false;
-  if (prev.pendingAskRequests !== next.pendingAskRequests) return false;
+
+  if (prev.pendingAskRequests !== next.pendingAskRequests) {
+    const prevIds = prev.pendingAskRequests.map(r => r.toolCallId).sort().join(',');
+    const nextIds = next.pendingAskRequests.map(r => r.toolCallId).sort().join(',');
+    if (prevIds !== nextIds) return false;
+  }
 
   return true;
 });

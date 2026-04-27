@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { HelpCircle, Shield, Monitor } from 'lucide-react';
 import type { HumanQuestion, FormQuestion, PermissionAsk, ClientCapabilityAsk, AskFormResponse } from '@jean2/sdk';
 import type { SingleSelectQuestion, MultiSelectQuestion, TextQuestion, ConfirmQuestion } from '@jean2/sdk';
@@ -14,7 +14,7 @@ interface AskQuestionProps {
 
 
 
-// --- SingleSelectView (unchanged) ---
+// --- SingleSelectView ---
 function SingleSelectView({
   question,
   onSelect,
@@ -34,11 +34,12 @@ function SingleSelectView({
           <button
             key={option.value}
             type="button"
-            onClick={() => {
-              setSelected(option.value);
-              onSelect(option.value);
-            }}
-            className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors text-left"
+            onClick={() => setSelected(option.value)}
+            className={`flex flex-col items-start gap-1 p-3 rounded-lg border transition-colors text-left ${
+              selected === option.value
+                ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+                : 'border-border hover:border-primary/50 hover:bg-muted/50'
+            }`}
           >
             <div className="flex items-center gap-2 w-full">
               <div
@@ -60,6 +61,13 @@ function SingleSelectView({
           </button>
         ))}
       </div>
+      {selected !== null && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => onSelect(selected)}>
+            Confirm
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -205,7 +213,7 @@ function TextView({
   );
 }
 
-// --- ConfirmView (unchanged) ---
+// --- ConfirmView ---
 function ConfirmView({
   question,
   onConfirm,
@@ -214,26 +222,40 @@ function ConfirmView({
   onConfirm: (value: boolean) => void;
 }) {
   const defaultValue = question.defaultValue ?? false;
+  const [selected, setSelected] = useState<boolean | null>(null);
 
   return (
     <div className="flex flex-col gap-3">
       {question.description && (
         <p className="text-sm text-muted-foreground">{question.description}</p>
       )}
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onConfirm(false)}
-        >
-          {defaultValue ? 'No' : 'Cancel'}
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => onConfirm(true)}
-        >
-          {defaultValue ? 'Yes' : 'Confirm'}
-        </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Button
+            variant={selected === false ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelected(false)}
+          >
+            {defaultValue ? 'No' : 'Cancel'}
+          </Button>
+          <Button
+            variant={selected === true ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelected(true)}
+          >
+            {defaultValue ? 'Yes' : 'Confirm'}
+          </Button>
+        </div>
+        {selected !== null && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => onConfirm(selected)}
+            >
+              Submit
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -299,6 +321,23 @@ function SubQuestionView({
   onAnswer: (answer: unknown) => void;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmValue, setConfirmValue] = useState<boolean | null>(null);
+  const onAnswerRef = useRef(onAnswer);
+  useEffect(() => {
+    onAnswerRef.current = onAnswer;
+  });
+
+  useEffect(() => {
+    if (selected.size > 0) {
+      onAnswerRef.current(Array.from(selected));
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (confirmValue !== null) {
+      onAnswerRef.current(confirmValue);
+    }
+  }, [confirmValue]);
 
   switch (question.type) {
     case 'single_select':
@@ -310,8 +349,14 @@ function SubQuestionView({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => onAnswer(option.value)}
-                className="px-3 py-1.5 text-xs rounded-md border border-border hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  setSelected(new Set([option.value]));
+                }}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                  selected.has(option.value)
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50'
+                }`}
               >
                 {option.label}
               </button>
@@ -336,14 +381,7 @@ function SubQuestionView({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => {
-                  toggle(option.value);
-                  // Answer immediately with current selection
-                  const next = new Set(selected);
-                  if (next.has(option.value)) next.delete(option.value);
-                  else if (!question.max || next.size < question.max) next.add(option.value);
-                  onAnswer(Array.from(next));
-                }}
+                onClick={() => toggle(option.value)}
                 className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                   selected.has(option.value)
                     ? 'border-primary bg-primary/10'
@@ -374,15 +412,27 @@ function SubQuestionView({
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{question.question}</p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onAnswer(false)}>No</Button>
-            <Button size="sm" onClick={() => onAnswer(true)}>Yes</Button>
+            <Button
+              variant={confirmValue === false ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setConfirmValue(false)}
+            >
+              No
+            </Button>
+            <Button
+              variant={confirmValue === true ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setConfirmValue(true)}
+            >
+              Yes
+            </Button>
           </div>
         </div>
       );
   }
 }
 
-// --- PermissionAskView (NEW) ---
+// --- PermissionAskView ---
 function PermissionAskView({
   ask,
   onRespond,
@@ -390,6 +440,8 @@ function PermissionAskView({
   ask: PermissionAsk;
   onRespond: (value: boolean) => void;
 }) {
+  const [selected, setSelected] = useState<boolean | null>(null);
+
   const riskColors = {
     low: 'text-success',
     medium: 'text-warning',
@@ -408,13 +460,33 @@ function PermissionAskView({
           </span>
         </div>
       )}
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => onRespond(false)}>
-          Deny
-        </Button>
-        <Button size="sm" onClick={() => onRespond(true)}>
-          Approve
-        </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant={selected === false ? 'destructive' : 'outline'}
+            size="sm"
+            onClick={() => setSelected(false)}
+          >
+            Deny
+          </Button>
+          <Button
+            variant={selected === true ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSelected(true)}
+          >
+            Approve
+          </Button>
+        </div>
+        {selected !== null && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={() => onRespond(selected)}
+            >
+              Confirm
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
