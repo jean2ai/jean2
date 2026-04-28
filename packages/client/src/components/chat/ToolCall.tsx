@@ -68,6 +68,24 @@ function getStatusIcon(status: string) {
   }
 }
 
+function extractTaskSessionId(part: ToolPart): string | null {
+  if (part.name !== 'task') return null;
+  const state = part.state;
+  if ('childSessionId' in state && state.childSessionId) {
+    return state.childSessionId as string;
+  }
+  const output = 'output' in state
+    ? state.output
+    : 'partialOutput' in state
+      ? state.partialOutput
+      : null;
+  if (output && typeof output === 'string') {
+    const match = output.match(/task_id:\s*([a-f0-9-]{36})/i);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 function extractVisualization(output: unknown): AnyVisualization | undefined {
   if (output && typeof output === 'object' && '_visualization' in output) {
     return (output as Record<string, unknown>)._visualization as AnyVisualization;
@@ -81,14 +99,27 @@ const areToolCallPropsEqual = (
 ): boolean => {
   if (prev.part !== next.part) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
+  if (prev.onAskResponse !== next.onAskResponse) return false;
 
   const status = prev.part.state.status;
   if (status !== 'pending' && status !== 'running') return true;
 
-  const prevAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
-  const nextAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
+  // Check direct ask
+  const prevDirectAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
+  const nextDirectAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
+  if (prevDirectAsk !== nextDirectAsk) return false;
 
-  return prevAsk === nextAsk;
+  // Check child session asks for task tools
+  const prevTaskSessionId = extractTaskSessionId(prev.part);
+  const nextTaskSessionId = extractTaskSessionId(next.part);
+  if (prevTaskSessionId || nextTaskSessionId) {
+    const prevChildAsks = prev.pendingAskRequests.filter(r => r.sessionId === prevTaskSessionId && r.toolCallId !== prev.part.callId);
+    const nextChildAsks = next.pendingAskRequests.filter(r => r.sessionId === nextTaskSessionId && r.toolCallId !== next.part.callId);
+    if (prevChildAsks.length !== nextChildAsks.length) return false;
+    if (prevChildAsks.some((pa, i) => pa !== nextChildAsks[i])) return false;
+  }
+
+  return true;
 };
 
 export const ToolCall = memo(function ToolCall({
@@ -125,20 +156,25 @@ export const ToolCall = memo(function ToolCall({
     ? extractVisualization(state.output)
     : undefined;
 
-  const pendingAskRequest = status === 'pending' || status === 'running'
-    ? pendingAskRequests.find((r) => r.toolCallId === part.callId)
-    : undefined;
+  // Extract taskSessionId first so it's available for ask matching
+  const taskSessionId = extractTaskSessionId(part);
 
-  let taskSessionId: string | null = null;
-  if (part.name === 'task') {
-    if ('childSessionId' in state && state.childSessionId) {
-      taskSessionId = state.childSessionId as string;
-    } else if (status === 'completed' && 'output' in state) {
-      const output = typeof state.output === 'string' ? state.output : '';
-      const match = output.match(/task_id:\s*([a-f0-9-]{36})/i);
-      if (match) {
-        taskSessionId = match[1];
-      }
+  // Collect all relevant pending asks for this tool call
+  const allPendingAsks: PendingAskRequest[] = [];
+
+  if (status === 'pending' || status === 'running') {
+    // Direct ask for this tool call
+    const directAsk = pendingAskRequests.find((r) => r.toolCallId === part.callId);
+    if (directAsk) {
+      allPendingAsks.push(directAsk);
+    }
+
+    // For task tools, also surface asks from the child session
+    if (taskSessionId) {
+      const childAsks = pendingAskRequests.filter(
+        (r) => r.sessionId === taskSessionId && r.toolCallId !== part.callId,
+      );
+      allPendingAsks.push(...childAsks);
     }
   }
 
@@ -218,7 +254,7 @@ export const ToolCall = memo(function ToolCall({
             </div>
 
             {/* Subagent Navigation */}
-            {(status === 'running' || status === 'completed') && taskSessionId && onNavigateToSubagent && (
+            {(status === 'running' || status === 'completed' || status === 'interrupted') && taskSessionId && onNavigateToSubagent && (
               <Button
                 variant="outline"
                 className="w-full"
@@ -268,13 +304,16 @@ export const ToolCall = memo(function ToolCall({
         </CollapsibleContent>}
       </Collapsible>
 
-      {/* Ask Question */}
-      {pendingAskRequest && (
-        <div className="mt-2">
-          <AskQuestion
-            request={pendingAskRequest}
-            onRespond={onAskResponse}
-          />
+      {/* Ask Questions (direct + child session asks) */}
+      {allPendingAsks.length > 0 && (
+        <div className="mt-2 flex flex-col gap-2">
+          {allPendingAsks.map((request) => (
+            <AskQuestion
+              key={request.toolCallId}
+              request={request}
+              onRespond={onAskResponse}
+            />
+          ))}
         </div>
       )}
 

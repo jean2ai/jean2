@@ -97,13 +97,14 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
     for (const session of allSessions) {
       const isStreaming = streamingSessionIds.has(session.id);
-      const hasPendingPermission = pendingSet.has(session.id);
+      const hasPendingPermission = pendingSet.has(session.id) ||
+        (childrenMap.has(session.id) && childrenMap.get(session.id)!.some(child => pendingSet.has(child.id)));
       const isCurrentSession = session.id === currentSessionId;
       const isRunning = (isCurrentSession && isStreaming) || session.subagentStatus === 'running' || !!session.runningAt;
       derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
     }
     return derived;
-  }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId]);
+  }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId, childrenMap]);
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {

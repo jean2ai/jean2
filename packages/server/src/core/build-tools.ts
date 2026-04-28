@@ -6,6 +6,7 @@ import { createLlmApi } from '@/tools/llm-api';
 import { createAskApi, type AskBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
+import { broadcastEvent } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { createSkillTool } from '@/skills';
@@ -67,7 +68,10 @@ export async function buildAiSdkTools(
               workspacePath,
               abortSignal: toolAbortController.signal,
               onSessionCreated: (childSessionId: string) => {
-                transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
+                const updatedPart = transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
+                if (updatedPart) {
+                  broadcastEvent({ type: 'part.updated', sessionId, part: updatedPart });
+                }
               },
               allowedSubagentIds,
             };
