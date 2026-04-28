@@ -98,7 +98,7 @@ export async function buildAiSdkTools(
           const askFactory = (tcId: string) =>
             broadcastFn
               ? createAskApi(sessionId, tcId, definition.name, broadcastFn, workspaceId)
-              : ({} as import('@jean2/sdk').AskApi);
+              : (() => { throw new Error('Cannot ask user: no broadcast channel available (broadcastFn not provided)'); }) as import('@jean2/sdk').AskApi;
 
           const result = await executeTool({
             tool: loadedTool,

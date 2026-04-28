@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/sdk';
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
 import { broadcastEvent } from './broadcast';
+import type { AskBroadcastFn } from '@/tools/ask-user-api';
 import { getLLMSubagentMaxSteps } from '../env';
 import { streamChatWithRetry } from './retry';
 
@@ -72,6 +73,10 @@ export async function executeChildSession(options: {
   const finalParts: Part[] = [];
   let error: string | undefined;
 
+  const askBroadcastFn: AskBroadcastFn = (message) => {
+    broadcastEvent(message as import('@jean2/sdk').ServerMessage);
+  };
+
   try {
     for await (const event of streamChatWithRetry({
       sessionId: childSessionId,
@@ -83,6 +88,7 @@ export async function executeChildSession(options: {
       providerId: providerId ?? undefined,
       variant: variant ?? undefined,
       maxSteps: getLLMSubagentMaxSteps(),
+      broadcastFn: askBroadcastFn,
     })) {
     if (event.type === 'message.created') {
       broadcastEvent(event);
