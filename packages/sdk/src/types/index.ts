@@ -56,8 +56,6 @@ export type {
   LlmStructuredOptions,
   LlmImage,
   AskApi,
-  AskUserApi,
-  UserQuestion,
   SingleSelectQuestion,
   MultiSelectQuestion,
   TextQuestion,
@@ -68,12 +66,17 @@ export type {
   PermissionAsk,
   Ask,
   AskTarget,
+  AskSingleSelectResponse,
+  AskMultiSelectResponse,
+  AskTextResponse,
+  AskConfirmResponse,
   AskFormResponse,
+  AskClientCapabilityResponse,
+  AskPermissionResponse,
+  AskResponse,
   EnvApi,
   ToolLogger,
   LoadedTool,
-  ToolApproval,
-  ToolApprovalStatus,
   BufferEncoding,
 } from '../shared';
 
@@ -109,7 +112,6 @@ export type {
   PermissionListRequestMessage,
   PermissionRevokeMessage,
   PermissionRevokeAllMessage,
-  PermissionsSyncMessage,
   SessionCompactMessage,
   SessionRevertMessage,
   SessionForkMessage,
@@ -118,6 +120,7 @@ export type {
   QueueRemoveMessage,
   ProviderConnectMessage,
   ProviderDisconnectMessage,
+  AskResponseMessage,
   ServerMessage,
 } from '../shared';
 
@@ -141,12 +144,9 @@ export type {
   SessionStateMessage,
   ChatUsageMessage,
   CompactionCompleteMessage,
-  PermissionRequestMessage,
-  PermissionGrantedMessage,
   PermissionListMessage,
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
-  PermissionsSyncResponseMessage,
   QueueListMessage,
   QueueAddedMessage,
   QueueRemovedMessage,
@@ -154,9 +154,7 @@ export type {
   ProviderStatusMessage,
   ProviderConnectedMessage,
   AskRequestMessage,
-  AskUserRequestMessage,
   AskTimedOutMessage,
-  AskUserTimedOutMessage,
   ErrorMessage,
   RateLimitErrorMessage,
   ServerErrorMessage,
@@ -164,12 +162,6 @@ export type {
   AuthErrorMessage,
   InvalidRequestErrorMessage,
   ContextOverflowErrorMessage,
-} from '../shared';
-
-// Individual client message types
-export type {
-  AskResponseMessage,
-  AskUserResponseMessage,
 } from '../shared';
 
 // Terminal types

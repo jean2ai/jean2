@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { HelpCircle, Shield, Monitor } from 'lucide-react';
-import type { HumanQuestion, FormQuestion, PermissionAsk, ClientCapabilityAsk, AskFormResponse } from '@jean2/sdk';
+import type { HumanQuestion, FormQuestion, PermissionAsk, ClientCapabilityAsk, AskFormResponse, AskPermissionResponse, AskResponse } from '@jean2/sdk';
 import type { SingleSelectQuestion, MultiSelectQuestion, TextQuestion, ConfirmQuestion } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import type { PendingAskRequest } from '@/stores/askStore';
 
 interface AskQuestionProps {
   request: PendingAskRequest;
-  onRespond: (toolCallId: string, response: unknown) => void;
+  onRespond: (toolCallId: string, response: AskResponse) => void;
 }
 
 
@@ -269,12 +269,13 @@ function FormView({
   question: FormQuestion;
   onSubmit: (response: AskFormResponse) => void;
 }) {
-  const [answers, setAnswers] = useState<Record<number, unknown>>({});
+  const [answers, setAnswers] = useState<Record<number, string | boolean | string[]>>({});
 
   const allAnswered = question.questions.every((_, i) => answers[i] !== undefined);
 
   const handleSubmit = useCallback(() => {
     const response: AskFormResponse = {
+      type: 'form',
       answers: question.questions.map((q, i) => ({
         question: q.question,
         answer: answers[i],
@@ -318,7 +319,7 @@ function SubQuestionView({
   onAnswer,
 }: {
   question: HumanQuestion;
-  onAnswer: (answer: unknown) => void;
+  onAnswer: (answer: string | boolean | string[]) => void;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmValue, setConfirmValue] = useState<boolean | null>(null);
@@ -438,14 +439,21 @@ function PermissionAskView({
   onRespond,
 }: {
   ask: PermissionAsk;
-  onRespond: (value: boolean) => void;
+  onRespond: (response: AskPermissionResponse) => void;
 }) {
   const [selected, setSelected] = useState<boolean | null>(null);
+  const [alwaysAllow, setAlwaysAllow] = useState(false);
 
   const riskColors = {
     low: 'text-success',
     medium: 'text-warning',
     high: 'text-destructive',
+  };
+
+  const handleConfirm = () => {
+    if (selected !== null) {
+      onRespond({ type: 'permission', allowed: selected, alwaysAllow: selected ? alwaysAllow : undefined });
+    }
   };
 
   return (
@@ -477,11 +485,26 @@ function PermissionAskView({
             Approve
           </Button>
         </div>
+        {selected === true && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="alwaysAllow"
+              checked={alwaysAllow}
+              onCheckedChange={(checked) => setAlwaysAllow(checked === true)}
+            />
+            <label
+              htmlFor="alwaysAllow"
+              className="text-xs text-muted-foreground cursor-pointer select-none"
+            >
+              Don't ask again for this permission
+            </label>
+          </div>
+        )}
         {selected !== null && (
           <div className="flex justify-end">
             <Button
               size="sm"
-              onClick={() => onRespond(selected)}
+              onClick={handleConfirm}
             >
               Confirm
             </Button>
@@ -526,11 +549,55 @@ function ClientCapabilityAskView({
 export function AskQuestion({ request, onRespond }: AskQuestionProps) {
   const { toolCallId, toolName, ask } = request;
 
-  const handleRespond = useCallback(
-    (response: unknown) => {
+  // Handlers for each ask type - properly typed to match AskResponse variants
+  const handleSingleSelect = useCallback(
+    (value: string) => {
+      onRespond(toolCallId, { type: 'single_select', value });
+    },
+    [toolCallId, onRespond],
+  );
+
+  const handleMultiSelect = useCallback(
+    (values: string[]) => {
+      onRespond(toolCallId, { type: 'multi_select', values });
+    },
+    [toolCallId, onRespond],
+  );
+
+  const handleText = useCallback(
+    (value: string) => {
+      onRespond(toolCallId, { type: 'text', value });
+    },
+    [toolCallId, onRespond],
+  );
+
+  const handleConfirm = useCallback(
+    (confirmed: boolean) => {
+      onRespond(toolCallId, { type: 'confirm', confirmed });
+    },
+    [toolCallId, onRespond],
+  );
+
+  const handleForm = useCallback(
+    (response: AskFormResponse) => {
       onRespond(toolCallId, response);
     },
     [toolCallId, onRespond],
+  );
+
+  const handlePermission = useCallback(
+    (response: AskPermissionResponse) => {
+      onRespond(toolCallId, response);
+    },
+    [toolCallId, onRespond],
+  );
+
+  const handleClientCapability = useCallback(
+    (result: unknown) => {
+      const capability = ask.type === 'client_capability' ? ask.capability : '';
+      onRespond(toolCallId, { type: 'client_capability', capability, result });
+    },
+    [toolCallId, onRespond, ask],
   );
 
   // Determine icon and border color by target
@@ -556,25 +623,25 @@ export function AskQuestion({ request, onRespond }: AskQuestionProps) {
       </div>
 
       {ask.target === 'human' && ask.type === 'single_select' && (
-        <SingleSelectView question={ask} onSelect={handleRespond} />
+        <SingleSelectView question={ask} onSelect={handleSingleSelect} />
       )}
       {ask.target === 'human' && ask.type === 'multi_select' && (
-        <MultiSelectView question={ask} onSelect={handleRespond} />
+        <MultiSelectView question={ask} onSelect={handleMultiSelect} />
       )}
       {ask.target === 'human' && ask.type === 'text' && (
-        <TextView question={ask} onSubmit={handleRespond} />
+        <TextView question={ask} onSubmit={handleText} />
       )}
       {ask.target === 'human' && ask.type === 'confirm' && (
-        <ConfirmView question={ask} onConfirm={handleRespond} />
+        <ConfirmView question={ask} onConfirm={handleConfirm} />
       )}
       {ask.target === 'human' && ask.type === 'form' && (
-        <FormView question={ask} onSubmit={handleRespond} />
+        <FormView question={ask} onSubmit={handleForm} />
       )}
       {ask.target === 'permission' && (
-        <PermissionAskView ask={ask} onRespond={handleRespond} />
+        <PermissionAskView ask={ask} onRespond={handlePermission} />
       )}
       {ask.target === 'client' && (
-        <ClientCapabilityAskView ask={ask} onRespond={handleRespond} />
+        <ClientCapabilityAskView ask={ask} onRespond={handleClientCapability} />
       )}
     </div>
   );

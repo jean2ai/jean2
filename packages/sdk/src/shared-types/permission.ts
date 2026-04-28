@@ -31,19 +31,3 @@ export interface ToolPermission {
   revokedBy: string | null;
   metadata: Record<string, unknown> | null;
 }
-
-export interface PermissionRequest {
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: PermissionType;
-  permissionKey: PermissionKey;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
-export interface PermissionResponse {
-  toolCallId: string;
-  allowed: boolean;
-  alwaysAllow: boolean;
-}

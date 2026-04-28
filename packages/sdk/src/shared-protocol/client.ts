@@ -11,6 +11,7 @@ export interface SessionResumeMessage {
 }
 
 import type { AttachmentKind } from '../shared-types/model';
+import type { AskResponse } from '../shared-types/tool';
 
 export interface ChatMessageAttachment {
   id: string;
@@ -75,9 +76,6 @@ export interface PermissionRevokeAllMessage {
   workspaceId: string;
 }
 
-export interface PermissionsSyncMessage {
-  type: 'permissions.sync';
-}
 
 // =============================================================================
 // Compaction Messages
@@ -152,11 +150,8 @@ export interface ProviderDisconnectMessage {
 export interface AskResponseMessage {
   type: 'ask.response';
   toolCallId: string;
-  response: unknown;
+  response: AskResponse;
 }
-
-// Legacy alias
-export type AskUserResponseMessage = AskResponseMessage;
 
 // =============================================================================
 // Heartbeat Messages
@@ -179,7 +174,6 @@ export type ClientMessage =
   | PermissionListRequestMessage
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage
-  | PermissionsSyncMessage
   | SessionCompactMessage
   | SessionRevertMessage
   | SessionForkMessage

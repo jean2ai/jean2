@@ -431,8 +431,6 @@ tools/
   "runtime": "bun",
   "timeout": 30000,
   "hasSecurityCheck": false,
-  "requireApproval": false,
-  "dangerous": false,
   "inputSchema": {
     "type": "object",
     "properties": {

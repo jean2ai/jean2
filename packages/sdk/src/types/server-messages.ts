@@ -18,12 +18,9 @@ import type {
   SessionStateMessage,
   ChatUsageMessage,
   CompactionCompleteMessage,
-  PermissionRequestMessage,
-  PermissionGrantedMessage,
   PermissionListMessage,
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
-  PermissionsSyncResponseMessage,
   QueueListMessage,
   QueueAddedMessage,
   QueueRemovedMessage,
@@ -103,23 +100,7 @@ export interface SdkEventMap {
     tokensUsed: CompactionCompleteMessage['tokensUsed'],
   ];
 
-  'permission.request': [
-    sessionId: PermissionRequestMessage['sessionId'],
-    childSessionId: PermissionRequestMessage['childSessionId'],
-    subagentName: PermissionRequestMessage['subagentName'],
-    toolCallId: PermissionRequestMessage['toolCallId'],
-    toolName: PermissionRequestMessage['toolName'],
-    args: PermissionRequestMessage['args'],
-    permissionType: PermissionRequestMessage['permissionType'],
-    permissionKey: PermissionRequestMessage['permissionKey'],
-    message: PermissionRequestMessage['message'],
-    details: PermissionRequestMessage['details'],
-    dangerous: PermissionRequestMessage['dangerous'],
-  ];
-  'permission.granted': [
-    toolCallId: PermissionGrantedMessage['toolCallId'],
-    cached: PermissionGrantedMessage['cached'],
-  ];
+  // Permission grant management events (persisted grants only - no separate granted event; grants are managed via ask.response with alwaysAllow)
   'permission.list': [
     workspaceId: PermissionListMessage['workspaceId'],
     permissions: PermissionListMessage['permissions'],
@@ -129,7 +110,6 @@ export interface SdkEventMap {
     workspaceId: PermissionAllRevokedMessage['workspaceId'],
     count: PermissionAllRevokedMessage['count'],
   ];
-  'permissions.sync': [approvals: PermissionsSyncResponseMessage['approvals']];
 
   'queue.list': [sessionId: QueueListMessage['sessionId'], messages: QueueListMessage['messages']];
   'queue.added': [sessionId: QueueAddedMessage['sessionId'], message: QueueAddedMessage['message']];
@@ -248,24 +228,6 @@ export function routeServerMessage(
     case 'compaction.complete':
       emitter.emit('compaction.complete', msg.sessionId, msg.tokensUsed);
       break;
-    case 'permission.request':
-      emitter.emit('permission.request',
-        msg.sessionId,
-        msg.childSessionId,
-        msg.subagentName,
-        msg.toolCallId,
-        msg.toolName,
-        msg.args,
-        msg.permissionType,
-        msg.permissionKey,
-        msg.message,
-        msg.details,
-        msg.dangerous,
-      );
-      break;
-    case 'permission.granted':
-      emitter.emit('permission.granted', msg.toolCallId, msg.cached);
-      break;
     case 'permission.list':
       emitter.emit('permission.list', msg.workspaceId, msg.permissions);
       break;
@@ -274,9 +236,6 @@ export function routeServerMessage(
       break;
     case 'permission.all_revoked':
       emitter.emit('permission.all_revoked', msg.workspaceId, msg.count);
-      break;
-    case 'permissions.sync':
-      emitter.emit('permissions.sync', msg.approvals);
       break;
     case 'queue.list':
       emitter.emit('queue.list', msg.sessionId, msg.messages);

@@ -6,8 +6,8 @@ import type {
   ToolPermission,
   ProviderStatus,
   Ask,
+  AskResponse,
 } from '@jean2/sdk';
-import type { PendingPermissionRequest } from '@/stores/permissionStore';
 import type { PendingAskRequest } from '@/stores/askStore';
 import type { CompletionRecord } from '@/stores/completionStore';
 
@@ -61,7 +61,6 @@ export interface SessionHandlersContext {
   setQueuedMessagesForSession: (sessionId: string, messages: import('@jean2/sdk').QueuedMessage[]) => void;
   addQueuedMessage: (sessionId: string, message: import('@jean2/sdk').QueuedMessage) => void;
   removeQueuedMessageById: (sessionId: string, queueId: string) => void;
-  clearPendingPermissions: () => void;
   clearQueuedMessages: () => void;
   setCompactionSuccess: (success: boolean) => void;
   setCompletion: (sessionId: string, record: CompletionRecord) => void;
@@ -83,9 +82,6 @@ export interface SessionHandlersContext {
   flushPendingPartAppends: () => void;
   setProviderStatuses: React.Dispatch<React.SetStateAction<ProviderStatus[]>>;
   setPermissions: React.Dispatch<React.SetStateAction<ToolPermission[]>>;
-  mergePendingPermissions: (newPermissions: PendingPermissionRequest[]) => void;
-  addPendingPermission: (permission: PendingPermissionRequest) => void;
-  removePendingPermissionByToolCallId: (toolCallId: string) => void;
   notifiedToolCallIdsRef: React.MutableRefObject<Set<string>>;
   permissionSoundEnabledRef: React.MutableRefObject<boolean>;
   playPermissionSound: () => void;
@@ -98,8 +94,8 @@ export interface SessionHandlersContext {
   addPendingAskRequest: (request: PendingAskRequest) => void;
   removePendingAskRequest: (toolCallId: string) => void;
   clearPendingAskRequests: () => void;
-  runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<unknown | undefined> | undefined;
-  sendAskResponse: (toolCallId: string, response: unknown) => void;
+  runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<AskResponse | undefined> | undefined;
+  sendAskResponse: (toolCallId: string, response: AskResponse) => void;
 }
 
 export type SessionHandlers = {
@@ -126,12 +122,11 @@ export type MessagePartHandlers = {
 };
 
 export type PermissionQueueHandlers = {
+  // Persisted permission grant management (non-interactive)
   'permission.list': (msg: { type: 'permission.list'; workspaceId: string; permissions: ToolPermission[] }, ctx: SessionHandlersContext) => void;
-  'permissions.sync': (msg: { type: 'permissions.sync'; approvals: Array<{ sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: import('@jean2/sdk').PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }> }, ctx: SessionHandlersContext) => void;
   'permission.revoked': (msg: { type: 'permission.revoked'; permissionId: string }, ctx: SessionHandlersContext) => void;
   'permission.all_revoked': (msg: { type: 'permission.all_revoked'; workspaceId: string; count: number }, ctx: SessionHandlersContext) => void;
-  'permission.request': (msg: { type: 'permission.request'; sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: import('@jean2/sdk').PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }, ctx: SessionHandlersContext) => void;
-  'permission.granted': (msg: { type: 'permission.granted'; toolCallId: string; cached: boolean }, ctx: SessionHandlersContext) => void;
+  // Queue messages
   'queue.list': (msg: { type: 'queue.list'; sessionId: string; messages: import('@jean2/sdk').QueuedMessage[] }, ctx: SessionHandlersContext) => void;
   'queue.added': (msg: { type: 'queue.added'; sessionId: string; message: import('@jean2/sdk').QueuedMessage }, ctx: SessionHandlersContext) => void;
   'queue.removed': (msg: { type: 'queue.removed'; sessionId: string; queueId: string }, ctx: SessionHandlersContext) => void;

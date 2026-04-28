@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
-import type { PendingAskRequest, AskHandler } from '@/stores/askStore';
+import type { AskHandler } from '@/stores/askStore';
+import type { AskPermissionResponse } from '@jean2/sdk';
 import { useAskStore } from '@/stores/askStore';
 
-const permissionHandler: AskHandler = (request: PendingAskRequest) => {
+const permissionHandler: AskHandler = (request) => {
   if (request.ask.target !== 'permission') return undefined;
 
   // Only auto-approve low-risk permissions
   if (request.ask.risk === 'low') {
-    return true;
+    return { type: 'permission', allowed: true } satisfies AskPermissionResponse;
   }
 
   // Fall through to user UI

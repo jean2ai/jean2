@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Lock, Eye, ArrowDown } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
-import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind } from '@jean2/sdk';
+import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind, AskResponse } from '@jean2/sdk';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
@@ -52,7 +52,7 @@ interface ChatViewProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
     promptTokens: number;

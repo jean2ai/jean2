@@ -58,8 +58,6 @@ export async function buildSkillToolDefinition(
       },
     },
     timeout: 5000,
-    requireApproval: false,
-    dangerous: false,
   };
 }
 

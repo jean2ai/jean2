@@ -1,6 +1,6 @@
 import type { Session } from '../shared-types/session';
 import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-types/message';
-import type { PermissionType, ToolPermission } from '../shared-types/permission';
+import type { ToolPermission } from '../shared-types/permission';
 import type { SessionInterruptResult } from '../shared-types/interrupt';
 import type { Ask } from '../shared-types/tool';
 
@@ -95,27 +95,7 @@ export interface ChatUsageMessage {
   variant?: string;
 }
 
-export interface PermissionRequestMessage {
-  type: 'permission.request';
-  sessionId: string;
-  childSessionId?: string;
-  subagentName?: string;
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: PermissionType;
-  permissionKey: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-}
-
-export interface PermissionGrantedMessage {
-  type: 'permission.granted';
-  toolCallId: string;
-  cached: boolean;
-}
-
+// Permission grant management (persisted grants only - no separate granted event; grants are managed via ask.response with alwaysAllow)
 export interface PermissionListMessage {
   type: 'permission.list';
   workspaceId: string;
@@ -133,22 +113,7 @@ export interface PermissionAllRevokedMessage {
   count: number;
 }
 
-export interface PermissionsSyncResponseMessage {
-  type: 'permissions.sync';
-  approvals: Array<{
-    sessionId: string;
-    childSessionId?: string;
-    subagentName?: string;
-    toolCallId: string;
-    toolName: string;
-    args: Record<string, unknown>;
-    permissionType: PermissionType;
-    permissionKey: string;
-    message: string;
-    details?: Record<string, unknown>;
-    dangerous?: boolean;
-  }>;
-}
+
 
 // =============================================================================
 // Compaction Messages
@@ -312,10 +277,6 @@ export interface AskTimedOutMessage {
   toolCallId: string;
 }
 
-// Legacy aliases
-export type AskUserRequestMessage = AskRequestMessage;
-export type AskUserTimedOutMessage = AskTimedOutMessage;
-
 // =============================================================================
 // Heartbeat Messages
 // =============================================================================
@@ -339,12 +300,9 @@ export type ServerMessage =
   | SessionReopenedMessage
   | SessionDeletedMessage
   | SessionRenamedMessage
-  | PermissionRequestMessage
-  | PermissionGrantedMessage
   | PermissionListMessage
   | PermissionRevokedMessage
   | PermissionAllRevokedMessage
-  | PermissionsSyncResponseMessage
   | CompactionCompleteMessage
   | SessionRevertedMessage
   | SessionStateMessage

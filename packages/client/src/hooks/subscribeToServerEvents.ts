@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
 import type { RefObject } from 'react';
-import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, PermissionType, Ask } from '@jean2/sdk';
+import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
 import { sessionHandlers } from '@/handlers/serverMessage';
 import { messagePartHandlers } from '@/handlers/serverMessage';
@@ -84,9 +84,6 @@ export function subscribeToServerEvents(
 
   add('permission.list', (workspaceId: unknown, permissions: unknown) => {
     permissionQueueHandlers['permission.list']({ type: 'permission.list', workspaceId: workspaceId as string, permissions: permissions as ToolPermission[] }, ctx()!);
-  });
-  add('permissions.sync', (approvals: unknown) => {
-    permissionQueueHandlers['permissions.sync']({ type: 'permissions.sync', approvals: approvals as Array<{ sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }> }, ctx()!);
   });
   add('permission.revoked', (permissionId: unknown) => {
     permissionQueueHandlers['permission.revoked']({ type: 'permission.revoked', permissionId: permissionId as string }, ctx()!);

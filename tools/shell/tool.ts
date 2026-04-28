@@ -68,7 +68,6 @@ This tool is for terminal operations (package managers, build tools, etc). DO NO
     required: ['command'],
   },
   timeout: 60000,
-  dangerous: true,
 };
 
 function parseCommand(cmd: string): { baseCommand: string; args: string[] } {

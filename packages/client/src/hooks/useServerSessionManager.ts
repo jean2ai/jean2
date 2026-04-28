@@ -14,6 +14,7 @@ import type {
   Preconfig,
   PromptInfo,
   AttachmentKind,
+  AskResponse,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage/types';
@@ -21,7 +22,6 @@ import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage
 import { useServerContext } from '@/contexts/ServerContext';
 import { useSessionStore, type SessionUsage } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { usePermissionStore, type PendingPermissionRequest } from '@/stores/permissionStore';
 import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -55,7 +55,6 @@ export interface UseServerSessionManagerReturn {
   sessions: Session[];
   workspaceSessions: Session[];
   messagesWithParts: MessageWithParts[];
-  pendingPermissions: PendingPermissionRequest[];
   pendingAskRequests: PendingAskRequest[];
   queuedMessages: Record<string, QueuedMessage[]>;
   permissions: ToolPermission[];
@@ -89,7 +88,7 @@ export interface UseServerSessionManagerReturn {
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
-  handleAskResponse: (toolCallId: string, response: unknown) => void;
+  handleAskResponse: (toolCallId: string, response: AskResponse) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -281,34 +280,18 @@ export function useServerSessionManager({
   const [_providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
   const {
-    pendingPermissions,
-    clearPendingPermissions,
-    mergePendingPermissions,
-    addPendingPermission,
-    removePendingPermissionByToolCallId,
-    removePendingPermissionsBySessionId,
-  } = usePermissionStore(
-    useShallow((s) => ({
-      pendingPermissions: s.pendingPermissions,
-      clearPendingPermissions: s.clearPendingPermissions,
-      mergePendingPermissions: s.mergePendingPermissions,
-      addPendingPermission: s.addPendingPermission,
-      removePendingPermissionByToolCallId: s.removePendingPermissionByToolCallId,
-      removePendingPermissionsBySessionId: s.removePendingPermissionsBySessionId,
-    })),
-  );
-
-  const {
     pendingRequests: pendingAskRequests,
     addPendingRequest: addPendingAskRequest,
     removePendingRequest: removePendingAskRequest,
     clearPendingRequests: clearPendingAskRequests,
+    clearPendingRequestsBySessionId: clearPendingAskRequestsBySessionId,
   } = useAskStore(
     useShallow((s) => ({
       pendingRequests: s.pendingRequests,
       addPendingRequest: s.addPendingRequest,
       removePendingRequest: s.removePendingRequest,
       clearPendingRequests: s.clearPendingRequests,
+      clearPendingRequestsBySessionId: s.clearPendingRequestsBySessionId,
     })),
   );
 
@@ -485,7 +468,6 @@ export function useServerSessionManager({
     serverUrl,
     currentSessionIdRef,
     handlerContextRef,
-    clearPendingPermissions,
     handleLogout,
     clientRef: sdkClientRef,
   });
@@ -621,7 +603,6 @@ export function useServerSessionManager({
       setQueuedMessagesForSession,
       addQueuedMessage,
       removeQueuedMessageById,
-      clearPendingPermissions,
       clearQueuedMessages,
       setCompactionSuccess,
       setCompletion,
@@ -643,9 +624,6 @@ export function useServerSessionManager({
       flushPendingPartAppends,
       setProviderStatuses,
       setPermissions,
-      mergePendingPermissions,
-      addPendingPermission,
-      removePendingPermissionByToolCallId,
       notifiedToolCallIdsRef,
       permissionSoundEnabledRef,
       playPermissionSound,
@@ -733,8 +711,8 @@ export function useServerSessionManager({
     setCompactionSuccess,
     setCurrentModel,
     setSelectedVariant,
-    removePendingPermissionsBySessionId,
     removePendingAskRequest,
+    clearPendingAskRequestsBySessionId,
     clearStreamingSessions: useConnectionStore.getState().clearStreamingSessions,
     pendingSessionCreateRef,
     partAppendRafRef,
@@ -770,7 +748,6 @@ export function useServerSessionManager({
     sessions,
     workspaceSessions,
     messagesWithParts,
-    pendingPermissions,
     pendingAskRequests,
     queuedMessages,
 

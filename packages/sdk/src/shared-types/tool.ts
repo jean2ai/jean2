@@ -12,8 +12,6 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
   timeout?: number;
-  requireApproval?: boolean;
-  dangerous?: boolean;
   env?: string[];
 }
 
@@ -218,32 +216,78 @@ export type Ask =
   | (ClientCapabilityAsk & { target: 'client' })
   | (PermissionAsk & { target: 'permission' });
 
-// Legacy alias (tools still import UserQuestion)
-export type UserQuestion = HumanQuestion | FormQuestion;
+// --- Typed Ask Responses (strongly typed for ask.response payload) ---
+
+// Response for single_select: selected option value
+export interface AskSingleSelectResponse {
+  type: 'single_select';
+  value: string;
+}
+
+// Response for multi_select: array of selected option values
+export interface AskMultiSelectResponse {
+  type: 'multi_select';
+  values: string[];
+}
+
+// Response for text input
+export interface AskTextResponse {
+  type: 'text';
+  value: string;
+}
+
+// Response for confirm (yes/no)
+export interface AskConfirmResponse {
+  type: 'confirm';
+  confirmed: boolean;
+}
+
+// Response for form (answers to multiple sub-questions)
+export interface AskFormResponse {
+  type: 'form';
+  answers: Array<{
+    question: string;
+    answer: string | boolean | string[];
+  }>;
+}
+
+// Response for client capability ask (capability-specific response)
+export interface AskClientCapabilityResponse {
+  type: 'client_capability';
+  capability: string;
+  result: unknown;
+}
+
+// Response for permission ask
+// When allowed is true and alwaysAllow is true, the permission is persisted for future use
+export interface AskPermissionResponse {
+  type: 'permission';
+  allowed: boolean;
+  alwaysAllow?: boolean;
+}
+
+// Union of all possible ask responses
+export type AskResponse =
+  | AskSingleSelectResponse
+  | AskMultiSelectResponse
+  | AskTextResponse
+  | AskConfirmResponse
+  | AskFormResponse
+  | AskClientCapabilityResponse
+  | AskPermissionResponse;
 
 // --- AskApi overloaded callable ---
 
 export type AskApi = {
-  (request: SingleSelectQuestion & { target: 'human' }): Promise<string>;
-  (request: MultiSelectQuestion & { target: 'human' }): Promise<string[]>;
-  (request: TextQuestion & { target: 'human' }): Promise<string>;
-  (request: ConfirmQuestion & { target: 'human' }): Promise<boolean>;
+  (request: SingleSelectQuestion & { target: 'human' }): Promise<AskSingleSelectResponse['value']>;
+  (request: MultiSelectQuestion & { target: 'human' }): Promise<AskMultiSelectResponse['values']>;
+  (request: TextQuestion & { target: 'human' }): Promise<AskTextResponse['value']>;
+  (request: ConfirmQuestion & { target: 'human' }): Promise<AskConfirmResponse['confirmed']>;
   (request: FormQuestion & { target: 'human' }): Promise<AskFormResponse>;
-  (request: ClientCapabilityAsk & { target: 'client' }): Promise<unknown>;
-  (request: PermissionAsk & { target: 'permission' }): Promise<boolean>;
+  (request: ClientCapabilityAsk & { target: 'client' }): Promise<AskClientCapabilityResponse['result']>;
+  (request: PermissionAsk & { target: 'permission' }): Promise<AskPermissionResponse['allowed']>;
   (request: Ask): Promise<unknown>;
 };
-
-// Response types
-export interface AskFormResponse {
-  answers: Array<{
-    question: string;
-    answer: unknown;
-  }>;
-}
-
-// Legacy alias
-export type AskUserApi = AskApi;
 
 // ===========================================
 // Env API
@@ -276,27 +320,8 @@ export interface LoadedTool {
 }
 
 // ===========================================
-// Legacy Types (still used elsewhere)
+// Tool EnvVar Status
 // ===========================================
-
-export type ToolApprovalStatus = 'pending' | 'approved' | 'denied' | 'timeout';
-
-export interface ToolApproval {
-  id: string;
-  sessionId: string;
-  childSessionId?: string;
-  subagentName?: string;
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType?: string;
-  permissionKey?: string;
-  message?: string;
-  details?: Record<string, unknown>;
-  status: ToolApprovalStatus;
-  requestedAt: string;
-  respondedAt?: string | null;
-}
 
 export interface ToolEnvVarStatus {
   key: string;

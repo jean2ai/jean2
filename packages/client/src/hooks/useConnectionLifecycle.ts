@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useAskStore } from '@/stores/askStore';
 import { subscribeToServerEvents } from './subscribeToServerEvents';
 
 const CONNECTION_TIMEOUT = 10000;
@@ -13,7 +14,6 @@ export interface ConnectionLifecycleParams {
   serverUrl: string | null;
   currentSessionIdRef: RefObject<string | null>;
   handlerContextRef: RefObject<SessionHandlersContext | null>;
-  clearPendingPermissions: () => void;
   handleLogout: () => void;
   clientRef?: RefObject<Jean2Client | null>;
 }
@@ -28,7 +28,6 @@ export function useConnectionLifecycle({
   serverUrl,
   currentSessionIdRef,
   handlerContextRef,
-  clearPendingPermissions,
   handleLogout,
   clientRef: externalClientRef,
 }: ConnectionLifecycleParams): ConnectionLifecycleReturn {
@@ -66,13 +65,12 @@ export function useConnectionLifecycle({
       useConnectionStore.getState().setRetryCount(0);
       useConnectionStore.getState().setConnectionTimedOut(false);
 
-      clearPendingPermissions();
+      // Clear pending ask requests on reconnection (including permission asks)
+      useAskStore.getState().clearPendingRequests();
 
       if (currentSessionIdRef.current) {
         client.sessions.resume(currentSessionIdRef.current);
       }
-
-      client.permissions.sync();
     });
 
     client.on('disconnected', (payload) => {

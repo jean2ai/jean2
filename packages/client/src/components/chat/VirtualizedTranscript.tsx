@@ -11,6 +11,7 @@ import type {
   Message,
   CompactionPart,
   AssistantMessage,
+  AskResponse,
 } from '@jean2/sdk';
 import { isAssistantMessage } from '@jean2/sdk';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -41,7 +42,7 @@ interface VirtualizedTranscriptProps {
   sessionId: string;
   sessionStatus?: string;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
@@ -193,7 +194,7 @@ const MessageParts = memo(function MessageParts({
 }: {
   parts: Part[];
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
   serverUrl?: string;
@@ -310,7 +311,7 @@ interface MessageRowProps {
   messagesWithParts: MessageWithParts[];
   sessionId: string;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;

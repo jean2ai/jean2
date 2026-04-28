@@ -1,5 +1,9 @@
 import type { ClientMessage } from '../shared';
 
+/**
+ * Permissions namespace for managing persisted permission grants.
+ * Note: Interactive permission prompts are handled via ask.* protocol.
+ */
 export class PermissionsNamespace {
   constructor(private send: (msg: ClientMessage) => void) {}
 
@@ -13,9 +17,5 @@ export class PermissionsNamespace {
 
   revokeAll(workspaceId: string): void {
     this.send({ type: 'permission.revoke_all', workspaceId });
-  }
-
-  sync(): void {
-    this.send({ type: 'permissions.sync' });
   }
 }

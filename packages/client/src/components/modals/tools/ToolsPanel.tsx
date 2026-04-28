@@ -129,14 +129,7 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
                 className="flex items-center justify-between p-2.5 rounded-lg border"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{tool.name}</span>
-                    {tool.dangerous && (
-                      <Badge variant="destructive" className="text-xs shrink-0">
-                        dangerous
-                      </Badge>
-                    )}
-                  </div>
+                  <span className="text-sm font-medium truncate">{tool.name}</span>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                     {tool.description}
                   </p>

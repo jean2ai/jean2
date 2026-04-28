@@ -1,29 +1,24 @@
-import type { Ask, AskApi, PermissionAsk } from '@jean2/sdk';
+import type { Ask, AskApi, PermissionAsk, AskPermissionResponse } from '@jean2/sdk';
+import type { AskRequestMessage, AskTimedOutMessage } from '@jean2/sdk';
 import { checkCachedPermission, grantPermission } from '@/store';
 import { createPendingAsk, removePendingAsksByToolCallId } from '@/store/pending-asks';
-
-function getBaseToolCallId(askId: string): string {
-  const idx = askId.indexOf('#');
-  return idx >= 0 ? askId.substring(0, idx) : askId;
-}
 
 interface PendingAsk {
   resolve: (response: unknown) => void;
   reject: (error: Error) => void;
   createdAt: number;
   ask: Ask;
+  sessionId: string;
+  toolName: string;
 }
 
 const pendingAsks = new Map<string, PendingAsk>();
 const ASK_TIMEOUT = 5 * 60 * 1000;
 
-export type AskBroadcastFn = (message: {
-  type: 'ask.request';
-  sessionId: string;
-  toolCallId: string;
-  toolName: string;
-  ask: Ask;
-}) => void;
+// Tracks active timeout timers per ask
+const askTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export type AskBroadcastFn = (message: AskRequestMessage | AskTimedOutMessage) => void;
 
 export function createAskApi(
   sessionId: string,
@@ -67,7 +62,7 @@ export function createAskApi(
         resolve: (response: unknown) => {
           // If this was a permission ask with alwaysAllow, persist it
           if (request.target === 'permission' && workspaceId) {
-            const permResponse = response as { allowed: boolean; alwaysAllow?: boolean };
+            const permResponse = response as AskPermissionResponse;
             if (permResponse?.allowed && permResponse?.alwaysAllow) {
               const permAsk = request as PermissionAsk & { target: 'permission' };
               const permissionKey = (permAsk.metadata?.permissionKey as string) || `tool:${toolName}`;
@@ -88,6 +83,8 @@ export function createAskApi(
         reject,
         createdAt: Date.now(),
         ask: request,
+        sessionId,
+        toolName,
       });
 
       // Persist to DB for recovery on client reconnection
@@ -99,12 +96,22 @@ export function createAskApi(
         createdAt: Date.now(),
       });
 
-      setTimeout(() => {
+      // Set timeout and emit ask.timeout on expiration
+      const timerId = setTimeout(() => {
         if (pendingAsks.has(askId)) {
           pendingAsks.delete(askId);
+          askTimers.delete(askId);
+          removePendingAsksByToolCallId(toolCallId);
+          // Emit ask.timeout so client can clean up UI
+          broadcastFn({
+            type: 'ask.timeout',
+            sessionId,
+            toolCallId,
+          });
           reject(new Error('User did not respond in time'));
         }
       }, ASK_TIMEOUT);
+      askTimers.set(askId, timerId);
     });
   };
 
@@ -115,6 +122,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
   // Try exact match first (backward compat)
   if (pendingAsks.has(toolCallId)) {
     const pending = pendingAsks.get(toolCallId)!;
+    clearAskTimer(toolCallId);
     pending.resolve(response);
     pendingAsks.delete(toolCallId);
     removePendingAsksByToolCallId(toolCallId);
@@ -124,6 +132,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
   // Try matching by toolCallId prefix (handles askId format: "toolCallId#N")
   for (const [key, pending] of pendingAsks) {
     if (key.startsWith(`${toolCallId}#`) || key === toolCallId) {
+      clearAskTimer(key);
       pending.resolve(response);
       pendingAsks.delete(key);
       removePendingAsksByToolCallId(toolCallId);
@@ -137,6 +146,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
 export function rejectAsk(toolCallId: string, error: Error): boolean {
   if (pendingAsks.has(toolCallId)) {
     const pending = pendingAsks.get(toolCallId)!;
+    clearAskTimer(toolCallId);
     pending.reject(error);
     pendingAsks.delete(toolCallId);
     removePendingAsksByToolCallId(toolCallId);
@@ -145,6 +155,7 @@ export function rejectAsk(toolCallId: string, error: Error): boolean {
 
   for (const [key, pending] of pendingAsks) {
     if (key.startsWith(`${toolCallId}#`) || key === toolCallId) {
+      clearAskTimer(key);
       pending.reject(error);
       pendingAsks.delete(key);
       removePendingAsksByToolCallId(toolCallId);
@@ -155,17 +166,6 @@ export function rejectAsk(toolCallId: string, error: Error): boolean {
   return false;
 }
 
-export function cleanupExpiredAskRequests(): void {
-  const now = Date.now();
-  for (const [id, pending] of pendingAsks) {
-    if (now - pending.createdAt > ASK_TIMEOUT) {
-      pending.reject(new Error('User did not respond in time'));
-      pendingAsks.delete(id);
-      removePendingAsksByToolCallId(getBaseToolCallId(id));
-    }
-  }
-}
-
 export function hasPendingAsk(toolCallId: string): boolean {
   if (pendingAsks.has(toolCallId)) return true;
   for (const key of pendingAsks.keys()) {
@@ -174,8 +174,13 @@ export function hasPendingAsk(toolCallId: string): boolean {
   return false;
 }
 
-// Legacy aliases for backward compatibility
-export { resolveAsk as resolveAskUser, rejectAsk as rejectAskUser, hasPendingAsk as hasPendingAskUser, cleanupExpiredAskRequests as cleanupExpiredAskUserRequests };
+function clearAskTimer(askId: string): void {
+  const timer = askTimers.get(askId);
+  if (timer) {
+    clearTimeout(timer);
+    askTimers.delete(askId);
+  }
+}
 
 // Export for recovery on client reconnection
 export { listPendingAsksBySession } from '@/store/pending-asks';

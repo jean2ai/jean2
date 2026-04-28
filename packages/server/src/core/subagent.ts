@@ -98,8 +98,6 @@ Usage notes:
 
 Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents at the maximum depth.`,
     timeout: 300000,
-    requireApproval: false,
-    dangerous: false,
     inputSchema: {
       type: 'object',
       properties: {

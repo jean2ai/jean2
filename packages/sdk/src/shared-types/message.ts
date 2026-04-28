@@ -1,5 +1,3 @@
-import type { PermissionType } from './permission';
-
 // ===========================================
 // Tool State Types
 // ===========================================
@@ -196,22 +194,6 @@ export type MessageEvent =
   | { type: 'part.created'; sessionId: string; part: Part }
   | { type: 'part.updated'; sessionId: string; part: Part }
   | { type: 'part.append'; sessionId: string; partId: string; field: PartField; delta: string };
-
-// ===========================================
-// Legacy Type (kept for security flow)
-// ===========================================
-
-export interface PermissionRequestBlock {
-  type: 'permission_request';
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-  permissionType: PermissionType;
-  permissionKey: string;
-  message: string;
-  details?: Record<string, unknown>;
-  dangerous?: boolean;
-}
 
 // ===========================================
 // Type Guards

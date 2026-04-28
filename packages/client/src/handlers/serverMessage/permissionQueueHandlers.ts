@@ -1,4 +1,4 @@
-import type { ToolPermission, QueuedMessage, PermissionType } from '@jean2/sdk';
+import type { ToolPermission, QueuedMessage } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 
 export function handlePermissionList(
@@ -8,30 +8,6 @@ export function handlePermissionList(
   const { permissions } = msg;
   const { setPermissions } = ctx;
   setPermissions(permissions);
-}
-
-export function handlePermissionsSync(
-  msg: { type: 'permissions.sync'; approvals: Array<{ sessionId: string; childSessionId?: string; subagentName?: string; toolCallId: string; toolName: string; args: Record<string, unknown>; permissionType: PermissionType; permissionKey: string; message: string; details?: Record<string, unknown>; dangerous?: boolean }> },
-  ctx: SessionHandlersContext,
-): void {
-  const { approvals } = msg;
-  const { mergePendingPermissions } = ctx;
-
-  mergePendingPermissions(
-    approvals.map((a) => ({
-      toolCallId: a.toolCallId,
-      sessionId: a.sessionId,
-      toolName: a.toolName,
-      args: a.args,
-      permissionType: a.permissionType,
-      permissionKey: a.permissionKey,
-      message: a.message,
-      details: a.details,
-      dangerous: a.dangerous,
-      childSessionId: a.childSessionId,
-      subagentName: a.subagentName,
-    }))
-  );
 }
 
 export function handlePermissionRevoked(
@@ -96,7 +72,6 @@ export function handleQueueSending(
 
 export const permissionQueueHandlers = {
   'permission.list': handlePermissionList,
-  'permissions.sync': handlePermissionsSync,
   'permission.revoked': handlePermissionRevoked,
   'permission.all_revoked': handlePermissionAllRevoked,
   'queue.list': handleQueueList,

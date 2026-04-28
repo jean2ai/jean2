@@ -4,6 +4,7 @@ import type {
   Workspace,
   Preconfig,
   AttachmentKind,
+  AskResponse,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -22,8 +23,8 @@ interface UseSessionCommandsParams {
   setCompactionSuccess: (success: boolean) => void;
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
-  removePendingPermissionsBySessionId: (sessionId: string) => void;
   removePendingAskRequest: (toolCallId: string) => void;
+  clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   clearStreamingSessions: () => void;
   pendingSessionCreateRef: React.RefObject<boolean>;
   partAppendRafRef: React.RefObject<number | null>;
@@ -47,7 +48,7 @@ interface UseSessionCommandsReturn {
   addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
-  handleAskResponse: (toolCallId: string, response: unknown) => void;
+  handleAskResponse: (toolCallId: string, response: AskResponse) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
@@ -73,8 +74,8 @@ export function useSessionCommands({
   setCompactionSuccess,
   setCurrentModel,
   setSelectedVariant,
-  removePendingPermissionsBySessionId,
   removePendingAskRequest,
+  clearPendingAskRequestsBySessionId,
   clearStreamingSessions,
   pendingSessionCreateRef,
   partAppendRafRef,
@@ -105,7 +106,7 @@ export function useSessionCommands({
 
   const resumeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
-    removePendingPermissionsBySessionId(sessionId);
+    clearPendingAskRequestsBySessionId(sessionId);
     skipFinishSoundSessionIdsRef.current = new Set(useConnectionStore.getState().streamingSessionIds);
     clearStreamingSessions();
     setCompactionSuccess(false);
@@ -130,7 +131,7 @@ export function useSessionCommands({
       to: `/server/$serverId${viewPath}/session/$sessionId` as any,
       params: { serverId, sessionId },
     });
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, removePendingPermissionsBySessionId, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
+  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, clearPendingAskRequestsBySessionId, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
 
   const closeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
@@ -245,7 +246,7 @@ export function useSessionCommands({
     }
   }, [clientRef, currentSession, streamingSessionIds, isCompacting, addToQueue]);
 
-  const handleAskResponse = useCallback((toolCallId: string, response: unknown) => {
+  const handleAskResponse = useCallback((toolCallId: string, response: AskResponse) => {
     const client = clientRef.current;
     removePendingAskRequest(toolCallId);
     if (client && client.connected) {

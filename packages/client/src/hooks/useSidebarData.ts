@@ -3,7 +3,7 @@ import { useParams } from '@tanstack/react-router';
 import type { Session, Workspace, SavedServer, QuickConnection } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
-import { usePermissionStore, type PendingPermissionRequest } from '@/stores/permissionStore';
+import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useServerContext } from '@/contexts/ServerContext';
 import type { ChildrenMap, SessionDerivedValuesMap } from '@/components/layout/SessionMenuButton';
@@ -14,7 +14,7 @@ export interface UseSidebarDataReturn {
   currentSession: Session | null;
   currentSessionId: string | null;
   streamingSessionIds: Set<string>;
-  pendingPermissions: PendingPermissionRequest[];
+  pendingAskRequests: PendingAskRequest[];
   connected: boolean;
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
@@ -43,7 +43,7 @@ export const useSidebarData = (): UseSidebarDataReturn => {
   // Read from stores
   const allSessions = useSessionStore(s => s.sessions);
   const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
-  const pendingPermissions = usePermissionStore(s => s.pendingPermissions);
+  const pendingAskRequests = useAskStore(s => s.pendingRequests);
   const connected = useConnectionStore(s => s.connected);
   const workspaces = useServerDataStore(s => s.workspaces);
   const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
@@ -93,7 +93,7 @@ export const useSidebarData = (): UseSidebarDataReturn => {
 
   // Precompute derived values from allSessions for overview mode compatibility
   const sessionDerivedValues = useMemo((): SessionDerivedValuesMap => {
-    const pendingSet = new Set(pendingPermissions.map(p => p.sessionId));
+    const pendingSet = new Set(pendingAskRequests.map(p => p.sessionId));
     const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
     for (const session of allSessions) {
       const isStreaming = streamingSessionIds.has(session.id);
@@ -103,7 +103,7 @@ export const useSidebarData = (): UseSidebarDataReturn => {
       derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
     }
     return derived;
-  }, [allSessions, streamingSessionIds, pendingPermissions, currentSessionId]);
+  }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId]);
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {
@@ -145,7 +145,7 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     currentSession,
     currentSessionId,
     streamingSessionIds,
-    pendingPermissions,
+    pendingAskRequests,
     connected,
     workspaces,
     activeWorkspace,

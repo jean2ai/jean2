@@ -82,9 +82,8 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   async connect(): Promise<void> {
     this._state = 'connecting';
     await this.transport.connect();
-    if (this.config.autoSyncPermissions !== false) {
-      this.permissions.sync();
-    }
+    // Note: Interactive permission prompts are now handled via ask.* protocol
+    // Client should listen for 'ask.request' events to handle permission asks
   }
 
   async disconnect(): Promise<void> {

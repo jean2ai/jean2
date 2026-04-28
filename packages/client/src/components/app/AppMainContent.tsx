@@ -1,6 +1,7 @@
 import type {
   MessageWithParts,
   AttachmentKind,
+  AskResponse,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -26,7 +27,7 @@ export interface AppMainContentProps {
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
-  onAskResponse: (toolCallId: string, response: unknown) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
   onNavigateBack: () => void;
