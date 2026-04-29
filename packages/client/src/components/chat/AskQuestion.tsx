@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { HelpCircle, Shield, Monitor } from 'lucide-react';
 import type { HumanQuestion, FormQuestion, PermissionAsk, ClientCapabilityAsk, AskFormResponse, AskPermissionResponse, AskResponse } from '@jean2/sdk';
 import type { SingleSelectQuestion, MultiSelectQuestion, TextQuestion, ConfirmQuestion } from '@jean2/sdk';
@@ -323,22 +323,6 @@ function SubQuestionView({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmValue, setConfirmValue] = useState<boolean | null>(null);
-  const onAnswerRef = useRef(onAnswer);
-  useEffect(() => {
-    onAnswerRef.current = onAnswer;
-  });
-
-  useEffect(() => {
-    if (selected.size > 0) {
-      onAnswerRef.current(Array.from(selected));
-    }
-  }, [selected]);
-
-  useEffect(() => {
-    if (confirmValue !== null) {
-      onAnswerRef.current(confirmValue);
-    }
-  }, [confirmValue]);
 
   switch (question.type) {
     case 'single_select':
@@ -352,6 +336,7 @@ function SubQuestionView({
                 type="button"
                 onClick={() => {
                   setSelected(new Set([option.value]));
+                  onAnswer(option.value);
                 }}
                 className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                   selected.has(option.value)
@@ -371,6 +356,9 @@ function SubQuestionView({
           const next = new Set(prev);
           if (next.has(value)) next.delete(value);
           else if (!question.max || next.size < question.max) next.add(value);
+          else return prev;
+          // Emit array on every change
+          onAnswer(Array.from(next));
           return next;
         });
       };
@@ -416,14 +404,20 @@ function SubQuestionView({
             <Button
               variant={confirmValue === false ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setConfirmValue(false)}
+              onClick={() => {
+                setConfirmValue(false);
+                onAnswer(false);
+              }}
             >
               No
             </Button>
             <Button
               variant={confirmValue === true ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setConfirmValue(true)}
+              onClick={() => {
+                setConfirmValue(true);
+                onAnswer(true);
+              }}
             >
               Yes
             </Button>
@@ -441,21 +435,12 @@ function PermissionAskView({
   ask: PermissionAsk;
   onRespond: (response: AskPermissionResponse) => void;
 }) {
-  const [selected, setSelected] = useState<boolean | null>(null);
-  const [alwaysAllow, setAlwaysAllow] = useState(false);
-
   const riskColors: Record<string, string> = {
     none: 'text-muted-foreground',
     low: 'text-success',
     medium: 'text-warning',
     high: 'text-destructive',
     critical: 'text-destructive',
-  };
-
-  const handleConfirm = () => {
-    if (selected !== null) {
-      onRespond({ type: 'permission', grant: selected ? 'once' : 'deny' });
-    }
   };
 
   return (
@@ -470,48 +455,27 @@ function PermissionAskView({
           </span>
         </div>
       )}
-      <div className="flex flex-col gap-2">
-        <div className="flex justify-end gap-2">
-          <Button
-            variant={selected === false ? 'destructive' : 'outline'}
-            size="sm"
-            onClick={() => setSelected(false)}
-          >
-            Deny
-          </Button>
-          <Button
-            variant={selected === true ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSelected(true)}
-          >
-            Approve
-          </Button>
-        </div>
-        {selected === true && (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="alwaysAllow"
-              checked={alwaysAllow}
-              onCheckedChange={(checked) => setAlwaysAllow(checked === true)}
-            />
-            <label
-              htmlFor="alwaysAllow"
-              className="text-xs text-muted-foreground cursor-pointer select-none"
-            >
-              Don't ask again for this permission
-            </label>
-          </div>
-        )}
-        {selected !== null && (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={handleConfirm}
-            >
-              Confirm
-            </Button>
-          </div>
-        )}
+      <div className="flex gap-2">
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => onRespond({ type: 'permission', grant: 'deny' })}
+        >
+          Block
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onRespond({ type: 'permission', grant: 'once' })}
+        >
+          Allow Once
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => onRespond({ type: 'permission', grant: 'workspace' })}
+        >
+          Allow for Workspace
+        </Button>
       </div>
     </div>
   );

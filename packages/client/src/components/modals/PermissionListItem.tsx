@@ -36,7 +36,7 @@ export function PermissionListItem({
     : 'All';
 
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0">
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0 min-w-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Badge variant={isRevoked ? 'outline' : 'secondary'}>
@@ -60,7 +60,7 @@ export function PermissionListItem({
             </Badge>
           )}
         </div>
-        <p className="text-sm font-mono truncate text-muted-foreground">
+        <p className="text-sm font-mono break-all text-muted-foreground">
           {patternDisplay}
         </p>
         <p className="text-xs text-muted-foreground mt-1">

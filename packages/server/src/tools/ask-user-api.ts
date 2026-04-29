@@ -1,6 +1,9 @@
 import type { Ask, AskApi, PermissionAsk, AskPermissionResponse, GrantScope } from '@jean2/sdk';
 import type { AskRequestMessage, AskTimedOutMessage } from '@jean2/sdk';
-import { matchGrant, createGrantFromOptions } from '@/store/permissions';
+import {
+  matchGrant,
+  createGrantFromOptions,
+} from '@/store/permissions';
 
 // =============================================================================
 // Canonical Permission Contract - Ask User API
@@ -14,8 +17,37 @@ import { matchGrant, createGrantFromOptions } from '@/store/permissions';
 // - grant: 'deny' → deny; 'once' → one-time use (not persisted); other → persisted
 // =============================================================================
 
+// =============================================================================
+// Shell Command Safety Helpers
+// =============================================================================
+
+/**
+ * Checks if a shell command with operators is safe to auto-match/persist.
+ * Dangerous commands with operators should be re-asked each time for safety.
+ */
+function isDangerousOperatorCommand(metadata: Record<string, unknown> | undefined): boolean {
+  if (!metadata) return false;
+
+  const hasOperators = metadata.hasOperators === true;
+  if (!hasOperators) return false; // No operators = always safe
+
+  const baseCommand = (metadata.baseCommand as string | undefined) || '';
+  
+  // Import dangerous/filesystem commands inline to avoid circular deps
+  const SHELL_DANGEROUS = ['rm', 'rmdir', 'del', 'erase', 'sudo', 'su', 'doas', 
+    'chmod', 'chown', 'dd', 'mkfs', 'format', 'shutdown', 'reboot', 'halt',
+    'iptables', 'ufw', 'firewall-cmd', 'curl', 'wget', 'nc', 'netcat', 'eval', 'exec'];
+  const SHELL_FILESYSTEM = ['mv', 'cp', 'mkdir', 'touch', 'ln'];
+  
+  return SHELL_DANGEROUS.includes(baseCommand) || SHELL_FILESYSTEM.includes(baseCommand);
+}
+
+// =============================================================================
+// Types
+// =============================================================================
+
 interface PendingAsk {
-  resolve: (response: boolean) => void;
+  resolve: (response: unknown) => void;
   reject: (error: Error) => void;
   createdAt: number;
   ask: Ask;
@@ -67,7 +99,7 @@ export function createAskApi(
 ): AskApi {
   let askCounter = 0;
 
-  const ask = async (request: Ask): Promise<boolean> => {
+  const ask = async (request: Ask): Promise<unknown> => {
     // Check if this is a permission ask
     const isPermissionAsk = request.type === 'permission';
     
@@ -90,15 +122,11 @@ export function createAskApi(
       });
       
       if (matchResult.matched) {
-        // For shell commands with operators, reject saved grants that could be over-broad.
-        // Shell operators (&&, ||, |, >, >>, `, $( ) indicate the command contains
-        // multiple operations - a grant for a specific base command (e.g., "curl") should
-        // NOT auto-approve a command that chains to other dangerous operations (e.g., "curl X && rm -rf /").
-        // The saved grant's pattern must specifically cover the full command content.
-        const hasOperators = (permAsk.metadata as Record<string, unknown>)?.hasOperators === true;
-        if (permAsk.resource === 'shell-command' && hasOperators) {
-          // Reject auto-approval from saved grants when operators are present.
-          // Force re-asking so user can review the full command with operators.
+        // For dangerous operator commands (rm |, cat | grep), force re-ask each time
+        // for safety. Safe operator commands (cat file | head) can auto-match.
+        const metadata = permAsk.metadata as Record<string, unknown> | undefined;
+        if (permAsk.resource === 'shell-command' && isDangerousOperatorCommand(metadata)) {
+          // Dangerous operator command - reject auto-approval, force user re-ask
         } else {
           // Found existing grant - auto-approve
           return true;
@@ -110,7 +138,7 @@ export function createAskApi(
 
     const askId = `${toolCallId}#${++askCounter}`;
 
-    return new Promise<boolean>((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       broadcastFn({
         type: 'ask.request',
         sessionId,
@@ -120,8 +148,8 @@ export function createAskApi(
       });
 
       pendingAsks.set(askId, {
-        resolve: (granted: boolean) => {
-          resolve(granted);
+        resolve: (response: unknown) => {
+          resolve(response);
         },
         reject,
         createdAt: Date.now(),
@@ -168,13 +196,56 @@ export function createAskApi(
 // =============================================================================
 
 /**
+ * Extract the resolution value from an ask response per AskApi contract.
+ *
+ * Maps each ask type to the expected runtime value:
+ * - single_select  → value (string)
+ * - multi_select    → values (string[])
+ * - text           → value (string)
+ * - confirm        → confirmed (boolean)
+ * - form           → full AskFormResponse
+ * - client_capability → result (unknown)
+ * - permission     → already handled above (boolean)
+ */
+function extractResolutionValue(response: unknown): unknown {
+  if (!response || typeof response !== 'object') return response;
+
+  const r = response as Record<string, unknown>;
+
+  switch (r.type as string) {
+    case 'single_select':
+      return r.value as string;
+
+    case 'multi_select':
+      return r.values as string[];
+
+    case 'text':
+      return r.value as string;
+
+    case 'confirm':
+      return r.confirmed as boolean;
+
+    case 'form':
+      // Return full AskFormResponse shape
+      return response;
+
+    case 'client_capability':
+      return r.result as unknown;
+
+    default:
+      // Passthrough for unknown/unexpected types
+      return response;
+  }
+}
+
+/**
  * Resolve a pending ask with the user's response.
- * 
+ *
  * Handles the canonical AskPermissionResponse shape:
  * - { type: 'permission', grant: 'deny' } → deny (false)
  * - { type: 'permission', grant: 'once'|'session'|'workspace'|'always' } → grant (true)
- * - Other AskResponse types → passthrough
- * 
+ * - Other AskResponse types → extract value per AskApi contract
+ *
  * For permission asks, also handles grant persistence:
  * - 'once' scope: NOT persisted (one-time use only)
  * - 'session' scope: persisted with optional duration
@@ -198,19 +269,19 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
     const permAsk = request as PermissionAsk;
     let grantScope: GrantScope = resp.grant;
     
-    // Defense-in-depth: shell commands with operators must not persist broad grants.
-    // Operators (&&, ||, |, >, >>, `, $( )) indicate the command may chain to other
-    // dangerous operations - a saved grant for the base command should not auto-approve
-    // such compound commands. Force 'once' scope to prevent persistence.
-    const hasOperators = (permAsk.metadata as Record<string, unknown>)?.hasOperators === true;
-    if (permAsk.resource === 'shell-command' && hasOperators) {
+    // For dangerous operator commands, force 'once' scope (not persisted)
+    const metadata = permAsk.metadata as Record<string, unknown> | undefined;
+    if (permAsk.resource === 'shell-command' && isDangerousOperatorCommand(metadata)) {
       grantScope = 'once';
     }
     
     // Compute duration for session grants (default: 30 minutes)
     const duration = resp.duration || (grantScope === 'session' ? 30 * 60 * 1000 : undefined);
     
-    // Create grant (createGrantFromOptions handles 'once' specially - not persisted)
+    // Use 'exact' matcher for operator-bearing commands (precise grant matching)
+    // Use 'shell-command' matcher for non-operator commands (command name matching)
+    const useExactMatcher = metadata?.hasOperators === true;
+    
     createGrantFromOptions({
       workspaceId: wsId,
       toolName: pending.toolName,
@@ -222,7 +293,7 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
       ),
       grantOptions: {
         scope: grantScope,
-        matcher: (permAsk.resource ?? 'file') === 'shell-command' ? 'shell-command' : 'exact',
+        matcher: useExactMatcher ? 'exact' : ((permAsk.resource ?? 'file') === 'shell-command' ? 'shell-command' : 'exact'),
         patterns: permAsk.patterns,
         duration: grantScope === 'session' ? duration : undefined,
         description: permAsk.question,
@@ -242,8 +313,8 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
       persistGrant(permResponse, pending.ask, pending.workspaceId, pending);
       pending.resolve(granted);
     } else {
-      // For non-permission asks or unknown response type, pass through
-      pending.resolve(granted ?? false);
+      // Extract resolution value per AskApi contract
+      pending.resolve(extractResolutionValue(response));
     }
     
     pendingAsks.delete(toolCallId);
@@ -262,10 +333,11 @@ export function resolveAsk(toolCallId: string, response: unknown): boolean {
         persistGrant(permResponse, pending.ask, pending.workspaceId, pending);
         pending.resolve(granted);
       } else {
-        pending.resolve(granted ?? false);
-      }
-      
-      pendingAsks.delete(key);
+      // Extract resolution value per AskApi contract
+      pending.resolve(extractResolutionValue(response));
+    }
+    
+    pendingAsks.delete(key);
       removePendingAsksByToolCallId(toolCallId);
       return true;
     }

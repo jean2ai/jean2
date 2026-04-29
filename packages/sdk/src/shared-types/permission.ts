@@ -324,17 +324,25 @@ export function createShellPermissionAskStructured(params: {
   hasOperators: boolean;
 }): PermissionAsk {
   // Build patterns for matching grants
+  // For operator-bearing commands: use EXACT full command as primary pattern
+  // For non-operator commands: use base command (existing behavior)
   const patterns: string[] = [];
   
-  // Primary pattern: the base command
-  if (params.baseCommand) {
-    patterns.push(params.baseCommand);
-  }
-  
-  // For destructive commands like rm -rf, add specific patterns
-  if (params.baseCommand === 'rm' && (params.flags.includes('-rf') || params.flags.includes('-r'))) {
-    patterns.push('rm:-rf');
-    patterns.push('rm:-r');
+  if (params.hasOperators) {
+    // Operator-bearing command: use exact full command as primary pattern
+    // This enables precise grant matching (e.g., "cat .env | head -5" matches only itself)
+    patterns.push(params.command);
+  } else {
+    // Non-operator command: use base command (existing behavior)
+    if (params.baseCommand) {
+      patterns.push(params.baseCommand);
+    }
+
+    // Destructive commands like rm -rf: add specific patterns
+    if (params.baseCommand === 'rm' && (params.flags.includes('-rf') || params.flags.includes('-r'))) {
+      patterns.push('rm:-rf');
+      patterns.push('rm:-r');
+    }
   }
   
   // Add path patterns if outside workspace
