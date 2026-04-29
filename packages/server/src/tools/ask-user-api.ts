@@ -52,6 +52,7 @@ interface PendingAsk {
   createdAt: number;
   ask: Ask;
   sessionId: string;
+  toolCallId: string;
   toolName: string;
   workspaceId?: string;
   isPermissionAsk: boolean;
@@ -155,6 +156,7 @@ export function createAskApi(
         createdAt: Date.now(),
         ask: request,
         sessionId,
+        toolCallId,
         toolName,
         workspaceId,
         isPermissionAsk,
@@ -377,6 +379,27 @@ export function hasPendingAsk(toolCallId: string): boolean {
     if (key.startsWith(`${toolCallId}#`)) return true;
   }
   return false;
+}
+
+/**
+ * Reject all pending asks for a session.
+ * Called when a session is interrupted/cancelled to unblock any waiting tool executions.
+ */
+export function rejectPendingAsksBySession(sessionId: string, error?: Error): string[] {
+  const rejectedAskIds: string[] = [];
+  const interruptError = error ?? new Error('Session interrupted');
+
+  for (const [askId, pending] of pendingAsks) {
+    if (pending.sessionId === sessionId) {
+      clearAskTimer(askId);
+      pending.reject(interruptError);
+      pendingAsks.delete(askId);
+      removePendingAsksByToolCallId(pending.toolCallId);
+      rejectedAskIds.push(askId);
+    }
+  }
+
+  return rejectedAskIds;
 }
 
 function clearAskTimer(askId: string): void {

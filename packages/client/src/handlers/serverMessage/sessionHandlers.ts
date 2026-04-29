@@ -259,15 +259,16 @@ export function handleSessionRenamed(
 }
 
 export function handleSessionInterrupted(
-  msg: { type: 'session.interrupted'; sessionId: string; result: { cascadedTo: string[] } },
+  msg: { type: 'session.interrupted'; sessionId: string; result: import('@jean2/sdk').SessionInterruptResult },
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, result } = msg;
-  const { addInterruptedSession, skipFinishSoundSessionIdsRef, removeStreamingSession } = ctx;
+  const { addInterruptedSession, skipFinishSoundSessionIdsRef, removeStreamingSession, clearPendingAskRequestsBySessionId } = ctx;
 
   addInterruptedSession(sessionId);
   skipFinishSoundSessionIdsRef.current.add(sessionId);
   removeStreamingSession(sessionId);
+  clearPendingAskRequestsBySessionId(sessionId);
   if (result.cascadedTo.length > 0) {
     console.log(`Session ${sessionId} interrupted. Cascaded to:`, result.cascadedTo);
   }

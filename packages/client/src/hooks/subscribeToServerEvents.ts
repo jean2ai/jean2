@@ -1,4 +1,4 @@
-import type { Jean2Client } from '@jean2/sdk';
+import type { Jean2Client, SessionInterruptResult } from '@jean2/sdk';
 import type { RefObject } from 'react';
 import type { Session, Message, Part, MessageWithParts, PermissionGrant, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
@@ -48,7 +48,7 @@ export function subscribeToServerEvents(
     sessionHandlers['session.renamed']({ type: 'session.renamed', session: session as Session }, ctx()!);
   });
   add('session.interrupted', (sessionId: unknown, result: unknown) => {
-    sessionHandlers['session.interrupted']({ type: 'session.interrupted', sessionId: sessionId as string, result: result as { cascadedTo: string[] } }, ctx()!);
+    sessionHandlers['session.interrupted']({ type: 'session.interrupted', sessionId: sessionId as string, result: result as SessionInterruptResult }, ctx()!);
   });
   add('session.reverted', (sessionId: unknown, revertedTo: unknown, removed: unknown) => {
     sessionHandlers['session.reverted']({ type: 'session.reverted', sessionId: sessionId as string, revertedTo: revertedTo as { messageId: string | null; messageCount: number }, removed: removed as { messageIds: string[]; partCount: number } }, ctx()!);

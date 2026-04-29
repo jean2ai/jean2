@@ -1,5 +1,6 @@
 import type { InterruptReason, SessionInterruptResult } from '@jean2/sdk';
 import { getSession, getChildSessions, updateSession } from '@/store';
+import { rejectPendingAsksBySession } from '@/tools/ask-user-api';
 
 interface SessionAbortContext {
   sessionId: string;
@@ -60,6 +61,7 @@ class InterruptManager {
     const context = this.sessionContexts.get(sessionId);
     const cascadedTo: string[] = [];
     const interruptedTools: string[] = [];
+    const rejectedAsks: string[] = [];
     
     if (context) {
       for (const [toolCallId, toolController] of context.toolControllers) {
@@ -78,6 +80,10 @@ class InterruptManager {
       }
     }
     
+    // Reject any pending asks for this session to unblock waiting tool executions
+    const pendingAskIds = rejectPendingAsksBySession(sessionId);
+    rejectedAsks.push(...pendingAskIds);
+    
     // Only set subagentStatus for actual subagent sessions (those with a parentId)
     // Main sessions should not have their status changed to error on interrupt
     const session = getSession(sessionId);
@@ -93,6 +99,7 @@ class InterruptManager {
         const childResult = await this.interruptSession(child.id, 'cascade');
         cascadedTo.push(...childResult.cascadedTo.filter(id => !cascadedTo.includes(id)));
         interruptedTools.push(...childResult.interruptedTools);
+        rejectedAsks.push(...childResult.rejectedAsks);
       }
     }
     
@@ -101,6 +108,7 @@ class InterruptManager {
       success: true,
       cascadedTo: [...new Set(cascadedTo)],
       interruptedTools: [...new Set(interruptedTools)],
+      rejectedAsks: [...new Set(rejectedAsks)],
     };
   }
   

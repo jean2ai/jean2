@@ -94,6 +94,7 @@ export interface SessionHandlersContext {
   addPendingAskRequest: (request: PendingAskRequest) => void;
   removePendingAskRequest: (toolCallId: string) => void;
   clearPendingAskRequests: () => void;
+  clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<AskResponse | undefined> | undefined;
   sendAskResponse: (toolCallId: string, response: AskResponse) => void;
 }
@@ -106,7 +107,7 @@ export type SessionHandlers = {
   'session.deleted': (msg: { type: 'session.deleted'; sessionId: string }, ctx: SessionHandlersContext) => void;
   'session.updated': (msg: { type: 'session.updated'; session: Session }, ctx: SessionHandlersContext) => void;
   'session.renamed': (msg: { type: 'session.renamed'; session: Session }, ctx: SessionHandlersContext) => void;
-  'session.interrupted': (msg: { type: 'session.interrupted'; sessionId: string; result: { cascadedTo: string[] } }, ctx: SessionHandlersContext) => void;
+  'session.interrupted': (msg: { type: 'session.interrupted'; sessionId: string; result: import('@jean2/sdk').SessionInterruptResult }, ctx: SessionHandlersContext) => void;
   'session.reverted': (msg: { type: 'session.reverted'; sessionId: string; revertedTo: { messageId: string | null; messageCount: number }; removed: { messageIds: string[]; partCount: number } }, ctx: SessionHandlersContext) => void;
   'session.forked': (msg: { type: 'session.forked'; originalSessionId: string; forkedSession: Session; messages: MessageWithParts[] }, ctx: SessionHandlersContext) => void;
   'session.state': (msg: { type: 'session.state'; sessionId: string; messages: MessageWithParts[] }, ctx: SessionHandlersContext) => void;

@@ -642,6 +642,7 @@ export function useServerSessionManager({
       addPendingAskRequest,
       removePendingAskRequest,
       clearPendingAskRequests,
+      clearPendingAskRequestsBySessionId,
       runAskHandlers: (target, request) => {
         const handlers = useAskStore.getState().getHandlers(target);
         if (handlers.length === 0) return undefined;

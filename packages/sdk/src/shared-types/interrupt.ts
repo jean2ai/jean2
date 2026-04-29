@@ -16,6 +16,7 @@ export interface SessionInterruptResult {
   success: boolean;
   cascadedTo: string[]; // Child session IDs that were also interrupted
   interruptedTools: string[]; // Tool call IDs that were interrupted
+  rejectedAsks: string[]; // Ask IDs that were rejected (pending asks cleaned up)
   partialResults?: {
     toolCallId: string;
     partialOutput: unknown;
