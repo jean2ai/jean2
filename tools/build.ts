@@ -6,7 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TOOLS_DIR = __dirname;
 
 const DEFAULT_OUTPUT = join(TOOLS_DIR, 'dist', 'tools');
-const EXTERNAL_MODULES = ['@jean2/sdk', 'bun:sqlite'];
+const EXTERNAL_MODULES = ['bun:sqlite'];
 
 interface CliArgs {
   output: string;

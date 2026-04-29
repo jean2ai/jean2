@@ -1,11 +1,13 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { ShellOutputVisualization } from '@jean2/sdk';
-import { 
-  SHELL_DANGEROUS_COMMANDS, 
+import {
+  SHELL_DANGEROUS_COMMANDS,
   SHELL_FILESYSTEM_COMMANDS,
+  SHELL_SHELL_OPERATORS,
   createShellPermissionAskStructured,
   createOutsideWorkspaceAsk,
   createWorkspaceModificationAsk,
+  getEffectiveShellCommandIdentity,
   type ShellRiskCategory,
 } from '@jean2/sdk';
 
@@ -57,17 +59,13 @@ This tool requires explicit permission for:
       },
       cwd: {
         type: 'string',
-        description: "Working directory for the command",
+        description: 'Working directory for the command',
       },
     },
     required: ['command'],
   },
   timeout: 60000,
 };
-
-// =============================================================================
-// Command Parsing
-// =============================================================================
 
 interface ParsedCommand {
   baseCommand: string;
@@ -79,21 +77,9 @@ function parseCommand(cmd: string): ParsedCommand {
   const parts = cmd.trim().split(/\s+/);
   const baseCommand = parts[0]?.replace(/.*\//, '') || '';
   const args = parts.slice(1);
-  
-  // Extract flags (args starting with -)
-  const flags: string[] = [];
-  for (const arg of args) {
-    if (arg.startsWith('-')) {
-      flags.push(arg);
-    }
-  }
-  
+  const flags = args.filter(arg => arg.startsWith('-'));
   return { baseCommand, args, flags };
 }
-
-// =============================================================================
-// Path Extraction
-// =============================================================================
 
 function extractPathArguments(cmd: string): string[] {
   const paths: string[] = [];
@@ -102,8 +88,7 @@ function extractPathArguments(cmd: string): string[] {
   for (const part of parts) {
     if (part.startsWith('-')) continue;
 
-    const isUnixPath = part.startsWith('/') || part.startsWith('~') ||
-      part.startsWith('./') || part.startsWith('../');
+    const isUnixPath = part.startsWith('/') || part.startsWith('~') || part.startsWith('./') || part.startsWith('../');
     const isWindowsPath = /^[A-Za-z]:[\\]/.test(part) || /^\\\\/.test(part);
 
     if (isUnixPath || isWindowsPath) {
@@ -113,10 +98,6 @@ function extractPathArguments(cmd: string): string[] {
 
   return paths;
 }
-
-// =============================================================================
-// Risk Analysis
-// =============================================================================
 
 interface RiskAnalysis {
   requiresAsk: boolean;
@@ -131,13 +112,13 @@ interface RiskAnalysis {
 }
 
 function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
-  const { baseCommand, flags } = parseCommand(cmd);
-  const lowerCmd = cmd.toLowerCase();
+  const effectiveCommand = getEffectiveShellCommandIdentity(cmd);
+  const { flags } = parseCommand(cmd);
+  const lowerEffective = effectiveCommand.toLowerCase();
   const paths = extractPathArguments(cmd);
   const resolvedPaths: string[] = [];
   let workspaceBound = true;
-  
-  // Resolve and check paths
+
   for (const p of paths) {
     const resolved = ctx.resolvePath(p);
     resolvedPaths.push(resolved);
@@ -145,64 +126,53 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
       workspaceBound = false;
     }
   }
-  
-  // Check for shell operators
-  const shellOperators = ['&&', '||', '|', '>', '>>', '`', '$(', ';'];
-  const hasOperators = shellOperators.some(op => cmd.includes(op));
-  
-  // Check for outside workspace CWD
-  if (ctx.workspacePath) {
-    // This is checked separately
-  }
-  
-  // Check for dangerous commands
+
+  const hasOperators = SHELL_SHELL_OPERATORS.some(op => cmd.includes(op));
+
   const isDangerous = SHELL_DANGEROUS_COMMANDS.some(dangerous =>
-    baseCommand === dangerous || lowerCmd.startsWith(dangerous + ' ')
+    effectiveCommand === dangerous || lowerEffective.startsWith(dangerous + ' '),
   );
-  
+
   if (isDangerous) {
-    // Categorize dangerous commands
     let riskCategory: ShellRiskCategory = 'side-effect';
-    
-    if (['rm', 'rmdir', 'del', 'erase', 'dd', 'mkfs', 'format'].includes(baseCommand)) {
+
+    if (['rm', 'rmdir', 'del', 'erase', 'dd', 'mkfs', 'format'].includes(effectiveCommand)) {
       riskCategory = 'destructive';
-    } else if (['curl', 'wget', 'nc', 'netcat'].includes(baseCommand)) {
+    } else if (['curl', 'wget', 'nc', 'netcat'].includes(effectiveCommand)) {
       riskCategory = 'network';
-    } else if (['sudo', 'su', 'doas', 'chmod', 'chown', 'shutdown', 'reboot', 'iptables'].includes(baseCommand)) {
+    } else if (['sudo', 'su', 'doas', 'chmod', 'chown', 'shutdown', 'reboot', 'iptables'].includes(effectiveCommand)) {
       riskCategory = 'destructive';
     }
-    
+
     return {
       requiresAsk: true,
       riskCategory,
       risk: 'high',
-      reason: `contains dangerous command "${baseCommand}"`,
+      reason: `contains dangerous command "${effectiveCommand}"`,
       hasOperators,
       workspaceBound,
       resolvedPaths,
-      baseCommand,
+      baseCommand: effectiveCommand,
       flags,
     };
   }
-  
-  // Check for filesystem commands
-  const isFilesystem = SHELL_FILESYSTEM_COMMANDS.some(fs => lowerCmd.startsWith(fs));
-  
+
+  const isFilesystem = SHELL_FILESYSTEM_COMMANDS.some(fs => lowerEffective === fs || lowerEffective.startsWith(fs + ' '));
+
   if (isFilesystem) {
     return {
       requiresAsk: true,
       riskCategory: 'workspace-modification',
       risk: workspaceBound ? 'medium' : 'high',
-      reason: `contains filesystem command "${baseCommand}"`,
+      reason: `contains filesystem command "${effectiveCommand}"`,
       hasOperators,
       workspaceBound,
       resolvedPaths,
-      baseCommand,
+      baseCommand: effectiveCommand,
       flags,
     };
   }
-  
-  // Check for operators (medium risk)
+
   if (hasOperators) {
     return {
       requiresAsk: true,
@@ -212,12 +182,11 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
       hasOperators,
       workspaceBound,
       resolvedPaths,
-      baseCommand,
+      baseCommand: effectiveCommand,
       flags,
     };
   }
-  
-  // Check for outside workspace paths (without dangerous commands)
+
   if (!workspaceBound) {
     return {
       requiresAsk: true,
@@ -227,12 +196,11 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
       hasOperators: false,
       workspaceBound,
       resolvedPaths,
-      baseCommand,
+      baseCommand: effectiveCommand,
       flags,
     };
   }
-  
-  // Safe command - no ask needed
+
   return {
     requiresAsk: false,
     riskCategory: 'side-effect',
@@ -241,31 +209,22 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
     hasOperators: false,
     workspaceBound: true,
     resolvedPaths: [],
-    baseCommand,
+    baseCommand: effectiveCommand,
     flags,
   };
 }
 
-// =============================================================================
-// Execute
-// =============================================================================
-
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    // Analyze risk (includes parsed command info)
     const risk = analyzeRisk(input.command, ctx);
-    
-    // Check for outside workspace CWD (separate from command path checking)
+
     const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
     const outsideWorkspaceCwd = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
-    
-    // Handle permission asks with structured requests
+
     if (risk.requiresAsk) {
       let permAsk;
-      
-      // Use structured helpers based on risk category
+
       if (outsideWorkspaceCwd) {
-        // CWD is outside workspace - use outside workspace ask
         permAsk = createOutsideWorkspaceAsk({
           command: input.command,
           cwd: resolvedCwd,
@@ -273,7 +232,6 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
           hasOperators: risk.hasOperators,
         });
       } else if (risk.riskCategory === 'outside-workspace') {
-        // Command references outside paths - use structured ask
         permAsk = createShellPermissionAskStructured({
           command: input.command,
           baseCommand: risk.baseCommand,
@@ -286,7 +244,6 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
           hasOperators: risk.hasOperators,
         });
       } else if (risk.riskCategory === 'workspace-modification') {
-        // Workspace filesystem modification
         permAsk = createWorkspaceModificationAsk({
           command: input.command,
           baseCommand: risk.baseCommand,
@@ -294,7 +251,6 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
           hasOperators: risk.hasOperators,
         });
       } else {
-        // Dangerous/side-effect commands - use full structured ask
         permAsk = createShellPermissionAskStructured({
           command: input.command,
           baseCommand: risk.baseCommand,
@@ -307,16 +263,16 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
           hasOperators: risk.hasOperators,
         });
       }
-      
+
       const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
-    
+
     const cwd = input.cwd ? ctx.fs.resolve(input.cwd) : ctx.workspacePath;
 
     let shell: string[];
     const platform = await detectPlatform();
-    
+
     if (platform === 'windows') {
       shell = await detectWindowsShell();
     } else {

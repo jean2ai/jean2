@@ -53,14 +53,14 @@ export type PermissionMatcher = GrantMatcher;
 // =============================================================================
 
 export type PermissionResource =
-  | 'file'           // Read/write/edit files
-  | 'path'           // Any path (workspace or external)
-  | 'directory'      // Directory listing/creation
-  | 'shell-command'   // Shell command execution (NEW - first-class shell)
-  | 'network'        // HTTP/network requests
-  | 'env'           // Environment variable access
-  | 'clipboard'     // Clipboard operations
-  | string;          // Allow custom types
+  | 'file'
+  | 'path'
+  | 'directory'
+  | 'shell-command'
+  | 'network'
+  | 'env'
+  | 'clipboard'
+  | string;
 
 // Legacy compatibility alias
 export type PermissionType = PermissionResource;
@@ -73,14 +73,6 @@ export type PermissionDecision = 'granted' | 'denied' | 'timeout' | 'skipped';
 
 // =============================================================================
 // Permission Scope Definition (tool-authored scope for UI rendering)
-// 
-// Tools use this to describe WHAT the permission applies to, so the UI can
-// render it generically. This is NOT the same as GrantScope.
-// 
-// Examples:
-// - Shell tool: { type: 'shell-command', value: 'rm', label: 'Remove files' }
-// - File tool: { type: 'file', value: '~/secrets/.env', label: 'Sensitive file' }
-// - WebFetch: { type: 'url', value: 'https://example.com', label: 'External URL' }
 // =============================================================================
 
 export interface PermissionScopeDefinition {
@@ -91,121 +83,50 @@ export interface PermissionScopeDefinition {
 
 // =============================================================================
 // Permission Ask (tool-authored, client-rendered)
-// 
-// This is the canonical structure tools use to request permission. The client
-// renders this generically - no tool-specific UI needed.
-// 
-// For shell commands, use 'shell-command' resource type with patterns for
-// command name matching (e.g., { type: 'shell-command', value: 'rm', label: 'Remove files' })
 // =============================================================================
 
 export interface PermissionAsk {
   type: 'permission';
-  
-  // The question to ask the user (tool-authored, human-readable)
   question: string;
-  
-  // Optional description for context
   description?: string;
-  
-  // Risk level for auto-approval (low-risk can be auto-approved by client)
   risk?: PermissionRiskLevel;
-  
-  // Resource type being accessed (canonical)
-  // Optional - can be inferred from scope.type for common cases
-  // Required for shell-command and network resources
   resource?: PermissionResource;
-  
-  // Optional: structured scope for generic rendering
-  // Shell tool: { type: 'shell-command', value: 'rm', label: 'Remove files' }
-  // File tool: { type: 'file', value: '/path/to/file', label: 'Sensitive file' }
   scope?: PermissionScopeDefinition | PermissionScopeDefinition[];
-  
-  // Optional: default duration preference from tool
   duration?: GrantScope;
-  
-  // Optional: command patterns for shell (e.g., ['rm', 'sudo'])
-  // Use shell-command resource type + patterns for command matching
   patterns?: string[];
-  
-  // Optional: paths for file operations
   paths?: string[];
-  
-  // Optional: arbitrary metadata for backward compatibility
   metadata?: Record<string, unknown>;
 }
 
 // =============================================================================
 // Permission Ask Response (user's decision)
-// 
-// The user chooses:
-// - grant: The grant scope (once/session/workspace/always)
-// - scope: Optional specific scope for pattern matching (default: exact match)
-// - duration: Optional duration in ms (only for session scope grants)
 // =============================================================================
 
 export interface AskPermissionResponse {
   type: 'permission';
-  
-  // The grant scope chosen by user (deny = reject the request)
   grant: GrantScope | 'deny';
-  
-  // Optional: The specific scope/pattern to grant (for glob/shell-command matchers)
-  // Example: 'rm*' to match all rm variants, or '~/projects/*' for file glob
   scope?: string;
-  
-  // Optional: Duration in ms for session-scoped grants
-  // Only applies when grant === 'session'
   duration?: number;
 }
 
 // =============================================================================
 // Persisted Permission Grant (storage format)
-// 
-// Human-reviewable structure for the permissions UI.
-// Shows: who granted, when, what scope, what patterns.
 // =============================================================================
 
 export interface PermissionGrant {
   id: string;
   workspaceId: string;
-  
-  // Tool that requested this permission
   toolName: string;
-  
-  // Resource type (file, path, shell-command, network, etc.)
   resource: PermissionResource;
-  
-  // Grant scope (once/session/workspace/always)
   scope: GrantScope;
-  
-  // Matcher for pattern matching
   matcher: GrantMatcher;
-  
-  // The pattern(s) this grant applies to
-  // For shell-command: ['rm', 'sudo'] or ['curl:*']
-  // For file: ['/path/to/file'] or ['~/secrets/*']
   patterns: string[];
-  
-  // Whether this grant allows or denies
   allowed: boolean;
-  
-  // When this grant was created
   grantedAt: string;
-  
-  // When this grant expires (null for workspace/always)
-  // For session scope: computed from duration
   expiresAt: string | null;
-  
-  // Who granted this (null for auto-grants)
   grantedBy: string | null;
-  
-  // Revocation tracking
   revokedAt: string | null;
   revokedBy: string | null;
-  
-  // Human-readable metadata for review UI
-  // Example: { description: 'Remove files command', command: 'rm -rf' }
   metadata: Record<string, unknown> | null;
 }
 
@@ -217,12 +138,12 @@ export interface PermissionGrantOptions {
   scope?: GrantScope;
   matcher?: GrantMatcher;
   patterns?: string[];
-  duration?: number; // ms, for session scope expiration
+  duration?: number;
   description?: string;
 }
 
 // =============================================================================
-// Legacy Types (kept for migration - will be deprecated)
+// Legacy Types
 // =============================================================================
 
 export interface ToolPermission {
@@ -239,7 +160,6 @@ export interface ToolPermission {
   metadata: Record<string, unknown> | null;
 }
 
-// Legacy exports
 export type PermissionAction = string;
 export type PermissionResourceLegacy = string;
 export type PermissionDuration = 'request' | 'session' | 'workspace' | 'always';
@@ -269,16 +189,15 @@ export interface SecurityCheckResult {
 // Shell-Specific Permission Helpers
 // =============================================================================
 
-// Dangerous command categories for shell permission requests
 export const SHELL_DANGEROUS_COMMANDS = [
-  'rm', 'rmdir', 'del', 'erase',     // Delete
-  'sudo', 'su', 'doas',               // Privilege escalation
-  'chmod', 'chown',                   // Permissions
-  'dd', 'mkfs', 'format',             // Destructive disk
-  'shutdown', 'reboot', 'halt',       // System control
-  'iptables', 'ufw', 'firewall-cmd',  // Firewall
-  'curl', 'wget', 'nc', 'netcat',      // Network download
-  'eval', 'exec',                     // Code execution
+  'rm', 'rmdir', 'del', 'erase',
+  'sudo', 'su', 'doas',
+  'chmod', 'chown',
+  'dd', 'mkfs', 'format',
+  'shutdown', 'reboot', 'halt',
+  'iptables', 'ufw', 'firewall-cmd',
+  'curl', 'wget', 'nc', 'netcat',
+  'eval', 'exec',
 ] as const;
 
 export const SHELL_FILESYSTEM_COMMANDS = [
@@ -288,7 +207,89 @@ export const SHELL_FILESYSTEM_COMMANDS = [
 
 export const SHELL_SHELL_OPERATORS = ['&&', '||', '|', '>', '>>', '`', '$(', ';'] as const;
 
-// Sensitive file patterns
+export interface ParsedShellSegment {
+  raw: string;
+  baseCommand: string;
+  args: string[];
+  flags: string[];
+}
+
+export function splitShellCommandSegments(command: string): ParsedShellSegment[] {
+  const normalized = command
+    .replace(/&&|\|\||;|\||>>|>|`|\$\(/g, '\n')
+    .split('\n')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  return normalized.map((segment) => {
+    const parts = segment.split(/\s+/);
+    const baseCommand = parts[0]?.replace(/.*\//, '') || '';
+    const args = parts.slice(1);
+    const flags = args.filter(arg => arg.startsWith('-'));
+    return {
+      raw: segment,
+      baseCommand,
+      args,
+      flags,
+    };
+  });
+}
+
+function normalizeShellCommandIdentity(segment: ParsedShellSegment): string {
+  const base = segment.baseCommand;
+  const firstNonFlagArg = segment.args.find(arg => !arg.startsWith('-'));
+
+  if (!base) {
+    return segment.raw;
+  }
+
+  if (base === 'git' && firstNonFlagArg) {
+    return `git ${firstNonFlagArg}`;
+  }
+
+  if (['npm', 'pnpm', 'yarn', 'bun', 'cargo'].includes(base) && firstNonFlagArg) {
+    return `${base} ${firstNonFlagArg}`;
+  }
+
+  return base;
+}
+
+function getShellCommandDangerPriority(identity: string): number {
+  const lower = identity.toLowerCase();
+
+  if (lower === 'shutdown' || lower === 'reboot' || lower === 'halt') return 5;
+  if (lower === 'sudo' || lower === 'su' || lower === 'doas' || lower === 'chmod' || lower === 'chown') return 4;
+  if (lower === 'rm' || lower.startsWith('rm ') || lower === 'rmdir' || lower === 'del' || lower === 'erase' || lower === 'dd' || lower === 'mkfs' || lower === 'format') return 3;
+  if (lower === 'mv' || lower === 'cp' || lower === 'mkdir' || lower === 'touch' || lower === 'ln' || lower === 'git push' || lower === 'git reset') return 2;
+  if (lower === 'curl' || lower === 'wget' || lower === 'nc' || lower === 'netcat' || lower === 'iptables' || lower === 'ufw' || lower === 'firewall-cmd' || lower === 'eval' || lower === 'exec') return 1;
+  return 0;
+}
+
+export function getEffectiveShellCommandIdentity(command: string): string {
+  const segments = splitShellCommandSegments(command);
+  if (segments.length === 0) {
+    return '';
+  }
+
+  let selectedIdentity = normalizeShellCommandIdentity(segments[0]);
+  let selectedPriority = getShellCommandDangerPriority(selectedIdentity);
+
+  for (const segment of segments.slice(1)) {
+    const identity = normalizeShellCommandIdentity(segment);
+    const priority = getShellCommandDangerPriority(identity);
+    if (priority > selectedPriority) {
+      selectedIdentity = identity;
+      selectedPriority = priority;
+    }
+  }
+
+  return selectedIdentity;
+}
+
+function isDangerousShellIdentity(identity: string): boolean {
+  return getShellCommandDangerPriority(identity) > 0;
+}
+
 export const SENSITIVE_FILE_PATTERNS = [
   '.env', '.pem', '.key', '.ssh/', 'id_rsa', 'id_ed25519',
   '.gitconfig', '.npmrc', 'credentials', 'secrets', 'password',
@@ -297,21 +298,10 @@ export const SENSITIVE_FILE_PATTERNS = [
 
 // =============================================================================
 // Canonical Shell Permission Helpers
-// 
-// These helpers create structured permission asks that:
-// 1. Use canonical PermissionAsk format with scope definitions
-// 2. Include rich metadata for grant review UI
-// 3. Provide patterns for matcher-based grant matching
-// 4. Distinguish between risk categories (destructive vs side-effect)
 // =============================================================================
 
-// Shell risk categories for determining persistability
 export type ShellRiskCategory = 'destructive' | 'side-effect' | 'workspace-modification' | 'network' | 'outside-workspace';
 
-/**
- * Creates a structured shell permission ask for dangerous commands.
- * Uses canonical format with explicit scope and patterns for grant matching.
- */
 export function createShellPermissionAskStructured(params: {
   command: string;
   baseCommand: string;
@@ -323,60 +313,43 @@ export function createShellPermissionAskStructured(params: {
   workspaceBound: boolean;
   hasOperators: boolean;
 }): PermissionAsk {
-  // Build patterns for matching grants
-  // For operator-bearing commands: use EXACT full command as primary pattern
-  // For non-operator commands: use base command (existing behavior)
+  const commandIdentity = getEffectiveShellCommandIdentity(params.command);
   const patterns: string[] = [];
-  
-  if (params.hasOperators) {
-    // Operator-bearing command: use exact full command as primary pattern
-    // This enables precise grant matching (e.g., "cat .env | head -5" matches only itself)
-    patterns.push(params.command);
-  } else {
-    // Non-operator command: use base command (existing behavior)
-    if (params.baseCommand) {
-      patterns.push(params.baseCommand);
-    }
 
-    // Destructive commands like rm -rf: add specific patterns
-    if (params.baseCommand === 'rm' && (params.flags.includes('-rf') || params.flags.includes('-r'))) {
-      patterns.push('rm:-rf');
-      patterns.push('rm:-r');
-    }
+  if (commandIdentity) {
+    patterns.push(commandIdentity);
   }
-  
-  // Add path patterns if outside workspace
+
+  if (commandIdentity === 'rm' && (params.flags.includes('-rf') || params.flags.includes('-r'))) {
+    patterns.push('rm:-rf');
+    patterns.push('rm:-r');
+  }
+
   if (params.resolvedPaths && params.resolvedPaths.length > 0) {
     for (const p of params.resolvedPaths) {
       patterns.push(`path:${p}`);
     }
   }
-  
-  // Build the scope definition for UI rendering
+
   const scope: PermissionScopeDefinition = {
     type: 'shell-command',
-    value: params.baseCommand,
-    label: formatCommandLabel(params.baseCommand, params.flags),
+    value: commandIdentity,
+    label: formatCommandLabel(commandIdentity || params.baseCommand, params.flags),
   };
-  
-  // Determine default duration preference based on risk category
-  // Destructive commands should not persist, side-effects can
+
   let duration: 'once' | 'session' | 'workspace' = 'workspace';
-  if (params.riskCategory === 'destructive' || params.riskCategory === 'network') {
-    duration = 'session'; // Don't persist forever for dangerous commands
+  if (params.riskCategory === 'destructive' || params.riskCategory === 'network' || isDangerousShellIdentity(commandIdentity)) {
+    duration = 'session';
   }
-  
-  // Build rich question that makes clear what's being approved
+
   let question = `Run command "${truncateCommand(params.command)}"`;
-  
   if (params.workspaceBound) {
     question += ` (within workspace)`;
   } else {
     question += ` (references paths outside workspace)`;
   }
-  
   question += `: ${params.reason}. Requires approval.`;
-  
+
   return {
     type: 'permission',
     question,
@@ -387,44 +360,48 @@ export function createShellPermissionAskStructured(params: {
     duration,
     metadata: {
       command: params.command,
-      baseCommand: params.baseCommand,
+      baseCommand: commandIdentity,
       flags: params.flags,
       riskCategory: params.riskCategory,
       reason: params.reason,
       resolvedPaths: params.resolvedPaths,
       workspaceBound: params.workspaceBound,
       hasOperators: params.hasOperators,
-      description: buildDescription(params),
+      description: buildDescription({
+        baseCommand: commandIdentity,
+        flags: params.flags,
+        riskCategory: params.riskCategory,
+        workspaceBound: params.workspaceBound,
+        hasOperators: params.hasOperators,
+      }),
     },
   };
 }
 
-/**
- * Creates a structured permission ask for commands outside workspace.
- * Uses canonical format with path scope.
- */
 export function createOutsideWorkspaceAsk(params: {
   command: string;
   cwd: string;
   resolvedPaths: string[];
   hasOperators?: boolean;
 }): PermissionAsk {
+  const commandIdentity = getEffectiveShellCommandIdentity(params.command);
   const scope: PermissionScopeDefinition = {
     type: 'path',
     value: params.cwd,
     label: params.cwd.split('/').pop() || params.cwd,
   };
-  
+
   return {
     type: 'permission',
     question: `Command "${truncateCommand(params.command)}" runs in directory outside workspace (${params.cwd}). Requires approval.`,
     risk: 'medium',
     resource: 'shell-command',
     scope,
-    patterns: [`cwd:${params.cwd}`],
-    duration: 'session', // Don't persist - outside workspace commands should be re-confirmed
+    patterns: [commandIdentity || `cwd:${params.cwd}`],
+    duration: 'session',
     metadata: {
       command: params.command,
+      baseCommand: commandIdentity,
       cwd: params.cwd,
       resolvedPaths: params.resolvedPaths,
       riskCategory: 'outside-workspace',
@@ -434,54 +411,49 @@ export function createOutsideWorkspaceAsk(params: {
   };
 }
 
-/**
- * Creates a structured permission ask for filesystem-modifying commands within workspace.
- * Distinguishes from destructive commands.
- */
 export function createWorkspaceModificationAsk(params: {
   command: string;
   baseCommand: string;
   resolvedPaths: string[];
   hasOperators?: boolean;
 }): PermissionAsk {
+  const commandIdentity = getEffectiveShellCommandIdentity(params.command);
   const scope: PermissionScopeDefinition = {
     type: 'shell-command',
-    value: params.baseCommand,
-    label: `${params.baseCommand} (workspace)`,
+    value: commandIdentity,
+    label: `${commandIdentity || params.baseCommand} (workspace)`,
   };
-  
+
   return {
     type: 'permission',
     question: `Run filesystem command "${truncateCommand(params.command)}" within workspace. Requires approval.`,
     risk: 'medium',
     resource: 'shell-command',
     scope,
-    patterns: [params.baseCommand],
-    duration: 'session', // Can be session-persisted but not forever
+    patterns: [commandIdentity || params.baseCommand],
+    duration: 'session',
     metadata: {
       command: params.command,
-      baseCommand: params.baseCommand,
+      baseCommand: commandIdentity || params.baseCommand,
       resolvedPaths: params.resolvedPaths,
       riskCategory: 'workspace-modification',
-      description: `Workspace filesystem: ${params.baseCommand}`,
+      description: `Workspace filesystem: ${commandIdentity || params.baseCommand}`,
       hasOperators: params.hasOperators ?? false,
     },
   };
 }
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
 
 function truncateCommand(cmd: string, maxLen = 80): string {
   return cmd.length > maxLen ? cmd.slice(0, maxLen) + '...' : cmd;
 }
 
 function formatCommandLabel(baseCommand: string, flags: string[]): string {
+  if (!baseCommand) {
+    return '';
+  }
   if (flags.length === 0) {
     return baseCommand;
   }
-  // Show common flags in label
   const commonFlags = flags.slice(0, 3).join(' ');
   return commonFlags ? `${baseCommand} ${commonFlags}` : baseCommand;
 }
@@ -494,7 +466,7 @@ function buildDescription(params: {
   hasOperators: boolean;
 }): string {
   const parts: string[] = [];
-  
+
   switch (params.riskCategory) {
     case 'destructive':
       parts.push('Destructive operation');
@@ -512,19 +484,18 @@ function buildDescription(params: {
       parts.push('Outside workspace');
       break;
   }
-  
+
   if (!params.workspaceBound) {
     parts.push('References external paths');
   }
-  
+
   if (params.hasOperators) {
     parts.push('Contains shell operators');
   }
-  
+
   return parts.join(' • ');
 }
 
-// Helper to create a file permission ask with structured patterns and clear justification
 export function createFilePermissionAsk(params: {
   path: string;
   operation: 'read' | 'write' | 'edit';
@@ -535,133 +506,100 @@ export function createFilePermissionAsk(params: {
 }): PermissionAsk {
   const operationLabel = params.operation === 'read' ? 'Reading' : params.operation === 'write' ? 'Writing' : 'Editing';
   const fileName = params.path.split('/').pop() || params.path;
-  
-  // Build rich question with explicit context
+
   let question = `${operationLabel} file "${fileName}"`;
-  
+
   if (params.isSensitiveFile) {
     question += ' (sensitive file)';
   } else if (params.isOutsideWorkspace) {
     question += ' (outside workspace)';
   }
-  
+
   question += ' requires approval.';
-  
-  // Add reason if provided
+
   if (params.reason) {
     question += ` ${params.reason}`;
   }
-  
-  // Build patterns for grant matching (like shell tool does)
+
   const patterns: string[] = [];
   patterns.push(`file:${params.path}`);
   patterns.push(`file:${fileName}`);
-  
+
   if (params.isOutsideWorkspace) {
     patterns.push('outside-workspace');
   }
-  
+
   if (params.isSensitiveFile) {
     patterns.push('sensitive-file');
   }
-  
-  // Determine default duration based on risk
+
   let duration: GrantScope = 'workspace';
   if (params.isSensitiveFile || params.risk === 'high' || params.risk === 'critical') {
-    duration = 'session'; // Don't persist forever for sensitive files
+    duration = 'session';
   }
-  
+
   return {
     type: 'permission',
     question,
     risk: params.risk,
     resource: 'file',
     paths: [params.path],
-    scope: {
-      type: 'file',
-      value: params.path,
-      label: fileName,
-    },
     patterns,
     duration,
     metadata: {
       operation: params.operation,
+      path: params.path,
       fileName,
       isOutsideWorkspace: params.isOutsideWorkspace ?? false,
       isSensitiveFile: params.isSensitiveFile ?? false,
-      description: [
-        params.isOutsideWorkspace ? 'External file access' : 'Workspace file access',
-        params.isSensitiveFile ? 'Sensitive file pattern detected' : null,
-        params.reason ? params.reason : null,
-      ].filter(Boolean).join(' • '),
+      reason: params.reason,
     },
   };
 }
 
-// =============================================================================
-// WebFetch Permission Helper
-// 
-// Creates a structured permission ask for network/URL fetch operations.
-// Follows the canonical pattern used by shell and file tools.
-// =============================================================================
-
-/**
- * Creates a structured permission ask for web fetch operations.
- * Uses canonical format with explicit URL/host context for clear user understanding.
- */
 export function createWebfetchPermissionAsk(params: {
   url: string;
-  hostname: string;
-  protocol: string;
-  risk?: PermissionRiskLevel;
+  host: string;
+  risk: PermissionRiskLevel;
+  reason?: string;
+  isHttp?: boolean;
 }): PermissionAsk {
-  const isHttp = params.protocol === 'http:';
-  const truncatedUrl = params.url.length > 80 ? params.url.slice(0, 77) + '...' : params.url;
-  
-  // Build explicit question with URL and host info
-  let question = `Fetching URL "${truncatedUrl}" from host "${params.hostname}"`;
-  
-  if (isHttp) {
-    question += ' (unencrypted connection)';
+  let question = `Fetch URL "${params.host}"`;
+
+  if (params.isHttp) {
+    question += ' (unencrypted HTTP)';
   }
-  
-  question += '. Requires approval.';
-  
-  // Determine risk level based on protocol
-  const risk = params.risk ?? (isHttp ? 'medium' : 'low');
-  
-  // Build patterns for grant matching
-  const patterns: string[] = [];
-  patterns.push(`url:${params.url}`);
-  patterns.push(`host:${params.hostname}`);
-  
-  if (isHttp) {
-    patterns.push('http-protocol');
+
+  question += ' requires approval.';
+
+  if (params.reason) {
+    question += ` ${params.reason}`;
   }
-  
-  // HTTP should be session-scoped, HTTPS can be workspace-scoped
-  const duration: GrantScope = isHttp ? 'session' : 'workspace';
-  
+
+  const patterns: string[] = [params.host, params.url];
+
+  let duration: GrantScope = 'workspace';
+  if (params.isHttp || params.risk === 'high' || params.risk === 'critical') {
+    duration = 'session';
+  }
+
   return {
     type: 'permission',
     question,
-    risk,
+    risk: params.risk,
     resource: 'network',
     scope: {
       type: 'resource',
       value: params.url,
-      label: params.hostname,
+      label: params.host,
     },
     patterns,
     duration,
     metadata: {
       url: params.url,
-      hostname: params.hostname,
-      protocol: params.protocol,
-      isHttp,
-      description: isHttp 
-        ? `HTTP fetch from ${params.hostname} (unencrypted)` 
-        : `HTTPS fetch from ${params.hostname}`,
+      host: params.host,
+      isHttp: params.isHttp ?? false,
+      reason: params.reason,
     },
   };
 }
