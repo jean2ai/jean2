@@ -138,10 +138,42 @@ function initializeSchema(db: Database): void {
       granted_by TEXT,
       revoked_at TEXT,
       revoked_by TEXT,
+      expires_at TEXT,
+      scope TEXT,
+      duration TEXT,
       metadata TEXT,
       FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
     )
   `);
+
+  // Migration: add new columns if they don't exist (for existing databases)
+  const addColumnIfNotExists = (table: string, column: string, type: string) => {
+    try {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    } catch (_e: unknown) {
+      // Column may already exist
+    }
+  };
+
+  addColumnIfNotExists('tool_permissions', 'expires_at', 'TEXT');
+  addColumnIfNotExists('tool_permissions', 'scope', 'TEXT');
+  addColumnIfNotExists('tool_permissions', 'duration', 'TEXT');
+
+  // Migration: rename permission_type column to resource in permission_grants
+  // This fixes the schema/query mismatch between the canonical PermissionResource type
+  // and the old column name. Must run before any queries use the 'resource' column name.
+  try {
+    // Check if old column exists and new column doesn't
+    const columns = db.query("PRAGMA table_info(permission_grants)").all() as { name: string }[];
+    const columnNames = new Set(columns.map(c => c.name));
+    if (columnNames.has('permission_type') && !columnNames.has('resource')) {
+      db.run('ALTER TABLE permission_grants ADD COLUMN resource TEXT');
+      // Migrate data from permission_type to resource
+      db.run('UPDATE permission_grants SET resource = permission_type WHERE resource IS NULL');
+    }
+  } catch (_e: unknown) {
+    // Migration may have already been applied or table doesn't exist yet
+  }
 
   // Index for fast permission lookups
   db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_lookup
@@ -154,6 +186,40 @@ function initializeSchema(db: Database): void {
   // Index for history queries
   db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history
     ON tool_permissions(workspace_id, granted_at)`);
+
+  // =============================================================================
+  // New Structured Permission Grants Table
+  // =============================================================================
+
+  db.run(`CREATE TABLE IF NOT EXISTS permission_grants (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'persistent',
+    matcher TEXT NOT NULL DEFAULT 'exact',
+    pattern TEXT NOT NULL,
+    tool_name TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    allowed INTEGER NOT NULL,
+    granted_at TEXT NOT NULL,
+    expires_at TEXT,
+    granted_by TEXT,
+    revoked_at TEXT,
+    revoked_by TEXT,
+    metadata TEXT,
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+  )`);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_lookup
+    ON permission_grants(workspace_id, tool_name, resource, revoked_at)`);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_workspace
+    ON permission_grants(workspace_id, revoked_at)`);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_pattern
+    ON permission_grants(workspace_id, tool_name, pattern)`);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_scope
+    ON permission_grants(workspace_id, scope, granted_by)`);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS pending_asks (

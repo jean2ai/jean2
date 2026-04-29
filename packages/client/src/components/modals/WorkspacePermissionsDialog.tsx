@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { RefreshCw, Trash2, Shield } from 'lucide-react';
-import type { ToolPermission } from '@jean2/sdk';
+import type { PermissionGrant } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 interface WorkspacePermissionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  permissions: ToolPermission[];
+  permissions: PermissionGrant[];
   onRefreshPermissions: () => void;
   onRevokePermission: (permissionId: string) => void;
   onRevokeAllPermissions: () => void;
@@ -58,10 +58,10 @@ export function WorkspacePermissionsDialog({
           <div className="flex items-center justify-between">
             <div>
               <Label className="text-sm font-medium">
-                Always-allowed Operations
+                Saved Permissions
               </Label>
               <p className="text-sm text-muted-foreground">
-                Tools you've approved to run without asking
+                Tool permissions saved for this workspace
               </p>
             </div>
             <div className="flex gap-2">
@@ -91,9 +91,9 @@ export function WorkspacePermissionsDialog({
           <ScrollArea className="h-[350px]">
             {activePermissions.length === 0 && revokedPermissions.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">
-                No permissions granted yet.
+                No saved permissions yet.
                 <br />
-                Approve tool requests with "Always allow" to add them here.
+                Saved permission grants will appear here after approval.
               </div>
             )}
 
@@ -134,7 +134,7 @@ export function WorkspacePermissionsDialog({
         open={showRevokeAllConfirm}
         onOpenChange={setShowRevokeAllConfirm}
         title="Revoke All Permissions"
-        description="This will revoke all always-allowed permissions for this workspace. You'll need to approve these tools again when they're used."
+        description="This will revoke all saved permissions for this workspace. The tools will need to be approved again when used."
         confirmLabel="Revoke All"
         variant="destructive"
         onConfirm={() => {

@@ -1,3 +1,8 @@
+import type {
+  GrantScope,
+  PermissionDuration,
+} from '../shared-types/permission';
+
 export interface SessionCreateMessage {
   type: 'session.create';
   workspaceId?: string;
@@ -60,6 +65,10 @@ export interface SessionRenameMessage {
   title: string;
 }
 
+// =============================================================================
+// Permission Grant Management (Client → Server)
+// =============================================================================
+
 export interface PermissionListRequestMessage {
   type: 'permission.list';
   workspaceId: string;
@@ -68,12 +77,28 @@ export interface PermissionListRequestMessage {
 
 export interface PermissionRevokeMessage {
   type: 'permission.revoke';
-  permissionId: string;
+  grantId: string;
 }
 
 export interface PermissionRevokeAllMessage {
   type: 'permission.revoke_all';
   workspaceId: string;
+}
+
+// New structured permission response (replaces old alwaysAllow pattern)
+export interface PermissionGrantMessage {
+  type: 'permission.grant';
+  requestId: string;
+  grantedScopes: GrantScope[];
+  rememberDecision?: boolean;
+  rememberDuration?: PermissionDuration;
+  userNote?: string;
+}
+
+export interface PermissionDenyMessage {
+  type: 'permission.deny';
+  requestId: string;
+  reason?: string;
 }
 
 
@@ -174,6 +199,8 @@ export type ClientMessage =
   | PermissionListRequestMessage
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage
+  | PermissionGrantMessage
+  | PermissionDenyMessage
   | SessionCompactMessage
   | SessionRevertMessage
   | SessionForkMessage

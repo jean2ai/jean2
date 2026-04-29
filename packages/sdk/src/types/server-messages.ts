@@ -19,6 +19,7 @@ import type {
   ChatUsageMessage,
   CompactionCompleteMessage,
   PermissionListMessage,
+  PermissionGrantedMessage,
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
   QueueListMessage,
@@ -100,12 +101,13 @@ export interface SdkEventMap {
     tokensUsed: CompactionCompleteMessage['tokensUsed'],
   ];
 
-  // Permission grant management events (persisted grants only - no separate granted event; grants are managed via ask.response with alwaysAllow)
+  // Permission grant management events (uses new PersistedPermissionGrant model)
   'permission.list': [
     workspaceId: PermissionListMessage['workspaceId'],
-    permissions: PermissionListMessage['permissions'],
+    grants: PermissionListMessage['grants'],
   ];
-  'permission.revoked': [permissionId: PermissionRevokedMessage['permissionId']];
+  'permission.granted': [grant: PermissionGrantedMessage['grant']];
+  'permission.revoked': [grantId: PermissionRevokedMessage['grantId']];
   'permission.all_revoked': [
     workspaceId: PermissionAllRevokedMessage['workspaceId'],
     count: PermissionAllRevokedMessage['count'],
@@ -229,10 +231,13 @@ export function routeServerMessage(
       emitter.emit('compaction.complete', msg.sessionId, msg.tokensUsed);
       break;
     case 'permission.list':
-      emitter.emit('permission.list', msg.workspaceId, msg.permissions);
+      emitter.emit('permission.list', msg.workspaceId, msg.grants);
+      break;
+    case 'permission.granted':
+      emitter.emit('permission.granted', msg.grant);
       break;
     case 'permission.revoked':
-      emitter.emit('permission.revoked', msg.permissionId);
+      emitter.emit('permission.revoked', msg.grantId);
       break;
     case 'permission.all_revoked':
       emitter.emit('permission.all_revoked', msg.workspaceId, msg.count);

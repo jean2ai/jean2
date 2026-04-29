@@ -33,7 +33,20 @@ export type { PromptInfo } from '../shared';
 export type {
   ToolPermission,
   PermissionType,
-  PermissionKey,
+  PermissionScope,
+  GrantScope,
+  GrantMatcher,
+  PermissionGrant,
+  PermissionGrantOptions,
+  PermissionDecision,
+  AskPermissionResponse,
+  PermissionAsk,
+  PermissionScopeDefinition,
+  PermissionDuration,
+  PermissionAction,
+  PermissionResource,
+  PermissionRiskLevel,
+  PermissionRisk,
 } from '../shared';
 
 export type {
@@ -63,7 +76,6 @@ export type {
   FormQuestion,
   HumanQuestion,
   ClientCapabilityAsk,
-  PermissionAsk,
   Ask,
   AskTarget,
   AskSingleSelectResponse,
@@ -72,7 +84,6 @@ export type {
   AskConfirmResponse,
   AskFormResponse,
   AskClientCapabilityResponse,
-  AskPermissionResponse,
   AskResponse,
   EnvApi,
   ToolLogger,

@@ -4,11 +4,15 @@ import type { AskPermissionResponse } from '@jean2/sdk';
 import { useAskStore } from '@/stores/askStore';
 
 const permissionHandler: AskHandler = (request) => {
-  if (request.ask.target !== 'permission') return undefined;
+  // Check if it's a permission ask (either with explicit target or canonical type)
+  const ask = request.ask;
+  const isPermissionAsk = ('target' in ask && ask.target === 'permission') || ask.type === 'permission';
+  
+  if (!isPermissionAsk) return undefined;
 
   // Only auto-approve low-risk permissions
-  if (request.ask.risk === 'low') {
-    return { type: 'permission', allowed: true } satisfies AskPermissionResponse;
+  if ('risk' in ask && ask.risk === 'low') {
+    return { type: 'permission', grant: 'session' } satisfies AskPermissionResponse;
   }
 
   // Fall through to user UI

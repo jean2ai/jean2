@@ -1,5 +1,6 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { DiffVisualization } from '@jean2/sdk';
+import { createFilePermissionAsk, SENSITIVE_FILE_PATTERNS } from '@jean2/sdk';
 
 interface Input {
   path: string;
@@ -22,7 +23,7 @@ interface MatchInfo {
 
 export const definition: ToolDefinition = {
   name: 'edit',
-  description: 'Performs string replacements in files with fuzzy matching support.\n\nWhen to use:\n- Modifying existing code or configuration\n- Making targeted changes to specific files\n- Replacing content across multiple locations\n\nParameters:\n- path (required): Absolute path to the file to edit\n- oldString (required): The text to find and replace. Preserve exact indentation from read-file output (the part after `<line>: `)\n- newString (required): The replacement text\n- strategy (optional): Matching strategy to use: \'exact\' | \'line_start\' | \'line_end\' | \'partial\' | \'multi_line\'\n\nMatching Strategies (tried in order if no strategy specified):\n1. exact: Exact string match\n2. line_start: Match at the start of a line\n3. line_end: Match at the end of a line\n4. partial: Partial/substring match within lines (ignores whitespace differences)\n5. multi_line: Multi-line pattern matching\n\nImportant:\n- You MUST use read-file at least once before editing a file\n- The edit will FAIL if oldString is not found or found multiple times\n- For multiple edits to the same file, use multiedit tool instead',
+  description: 'Performs string replacements in files with fuzzy matching support.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -40,7 +41,7 @@ export const definition: ToolDefinition = {
       },
       strategy: {
         type: 'string',
-        description: "Matching strategy to use: 'exact' | 'line_start' | 'line_end' | 'partial' | 'multi_line'",
+        description: "Matching strategy: 'exact' | 'line_start' | 'line_end' | 'partial' | 'multi_line'",
         enum: ['exact', 'line_start', 'line_end', 'partial', 'multi_line'],
       },
     },
@@ -52,22 +53,16 @@ export const definition: ToolDefinition = {
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
   const langMap: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'typescript',
-    js: 'javascript',
-    jsx: 'javascript',
-    json: 'json',
-    md: 'markdown',
-    css: 'css',
-    html: 'html',
-    py: 'python',
-    go: 'go',
-    rs: 'rust',
-    sh: 'bash',
-    yaml: 'yaml',
-    yml: 'yaml',
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python',
+    go: 'go', rs: 'rust', sh: 'bash', yaml: 'yaml', yml: 'yaml',
   };
   return langMap[ext || ''] || ext || 'text';
+}
+
+function isSensitivePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return SENSITIVE_FILE_PATTERNS.some(p => lower.includes(p));
 }
 
 function exactMatch(content: string, search: string): MatchResult[] {
@@ -147,9 +142,7 @@ function partialMatch(content: string, search: string): MatchResult[] {
 
       let searchIdx = 0;
       for (let j = 0; j < lines[i].length && searchIdx < normalizedSearch.length; j++) {
-        if (/\s/.test(lines[i][j])) {
-          continue;
-        }
+        if (/\s/.test(lines[i][j])) continue;
         if (lines[i][j] === normalizedSearch[searchIdx] || normalizedSearch[searchIdx] === ' ') {
           if (charCount === matchStartInNormalized) {
             actualStart = lineStartIndex + j;
@@ -229,25 +222,34 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       return { success: false, error: `Editing system directories is not allowed: ${input.path}` };
     }
 
-    if (!ctx.isWithinWorkspace(resolvedPath)) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'Editing files outside the workspace requires approval.',
+    // Permission check for outside workspace and sensitive files
+    const outsideWorkspace = !ctx.isWithinWorkspace(resolvedPath);
+    const sensitive = isSensitivePath(resolvedPath);
+
+    // Outside workspace permission ask
+    if (outsideWorkspace) {
+      const permAsk = createFilePermissionAsk({
+        path: input.path,
+        operation: 'edit',
         risk: 'medium',
-        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+        isOutsideWorkspace: true,
       });
+
+      const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
 
-    if (ctx.isSensitivePath(resolvedPath)) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'Editing sensitive files requires approval.',
+    // Sensitive file permission ask (separate ask for clarity)
+    if (sensitive) {
+      const permAsk = createFilePermissionAsk({
+        path: input.path,
+        operation: 'edit',
         risk: 'medium',
-        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+        isSensitiveFile: true,
+        reason: 'This file may contain credentials or secrets.',
       });
+
+      const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
 

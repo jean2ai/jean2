@@ -1,24 +1,24 @@
-import type { ToolPermission, QueuedMessage } from '@jean2/sdk';
+import type { PermissionGrant, QueuedMessage } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 
 export function handlePermissionList(
-  msg: { type: 'permission.list'; workspaceId: string; permissions: ToolPermission[] },
+  msg: { type: 'permission.list'; workspaceId: string; grants: PermissionGrant[] },
   ctx: SessionHandlersContext,
 ): void {
-  const { permissions } = msg;
+  const { grants } = msg;
   const { setPermissions } = ctx;
-  setPermissions(permissions);
+  setPermissions(grants);
 }
 
 export function handlePermissionRevoked(
-  msg: { type: 'permission.revoked'; permissionId: string },
+  msg: { type: 'permission.revoked'; grantId: string },
   ctx: SessionHandlersContext,
 ): void {
-  const { permissionId } = msg;
+  const { grantId } = msg;
   const { setPermissions } = ctx;
 
   setPermissions(prev => prev.map(p =>
-    p.id === permissionId ? { ...p, revokedAt: new Date().toISOString() } : p
+    p.id === grantId ? { ...p, revokedAt: new Date().toISOString() } : p
   ));
 }
 

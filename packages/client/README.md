@@ -14,7 +14,7 @@ Three deployment targets:
 - Multi-model and multi-provider selection (budget/standard/premium tiers)
 - Session management — create, close, reopen, rename, fork, compact, and revert
 - Multi-server and multi-workspace support with quick switching
-- Tool permission approval flow with allow-once and always-allow options
+- Tool permission approval flow with grant scope options (once, session, workspace, always)
 - File tree browser and file path autocomplete
 - MCP (Model Context Protocol) server management
 - Queued messages when a session is busy streaming

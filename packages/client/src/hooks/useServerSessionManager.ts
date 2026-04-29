@@ -6,7 +6,7 @@ import type {
   Message,
   MessageWithParts,
   Workspace,
-  ToolPermission,
+  PermissionGrant,
   ProviderStatus,
   SavedServer,
   QuickConnection,
@@ -57,7 +57,7 @@ export interface UseServerSessionManagerReturn {
   messagesWithParts: MessageWithParts[];
   pendingAskRequests: PendingAskRequest[];
   queuedMessages: Record<string, QueuedMessage[]>;
-  permissions: ToolPermission[];
+  permissions: PermissionGrant[];
 
   sessionUsage: SessionUsage;
   currentModel: string;
@@ -276,7 +276,7 @@ export function useServerSessionManager({
     chatFinishSoundEnabledRef.current = chatFinishSoundEnabled;
   }, [chatFinishSoundEnabled]);
 
-  const [permissions, setPermissions] = useState<ToolPermission[]>([]);
+  const [permissions, setPermissions] = useState<PermissionGrant[]>([]);
   const [_providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
 
   const {

@@ -1,5 +1,6 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
+import { createWebfetchPermissionAsk } from '@jean2/sdk';
 import TurndownService from 'turndown';
 
 interface Input {
@@ -8,13 +9,13 @@ interface Input {
   timeout?: number;
 }
 
-const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
-const DEFAULT_TIMEOUT = 30; // 30 seconds
-const MAX_TIMEOUT = 120; // 2 minutes
+const MAX_RESPONSE_SIZE = 5 * 1024 * 1024;
+const DEFAULT_TIMEOUT = 30;
+const MAX_TIMEOUT = 120;
 
 export const definition: ToolDefinition = {
   name: 'webfetch',
-  description: 'Fetch content from a URL and convert to readable format.\n\nWhen to use:\n- Retrieving documentation from web pages\n- Fetching API documentation\n- Reading web content for analysis\n\nWhen NOT to use:\n- If another tool offers better capabilities for the specific task\n\nUsage:\n- url (required): URL to fetch (must start with http:// or https://)\n- format (optional): Output format - markdown (default), text, or html\n- timeout (optional): Timeout in seconds (max 120)\n\nFormat options:\n- markdown: HTML converted to markdown (best for reading)\n- text: Plain text with HTML tags stripped\n- html: Raw HTML content\n\nNote: Results may be summarized for very large content.',
+  description: 'Fetch content from a URL and convert to readable format.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- HTTP URLs (unencrypted)\n- Private/localhost IPs (blocked)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -29,7 +30,7 @@ export const definition: ToolDefinition = {
       },
       timeout: {
         type: 'number',
-        description: 'Optional timeout in seconds (max 120)',
+        description: 'Timeout in seconds (max 120)',
       },
     },
     required: ['url'],
@@ -113,19 +114,17 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       return { success: false, error: `Access to cloud metadata endpoints is not allowed: ${urlObj.hostname}` };
     }
 
+    // Permission ask for HTTP URLs using canonical structured helper
     if (urlObj.protocol !== 'https:') {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'HTTP URL requires approval (unencrypted connection).',
-        risk: 'low',
-        metadata: { permissionKey: 'tool:webfetch', permissionType: 'tool' }
+      const permAsk = createWebfetchPermissionAsk({
+        url: input.url,
+        hostname: urlObj.hostname,
+        protocol: urlObj.protocol,
+        risk: 'medium',
       });
-      if (!approved) return { success: false, error: 'USER_REJECTION' };
-    }
 
-    if (!input.url.startsWith('http://') && !input.url.startsWith('https://')) {
-      return { success: false, error: 'URL must start with http:// or https://' };
+      const approved = await ctx.ask(permAsk);
+      if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
 
     const timeoutSeconds = Math.min(input.timeout ?? DEFAULT_TIMEOUT, MAX_TIMEOUT);

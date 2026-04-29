@@ -1,26 +1,18 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { ShellOutputVisualization } from '@jean2/sdk';
+import { 
+  SHELL_DANGEROUS_COMMANDS, 
+  SHELL_FILESYSTEM_COMMANDS,
+  createShellPermissionAskStructured,
+  createOutsideWorkspaceAsk,
+  createWorkspaceModificationAsk,
+  type ShellRiskCategory,
+} from '@jean2/sdk';
 
 interface Input {
   command: string;
   cwd?: string;
 }
-
-const DANGEROUS_COMMANDS = [
-  'rm', 'rmdir', 'del', 'erase',
-  'sudo', 'su', 'doas',
-  'chmod', 'chown',
-  'dd', 'mkfs', 'format',
-  'shutdown', 'reboot', 'halt', 'poweroff',
-  'iptables', 'ufw', 'firewall-cmd',
-  'curl', 'wget', 'nc', 'netcat',
-  'eval', 'exec',
-];
-
-const FILESYSTEM_COMMANDS = [
-  'mv', 'cp', 'mkdir', 'touch', 'ln',
-  'git push', 'git reset --hard',
-];
 
 export const definition: ToolDefinition = {
   name: 'shell',
@@ -35,24 +27,27 @@ This tool is for terminal operations (package managers, build tools, etc). DO NO
 - Process management
 - Network operations (curl, etc)
 
-## When NOT to use (use these instead)
+## When NOT to use (use specialized tools instead)
 
-- File search: Use glob tool (NOT find or ls)
-- Content search: Use grep tool (NOT grep command)
-- Read files: Use read-file tool (NOT cat/head/tail)
-- Edit files: Use edit tool (NOT sed/awk)
-- Write files: Use write-file tool (NOT echo >)
+- File search: Use glob tool
+- Content search: Use grep tool
+- Read files: Use read-file tool
+- Edit files: Use edit tool
+- Write files: Use write-file tool
 
 ## Usage
 
-- The cwd parameter sets the working directory. Use this instead of 'cd <directory> && <command>' patterns.
-- Commands timeout after 60 seconds by default.
-- Quote file paths containing spaces with double quotes.
+- The cwd parameter sets the working directory
+- Commands timeout after 60 seconds by default
+- Quote file paths containing spaces with double quotes
 
-## Examples
+## Permission Model
 
-- Good: cwd="/project" command="npm test"
-- Bad: command="cd /project && npm test"`,
+This tool requires explicit permission for:
+- Dangerous commands (rm, sudo, curl, etc.)
+- Filesystem modifications (mv, cp, mkdir, etc.)
+- Commands outside the workspace
+- Commands with shell operators (|, >, &&, etc.)`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -62,7 +57,7 @@ This tool is for terminal operations (package managers, build tools, etc). DO NO
       },
       cwd: {
         type: 'string',
-        description: "Working directory for the command. Defaults to the workspace directory. Use this instead of 'cd <directory> && <command>' patterns.",
+        description: "Working directory for the command",
       },
     },
     required: ['command'],
@@ -70,66 +65,35 @@ This tool is for terminal operations (package managers, build tools, etc). DO NO
   timeout: 60000,
 };
 
-function parseCommand(cmd: string): { baseCommand: string; args: string[] } {
+// =============================================================================
+// Command Parsing
+// =============================================================================
+
+interface ParsedCommand {
+  baseCommand: string;
+  args: string[];
+  flags: string[];
+}
+
+function parseCommand(cmd: string): ParsedCommand {
   const parts = cmd.trim().split(/\s+/);
   const baseCommand = parts[0]?.replace(/.*\//, '') || '';
-  return { baseCommand, args: parts.slice(1) };
+  const args = parts.slice(1);
+  
+  // Extract flags (args starting with -)
+  const flags: string[] = [];
+  for (const arg of args) {
+    if (arg.startsWith('-')) {
+      flags.push(arg);
+    }
+  }
+  
+  return { baseCommand, args, flags };
 }
 
-function getDangerReason(cmd: string, ctx: ToolContext): string | null {
-  if (hasPathOutsideWorkspace(cmd, ctx)) {
-    return 'references paths outside the workspace';
-  }
-
-  const shellOperators = ['&&', '||', '|'];
-  let subCommands: string[] = [cmd];
-
-  for (const op of shellOperators) {
-    const parts = cmd.split(new RegExp(`\\s*${op.replace(/[|&]/g, '\\$&')}\\s*`));
-    if (parts.length > 1) {
-      subCommands = parts;
-      break;
-    }
-  }
-
-  for (const subCmd of subCommands) {
-    const trimmed = subCmd.trim();
-    if (!trimmed) continue;
-
-    const { baseCommand } = parseCommand(trimmed);
-    const lowerSub = trimmed.toLowerCase();
-
-    if (DANGEROUS_COMMANDS.some(dangerous =>
-      baseCommand === dangerous || lowerSub.startsWith(dangerous + ' ')
-    )) {
-      return `contains dangerous command "${baseCommand}"`;
-    }
-
-    if (FILESYSTEM_COMMANDS.some(fs => lowerSub.startsWith(fs))) {
-      return `contains filesystem command "${baseCommand}"`;
-    }
-
-    if (trimmed.includes('>') || trimmed.includes('>>') ||
-        trimmed.includes('`') || trimmed.includes('$(')) {
-      return 'contains shell redirection or substitution';
-    }
-  }
-
-  return null;
-}
-
-function hasPathOutsideWorkspace(cmd: string, ctx: ToolContext): boolean {
-  const paths = extractPathArguments(cmd);
-
-  for (const p of paths) {
-    const resolved = ctx.resolvePath(p);
-    if (!ctx.isWithinWorkspace(resolved)) {
-      return true;
-    }
-  }
-
-  return false;
-}
+// =============================================================================
+// Path Extraction
+// =============================================================================
 
 function extractPathArguments(cmd: string): string[] {
   const paths: string[] = [];
@@ -150,35 +114,204 @@ function extractPathArguments(cmd: string): string[] {
   return paths;
 }
 
+// =============================================================================
+// Risk Analysis
+// =============================================================================
+
+interface RiskAnalysis {
+  requiresAsk: boolean;
+  riskCategory: ShellRiskCategory;
+  risk: 'low' | 'medium' | 'high';
+  reason: string;
+  hasOperators: boolean;
+  workspaceBound: boolean;
+  resolvedPaths: string[];
+  baseCommand: string;
+  flags: string[];
+}
+
+function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
+  const { baseCommand, flags } = parseCommand(cmd);
+  const lowerCmd = cmd.toLowerCase();
+  const paths = extractPathArguments(cmd);
+  const resolvedPaths: string[] = [];
+  let workspaceBound = true;
+  
+  // Resolve and check paths
+  for (const p of paths) {
+    const resolved = ctx.resolvePath(p);
+    resolvedPaths.push(resolved);
+    if (!ctx.isWithinWorkspace(resolved)) {
+      workspaceBound = false;
+    }
+  }
+  
+  // Check for shell operators
+  const shellOperators = ['&&', '||', '|', '>', '>>', '`', '$(', ';'];
+  const hasOperators = shellOperators.some(op => cmd.includes(op));
+  
+  // Check for outside workspace CWD
+  if (ctx.workspacePath) {
+    // This is checked separately
+  }
+  
+  // Check for dangerous commands
+  const isDangerous = SHELL_DANGEROUS_COMMANDS.some(dangerous =>
+    baseCommand === dangerous || lowerCmd.startsWith(dangerous + ' ')
+  );
+  
+  if (isDangerous) {
+    // Categorize dangerous commands
+    let riskCategory: ShellRiskCategory = 'side-effect';
+    
+    if (['rm', 'rmdir', 'del', 'erase', 'dd', 'mkfs', 'format'].includes(baseCommand)) {
+      riskCategory = 'destructive';
+    } else if (['curl', 'wget', 'nc', 'netcat'].includes(baseCommand)) {
+      riskCategory = 'network';
+    } else if (['sudo', 'su', 'doas', 'chmod', 'chown', 'shutdown', 'reboot', 'iptables'].includes(baseCommand)) {
+      riskCategory = 'destructive';
+    }
+    
+    return {
+      requiresAsk: true,
+      riskCategory,
+      risk: 'high',
+      reason: `contains dangerous command "${baseCommand}"`,
+      hasOperators,
+      workspaceBound,
+      resolvedPaths,
+      baseCommand,
+      flags,
+    };
+  }
+  
+  // Check for filesystem commands
+  const isFilesystem = SHELL_FILESYSTEM_COMMANDS.some(fs => lowerCmd.startsWith(fs));
+  
+  if (isFilesystem) {
+    return {
+      requiresAsk: true,
+      riskCategory: 'workspace-modification',
+      risk: workspaceBound ? 'medium' : 'high',
+      reason: `contains filesystem command "${baseCommand}"`,
+      hasOperators,
+      workspaceBound,
+      resolvedPaths,
+      baseCommand,
+      flags,
+    };
+  }
+  
+  // Check for operators (medium risk)
+  if (hasOperators) {
+    return {
+      requiresAsk: true,
+      riskCategory: 'side-effect',
+      risk: 'medium',
+      reason: 'contains shell operators (|, >, &&, etc.)',
+      hasOperators,
+      workspaceBound,
+      resolvedPaths,
+      baseCommand,
+      flags,
+    };
+  }
+  
+  // Check for outside workspace paths (without dangerous commands)
+  if (!workspaceBound) {
+    return {
+      requiresAsk: true,
+      riskCategory: 'outside-workspace',
+      risk: 'medium',
+      reason: 'references paths outside the workspace',
+      hasOperators: false,
+      workspaceBound,
+      resolvedPaths,
+      baseCommand,
+      flags,
+    };
+  }
+  
+  // Safe command - no ask needed
+  return {
+    requiresAsk: false,
+    riskCategory: 'side-effect',
+    risk: 'low',
+    reason: '',
+    hasOperators: false,
+    workspaceBound: true,
+    resolvedPaths: [],
+    baseCommand,
+    flags,
+  };
+}
+
+// =============================================================================
+// Execute
+// =============================================================================
+
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const { baseCommand } = parseCommand(input.command);
-    const dangerReason = getDangerReason(input.command, ctx);
-    const isDangerous = dangerReason !== null;
-
+    // Analyze risk (includes parsed command info)
+    const risk = analyzeRisk(input.command, ctx);
+    
+    // Check for outside workspace CWD (separate from command path checking)
     const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
-    const outsideWorkspace = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
-
-    if (isDangerous) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: `Command "${input.command.slice(0, 50)}${input.command.length > 50 ? '...' : ''}" ${dangerReason} and requires approval.`,
-        risk: 'high',
-        metadata: { permissionKey: `command:${baseCommand}`, permissionType: 'action' }
-      });
-      if (!approved) return { success: false, error: 'USER_REJECTION' };
-    } else if (outsideWorkspace) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'This command runs outside the workspace directory and requires approval.',
-        risk: 'medium',
-        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
-      });
+    const outsideWorkspaceCwd = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
+    
+    // Handle permission asks with structured requests
+    if (risk.requiresAsk) {
+      let permAsk;
+      
+      // Use structured helpers based on risk category
+      if (outsideWorkspaceCwd) {
+        // CWD is outside workspace - use outside workspace ask
+        permAsk = createOutsideWorkspaceAsk({
+          command: input.command,
+          cwd: resolvedCwd,
+          resolvedPaths: risk.resolvedPaths,
+          hasOperators: risk.hasOperators,
+        });
+      } else if (risk.riskCategory === 'outside-workspace') {
+        // Command references outside paths - use structured ask
+        permAsk = createShellPermissionAskStructured({
+          command: input.command,
+          baseCommand: risk.baseCommand,
+          flags: risk.flags,
+          risk: risk.risk,
+          riskCategory: risk.riskCategory,
+          reason: risk.reason,
+          resolvedPaths: risk.resolvedPaths,
+          workspaceBound: risk.workspaceBound,
+          hasOperators: risk.hasOperators,
+        });
+      } else if (risk.riskCategory === 'workspace-modification') {
+        // Workspace filesystem modification
+        permAsk = createWorkspaceModificationAsk({
+          command: input.command,
+          baseCommand: risk.baseCommand,
+          resolvedPaths: risk.resolvedPaths,
+          hasOperators: risk.hasOperators,
+        });
+      } else {
+        // Dangerous/side-effect commands - use full structured ask
+        permAsk = createShellPermissionAskStructured({
+          command: input.command,
+          baseCommand: risk.baseCommand,
+          flags: risk.flags,
+          risk: risk.risk,
+          riskCategory: risk.riskCategory,
+          reason: risk.reason,
+          resolvedPaths: risk.resolvedPaths,
+          workspaceBound: risk.workspaceBound,
+          hasOperators: risk.hasOperators,
+        });
+      }
+      
+      const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
-
+    
     const cwd = input.cwd ? ctx.fs.resolve(input.cwd) : ctx.workspacePath;
 
     let shell: string[];

@@ -444,15 +444,17 @@ function PermissionAskView({
   const [selected, setSelected] = useState<boolean | null>(null);
   const [alwaysAllow, setAlwaysAllow] = useState(false);
 
-  const riskColors = {
+  const riskColors: Record<string, string> = {
+    none: 'text-muted-foreground',
     low: 'text-success',
     medium: 'text-warning',
     high: 'text-destructive',
+    critical: 'text-destructive',
   };
 
   const handleConfirm = () => {
     if (selected !== null) {
-      onRespond({ type: 'permission', allowed: selected, alwaysAllow: selected ? alwaysAllow : undefined });
+      onRespond({ type: 'permission', grant: selected ? 'once' : 'deny' });
     }
   };
 
@@ -463,7 +465,7 @@ function PermissionAskView({
       )}
       {ask.risk && (
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium uppercase ${riskColors[ask.risk]}`}>
+          <span className={`text-xs font-medium uppercase ${riskColors[ask.risk ?? 'none'] ?? 'text-muted-foreground'}`}>
             Risk: {ask.risk}
           </span>
         </div>
@@ -600,14 +602,24 @@ export function AskQuestion({ request, onRespond }: AskQuestionProps) {
     [toolCallId, onRespond, ask],
   );
 
-  // Determine icon and border color by target
-  const targetConfig = {
-    human: { icon: HelpCircle, borderClass: 'border-primary/30 bg-primary/5', iconClass: 'text-primary' },
-    permission: { icon: Shield, borderClass: 'border-warning/30 bg-warning/5', iconClass: 'text-warning' },
-    client: { icon: Monitor, borderClass: 'border-info/30 bg-info/5', iconClass: 'text-info' },
-  };
-
-  const config = targetConfig[ask.target];
+  // Determine icon and border color by type discriminator
+  const config = (() => {
+    if ('type' in ask) {
+      switch (ask.type) {
+        case 'single_select':
+        case 'multi_select':
+        case 'text':
+        case 'confirm':
+        case 'form':
+          return { icon: HelpCircle, borderClass: 'border-primary/30 bg-primary/5', iconClass: 'text-primary' };
+        case 'permission':
+          return { icon: Shield, borderClass: 'border-warning/30 bg-warning/5', iconClass: 'text-warning' };
+        case 'client_capability':
+          return { icon: Monitor, borderClass: 'border-info/30 bg-info/5', iconClass: 'text-info' };
+      }
+    }
+    return { icon: Shield, borderClass: 'border-warning/30 bg-warning/5', iconClass: 'text-warning' };
+  })();
   const Icon = config.icon;
 
   return (
@@ -622,25 +634,25 @@ export function AskQuestion({ request, onRespond }: AskQuestionProps) {
         </div>
       </div>
 
-      {ask.target === 'human' && ask.type === 'single_select' && (
+      {ask.type === 'single_select' && (
         <SingleSelectView question={ask} onSelect={handleSingleSelect} />
       )}
-      {ask.target === 'human' && ask.type === 'multi_select' && (
+      {ask.type === 'multi_select' && (
         <MultiSelectView question={ask} onSelect={handleMultiSelect} />
       )}
-      {ask.target === 'human' && ask.type === 'text' && (
+      {ask.type === 'text' && (
         <TextView question={ask} onSubmit={handleText} />
       )}
-      {ask.target === 'human' && ask.type === 'confirm' && (
+      {ask.type === 'confirm' && (
         <ConfirmView question={ask} onConfirm={handleConfirm} />
       )}
-      {ask.target === 'human' && ask.type === 'form' && (
+      {ask.type === 'form' && (
         <FormView question={ask} onSubmit={handleForm} />
       )}
-      {ask.target === 'permission' && (
+      {(ask.type === 'permission' || !('type' in ask)) && (
         <PermissionAskView ask={ask} onRespond={handlePermission} />
       )}
-      {ask.target === 'client' && (
+      {ask.type === 'client_capability' && (
         <ClientCapabilityAskView ask={ask} onRespond={handleClientCapability} />
       )}
     </div>

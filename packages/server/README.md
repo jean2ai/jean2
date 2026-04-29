@@ -477,7 +477,7 @@ Tools with `"hasSecurityCheck": true` run a `security.ts` script before executio
 }
 ```
 
-If `requiresApproval` is true, the permission request is sent to the client via WebSocket. Approved permissions with "always allow" are cached per workspace.
+If `requiresApproval` is true, the permission request is sent to the client via WebSocket. Approved permission grants are stored per workspace according to their selected scope.
 
 ## MCP (Model Context Protocol)
 

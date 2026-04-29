@@ -33,7 +33,7 @@ import {
   getAttachment,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
-import { getWorkspacePermissions, revokePermission, revokeAllWorkspacePermissions } from '@/store/permissions';
+import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
 import { streamChatWithRetry } from './core/retry';
 import { getModelsConfig, findModel, getPort, getHost } from './config';
 import { executeCompaction } from './core/compaction-executor';
@@ -637,19 +637,19 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
     }
 
     case 'permission.list': {
-      const permissions = getWorkspacePermissions(msg.workspaceId, msg.includeRevoked);
-      send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, permissions });
+      const grants = getWorkspaceGrants(msg.workspaceId, { includeRevoked: msg.includeRevoked });
+      send(ws, { type: 'permission.list', workspaceId: msg.workspaceId, grants });
       break;
     }
 
     case 'permission.revoke': {
-      revokePermission(msg.permissionId, null);
-      send(ws, { type: 'permission.revoked', permissionId: msg.permissionId });
+      revokeGrant(msg.grantId, null);
+      send(ws, { type: 'permission.revoked', grantId: msg.grantId });
       break;
     }
 
     case 'permission.revoke_all': {
-      const count = revokeAllWorkspacePermissions(msg.workspaceId, null);
+      const count = revokeAllWorkspaceGrants(msg.workspaceId, null);
       send(ws, { type: 'permission.all_revoked', workspaceId: msg.workspaceId, count });
       break;
     }

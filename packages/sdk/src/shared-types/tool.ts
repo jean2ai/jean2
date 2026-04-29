@@ -1,5 +1,47 @@
 import type { AnyVisualization } from './visualization';
 
+// Import permission types for use in this file
+import type {
+  PermissionAsk,
+  AskPermissionResponse,
+} from './permission';
+
+// Export values from permission module (constants and functions)
+export {
+  SHELL_DANGEROUS_COMMANDS,
+  SHELL_FILESYSTEM_COMMANDS,
+  SHELL_SHELL_OPERATORS,
+  SENSITIVE_FILE_PATTERNS,
+  createShellPermissionAskStructured,
+  createOutsideWorkspaceAsk,
+  createWorkspaceModificationAsk,
+  type ShellRiskCategory,
+} from './permission';
+
+// =============================================================================
+// Re-exports from canonical permission contract
+// =============================================================================
+
+export type {
+  PermissionAction,
+  PermissionResource,
+  PermissionRiskLevel,
+  PermissionRisk,
+  PermissionScope,
+  PermissionScopeDefinition,
+  GrantScope,
+  GrantMatcher,
+  PermissionGrant,
+  PermissionGrantOptions,
+  ToolPermission,
+  SecurityCheckInput,
+  SecurityCheckResult,
+  PermissionAsk,
+  AskPermissionResponse,
+  PermissionDuration,
+  PermissionDecision,
+} from './permission';
+
 export type BufferEncoding = 'utf-8' | 'ascii' | 'utf-16le' | 'ucs2' | 'base64' | 'hex' | 'latin1' | 'binary';
 
 // ===========================================
@@ -198,23 +240,15 @@ export interface ClientCapabilityAsk {
   metadata?: Record<string, unknown>;
 }
 
-// --- Permission ask ---
-
-export interface PermissionAsk {
-  type: 'permission';
-  question: string;
-  description?: string;
-  risk?: 'low' | 'medium' | 'high';
-  metadata?: Record<string, unknown>;
-}
-
 // --- Union of all ask types ---
-
+// PermissionAsk can be used directly (tools use canonical shape without target)
+// or with target: 'permission' for explicit routing
 export type Ask =
   | (HumanQuestion & { target: 'human' })
   | (FormQuestion & { target: 'human' })
   | (ClientCapabilityAsk & { target: 'client' })
-  | (PermissionAsk & { target: 'permission' });
+  | (PermissionAsk & { target: 'permission' })
+  | PermissionAsk;
 
 // --- Typed Ask Responses (strongly typed for ask.response payload) ---
 
@@ -258,14 +292,6 @@ export interface AskClientCapabilityResponse {
   result: unknown;
 }
 
-// Response for permission ask
-// When allowed is true and alwaysAllow is true, the permission is persisted for future use
-export interface AskPermissionResponse {
-  type: 'permission';
-  allowed: boolean;
-  alwaysAllow?: boolean;
-}
-
 // Union of all possible ask responses
 export type AskResponse =
   | AskSingleSelectResponse
@@ -285,7 +311,8 @@ export type AskApi = {
   (request: ConfirmQuestion & { target: 'human' }): Promise<AskConfirmResponse['confirmed']>;
   (request: FormQuestion & { target: 'human' }): Promise<AskFormResponse>;
   (request: ClientCapabilityAsk & { target: 'client' }): Promise<AskClientCapabilityResponse['result']>;
-  (request: PermissionAsk & { target: 'permission' }): Promise<AskPermissionResponse['allowed']>;
+  (request: PermissionAsk & { target: 'permission' }): Promise<boolean>;
+  (request: PermissionAsk): Promise<boolean>;
   (request: Ask): Promise<unknown>;
 };
 

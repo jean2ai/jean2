@@ -1,5 +1,6 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
+import { createFilePermissionAsk, SENSITIVE_FILE_PATTERNS } from '@jean2/sdk';
 
 const DEFAULT_READ_LIMIT = 2000;
 const MAX_LINE_LENGTH = 2000;
@@ -14,7 +15,7 @@ interface Input {
 
 export const definition: ToolDefinition = {
   name: 'read-file',
-  description: 'Read a file or directory from the filesystem. If the path does not exist, an error is returned.\n\nUsage:\n- The path parameter should be an absolute path.\n- By default, returns up to 2000 lines from the start of the file.\n- The offset parameter is the line number to start from (1-indexed).\n- To read later sections, call this tool again with a larger offset.\n- Use the grep tool to find specific content in large files.\n- If unsure of the file path, use the glob tool to look up filenames.\n\nOutput format:\n- File contents are prefixed with line numbers as `<line>: <content>`\n- For directories, entries are listed one per line with trailing `/` for subdirectories\n- Lines longer than 2000 characters are truncated\n\nBest practices:\n- Call this tool in parallel when reading multiple files\n- Avoid tiny repeated slices. If you need more context, read a larger window\n- This tool can read image files and PDFs as file attachments.',
+  description: 'Read a file or directory from the filesystem.\n\nUsage:\n- The path parameter should be an absolute path.\n- By default, returns up to 2000 lines from the start of the file.\n- The offset parameter is the line number to start from (1-indexed).\n- To read later sections, use a larger offset.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -56,6 +57,11 @@ async function isBinaryFile(filePath: string, content: string): Promise<boolean>
   return bytes.length > 0 && nonPrintableCount / bytes.length > 0.3;
 }
 
+function isSensitivePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return SENSITIVE_FILE_PATTERNS.some(p => lower.includes(p));
+}
+
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
     const resolvedPath = ctx.resolvePath(input.path);
@@ -69,25 +75,33 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     const isJean2Temp = jean2TempPrefix && resolvedPath.startsWith(jean2TempPrefix);
 
     if (!isJean2Temp && ctx.allowedPaths && !ctx.allowedPaths.some(p => resolvedPath.startsWith(p))) {
-      if (!ctx.isWithinWorkspace(resolvedPath)) {
-        const approved = await ctx.ask({
-          target: 'permission',
-          type: 'permission',
-          question: 'Reading from files outside the workspace requires approval.',
+      const outsideWorkspace = !ctx.isWithinWorkspace(resolvedPath);
+      const sensitive = isSensitivePath(resolvedPath);
+
+      // Outside workspace permission ask
+      if (outsideWorkspace) {
+        const permAsk = createFilePermissionAsk({
+          path: input.path,
+          operation: 'read',
           risk: 'medium',
-          metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+          isOutsideWorkspace: true,
         });
+
+        const approved = await ctx.ask(permAsk);
         if (!approved) return { success: false, error: 'USER_REJECTION' };
       }
 
-      if (ctx.isSensitivePath(resolvedPath)) {
-        const approved = await ctx.ask({
-          target: 'permission',
-          type: 'permission',
-          question: 'Reading from sensitive files requires approval.',
+      // Sensitive file permission ask (separate ask for clarity)
+      if (sensitive) {
+        const permAsk = createFilePermissionAsk({
+          path: input.path,
+          operation: 'read',
           risk: 'medium',
-          metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+          isSensitiveFile: true,
+          reason: 'This file may contain credentials or secrets.',
         });
+
+        const approved = await ctx.ask(permAsk);
         if (!approved) return { success: false, error: 'USER_REJECTION' };
       }
     }

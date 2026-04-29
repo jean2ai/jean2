@@ -1,5 +1,6 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { CodeVisualization } from '@jean2/sdk';
+import { createFilePermissionAsk, SENSITIVE_FILE_PATTERNS } from '@jean2/sdk';
 
 interface Input {
   path: string;
@@ -8,13 +9,13 @@ interface Input {
 
 export const definition: ToolDefinition = {
   name: 'write-file',
-  description: 'Write content to a file, creating it if it doesn\'t exist or overwriting if it does.\n\nIMPORTANT: ALWAYS prefer using the edit tool to modify existing files. Only use write-file when:\n- Creating a completely new file\n- The file content is entirely replaced\n\nWarning: This tool overwrites existing files without confirmation. For targeted changes, use the edit tool instead.\n\nParameters:\n- path: Supports relative paths from workspace, absolute paths, or home paths (~/)',
+  description: 'Write content to a file, creating it if it doesn\'t exist or overwriting if it does.\n\nIMPORTANT: Always prefer using the edit tool to modify existing files.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
   inputSchema: {
     type: 'object',
     properties: {
       path: {
         type: 'string',
-        description: 'Path to the file. Supports relative paths from workspace, absolute paths, or home paths.',
+        description: 'Path to the file (absolute or relative)',
       },
       content: {
         type: 'string',
@@ -29,22 +30,16 @@ export const definition: ToolDefinition = {
 function detectLanguage(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
   const langMap: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'typescript',
-    js: 'javascript',
-    jsx: 'javascript',
-    json: 'json',
-    md: 'markdown',
-    css: 'css',
-    html: 'html',
-    py: 'python',
-    go: 'go',
-    rs: 'rust',
-    sh: 'bash',
-    yaml: 'yaml',
-    yml: 'yaml',
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python',
+    go: 'go', rs: 'rust', sh: 'bash', yaml: 'yaml', yml: 'yaml',
   };
   return langMap[ext || ''] || ext || 'text';
+}
+
+function isSensitivePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return SENSITIVE_FILE_PATTERNS.some(p => lower.includes(p));
 }
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
@@ -55,25 +50,34 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       return { success: false, error: `Writing to system directories is not allowed: ${input.path}` };
     }
 
-    if (!ctx.isWithinWorkspace(resolvedPath)) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'Writing to files outside the workspace requires approval.',
+    // Permission check for outside workspace and sensitive files
+    const outsideWorkspace = !ctx.isWithinWorkspace(resolvedPath);
+    const sensitive = isSensitivePath(resolvedPath);
+
+    // Outside workspace permission ask
+    if (outsideWorkspace) {
+      const permAsk = createFilePermissionAsk({
+        path: input.path,
+        operation: 'write',
         risk: 'medium',
-        metadata: { permissionKey: 'path:outside_workspace', permissionType: 'action' }
+        isOutsideWorkspace: true,
       });
+
+      const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
 
-    if (ctx.isSensitivePath(resolvedPath)) {
-      const approved = await ctx.ask({
-        target: 'permission',
-        type: 'permission',
-        question: 'Writing to sensitive files requires approval.',
+    // Sensitive file permission ask (separate ask for clarity)
+    if (sensitive) {
+      const permAsk = createFilePermissionAsk({
+        path: input.path,
+        operation: 'write',
         risk: 'medium',
-        metadata: { permissionKey: 'file_pattern:sensitive', permissionType: 'action' }
+        isSensitiveFile: true,
+        reason: 'This file may contain credentials or secrets.',
       });
+
+      const approved = await ctx.ask(permAsk);
       if (!approved) return { success: false, error: 'USER_REJECTION' };
     }
 

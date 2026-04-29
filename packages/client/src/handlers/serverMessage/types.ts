@@ -3,7 +3,7 @@ import type {
   Message,
   Part,
   MessageWithParts,
-  ToolPermission,
+  PermissionGrant,
   ProviderStatus,
   Ask,
   AskResponse,
@@ -81,7 +81,7 @@ export interface SessionHandlersContext {
   sessionsRef: React.MutableRefObject<Session[]>;
   flushPendingPartAppends: () => void;
   setProviderStatuses: React.Dispatch<React.SetStateAction<ProviderStatus[]>>;
-  setPermissions: React.Dispatch<React.SetStateAction<ToolPermission[]>>;
+  setPermissions: React.Dispatch<React.SetStateAction<PermissionGrant[]>>;
   notifiedToolCallIdsRef: React.MutableRefObject<Set<string>>;
   permissionSoundEnabledRef: React.MutableRefObject<boolean>;
   playPermissionSound: () => void;
@@ -123,7 +123,7 @@ export type MessagePartHandlers = {
 
 export type PermissionQueueHandlers = {
   // Persisted permission grant management (non-interactive)
-  'permission.list': (msg: { type: 'permission.list'; workspaceId: string; permissions: ToolPermission[] }, ctx: SessionHandlersContext) => void;
+  'permission.list': (msg: { type: 'permission.list'; workspaceId: string; grants: PermissionGrant[] }, ctx: SessionHandlersContext) => void;
   'permission.revoked': (msg: { type: 'permission.revoked'; permissionId: string }, ctx: SessionHandlersContext) => void;
   'permission.all_revoked': (msg: { type: 'permission.all_revoked'; workspaceId: string; count: number }, ctx: SessionHandlersContext) => void;
   // Queue messages

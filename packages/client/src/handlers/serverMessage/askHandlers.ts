@@ -16,8 +16,13 @@ export function handleAskRequest(
     ask,
   };
 
+  // Derive target from ask type (PermissionAsk has implicit 'permission' target)
+  const target = ask.type === 'permission' ? 'permission' 
+    : ask.type === 'client_capability' ? 'client' 
+    : 'human';
+
   // Try programmatic handlers first
-  const handlers = runAskHandlers(ask.target, request);
+  const handlers = runAskHandlers(target, request);
   if (handlers) {
     handlers
       .then((result) => {

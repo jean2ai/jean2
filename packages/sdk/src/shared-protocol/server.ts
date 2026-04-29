@@ -1,6 +1,6 @@
 import type { Session } from '../shared-types/session';
 import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-types/message';
-import type { ToolPermission } from '../shared-types/permission';
+import type { PermissionGrant } from '../shared-types/permission';
 import type { SessionInterruptResult } from '../shared-types/interrupt';
 import type { Ask } from '../shared-types/tool';
 
@@ -95,16 +95,21 @@ export interface ChatUsageMessage {
   variant?: string;
 }
 
-// Permission grant management (persisted grants only - no separate granted event; grants are managed via ask.response with alwaysAllow)
+// Permission grant management (persisted grants only)
 export interface PermissionListMessage {
   type: 'permission.list';
   workspaceId: string;
-  permissions: ToolPermission[];
+  grants: PermissionGrant[];
+}
+
+export interface PermissionGrantedMessage {
+  type: 'permission.granted';
+  grant: PermissionGrant;
 }
 
 export interface PermissionRevokedMessage {
   type: 'permission.revoked';
-  permissionId: string;
+  grantId: string;
 }
 
 export interface PermissionAllRevokedMessage {
@@ -263,6 +268,8 @@ export interface ProviderConnectedMessage {
 // Ask Messages (Server → Client)
 // =============================================================================
 
+// Note: The 'ask.request' message is the ONLY interactive protocol.
+// All permission asks are routed through this protocol.
 export interface AskRequestMessage {
   type: 'ask.request';
   sessionId: string;
@@ -301,6 +308,7 @@ export type ServerMessage =
   | SessionDeletedMessage
   | SessionRenamedMessage
   | PermissionListMessage
+  | PermissionGrantedMessage
   | PermissionRevokedMessage
   | PermissionAllRevokedMessage
   | CompactionCompleteMessage

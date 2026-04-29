@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
 import type { RefObject } from 'react';
-import type { Session, Message, Part, MessageWithParts, ToolPermission, QueuedMessage, Ask } from '@jean2/sdk';
+import type { Session, Message, Part, MessageWithParts, PermissionGrant, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
 import { sessionHandlers } from '@/handlers/serverMessage';
 import { messagePartHandlers } from '@/handlers/serverMessage';
@@ -82,11 +82,11 @@ export function subscribeToServerEvents(
     messagePartHandlers['compaction.complete']({ type: 'compaction.complete', sessionId: sessionId as string, tokensUsed: tokensUsed as { prompt: number; completion: number } }, ctx()!);
   });
 
-  add('permission.list', (workspaceId: unknown, permissions: unknown) => {
-    permissionQueueHandlers['permission.list']({ type: 'permission.list', workspaceId: workspaceId as string, permissions: permissions as ToolPermission[] }, ctx()!);
+  add('permission.list', (workspaceId: unknown, grants: unknown) => {
+    permissionQueueHandlers['permission.list']({ type: 'permission.list', workspaceId: workspaceId as string, grants: grants as PermissionGrant[] }, ctx()!);
   });
-  add('permission.revoked', (permissionId: unknown) => {
-    permissionQueueHandlers['permission.revoked']({ type: 'permission.revoked', permissionId: permissionId as string }, ctx()!);
+  add('permission.revoked', (grantId: unknown) => {
+    permissionQueueHandlers['permission.revoked']({ type: 'permission.revoked', grantId: grantId as string }, ctx()!);
   });
   add('permission.all_revoked', (workspaceId: unknown, count: unknown) => {
     permissionQueueHandlers['permission.all_revoked']({ type: 'permission.all_revoked', workspaceId: workspaceId as string, count: count as number }, ctx()!);

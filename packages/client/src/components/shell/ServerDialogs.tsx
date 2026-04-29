@@ -1,5 +1,5 @@
 import { useShallow } from 'zustand/react/shallow';
-import type { Jean2Client, ToolPermission } from '@jean2/sdk';
+import type { Jean2Client, PermissionGrant } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { SettingsDialog } from '@/components/modals/SettingsDialog';
@@ -13,7 +13,7 @@ import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 interface ServerDialogsProps {
   apiToken: string | null;
   sdkClient: Jean2Client | null;
-  permissions: ToolPermission[];
+  permissions: PermissionGrant[];
   onLogout: () => void;
   onRefreshPermissions: () => void;
   onRevokePermission: (permissionId: string) => void;

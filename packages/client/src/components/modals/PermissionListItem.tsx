@@ -1,10 +1,10 @@
 import { Trash2, Shield } from 'lucide-react';
-import type { ToolPermission } from '@jean2/sdk';
+import type { PermissionGrant } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 interface PermissionListItemProps {
-  permission: ToolPermission;
+  permission: PermissionGrant;
   onRevoke: (permissionId: string) => void;
 }
 
@@ -16,20 +16,44 @@ function formatDate(dateString: string): string {
   });
 }
 
+function formatScope(scope: string): string {
+  switch (scope) {
+    case 'once': return 'Once';
+    case 'session': return 'Session';
+    case 'workspace': return 'Workspace';
+    case 'always': return 'Always';
+    default: return scope;
+  }
+}
+
 export function PermissionListItem({
   permission,
   onRevoke,
 }: PermissionListItemProps) {
   const isRevoked = !!permission.revokedAt;
+  const patternDisplay = permission.patterns.length > 0
+    ? permission.patterns.join(', ')
+    : 'All';
 
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Badge variant={isRevoked ? 'outline' : 'secondary'}>
             <Shield className="size-3" data-icon="inline-start" />
-            {permission.permissionType}
+            {permission.resource}
           </Badge>
+          <Badge variant="outline" className="text-xs">
+            {permission.toolName}
+          </Badge>
+          <Badge variant="outline" className="text-xs">
+            {formatScope(permission.scope)}
+          </Badge>
+          {permission.matcher !== 'exact' && (
+            <Badge variant="outline" className="text-xs text-muted-foreground">
+              {permission.matcher}
+            </Badge>
+          )}
           {isRevoked && (
             <Badge variant="outline" className="text-muted-foreground">
               Revoked
@@ -37,10 +61,10 @@ export function PermissionListItem({
           )}
         </div>
         <p className="text-sm font-mono truncate text-muted-foreground">
-          {permission.permissionKey}
+          {patternDisplay}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Granted {formatDate(permission.grantedAt)}
+          Saved {formatDate(permission.grantedAt)}
           {permission.revokedAt && ` • Revoked ${formatDate(permission.revokedAt)}`}
         </p>
       </div>
