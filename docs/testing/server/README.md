@@ -14,7 +14,7 @@ The server has **88 TypeScript source files** and **zero tests**. Every change i
 
 Read these in order:
 
-1. **[00-foundation.md](./00-foundation.md)** — Set up `bun:test`, directory structure, scripts, CI. Do this first.
+1. **[00-foundation.md](./00-foundation.md)** — Set up `bun:test`, directory structure, scripts, CI, AI SDK mocking. Do this first.
 2. **[01-pure-utils.md](./01-pure-utils.md)** — Test the easiest modules first. No DB, no mocking. Quick wins.
 3. **[02-store-layer.md](./02-store-layer.md)** — Test the data layer against real SQLite. Highest ROI.
 4. **[03-core-logic.md](./03-core-logic.md)** — Test the agent brain: compaction, messages, retries.
@@ -32,16 +32,15 @@ Read these in order:
 5. The test stays forever → regression prevented
 ```
 
-## Current State (as of writing)
+## Current State
 
 | Metric | Value |
 |--------|-------|
 | Total source files | 88 |
-| Test files | 0 |
-| Test dependencies | 0 |
-| Test scripts in package.json | 0 |
-| CI test steps | 0 |
-| tsconfig excludes for `*.test.ts` | ✅ Already configured |
+| Test files | 13 (226 tests, 454 assertions) |
+| Test helper files | 4 (db, factories, mocks with AI SDK mock models, seed) |
+| AI SDK mocking | ✅ `MockLanguageModelV3` from `ai/test`, wrapped in `#tests/mocks` helpers |
+| CI test steps | Not yet added to GitHub workflows |
 
 ## Module Complexity Map
 

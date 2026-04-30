@@ -2,6 +2,55 @@
 
 These tests cover the "brain" of the server: compaction, message conversion, retry logic, and session operations. Most require a database and some mocking of external dependencies (AI SDK, broadcast).
 
+## Mocking Strategy
+
+### AI SDK Calls — Use `MockLanguageModelV3` from `ai/test`
+
+Instead of refactoring production code for dependency injection, use the official AI SDK test utilities to mock at the model level. This lets you pass a mock model directly to `generateText` / `streamText` without changing production imports.
+
+**Helpers available in `#tests/mocks`:**
+
+| Helper | Use for | AI SDK function |
+|--------|---------|-----------------|
+| `createMockGenerateModel({ text })` | Deterministic text responses | `generateText()` |
+| `createMockStreamModel({ chunks })` | Controllable streaming text | `streamText()` |
+| `createMockToolCallModel({ toolCalls, toolResults, finalText })` | Tool calling flows | `streamText()` |
+
+**How to use in tests that call `getModelWithMetadata()`:**
+
+The server's `compaction.ts` and `agent.ts` resolve the model via `getModelWithMetadata(modelId, providerId)`. To mock this, use `bun:test`'s `mock.module()` to intercept the import:
+
+```typescript
+import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { generateText } from 'ai';
+import { createMockGenerateModel } from '#tests/mocks';
+
+// Mock getModelWithMetadata to return a mock model
+mock.module('@/core/model-utils', () => ({
+  getModelWithMetadata: async () => ({
+    model: createMockGenerateModel({ text: 'Summarized conversation' }),
+  }),
+}));
+```
+
+For tests that exercise the full `streamChat` flow, mock `model-utils` with `createMockStreamModel` or `createMockToolCallModel`.
+
+**When to still use dependency injection:** Only when you need to bypass the AI SDK entirely (e.g., testing that a function passes specific options to the model). In most cases, `MockLanguageModelV3` is sufficient.
+
+**Reference:** [AI SDK Testing Docs](https://ai-sdk.dev/docs/ai-sdk-core/testing)
+
+### Broadcast — Use `createMockBroadcast()` from `#tests/mocks`
+
+```typescript
+import { createMockBroadcast } from '#tests/mocks';
+
+mock.module('@/core/broadcast', () => ({
+  broadcastEvent: createMockBroadcast().callback,
+}));
+```
+
+### Store — Use real in-memory SQLite via `setupTestDatabase()`
+
 ## Modules to Test
 
 ### 1. `core/compaction.ts` (622 lines) — Most Complex
@@ -9,8 +58,8 @@ These tests cover the "brain" of the server: compaction, message conversion, ret
 This is the hardest module to test, but also where the most bugs live. Strategy: test the pure logic functions directly, mock the AI SDK calls.
 
 **What needs mocking:**
-- `generateText` / `streamText` from AI SDK (the actual LLM calls)
-- `broadcastEvent` (just verify it gets called)
+- `getModelWithMetadata` from `@/core/model-utils` — mock with `createMockGenerateModel()` or `createMockStreamModel()` from `#tests/mocks`
+- `broadcastEvent` — mock with `createMockBroadcast()` from `#tests/mocks`
 - Store functions use real in-memory DB
 
 **Testable pure functions:**
@@ -256,7 +305,7 @@ describe('streamChatWithRetry', () => {
 });
 ```
 
-> **Note:** Testing `streamChatWithRetry` requires mocking the dynamic import `await import('./agent')`. Consider using `bun:test`'s `mock.module()` or refactoring to accept a `streamChat` function parameter.
+> **Note:** Testing `streamChatWithRetry` can now use `mock.module()` to intercept `@/core/model-utils` with `createMockStreamModel()` from `#tests/mocks`. Alternatively, refactor to accept a `streamChat` function parameter (see `06-refactoring-guide.md`).
 
 ---
 
