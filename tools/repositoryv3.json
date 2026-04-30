@@ -22,7 +22,7 @@
     },
     {
       "name": "file-to-markdown",
-      "description": "Converts files to Markdown format using the `filetomarkdown` npm package.",
+      "description": "Converts files to Markdown format. Supports PDF, Microsoft Office (.docx, .xlsx, .pptx), LibreOffice (.odt, .ods, .odp), and ZIP archives. Does not support .7z archives.",
       "version": "1.0.0",
       "downloadUrl": "https://github.com/rabbyte-tech/jean2/releases/download/tool-file-to-markdown%2Fv1.0.0/file-to-markdown.tar.gz"
     },
