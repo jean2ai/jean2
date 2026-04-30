@@ -73,8 +73,39 @@ export async function executeChildSession(options: {
   const finalParts: Part[] = [];
   let error: string | undefined;
 
+  function findRootSessionId(sessionId: string): string {
+    let current = sessionId;
+    let session = getSession(current);
+    while (session?.parentId) {
+      current = session.parentId;
+      session = getSession(current);
+    }
+    return current;
+  }
+
+  const rootSessionId = findRootSessionId(childSessionId);
+
   const askBroadcastFn: AskBroadcastFn = (message) => {
-    broadcastEvent(message as import('@jean2/sdk').ServerMessage);
+    // Route permission asks to the root session so the user always sees them
+    if (message.type === 'ask.request') {
+      const rewritten = {
+        ...message,
+        sessionId: rootSessionId,
+        ask: {
+          ...message.ask,
+          _originSessionId: message.sessionId,
+        },
+      };
+      broadcastEvent(rewritten as import('@jean2/sdk').ServerMessage);
+    } else if (message.type === 'ask.timeout') {
+      const rewritten = {
+        ...message,
+        sessionId: rootSessionId,
+      };
+      broadcastEvent(rewritten as import('@jean2/sdk').ServerMessage);
+    } else {
+      broadcastEvent(message as import('@jean2/sdk').ServerMessage);
+    }
   };
 
   try {

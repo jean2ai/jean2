@@ -1,11 +1,12 @@
 import { memo, useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, Pause } from 'lucide-react';
-import type { ToolPart, AnyVisualization, AskResponse } from '@jean2/sdk';
+import type { ToolPart, AnyVisualization, AskResponse, Session } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { VisualizationRenderer } from '@/components/visualizations';
 import { AskQuestion } from './AskQuestion';
 import type { PendingAskRequest } from '@/stores/askStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 const LARGE_OUTPUT_THRESHOLD = 1536;
 
@@ -93,6 +94,23 @@ function extractVisualization(output: unknown): AnyVisualization | undefined {
   return undefined;
 }
 
+function getDescendantSessionIds(parentId: string, sessions: Session[]): Set<string> {
+  const descendants = new Set<string>();
+  const queue = [parentId];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const session of sessions) {
+      if (session.parentId === current && !descendants.has(session.id)) {
+        descendants.add(session.id);
+        queue.push(session.id);
+      }
+    }
+  }
+
+  return descendants;
+}
+
 const areToolCallPropsEqual = (
   prev: ToolCallProps,
   next: ToolCallProps
@@ -113,8 +131,19 @@ const areToolCallPropsEqual = (
   const prevTaskSessionId = extractTaskSessionId(prev.part);
   const nextTaskSessionId = extractTaskSessionId(next.part);
   if (prevTaskSessionId || nextTaskSessionId) {
-    const prevChildAsks = prev.pendingAskRequests.filter(r => r.sessionId === prevTaskSessionId && r.toolCallId !== prev.part.callId);
-    const nextChildAsks = next.pendingAskRequests.filter(r => r.sessionId === nextTaskSessionId && r.toolCallId !== next.part.callId);
+    // Check if any child session asks changed (approximate check)
+    const prevChildAsks = prev.pendingAskRequests.filter(r => 
+      r.originSessionId === prevTaskSessionId || 
+      r.originSessionId === nextTaskSessionId ||
+      r.sessionId === prevTaskSessionId ||
+      r.sessionId === nextTaskSessionId
+    );
+    const nextChildAsks = next.pendingAskRequests.filter(r => 
+      r.originSessionId === prevTaskSessionId || 
+      r.originSessionId === nextTaskSessionId ||
+      r.sessionId === prevTaskSessionId ||
+      r.sessionId === nextTaskSessionId
+    );
     if (prevChildAsks.length !== nextChildAsks.length) return false;
     if (prevChildAsks.some((pa, i) => pa !== nextChildAsks[i])) return false;
   }
@@ -159,6 +188,9 @@ export const ToolCall = memo(function ToolCall({
   // Extract taskSessionId first so it's available for ask matching
   const taskSessionId = extractTaskSessionId(part);
 
+  // Get sessions from store for descendant matching
+  const sessions = useSessionStore((s) => s.sessions);
+
   // Collect all relevant pending asks for this tool call
   const allPendingAsks: PendingAskRequest[] = [];
 
@@ -169,10 +201,16 @@ export const ToolCall = memo(function ToolCall({
       allPendingAsks.push(directAsk);
     }
 
-    // For task tools, also surface asks from the child session
+    // For task tools, also surface asks from the child session and its descendants
     if (taskSessionId) {
+      const descendantIds = getDescendantSessionIds(taskSessionId, sessions);
+      descendantIds.add(taskSessionId); // Include the child session itself
       const childAsks = pendingAskRequests.filter(
-        (r) => r.sessionId === taskSessionId && r.toolCallId !== part.callId,
+        (r) => {
+          const isChildOrDescendant = r.originSessionId && descendantIds.has(r.originSessionId);
+          const isDirectChildSession = r.sessionId === taskSessionId;
+          return (isChildOrDescendant || isDirectChildSession) && r.toolCallId !== part.callId;
+        },
       );
       allPendingAsks.push(...childAsks);
     }

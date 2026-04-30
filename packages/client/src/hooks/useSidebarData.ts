@@ -93,12 +93,30 @@ export const useSidebarData = (): UseSidebarDataReturn => {
 
   // Precompute derived values from allSessions for overview mode compatibility
   const sessionDerivedValues = useMemo((): SessionDerivedValuesMap => {
-    const pendingSet = new Set(pendingAskRequests.map(p => p.sessionId));
+    // Build pending sets: by sessionId and by originSessionId
+    const pendingBySession = new Map<string, number>();
+    const pendingByOrigin = new Map<string, number>();
+    for (const p of pendingAskRequests) {
+      pendingBySession.set(p.sessionId, (pendingBySession.get(p.sessionId) ?? 0) + 1);
+      if (p.originSessionId) {
+        pendingByOrigin.set(p.originSessionId, (pendingByOrigin.get(p.originSessionId) ?? 0) + 1);
+      }
+    }
+
     const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
     for (const session of allSessions) {
       const isStreaming = streamingSessionIds.has(session.id);
-      const hasPendingPermission = pendingSet.has(session.id) ||
-        (childrenMap.has(session.id) && childrenMap.get(session.id)!.some(child => pendingSet.has(child.id)));
+      // Count asks directly on this session + asks originated from this session
+      let askCount = (pendingBySession.get(session.id) ?? 0) + (pendingByOrigin.get(session.id) ?? 0);
+      // Also count asks from child sessions
+      const children = childrenMap.get(session.id);
+      if (children) {
+        for (const child of children) {
+          askCount += pendingByOrigin.get(child.id) ?? 0;
+          askCount += pendingBySession.get(child.id) ?? 0;
+        }
+      }
+      const hasPendingPermission = askCount > 0;
       const isCurrentSession = session.id === currentSessionId;
       const isRunning = (isCurrentSession && isStreaming) || session.subagentStatus === 'running' || !!session.runningAt;
       derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });

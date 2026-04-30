@@ -7,8 +7,8 @@ import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
 import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
 import { scanTools } from './tools';
 import { closeDatabase } from './store';
-import type { ServerMessage, ClientMessage, AskResponseMessage } from '@jean2/sdk';
-import { resolveAsk, listPendingAsksBySession, type AskBroadcastFn } from '@/tools/ask-user-api';
+import type { ServerMessage, ClientMessage, AskResponseMessage, Ask } from '@jean2/sdk';
+import { resolveAsk, listPendingAsksByRootSession, ASK_TIMEOUT, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
@@ -31,6 +31,8 @@ import {
   reconcileAllOrphanedToolCalls,
   reconcileOrphanedToolCalls,
   getAttachment,
+  listAllPendingAsks,
+  cleanupAllPendingAsks,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
@@ -117,6 +119,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   cleanupRunningSessionsOnStartup();
   reconcileAllSessionsCompaction();
   reconcileAllOrphanedToolCalls();
+  cleanupAllPendingAsks();
 
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();
@@ -537,9 +540,35 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
         });
       }
 
-      // Re-send pending asks for this session
-      const pendingAsks = listPendingAsksBySession(msg.sessionId);
-      for (const ask of pendingAsks) {
+      // Re-send pending asks for this session and any child sessions
+      const now = Date.now();
+      const pendingAsks = listPendingAsksByRootSession(msg.sessionId);
+      // Filter out asks that have expired (their timers may have fired while client was disconnected)
+      const activePendingAsks = pendingAsks.filter(ask => (now - ask.createdAt) < ASK_TIMEOUT);
+      for (const ask of activePendingAsks) {
+        // Rewrite child session asks to route to the root session
+        const isChildAsk = ask.sessionId !== msg.sessionId;
+        const askPayload = isChildAsk
+          ? { ...ask.ask, _originSessionId: ask.sessionId }
+          : ask.ask;
+        send(ws, {
+          type: 'ask.request',
+          sessionId: msg.sessionId,
+          toolCallId: ask.toolCallId,
+          toolName: ask.toolName,
+          ask: askPayload as unknown as Ask,
+        });
+      }
+
+      // Also send pending asks from all other sessions
+      const allPendingAsks = listAllPendingAsks();
+      const otherPendingAsks = allPendingAsks.filter(
+        (ask) =>
+          ask.sessionId !== msg.sessionId &&
+          !activePendingAsks.some((pa) => pa.toolCallId === ask.toolCallId) &&
+          (now - ask.createdAt) < ASK_TIMEOUT,
+      );
+      for (const ask of otherPendingAsks) {
         send(ws, {
           type: 'ask.request',
           sessionId: ask.sessionId,
@@ -548,6 +577,10 @@ async function handleClientMessage(ws: ServerWebSocket, msg: ClientMessage): Pro
           ask: ask.ask,
         });
       }
+
+      // Clean up any expired asks from DB
+      cleanupAllPendingAsks(ASK_TIMEOUT);
+
       break;
     }
 

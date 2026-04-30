@@ -6,6 +6,7 @@ export interface PendingAskRequest {
   sessionId: string;
   toolName: string;
   ask: Ask;
+  originSessionId?: string;
 }
 
 // Handler type: receives the ask, returns AskResponse or undefined (to fall through to UI)
@@ -49,7 +50,9 @@ export const useAskStore = create<AskStore>((set, get) => ({
 
   clearPendingRequestsBySessionId: (sessionId) =>
     set((state) => ({
-      pendingRequests: state.pendingRequests.filter((r) => r.sessionId !== sessionId),
+      pendingRequests: state.pendingRequests.filter(
+        (r) => r.sessionId !== sessionId && r.originSessionId !== sessionId,
+      ),
     })),
 
   registerHandler: (target, handler) => {

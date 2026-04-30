@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { HelpCircle, Shield, Monitor } from 'lucide-react';
 import type { HumanQuestion, FormQuestion, PermissionAsk, ClientCapabilityAsk, AskFormResponse, AskPermissionResponse, AskResponse } from '@jean2/sdk';
 import type { SingleSelectQuestion, MultiSelectQuestion, TextQuestion, ConfirmQuestion } from '@jean2/sdk';
@@ -443,6 +443,63 @@ function PermissionAskView({
     critical: 'text-destructive',
   };
 
+  // Determine operation label for file permissions
+  const operationLabel = ask.metadata?.operation === 'write'
+    ? 'Writing to'
+    : ask.metadata?.operation === 'edit'
+      ? 'Editing'
+      : ask.metadata?.operation === 'read'
+        ? 'Reading'
+        : null;
+
+  // Helper to render shell command
+  const renderShellCommand = (): React.ReactElement | null => {
+    if (ask.resource !== 'shell-command' || typeof ask.metadata?.command !== 'string') {
+      return null;
+    }
+    return (
+      <div>
+        <div className="text-xs uppercase text-muted-foreground mb-1">Command</div>
+        <pre className="text-xs bg-muted/50 border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">
+          {ask.metadata.command}
+        </pre>
+      </div>
+    );
+  };
+
+  // Helper to render file paths
+  const renderFilePaths = (): React.ReactElement | null => {
+    const paths = ask.paths as string[] | undefined;
+    const isFileResource =
+      ask.resource === 'file' || ask.resource === 'path' || ask.resource === 'directory';
+    if (!paths || paths.length === 0 || !isFileResource) {
+      return null;
+    }
+    return (
+      <div>
+        <div className="text-xs uppercase text-muted-foreground mb-1">{operationLabel ?? 'Accessing'}</div>
+        <pre className="text-xs bg-muted/50 border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">
+          {paths.join('\n')}
+        </pre>
+      </div>
+    );
+  };
+
+  // Helper to render network URL
+  const renderNetworkUrl = (): React.ReactElement | null => {
+    if (ask.resource !== 'network' || typeof ask.metadata?.url !== 'string') {
+      return null;
+    }
+    return (
+      <div>
+        <div className="text-xs uppercase text-muted-foreground mb-1">URL</div>
+        <pre className="text-xs bg-muted/50 border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">
+          {ask.metadata.url}
+        </pre>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {ask.description && (
@@ -455,6 +512,12 @@ function PermissionAskView({
           </span>
         </div>
       )}
+      {renderShellCommand()}
+      {renderFilePaths()}
+      {renderNetworkUrl()}
+      {ask.metadata?.description && typeof ask.metadata.description === 'string' && !ask.description ? (
+        <p className="text-xs text-muted-foreground">{ask.metadata.description as string}</p>
+      ) : null}
       <div className="flex gap-2">
         <Button
           variant="destructive"

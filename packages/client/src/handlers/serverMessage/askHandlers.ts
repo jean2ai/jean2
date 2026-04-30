@@ -14,6 +14,7 @@ export function handleAskRequest(
     sessionId,
     toolName,
     ask,
+    originSessionId: (ask as { _originSessionId?: string })._originSessionId,
   };
 
   // Derive target from ask type (PermissionAsk has implicit 'permission' target)

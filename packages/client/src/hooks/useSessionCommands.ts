@@ -75,7 +75,7 @@ export function useSessionCommands({
   setCurrentModel,
   setSelectedVariant,
   removePendingAskRequest,
-  clearPendingAskRequestsBySessionId,
+  clearPendingAskRequestsBySessionId: _clearPendingAskRequestsBySessionId,
   clearStreamingSessions,
   pendingSessionCreateRef,
   partAppendRafRef,
@@ -106,7 +106,6 @@ export function useSessionCommands({
 
   const resumeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
-    clearPendingAskRequestsBySessionId(sessionId);
     skipFinishSoundSessionIdsRef.current = new Set(useConnectionStore.getState().streamingSessionIds);
     clearStreamingSessions();
     setCompactionSuccess(false);
@@ -131,7 +130,7 @@ export function useSessionCommands({
       to: `/server/$serverId${viewPath}/session/$sessionId` as any,
       params: { serverId, sessionId },
     });
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, clearPendingAskRequestsBySessionId, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
+  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
 
   const closeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;

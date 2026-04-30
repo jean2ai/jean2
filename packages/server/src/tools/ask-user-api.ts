@@ -26,7 +26,7 @@ interface PendingAsk {
 }
 
 const pendingAsks = new Map<string, PendingAsk>();
-const ASK_TIMEOUT = 5 * 60 * 1000;
+export const ASK_TIMEOUT = 5 * 60 * 1000;
 const askTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export type AskBroadcastFn = (message: AskRequestMessage | AskTimedOutMessage) => void;
@@ -300,4 +300,4 @@ function clearAskTimer(askId: string): void {
   }
 }
 
-export { listPendingAsksBySession } from '@/store/pending-asks';
+export { listPendingAsksBySession, listPendingAsksByRootSession } from '@/store/pending-asks';
