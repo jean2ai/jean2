@@ -37,7 +37,7 @@ Read these in order:
 | Metric | Value |
 |--------|-------|
 | Total source files | 88 |
-| Test files | 15 (416 tests, 884 assertions) |
+| Test files | 19 (495 tests, 1038 assertions) |
 | Test helper files | 4 (db, factories, mocks with AI SDK mock models, seed) |
 | AI SDK mocking | ✅ `MockLanguageModelV3` from `ai/test`, wrapped in `#tests/mocks` helpers |
 | CI test steps | Not yet added to GitHub workflows |

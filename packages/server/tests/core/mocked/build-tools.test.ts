@@ -1,0 +1,361 @@
+import { describe, test, expect, mock, afterEach } from 'bun:test';
+import type { ToolResult } from '@jean2/sdk';
+
+interface BuildToolsOptions {
+  toolNames: string[];
+  workspacePath: string | undefined;
+  workspaceId: string | undefined;
+  sessionId: string;
+  modelId?: string;
+  providerId?: string;
+  canSpawnSubagents?: boolean | string[] | null;
+  allowedSkills?: string[] | null;
+  broadcastFn?: unknown;
+}
+
+function createMockLoadedTool(name: string) {
+  return {
+    definition: {
+      name,
+      description: `Mock ${name} tool`,
+      inputSchema: {
+        type: 'object',
+        properties: { input: { type: 'string' } },
+      },
+      timeout: 60000,
+    },
+    runtime: 'bun',
+    scriptPath: '/mock/tool.ts',
+  };
+}
+
+async function setupMocks(opts: {
+  getToolReturns?: unknown[];
+  executeToolResult?: ToolResult;
+  canSpawnSubagent?: boolean;
+  skillTool?: { name: string; tool: unknown } | null;
+  mcpTools?: Record<string, unknown>;
+}) {
+  let getToolCallIndex = 0;
+  const getToolReturns = opts.getToolReturns ?? [];
+
+  mock.module('@/tools', () => ({
+    getTool: mock(async (_name: string) => {
+      return getToolReturns[getToolCallIndex++] ?? null;
+    }),
+    executeTool: mock(async (_opts: unknown): Promise<ToolResult> =>
+      opts.executeToolResult ?? { success: true, result: 'mock-result' },
+    ),
+  }));
+
+  mock.module('@/tools/llm-api', () => ({
+    createLlmApi: mock(() => ({})),
+  }));
+
+  mock.module('@/tools/ask-user-api', () => ({
+    createAskApi: mock(() => ({})),
+  }));
+
+  mock.module('@/core/subagent', () => ({
+    getSubagentToolDefinition: mock(async () => ({
+      name: 'task',
+      description: 'Launch a subagent',
+      inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, subagent_type: { type: 'string' } } },
+      timeout: 300000,
+    })),
+    executeSubagent: mock(async () => ({ task_id: 'task-1', result: 'subagent result' })),
+    canSpawnSubagent: mock((_sessionId: string) => opts.canSpawnSubagent ?? true),
+  }));
+
+  mock.module('@/core/interrupt', () => ({
+    interruptManager: {
+      registerToolExecution: mock(() => new AbortController()),
+      unregisterToolExecution: mock((_sid: string, _tcid: string) => {}),
+    },
+  }));
+
+  mock.module('@/core/broadcast', () => ({
+    broadcastEvent: mock((_event: unknown) => {}),
+  }));
+
+  mock.module('@/store', () => ({
+    transitionToolToRunningByCallId: mock(() => null),
+  }));
+
+  mock.module('@/utils/truncate-tool-result', () => ({
+    truncateToolResult: mock((result: unknown) => result),
+  }));
+
+  mock.module('@/mcp', () => ({
+    getTools: mock(async () => opts.mcpTools ?? {}),
+  }));
+
+  mock.module('@/skills', () => ({
+    createSkillTool: mock(async () => opts.skillTool ?? null),
+  }));
+
+  const { buildAiSdkTools } = await import('@/core/build-tools');
+  return { buildAiSdkTools };
+}
+
+function defaultOptions(overrides: Partial<BuildToolsOptions> = {}): BuildToolsOptions {
+  return {
+    toolNames: [],
+    workspacePath: undefined,
+    workspaceId: undefined,
+    sessionId: 'sess-1',
+    modelId: 'gpt-4o',
+    providerId: 'openai',
+    canSpawnSubagents: false,
+    allowedSkills: null,
+    broadcastFn: undefined,
+    ...overrides,
+  };
+}
+
+describe('build-tools', () => {
+  afterEach(() => mock.restore());
+
+  describe('empty tool list', () => {
+    test('returns empty object when no tools and no workspace', async () => {
+      const { buildAiSdkTools } = await setupMocks({});
+      const tools = await buildAiSdkTools(defaultOptions({ toolNames: [] }));
+      expect(Object.keys(tools)).toHaveLength(0);
+    });
+
+    test('returns empty object when workspace has no skill or mcp tools', async () => {
+      const { buildAiSdkTools } = await setupMocks({ skillTool: null, mcpTools: {} });
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        workspacePath: '/workspace',
+        workspaceId: 'ws-1',
+      }));
+      expect(Object.keys(tools)).toHaveLength(0);
+    });
+  });
+
+  describe('regular tool loading', () => {
+    test('loads each tool from toolNames', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        getToolReturns: [
+          createMockLoadedTool('read-file'),
+          createMockLoadedTool('write-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file', 'write-file'],
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+      expect(tools).toHaveProperty('write-file');
+      expect(Object.keys(tools)).toHaveLength(2);
+    });
+
+    test('skips tools that are not found', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        getToolReturns: [
+          createMockLoadedTool('read-file'),
+          null,
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file', 'nonexistent'],
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+      expect(tools).not.toHaveProperty('nonexistent');
+      expect(Object.keys(tools)).toHaveLength(1);
+    });
+
+    test('created tool has execute function', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        getToolReturns: [createMockLoadedTool('test-tool')],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['test-tool'],
+      }));
+
+      const aiTool = tools['test-tool'];
+      expect(aiTool).toBeDefined();
+      expect(typeof aiTool.execute).toBe('function');
+    });
+  });
+
+  describe('tool execution', () => {
+    test('returns error object when executeTool fails', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        getToolReturns: [createMockLoadedTool('test-tool')],
+        executeToolResult: { success: false, error: 'Tool crashed' },
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['test-tool'],
+      }));
+
+      const result = await tools['test-tool'].execute({}, { toolCallId: 'call-1' });
+      expect(result).toEqual({ error: 'Tool crashed' });
+    });
+  });
+
+  describe('subagent tool', () => {
+    test('includes task tool when canSpawnSubagents is true and canSpawnSubagent returns true', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        canSpawnSubagent: true,
+        getToolReturns: [createMockLoadedTool('read-file')],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file'],
+        canSpawnSubagents: true,
+      }));
+
+      expect(tools).toHaveProperty('task');
+    });
+
+    test('excludes task tool when canSpawnSubagents is false', async () => {
+      const { buildAiSdkTools } = await setupMocks({ canSpawnSubagent: true });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file'],
+        canSpawnSubagents: false,
+      }));
+
+      expect(tools).not.toHaveProperty('task');
+    });
+
+    test('excludes task tool when canSpawnSubagent returns false', async () => {
+      const { buildAiSdkTools } = await setupMocks({ canSpawnSubagent: false });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        canSpawnSubagents: true,
+      }));
+
+      expect(tools).not.toHaveProperty('task');
+    });
+
+    test('excludes task tool when canSpawnSubagents is an empty array', async () => {
+      const { buildAiSdkTools } = await setupMocks({ canSpawnSubagent: true });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        canSpawnSubagents: [],
+      }));
+
+      expect(tools).not.toHaveProperty('task');
+    });
+
+    test('includes task tool when canSpawnSubagents is non-empty array', async () => {
+      const { buildAiSdkTools } = await setupMocks({ canSpawnSubagent: true });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        canSpawnSubagents: ['explore'],
+      }));
+
+      expect(tools).toHaveProperty('task');
+    });
+  });
+
+  describe('skill tool', () => {
+    test('adds skill tool to tools when returned', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        skillTool: {
+          name: 'agent-browser',
+          tool: { execute: async () => {} },
+        },
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        workspacePath: '/workspace',
+        workspaceId: 'ws-1',
+      }));
+
+      expect(tools).toHaveProperty('agent-browser');
+    });
+
+    test('does not load skill tool when workspacePath is undefined', async () => {
+      const { buildAiSdkTools } = await setupMocks({});
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        workspacePath: undefined,
+      }));
+
+      expect(Object.keys(tools)).toHaveLength(0);
+    });
+  });
+
+  describe('MCP tools', () => {
+    test('merges MCP tools into result', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        skillTool: null,
+        mcpTools: {
+          'mcp-tool-1': { execute: async () => 'mcp1' },
+          'mcp-tool-2': { execute: async () => 'mcp2' },
+        },
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        workspacePath: '/workspace',
+        workspaceId: 'ws-1',
+      }));
+
+      expect(tools).toHaveProperty('mcp-tool-1');
+      expect(tools).toHaveProperty('mcp-tool-2');
+    });
+
+    test('does not load MCP tools when workspacePath is undefined', async () => {
+      const { buildAiSdkTools } = await setupMocks({});
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: [],
+        workspacePath: undefined,
+      }));
+
+      expect(Object.keys(tools)).toHaveLength(0);
+    });
+  });
+
+  describe('integration scenarios', () => {
+    test('combines regular tools, skill tool, and MCP tools', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        getToolReturns: [createMockLoadedTool('read-file')],
+        skillTool: { name: 'agent-browser', tool: { execute: async () => {} } },
+        mcpTools: { 'mcp-server': { execute: async () => {} } },
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file'],
+        workspacePath: '/workspace',
+        workspaceId: 'ws-1',
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+      expect(tools).toHaveProperty('agent-browser');
+      expect(tools).toHaveProperty('mcp-server');
+      expect(Object.keys(tools)).toHaveLength(3);
+    });
+
+    test('combines regular tools with subagent tool', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        canSpawnSubagent: true,
+        getToolReturns: [createMockLoadedTool('read-file')],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        toolNames: ['read-file'],
+        canSpawnSubagents: true,
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+      expect(tools).toHaveProperty('task');
+      expect(Object.keys(tools)).toHaveLength(2);
+    });
+  });
+});
