@@ -11,6 +11,10 @@ export default tseslint.config(
       '**/dist/**',
       '**/data/**',
       '**/src-tauri/target/**',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
     ],
   },
   

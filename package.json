@@ -28,7 +28,9 @@
     "electron:build": "cd packages/client-electron && bun run electron:build",
     "electron:build:mac:local": "cd packages/client-electron && bun run electron:build:mac:local",
     "electron:build:mac:release": "cd packages/client-electron && bun run electron:build:mac:release",
-    "electron:build:win": "cd packages/client-electron && bun run electron:build:win"
+    "electron:build:win": "cd packages/client-electron && bun run electron:build:win",
+    "test:server": "bun test packages/server",
+    "test": "bun test packages/server packages/sdk"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

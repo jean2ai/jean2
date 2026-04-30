@@ -29,6 +29,20 @@ export function closeDatabase(): void {
     db = null;
   }
 }
+// TODO: Refactor this into singleton
+export function setDatabaseForTesting(database: Database): void {
+  if (db && db !== database) {
+    db.close();
+  }
+  db = database;
+}
+
+export function resetDatabaseForTesting(): void {
+  if (db) {
+    db.close();
+  }
+  db = null;
+}
 
 // Force run migrations on the current database
 export function runMigrations(): void {
@@ -37,7 +51,7 @@ export function runMigrations(): void {
   console.log('Migrations completed successfully');
 }
 
-function initializeSchema(db: Database): void {
+export function initializeSchema(db: Database): void {
   db.run(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
