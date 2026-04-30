@@ -60,8 +60,14 @@ export function initializeToken(): string {
   }
   
   if (existsSync(TOKEN_FILE)) {
-    const data: TokenData = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
-    return data.token;
+    try {
+      const data: TokenData = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
+      if (data?.token) {
+        return data.token;
+      }
+    } catch {
+      console.warn('Token file is corrupt, regenerating...');
+    }
   }
   
   const token = generateToken();
@@ -183,7 +189,13 @@ export function showToken(): void {
     return;
   }
   
-  const data = JSON.parse(readFileSync(path, 'utf-8'));
+  let data: TokenData;
+  try {
+    data = JSON.parse(readFileSync(path, 'utf-8'));
+  } catch {
+    console.error('Token file is corrupt. Run `jean2 auth regenerate` to fix.');
+    return;
+  }
   
   console.log('\n' + '='.repeat(60));
   console.log('🔑 Current API Token');
