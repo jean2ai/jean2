@@ -1,17 +1,6 @@
 import { describe, test, expect, mock, afterEach } from 'bun:test';
 import type { ToolResult } from '@jean2/sdk';
-
-interface BuildToolsOptions {
-  toolNames: string[];
-  workspacePath: string | undefined;
-  workspaceId: string | undefined;
-  sessionId: string;
-  modelId?: string;
-  providerId?: string;
-  canSpawnSubagents?: boolean | string[] | null;
-  allowedSkills?: string[] | null;
-  broadcastFn?: unknown;
-}
+import type { BuildToolsOptions } from '@/core/build-tools';
 
 function createMockLoadedTool(name: string) {
   return {
@@ -195,7 +184,8 @@ describe('build-tools', () => {
         toolNames: ['test-tool'],
       }));
 
-      const result = await tools['test-tool'].execute({}, { toolCallId: 'call-1' });
+      const tool = tools['test-tool']!;
+      const result = await tool.execute!({}, { toolCallId: 'call-1', messages: [] });
       expect(result).toEqual({ error: 'Tool crashed' });
     });
   });
