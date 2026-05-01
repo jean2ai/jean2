@@ -14,7 +14,9 @@
     "prepublishOnly": "bun run build:npx",
     "routes:generate": "tsr generate",
     "typecheck": "tsr generate && tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "storybook": "storybook dev --port 6006",
+    "storybook:build": "storybook build"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -43,6 +45,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@storybook/react-vite": "^10.3.6",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/router-cli": "^1.166.33",
     "@tanstack/router-plugin": "^1.167.18",
@@ -52,6 +55,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.25.0",
+    "storybook": "^10.3.6",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.2",
     "vite": "^8.0.0"
