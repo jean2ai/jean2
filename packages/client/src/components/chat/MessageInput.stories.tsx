@@ -1,0 +1,82 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { MessageInput } from './MessageInput';
+import {
+  withServerDataStore,
+  withUIStore,
+} from '../../../.storybook/mocks/storeDecorators';
+
+const meta = {
+  title: 'Composite/MessageInput',
+  component: MessageInput,
+  parameters: {
+    layout: 'padded',
+  },
+  decorators: [
+    withServerDataStore(),
+    withUIStore(),
+  ],
+  args: {
+    onSendMessage: () => {},
+    disabled: false,
+    placeholder: 'Type a message...',
+    workspaceId: 'ws-1',
+    sdkClient: null,
+    prompts: [],
+    sessionId: 'story-session-1',
+    modelSupportsImage: true,
+  },
+} as Meta<typeof MessageInput>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {};
+
+export const Disabled: Story = {
+  args: {
+    disabled: true,
+  },
+};
+
+export const WithPlaceholder: Story = {
+  args: {
+    placeholder: 'Ask anything about your codebase...',
+  },
+};
+
+export const StreamingState: Story = {
+  args: {
+    isStreaming: true,
+    onStopStreaming: () => {},
+  },
+};
+
+export const WithoutImageSupport: Story = {
+  args: {
+    modelSupportsImage: false,
+  },
+};
+
+export const WithPrompts: Story = {
+  args: {
+    prompts: [
+      { name: 'fix', content: 'Fix the following issue: ARG', description: 'Fix a code issue' },
+      { name: 'refactor', content: 'Refactor the following code to improve readability and performance: ARG', description: 'Refactor code' },
+      { name: 'test', content: 'Write comprehensive tests for the following code: ARG', description: 'Generate tests' },
+      { name: 'document', content: 'Add documentation and inline comments to the following code: ARG', description: 'Document code' },
+      { name: 'explain', content: 'Explain what this code does in detail: ARG', description: 'Explain code' },
+    ],
+  },
+};
+
+export const NoWorkspace: Story = {
+  args: {
+    workspaceId: undefined,
+  },
+};
+
+export const WithoutSession: Story = {
+  args: {
+    sessionId: undefined,
+  },
+};
