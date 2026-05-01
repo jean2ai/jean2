@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { getProvidersDir, getProviderPath } from '../paths';
+import { getProvidersDir, getProviderPath } from '@/paths';
 
 function ensureProvidersDir(): string {
   const dir = getProvidersDir();

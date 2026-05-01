@@ -20,7 +20,7 @@ import {
   getCompactionAutoThresholdRatio,
   getCompactionAutoReserveCapTokens,
   getCompactionAutoSafetyMarginTokens,
-} from '../env';
+} from '@/env';
 
 import { classifyApiError } from '@/utils/errors';
 import { createErrorEvent, type ErrorEvent } from './error-handling';

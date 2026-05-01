@@ -13,7 +13,7 @@ import type { Tool } from 'ai';
 import { convertMcpTool } from './converter';
 import { McpOAuthProvider } from './oauth-provider';
 import { getMcpServers } from './config';
-import { VERSION } from '../version';
+import { VERSION } from '@/version';
 
 const DEFAULT_TIMEOUT = 30_000;
 

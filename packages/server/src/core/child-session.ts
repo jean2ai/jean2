@@ -3,7 +3,7 @@ import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
 import { broadcastEvent } from './broadcast';
 import type { AskBroadcastFn } from '@/tools/ask-user-api';
-import { getLLMSubagentMaxSteps } from '../env';
+import { getLLMSubagentMaxSteps } from '@/env';
 import { streamChatWithRetry } from './retry';
 
 export async function executeChildSession(options: {

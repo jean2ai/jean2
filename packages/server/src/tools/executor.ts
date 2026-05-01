@@ -2,7 +2,7 @@ import { join, resolve, extname } from 'path';
 import { homedir, tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
-import { getJean2EnvValue } from '../env';
+import { getJean2EnvValue } from '@/env';
 
 const BLOCKED_PATHS = [
   '/etc/', '/usr/', '/bin/', '/sbin/', '/boot/', '/dev/',

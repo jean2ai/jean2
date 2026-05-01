@@ -5,8 +5,8 @@ import {
   createPreconfig,
   updatePreconfig,
   deletePreconfig,
-} from '../core/preconfig';
-import { getAllModels } from '../config';
+} from '@/core/preconfig';
+import { getAllModels } from '@/config';
 import {
   ConfigurationError,
   ConfigurationNotFoundError,

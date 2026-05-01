@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 // packages/server/src/cli.ts
 
-import './env';  // This loads .env automatically
+import '@/env';  // This loads .env automatically
 
-import { startServer, type ServerOptions } from './index';
-import { isInitialized } from './config';
-import { getDatabasePath } from './env';
+import { startServer, type ServerOptions } from '@/index';
+import { isInitialized } from '@/config';
+import { getDatabasePath } from '@/env';
 import {
   startDaemon,
   stopDaemon,
@@ -13,15 +13,15 @@ import {
   getStatus,
   tailLogs,
   type DaemonOptions,
-} from './daemon';
-import { showToken, regenerateToken } from './auth/token';
-import { initJean2, type InitOptions } from './init';
-import { runMigrations } from './store';
-import { runToolsCommand, type ToolsCommandArgs } from './tools/tools-cli';
-import { performUpdate, type UpdateOptions } from './update';
-import { VERSION } from './version';
+} from '@/daemon';
+import { showToken, regenerateToken } from '@/auth/token';
+import { initJean2, type InitOptions } from '@/init';
+import { runMigrations } from '@/store';
+import { runToolsCommand, type ToolsCommandArgs } from '@/tools/tools-cli';
+import { performUpdate, type UpdateOptions } from '@/update';
+import { VERSION } from '@/version';
 
-import './tools/clack-utils';
+import '@/tools/clack-utils';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

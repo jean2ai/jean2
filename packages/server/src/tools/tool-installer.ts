@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { LoadedTool } from '@jean2/sdk';
-import { resolveToolsPath, getDefaultToolsPath } from '../config';
+import { resolveToolsPath, getDefaultToolsPath } from '@/config';
 import { clearCache as clearToolsCache } from './registry';
 
 const VERSION_FILE = 'VERSION';

@@ -1,7 +1,7 @@
 import { generateText, generateObject } from 'ai';
 import { jsonSchema } from 'ai';
 import type { LlmApi, LlmTextOptions, LlmStructuredOptions, LlmImage } from '@jean2/sdk';
-import { getModelWithMetadata } from '../core/model-utils';
+import { getModelWithMetadata } from '@/core/model-utils';
 
 export function createLlmApi(defaultModelId?: string, defaultProviderId?: string): LlmApi {
   return {

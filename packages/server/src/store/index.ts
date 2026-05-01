@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 
-import { resolveDatabasePath } from '../config';
+import { resolveDatabasePath } from '@/config';
 
 /**
  * Database Singleton

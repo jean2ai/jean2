@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { watch } from 'fs';
 import { join, resolve, relative } from 'path';
 import type { ToolDefinition, LoadedTool } from '@jean2/sdk';
-import { resolveToolsPath } from '../config';
+import { resolveToolsPath } from '@/config';
 
 const toolsCache: Map<string, LoadedTool> = new Map();
 let lastScanTime = 0;

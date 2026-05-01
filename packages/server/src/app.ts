@@ -48,42 +48,42 @@ import {
 } from '@/store';
 
 // Import configuration services
-import * as providerCredentials from './configuration/provider-credentials';
-import * as modelsConfig from './configuration/models';
-import * as promptsConfig from './configuration/prompts';
-import * as preconfigsConfig from './configuration/preconfigs';
-import * as toolEnv from './configuration/tool-env';
+import * as providerCredentials from '@/configuration/provider-credentials';
+import * as modelsConfig from '@/configuration/models';
+import * as promptsConfig from '@/configuration/prompts';
+import * as preconfigsConfig from '@/configuration/preconfigs';
+import * as toolEnv from '@/configuration/tool-env';
 import {
   ConfigurationNotFoundError,
   ConfigurationValidationError,
   ConfigurationConflictError,
   ConfigurationPersistenceError,
   ForbiddenDeleteError,
-} from './configuration/errors';
+} from '@/configuration/errors';
 
 // Import tool operations
-import { listTools, getTool } from './tools';
+import { listTools, getTool } from '@/tools';
 
 // Import MCP operations
-import * as mcp from './mcp';
+import * as mcp from '@/mcp';
 
 // Import cleanup functions
 import { cleanupSessionsOutputDirs } from '@/store';
 
 // Import prompt operations
-import { listPrompts, ensurePromptsDir } from './prompts/registry';
+import { listPrompts, ensurePromptsDir } from '@/prompts/registry';
 
 // Import file service
-import { listDirectory, searchFiles, isPathWithinWorkspace } from './services/files';
-import { getFilePreview } from './services/filePreview';
+import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
+import { getFilePreview } from '@/services/filePreview';
 
 // Import auth modules
-import { requireAuth, isPublicRoute } from './auth/middleware';
-import { initializeToken } from './auth/token';
+import { requireAuth, isPublicRoute } from '@/auth/middleware';
+import { initializeToken } from '@/auth/token';
 
 // Import provider operations
-import * as providers from './providers';
-import { VERSION } from './version';
+import * as providers from '@/providers';
+import { VERSION } from '@/version';
 
 // Helper function to expand ~ to user's home directory
 function expandPath(path: string): string {
@@ -94,7 +94,7 @@ function expandPath(path: string): string {
 }
 
 // Import paths module for data directory resolution
-import { getWorkspacesDir } from './paths';
+import { getWorkspacesDir } from '@/paths';
 
 export function createApp() {
   // Initialize authentication token

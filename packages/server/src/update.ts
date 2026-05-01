@@ -6,7 +6,7 @@ import { VERSION } from '@/version';
 import { getStatus, stopDaemon, getLogFilePath } from '@/daemon';
 import { getToolEnv } from '@/env';
 import { isInitialized } from '@/config';
-import { getBinaryPath } from './paths';
+import { getBinaryPath } from '@/paths';
 
 export interface UpdateOptions {
   version?: string;

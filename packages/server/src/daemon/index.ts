@@ -1,9 +1,9 @@
 import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
-import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '../paths';
+import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '@/paths';
 
-import { getPort, getHost } from '../config';
-import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile } from '../env';
+import { getPort, getHost } from '@/config';
+import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile } from '@/env';
 
 export interface DaemonStatus {
   running: boolean;

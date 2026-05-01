@@ -11,8 +11,8 @@ import {
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
-} from '../env';
-import { getDataDir, getAuthTokenPath } from '../paths';
+} from '@/env';
+import { getDataDir, getAuthTokenPath } from '@/paths';
 
 function getTokenFile(): string {
   return getAuthTokenPath();

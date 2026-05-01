@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
 import matter from 'gray-matter';
 import type { Preconfig, PreconfigMode } from '@jean2/sdk';
-import { getPreconfigsDir as getPreconfigsDirPath } from '../paths';
+import { getPreconfigsDir as getPreconfigsDirPath } from '@/paths';
 import { DEFAULT_PREAMBLES } from './defaults';
 
 function getPreconfigsDir(): string {

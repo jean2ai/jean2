@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import { getEnvFilePath, getToolsDir, getPreconfigsDir } from './paths';
+import { getEnvFilePath, getToolsDir, getPreconfigsDir } from '@/paths';
 
 const envOverlay = new Map<string, string>();
 

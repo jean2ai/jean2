@@ -11,7 +11,7 @@ import {
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
   getLLMBaseUrl,
-} from '../env';
+} from '@/env';
 import { getProvider, createModelForProvider } from '@/providers';
 
 export interface ModelWithMetadata {

@@ -2,11 +2,11 @@ globalThis.AI_SDK_LOG_WARNINGS = false;
 
 import { readFileSync } from 'fs';
 
-import { createApp } from './app';
-import { getPreconfig, getDefaultPreconfig } from './core/preconfig';
-import { registerBroadcastCallback, broadcastSessionCreatedExclude } from './core/broadcast';
-import { scanTools } from './tools';
-import { closeDatabase } from './store';
+import { createApp } from '@/app';
+import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
+import { registerBroadcastCallback, broadcastSessionCreatedExclude } from '@/core/broadcast';
+import { scanTools } from '@/tools';
+import { closeDatabase } from '@/store';
 import type { ServerMessage, ClientMessage, AskResponseMessage, Ask } from '@jean2/sdk';
 import { resolveAsk, listPendingAsksByRootSession, ASK_TIMEOUT, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
@@ -36,14 +36,14 @@ import {
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
-import { streamChatWithRetry } from './core/retry';
-import { getModelsConfig, findModel, getPort, getHost } from './config';
-import { executeCompaction } from './core/compaction-executor';
-import { revertToStep } from './core/revert';
-import { forkSession } from './core/fork';
-import { interruptManager } from './core/interrupt';
+import { streamChatWithRetry } from '@/core/retry';
+import { getModelsConfig, findModel, getPort, getHost } from '@/config';
+import { executeCompaction } from '@/core/compaction-executor';
+import { revertToStep } from '@/core/revert';
+import { forkSession } from '@/core/fork';
+import { interruptManager } from '@/core/interrupt';
 import type { ServerWebSocket } from 'bun';
-import { validateToken, updateLastUsed, isAuthEnabled } from './auth/token';
+import { validateToken, updateLastUsed, isAuthEnabled } from '@/auth/token';
 
 interface WsData {
   path: string;
@@ -60,8 +60,8 @@ import {
   getTlsEnabled,
   getTlsCertFile,
   getTlsKeyFile,
-} from './env';
-import * as providerManager from './providers';
+} from '@/env';
+import * as providerManager from '@/providers';
 
 export interface ServerOptions {
   port?: number;

@@ -5,7 +5,7 @@ import {
   getPromptsDir,
   getEnvFilePath,
   getGlobalAgentsPath,
-} from './paths';
+} from '@/paths';
 
 import {
   getConfigPath,
@@ -16,12 +16,12 @@ import {
   clearConfigCache,
   getModelsConfigPath,
   clearModelsCache,
-} from './config';
-import { runMigrations } from './store';
-import { initializePreconfigs } from './core/preconfig';
-import { initializeToken } from './auth/token';
-import defaultModelsJson from './config/models.json';
-import { installRecommendedTools } from './tools';
+} from '@/config';
+import { runMigrations } from '@/store';
+import { initializePreconfigs } from '@/core/preconfig';
+import { initializeToken } from '@/auth/token';
+import defaultModelsJson from '@/config/models.json';
+import { installRecommendedTools } from '@/tools';
 
 export interface InitOptions {
   databasePath?: string;

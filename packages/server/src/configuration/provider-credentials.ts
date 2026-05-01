@@ -1,6 +1,6 @@
 import { atomicWriteFile, readFileSafe } from './files';
-import { getEnvFilePath } from '../paths';
-import { getJean2EnvValue, reloadJean2Env } from '../env';
+import { getEnvFilePath } from '@/paths';
+import { getJean2EnvValue, reloadJean2Env } from '@/env';
 import {
   ConfigurationNotFoundError,
   ConfigurationPersistenceError,

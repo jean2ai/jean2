@@ -1,7 +1,7 @@
 import type { MessageWithParts, CompactionPart, ImagePart, FilePart } from '@jean2/sdk';
 import type { ModelMessage } from 'ai';
 import { isTextPart, isToolPart, isImagePart, isFilePart, parseToolInput } from './part-utils';
-import { stripVisualization } from '../utils/strip-visualization';
+import { stripVisualization } from '@/utils/strip-visualization';
 import { getAttachment } from '@/store';
 
 type AiSdkContent = string | Array<{

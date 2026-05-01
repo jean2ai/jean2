@@ -9,7 +9,7 @@
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { getGlobalAgentsPath as getGlobalAgentsPathFromPaths } from '../paths';
+import { getGlobalAgentsPath as getGlobalAgentsPathFromPaths } from '@/paths';
 
 function getGlobalAgentsFilePath(): string {
   return getGlobalAgentsPathFromPaths();

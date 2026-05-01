@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { getMcpAuthPath, getDataDir } from '../paths';
+import { getMcpAuthPath, getDataDir } from '@/paths';
 
 export interface McpAuthTokens {
   accessToken: string;
