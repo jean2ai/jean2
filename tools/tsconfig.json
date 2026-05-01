@@ -18,6 +18,6 @@
       "@jean2/sdk": ["../packages/sdk/src"]
     }
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "./**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

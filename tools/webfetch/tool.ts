@@ -118,9 +118,9 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     if (urlObj.protocol !== 'https:') {
       const permAsk = createWebfetchPermissionAsk({
         url: input.url,
-        hostname: urlObj.hostname,
-        protocol: urlObj.protocol,
+        host: urlObj.hostname,
         risk: 'medium',
+        isHttp: urlObj.protocol === 'http:',
       });
 
       const approved = await ctx.ask(permAsk);
