@@ -5,7 +5,7 @@ import { getUploadDir } from '@/paths';
 import { createAskApi, type AskBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
-import { broadcastEvent } from './broadcast';
+import { broadcastEvent, type BroadcastFn } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { createSkillTool } from '@/skills';
@@ -24,7 +24,8 @@ export interface BuildToolsOptions {
 }
 
 export async function buildAiSdkTools(
-  options: BuildToolsOptions
+  options: BuildToolsOptions,
+  broadcast: BroadcastFn = broadcastEvent,
 ): Promise<Record<string, Tool>> {
   const {
     toolNames,
@@ -69,7 +70,7 @@ export async function buildAiSdkTools(
               onSessionCreated: (childSessionId: string) => {
                 const updatedPart = transitionToolToRunningByCallId(sessionId, toolCallId, childSessionId);
                 if (updatedPart) {
-                  broadcastEvent({ type: 'part.updated', sessionId, part: updatedPart });
+                  broadcast({ type: 'part.updated', sessionId, part: updatedPart });
                 }
               },
               allowedSubagentIds,

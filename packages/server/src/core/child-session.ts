@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/sdk';
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
-import { broadcastEvent } from './broadcast';
+import { broadcastEvent, type BroadcastFn } from './broadcast';
 import type { AskBroadcastFn } from '@/tools/ask-user-api';
 import { getLLMSubagentMaxSteps } from '@/env';
 import { streamChatWithRetry } from './retry';
@@ -17,11 +17,12 @@ export async function executeChildSession(options: {
   modelId?: string | null;
   providerId?: string | null;
   variant?: string | null;
+  broadcast?: BroadcastFn;
 }): Promise<{
   parts: Part[];
   error?: string;
 }> {
-  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant } = options;
+  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant, broadcast: broadcastFn = broadcastEvent } = options;
 
   let messages: MessageWithParts[];
 
@@ -96,15 +97,15 @@ export async function executeChildSession(options: {
           _originSessionId: message.sessionId,
         },
       };
-      broadcastEvent(rewritten as import('@jean2/sdk').ServerMessage);
+      broadcastFn(rewritten as import('@jean2/sdk').ServerMessage);
     } else if (message.type === 'ask.timeout') {
       const rewritten = {
         ...message,
         sessionId: rootSessionId,
       };
-      broadcastEvent(rewritten as import('@jean2/sdk').ServerMessage);
+      broadcastFn(rewritten as import('@jean2/sdk').ServerMessage);
     } else {
-      broadcastEvent(message as import('@jean2/sdk').ServerMessage);
+      broadcastFn(message as import('@jean2/sdk').ServerMessage);
     }
   };
 
@@ -122,21 +123,21 @@ export async function executeChildSession(options: {
       broadcastFn: askBroadcastFn,
     })) {
     if (event.type === 'message.created') {
-      broadcastEvent(event);
+      broadcastFn(event);
     } else if (event.type === 'part.created') {
       finalParts.push(event.part);
-      broadcastEvent(event);
+      broadcastFn(event);
     } else if (event.type === 'part.append' && event.field === 'text') {
       const part = finalParts.find(p => p.id === event.partId);
       if (part && part.type === 'text') {
         part.text = (part.text || '') + event.delta;
       }
-      broadcastEvent(event);
+      broadcastFn(event);
     } else if (event.type === 'part.updated') {
-      broadcastEvent(event);
+      broadcastFn(event);
     } else if (event.type === 'message.updated' && event.message.role === 'assistant') {
       updateMessage(event.message.id, event.message);
-      broadcastEvent(event);
+      broadcastFn(event);
     } else if (event.type === 'usage') {
       const currentSession = getSession(childSessionId);
       if (currentSession) {
@@ -146,7 +147,7 @@ export async function executeChildSession(options: {
           totalTokens: event.usage.totalTokens,
         });
       }
-      broadcastEvent({
+      broadcastFn({
         type: 'chat.usage',
         sessionId: childSessionId,
         usage: event.usage,

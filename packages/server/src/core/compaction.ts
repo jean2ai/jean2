@@ -9,7 +9,7 @@ import {
   getPartsBySession,
   buildEffectiveContextHistory,
 } from '@/store';
-import { broadcastEvent } from './broadcast';
+import { broadcastEvent, type BroadcastFn } from './broadcast';
 import type { MessageWithParts, CompactionPart, TextPart, AssistantMessage, ToolPart } from '@jean2/sdk';
 import { randomUUID } from 'crypto';
 import {
@@ -609,6 +609,7 @@ export function persistCompactionFailure(
   sessionId: string,
   triggerMessageId: string,
   errorMessage: string,
+  broadcast: BroadcastFn = broadcastEvent,
 ): void {
   const now = Date.now();
   const msgId = randomUUID();
@@ -645,6 +646,6 @@ export function persistCompactionFailure(
 
   createPart(textPart, sessionId);
 
-  broadcastEvent({ type: 'message.created', message: assistantMessage });
-  broadcastEvent({ type: 'part.created', sessionId, part: textPart });
+  broadcast({ type: 'message.created', message: assistantMessage });
+  broadcast({ type: 'part.created', sessionId, part: textPart });
 }

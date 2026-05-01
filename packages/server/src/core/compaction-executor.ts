@@ -1,5 +1,4 @@
-import { broadcastEvent } from './broadcast';
-import { broadcastSessionUpdated } from './broadcast';
+import { broadcastEvent, broadcastSessionUpdated, type BroadcastFn, type BroadcastSessionFn } from './broadcast';
 import {
   getSession,
   updateSession,
@@ -55,6 +54,8 @@ export interface CompactionExecutorError {
 export async function executeCompaction(
   sessionId: string,
   reason: CompactionTriggerReason,
+  broadcast: BroadcastFn = broadcastEvent,
+  broadcastSessUpdate: BroadcastSessionFn = broadcastSessionUpdated,
 ): Promise<CompactionExecutorResult | CompactionExecutorError> {
   let triggerMessageId: string | null = null;
 
@@ -76,7 +77,7 @@ export async function executeCompaction(
   const policy = resolveCompactionPolicy(sessionModelId, sessionProviderId);
 
   updateSession(sessionId, { compacting: true });
-  broadcastSessionUpdated(getSession(sessionId)!);
+  broadcastSessUpdate(getSession(sessionId)!);
 
   try {
     const trigger = createCompactionTrigger(sessionId, reason);
@@ -85,17 +86,17 @@ export async function executeCompaction(
     const allMessages = listMessagesWithParts(sessionId);
     const triggerMsg = allMessages.find(m => m.message.id === trigger.messageId);
     if (triggerMsg) {
-      broadcastEvent({ type: 'message.created', message: triggerMsg.message });
+      broadcast({ type: 'message.created', message: triggerMsg.message });
       for (const part of triggerMsg.parts) {
-        broadcastEvent({ type: 'part.created', sessionId, part });
+        broadcast({ type: 'part.created', sessionId, part });
       }
     }
 
     const result = await processCompactionTask(sessionId, trigger.messageId, policy);
 
-    broadcastEvent({ type: 'message.created', message: result.summaryMessage });
+    broadcast({ type: 'message.created', message: result.summaryMessage });
     for (const part of result.textParts) {
-      broadcastEvent({ type: 'part.created', sessionId, part });
+      broadcast({ type: 'part.created', sessionId, part });
     }
 
     const currentSession = getSession(sessionId);
@@ -106,7 +107,7 @@ export async function executeCompaction(
         totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
         compacting: false,
       });
-      broadcastSessionUpdated(getSession(sessionId)!);
+      broadcastSessUpdate(getSession(sessionId)!);
     }
 
     return {
@@ -122,11 +123,11 @@ export async function executeCompaction(
   } catch (err: unknown) {
     updateSession(sessionId, { compacting: false });
     const updatedSession = getSession(sessionId);
-    if (updatedSession) broadcastSessionUpdated(updatedSession);
+    if (updatedSession) broadcastSessUpdate(updatedSession);
     const errorMessage = err instanceof Error ? err.message : 'Compaction failed';
 
     if (triggerMessageId) {
-      persistCompactionFailure(sessionId, triggerMessageId, errorMessage);
+      persistCompactionFailure(sessionId, triggerMessageId, errorMessage, broadcast);
     }
 
     return {

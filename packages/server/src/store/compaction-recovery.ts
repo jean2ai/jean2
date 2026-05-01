@@ -9,7 +9,7 @@ import { getDatabase } from './index';
 import { updateSession, getSession } from './sessions';
 import { findOrphanedCompactionTriggers } from './messages';
 import { persistCompactionFailure } from '@/core/compaction';
-import { broadcastSessionUpdated } from '@/core/broadcast';
+import { broadcastEvent, broadcastSessionUpdated, type BroadcastSessionFn, type BroadcastFn } from '@/core/broadcast';
 
 export interface ReconcileOptions {
   /**
@@ -34,6 +34,13 @@ export function reconcileSessionCompaction(sessionId: string, options: Reconcile
   const { broadcast = true } = options;
   const db = getDatabase();
 
+  const broadcastFn: BroadcastFn = broadcast
+    ? broadcastEvent
+    : () => {};
+  const broadcastSessUpdate: BroadcastSessionFn = broadcast
+    ? broadcastSessionUpdated
+    : () => {};
+
   // Always clear the compacting flag - it's stuck if we're recovering
   const sessionRow = db
     .query('SELECT compacting FROM sessions WHERE id = ?')
@@ -45,7 +52,7 @@ export function reconcileSessionCompaction(sessionId: string, options: Reconcile
     if (broadcast) {
       const session = getSession(sessionId);
       if (session) {
-        broadcastSessionUpdated(session);
+        broadcastSessUpdate(session);
       }
     }
   }
@@ -66,6 +73,7 @@ export function reconcileSessionCompaction(sessionId: string, options: Reconcile
       sessionId,
       trigger.id,
       'Compaction interrupted (session recovered after crash or interruption)',
+      broadcastFn,
     );
   }
 

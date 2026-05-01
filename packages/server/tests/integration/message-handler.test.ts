@@ -28,13 +28,6 @@ import type { AssistantMessage, ToolPart, ServerMessage } from '@jean2/sdk';
 
 const broadcastMock = createMockBroadcast();
 
-mock.module('@/core/broadcast', () => ({
-  broadcastEvent: broadcastMock.callback,
-  broadcastSessionCreated: (session: any) => broadcastMock.callback({ type: 'session.created', session }),
-  broadcastSessionCreatedExclude: (session: any) => broadcastMock.callback({ type: 'session.created', session }),
-  broadcastSessionUpdated: (session: any) => broadcastMock.callback({ type: 'session.updated', session }),
-}));
-
 mock.module('@/core/model-utils', () => {
   const { MockLanguageModelV3 } = require('ai/test');
   return {

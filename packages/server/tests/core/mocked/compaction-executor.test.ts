@@ -36,11 +36,6 @@ async function setupMocks(opts: {
     listMessagesWithParts: mock((_sessionId: string) => []),
   }));
 
-  mock.module('@/core/broadcast', () => ({
-    broadcastEvent: mock((_event: unknown) => {}),
-    broadcastSessionUpdated: mock((_session: unknown) => {}),
-  }));
-
   mock.module('@/core/compaction', () => ({
     resolveCompactionPolicy: mock(() => ({
       modelId: null, providerId: null, maxOutputTokens: 4096,
@@ -62,7 +57,7 @@ async function setupMocks(opts: {
         ],
       };
     }),
-    persistCompactionFailure: mock((_sessionId: string, _triggerMessageId: string, _error: string) => {}),
+    persistCompactionFailure: mock((_sessionId: string, _triggerMessageId: string, _error: string, _broadcast: unknown) => {}),
   }));
 
   mock.module('@/config', () => ({
@@ -284,7 +279,7 @@ describe('compaction-executor', () => {
       await executeCompaction('sess-1', 'manual');
 
       const { persistCompactionFailure } = await import('@/core/compaction');
-      expect(persistCompactionFailure).toHaveBeenCalledWith('sess-1', 'trigger-msg-1', 'Token limit exceeded');
+      expect(persistCompactionFailure).toHaveBeenCalledWith('sess-1', 'trigger-msg-1', 'Token limit exceeded', expect.any(Function));
     });
 
     test('handles non-Error thrown values', async () => {
@@ -301,11 +296,6 @@ describe('compaction-executor', () => {
           return updated;
         }),
         listMessagesWithParts: mock((_sessionId: string) => []),
-      }));
-
-      mock.module('@/core/broadcast', () => ({
-        broadcastEvent: mock((_event: unknown) => {}),
-        broadcastSessionUpdated: mock((_session: unknown) => {}),
       }));
 
       mock.module('@/core/compaction', () => ({

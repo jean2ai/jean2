@@ -3,7 +3,7 @@ import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './child-session';
 import { getModelsConfig, findModel } from '@/config';
-import { broadcastSessionCreated, broadcastSessionUpdated } from './broadcast';
+import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
 import { randomUUID } from 'crypto';
 
 /**
@@ -56,6 +56,9 @@ export interface SubagentInput {
   abortSignal?: AbortSignal;
   onSessionCreated?: (childSessionId: string) => void;
   allowedSubagentIds?: string[];
+  broadcast?: BroadcastFn;
+  broadcastSessionCreated?: BroadcastSessionFn;
+  broadcastSessionUpdated?: BroadcastSessionFn;
 }
 
 export interface SubagentOutput {
@@ -135,7 +138,21 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
 }
 
 export async function executeSubagent(input: SubagentInput): Promise<SubagentOutput> {
-  const { description, prompt, subagent_type, task_id, sessionId, workspaceId, workspacePath, abortSignal, onSessionCreated, allowedSubagentIds } = input;
+  const {
+    description,
+    prompt,
+    subagent_type,
+    task_id,
+    sessionId,
+    workspaceId,
+    workspacePath,
+    abortSignal,
+    onSessionCreated,
+    allowedSubagentIds,
+    broadcast: broadcastFn = broadcastEvent as BroadcastFn,
+    broadcastSessionCreated: broadcastSessCreated = broadcastSessionCreated as BroadcastSessionFn,
+    broadcastSessionUpdated: broadcastSessUpdated = broadcastSessionUpdated as BroadcastSessionFn,
+  } = input;
 
   // Check if already aborted before starting
   if (abortSignal?.aborted) {
@@ -193,7 +210,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       updateSession(childSession.id, { subagentStatus: 'interrupted' });
       const updatedSession = getSession(childSession.id);
       if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
+        broadcastSessUpdated(updatedSession);
       }
     }
   };
@@ -250,7 +267,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         selectedVariant: subagentPreconfig.variant ?? null,
       });
 
-      broadcastSessionCreated(childSession);
+      broadcastSessCreated(childSession);
     }
 
     // Notify caller of the child session ID immediately
@@ -279,6 +296,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         ? subagentPreconfig.provider
         : parentProviderId,
       variant: subagentPreconfig.variant ?? undefined,
+      broadcast: broadcastFn,
     });
 
     // Check if was aborted during execution
@@ -295,13 +313,13 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       updateSession(childSession.id, { subagentStatus: 'error' });
       const updatedSession = getSession(childSession.id);
       if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
+        broadcastSessUpdated(updatedSession);
       }
     } else {
       updateSession(childSession.id, { subagentStatus: 'completed' });
       const updatedSession = getSession(childSession.id);
       if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
+        broadcastSessUpdated(updatedSession);
       }
     }
 
@@ -347,7 +365,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       updateSession(childSession.id, { subagentStatus: 'error' });
       const updatedSession = getSession(childSession.id);
       if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
+        broadcastSessUpdated(updatedSession);
       }
     }
     return {

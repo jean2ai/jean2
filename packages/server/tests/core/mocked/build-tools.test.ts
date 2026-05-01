@@ -63,10 +63,6 @@ async function setupMocks(opts: {
     },
   }));
 
-  mock.module('@/core/broadcast', () => ({
-    broadcastEvent: mock((_event: unknown) => {}),
-  }));
-
   mock.module('@/store', () => ({
     transitionToolToRunningByCallId: mock(() => null),
   }));

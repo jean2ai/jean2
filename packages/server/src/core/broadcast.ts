@@ -1,5 +1,8 @@
-import type { ServerMessage } from '@jean2/sdk';
-import type { Session } from '@jean2/sdk';
+import type { ServerMessage, Session } from '@jean2/sdk';
+
+export type BroadcastFn = (message: ServerMessage) => void;
+
+export type BroadcastSessionFn = (session: Session) => void;
 
 type BroadcastCallback = (message: ServerMessage, excludeWs?: unknown) => void;
 

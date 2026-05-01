@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { seedWorkspaceWithSession } from '#tests/seed';
 import {
@@ -10,14 +10,7 @@ import {
 } from '@/core/compaction';
 import type { GenerateSummaryFn } from '@/core/compaction';
 import { createMessage, createPart, listMessagesWithParts, getPartsBySession } from '@/store';
-import type { AssistantMessage, CompactionPart, ToolPart } from '@jean2/sdk';
-import { createMockBroadcast } from '#tests/mocks';
-
-const broadcastMock = createMockBroadcast();
-
-mock.module('@/core/broadcast', () => ({
-  broadcastEvent: broadcastMock.callback,
-}));
+import type { AssistantMessage, CompactionPart, ToolPart, ServerMessage } from '@jean2/sdk';
 
 function createFakeGenerateSummary(overrides: {
   text?: string;
@@ -39,12 +32,14 @@ function createFakeGenerateSummary(overrides: {
 
 describe('compaction', () => {
   let sessionId: string;
+  const broadcastMessages: ServerMessage[] = [];
+  const broadcastFn = (msg: ServerMessage) => broadcastMessages.push(msg);
 
   beforeEach(() => {
     setupTestDatabase();
     const ctx = seedWorkspaceWithSession();
     sessionId = ctx.sessionId;
-    broadcastMock.clear();
+    broadcastMessages.length = 0;
   });
 
   afterEach(() => {
@@ -479,7 +474,7 @@ describe('compaction', () => {
   // ===========================================================================
   describe('persistCompactionFailure', () => {
     test('creates error message with compact_failed mode', () => {
-      persistCompactionFailure(sessionId, 'trigger-1', 'Model API error');
+      persistCompactionFailure(sessionId, 'trigger-1', 'Model API error', broadcastFn);
 
       const allMsgs = listMessagesWithParts(sessionId);
       const failedMsg = allMsgs.find(m => {
@@ -499,10 +494,10 @@ describe('compaction', () => {
     });
 
     test('broadcasts failure events', () => {
-      persistCompactionFailure(sessionId, 'trigger-1', 'Timeout');
+      persistCompactionFailure(sessionId, 'trigger-1', 'Timeout', broadcastFn);
 
-      expect(broadcastMock.messages.length).toBeGreaterThanOrEqual(2);
-      const types = broadcastMock.messages.map((m: any) => m.type);
+      expect(broadcastMessages.length).toBeGreaterThanOrEqual(2);
+      const types = broadcastMessages.map((m) => m.type);
       expect(types).toContain('message.created');
       expect(types).toContain('part.created');
     });

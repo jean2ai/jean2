@@ -168,28 +168,36 @@ export async function processCompactionTask(
 
 **Risk:** Zero — just added exports, no behavior change.
 
-### 8. Pass Broadcast Function as Parameter Instead of Global (DEFERRED)
+### 8. Pass Broadcast Function as Parameter Instead of Global (DONE)
 
-**Current:** `broadcast.ts` uses a module-level callback:
+**What changed:**
+Functions that call `broadcastEvent` / `broadcastSessionUpdated` now accept these as optional parameters with defaults pointing to the real implementations. Tests inject capturing functions; production callers pass nothing (using defaults).
+
+**Exported types from `broadcast.ts`:**
 ```typescript
-let broadcastCallback: BroadcastCallback | null = null;
-export function registerBroadcastCallback(callback: BroadcastCallback): void { ... }
-export function broadcastEvent(message: ServerMessage): void { ... }
+export type BroadcastFn = (message: ServerMessage) => void;
+export type BroadcastSessionFn = (session: Session) => void;
 ```
 
-**Better pattern:** Functions that broadcast should accept a broadcast parameter:
-```typescript
-export function persistCompactionFailure(
-  sessionId: string,
-  triggerMessageId: string,
-  errorMessage: string,
-  broadcast: (msg: ServerMessage) => void = broadcastEvent,
-) {
-  broadcast({ type: 'message.created', ... });
-}
-```
+**Refactored functions:**
+| Function | New Parameters | File |
+|---|---|---|
+| `persistCompactionFailure` | `broadcast: BroadcastFn = broadcastEvent` | `compaction.ts` |
+| `executeCompaction` | `broadcast: BroadcastFn = broadcastEvent`, `broadcastSessUpdate: BroadcastSessionFn = broadcastSessionUpdated` | `compaction-executor.ts` |
+| `buildAiSdkTools` | Second param `broadcast: BroadcastFn = broadcastEvent` | `build-tools.ts` |
+| `executeChildSession` | `broadcast?: BroadcastFn` in options | `child-session.ts` |
+| `executeSubagent` | `broadcast?: BroadcastFn`, `broadcastSessionCreated?: BroadcastSessionFn`, `broadcastSessionUpdated?: BroadcastSessionFn` in input | `subagent.ts` |
+| `reconcileSessionCompaction` | Uses existing `broadcast` option to create no-op fns when `false` | `compaction-recovery.ts` |
 
-**Status:** Deferred — incremental refactoring. The message router (#3) already injects broadcast via `RouterContext` for the main WS handlers, which was the biggest win. Remaining callers (`compaction-executor`, `compaction`, `child-session`, `build-tools`) are already tested via `mock.module('@/core/broadcast')` in the integration and mocked tests. Can be done incrementally as each function gets new tests.
+**Tests updated:**
+- `tests/core/mocked/compaction-executor.test.ts` — removed `mock.module('@/core/broadcast')` (2 occurrences)
+- `tests/core/mocked/build-tools.test.ts` — removed `mock.module('@/core/broadcast')`
+- `tests/core/compaction.test.ts` — removed `mock.module('@/core/broadcast')`; `persistCompactionFailure` tests pass `broadcastFn` directly
+- `tests/integration/message-handler.test.ts` — removed `mock.module('@/core/broadcast')`; uses `registerBroadcastCallback` instead
+
+**Why:** Eliminates the need for `mock.module('@/core/broadcast')` across 4 test files. Functions are now independently testable with injected broadcast — no global state manipulation required.
+
+**Risk:** Low — all new parameters are optional with safe defaults. All existing callers unchanged.
 
 ### 9. Centralized Path Resolution (DONE)
 
@@ -230,7 +238,7 @@ Week 2: #5 (inject stream factory)          ← DONE — retry tests use clean D
 Week 2: #6 (inject summary generator)      ← DONE — compaction tests use clean DI
 Week 3: #3 (extract message router)         ← DONE — core/message-router.ts with RouterContext
 Week 4: #4 (split app.ts routes)            ← DONE — src/routes/ with 6 modules
-Ongoing: #8 (broadcast injection)           ← DEFERRED — incremental, existing tests work
+Week 5: #8 (broadcast injection)           ← DONE — all broadcast callers use DI
 ```
 
 ## Golden Rule
