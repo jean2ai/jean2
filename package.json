@@ -30,7 +30,8 @@
     "electron:build:mac:release": "cd packages/client-electron && bun run electron:build:mac:release",
     "electron:build:win": "cd packages/client-electron && bun run electron:build:win",
     "test:server": "bun test packages/server",
-    "test": "bun test packages/server packages/sdk"
+    "test": "bun test packages/server packages/sdk",
+    "sandbox": "bun packages/sandbox-cli/src/cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
