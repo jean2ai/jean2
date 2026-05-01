@@ -1,11 +1,12 @@
 import { join } from 'path';
-import { homedir, tmpdir } from 'os';
+import { tmpdir } from 'os';
 import { existsSync, statSync, openSync } from 'fs';
 
 import { VERSION } from '@/version';
 import { getStatus, stopDaemon, getLogFilePath } from '@/daemon';
 import { getToolEnv } from '@/env';
 import { isInitialized } from '@/config';
+import { getBinaryPath } from './paths';
 
 export interface UpdateOptions {
   version?: string;
@@ -44,8 +45,7 @@ export function detectPlatform(): 'darwin' | 'linux' | 'windows' {
 }
 
 export function getBinaryInstallPath(): string {
-  const binaryName = detectPlatform() === 'windows' ? 'jean2.exe' : 'jean2';
-  return join(homedir(), '.jean2', 'bin', binaryName);
+  return getBinaryPath();
 }
 
 export function getDownloadUrl(version: string, platform: string): string {

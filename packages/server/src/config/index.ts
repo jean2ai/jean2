@@ -1,5 +1,3 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 
 import {
@@ -10,6 +8,13 @@ import {
   getLLMMaxTokens,
   getModelsPath,
 } from '../env';
+import {
+  getDataDir,
+  getConfigPath as getConfigFilePath,
+  getModelsConfigPath as getModelsConfigFilePath,
+  getDefaultDatabasePath as getDefaultDatabasePathFromPaths,
+  getToolsDir,
+} from '../paths';
 
 // NotInitializedError for when config doesn't exist
 export class NotInitializedError extends Error {
@@ -50,7 +55,7 @@ let modelsCache: ModelsConfig | null = null;
 
 // Get the models config file path (~/.jean2/models.json)
 export function getModelsConfigPath(): string {
-  return join(homedir(), '.jean2', 'models.json');
+  return getModelsConfigFilePath();
 }
 
 /**
@@ -147,7 +152,7 @@ function loadConfig(): { databasePath: string; toolsPath: string; port: number; 
     return configCache;
   }
 
-  const configPath = join(homedir(), '.jean2', 'config.json');
+  const configPath = getConfigFilePath();
 
   if (!existsSync(configPath)) {
     throw new NotInitializedError();
@@ -157,8 +162,8 @@ function loadConfig(): { databasePath: string; toolsPath: string; port: number; 
     const content = readFileSync(configPath, 'utf-8');
     const config = JSON.parse(content);
     configCache = {
-      databasePath: config.databasePath || join(homedir(), '.jean2', 'data', 'agent.db'),
-      toolsPath: config.toolsPath || join(homedir(), '.jean2', 'tools'),
+      databasePath: config.databasePath || getDefaultDatabasePathFromPaths(),
+      toolsPath: config.toolsPath || getToolsDir(),
       port: config.port || 8742,
       host: config.host || '0.0.0.0',
     };
@@ -295,22 +300,22 @@ export function getMaxOutputTokens(modelId?: string): number {
 
 // Get the config directory path (~/.jean2)
 export function getConfigDir(): string {
-  return join(homedir(), '.jean2');
+  return getDataDir();
 }
 
 // Get the config file path (~/.jean2/config.json)
 export function getConfigPath(): string {
-  return join(homedir(), '.jean2', 'config.json');
+  return getConfigFilePath();
 }
 
 // Get the default database path (~/.jean2/data/agent.db)
 export function getDefaultDatabasePath(): string {
-  return join(homedir(), '.jean2', 'data', 'agent.db');
+  return getDefaultDatabasePathFromPaths();
 }
 
 // Get the default tools path (~/.jean2/tools)
 export function getDefaultToolsPath(): string {
-  return join(homedir(), '.jean2', 'tools');
+  return getToolsDir();
 }
 
 // Config interface for init
@@ -326,7 +331,7 @@ export interface Jean2Config {
 export function saveConfig(config: Jean2Config): void {
   const configDir = getConfigDir();
   mkdirSync(configDir, { recursive: true });
-  writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
+  writeFileSync(getConfigFilePath(), JSON.stringify(config, null, 2));
 }
 
 // Clear the config cache (needed when re-initializing)

@@ -1,8 +1,11 @@
 import { dirname } from 'path';
 import { mkdirSync, existsSync, writeFileSync } from 'fs';
 import { createInterface } from 'node:readline';
-import { homedir } from 'os';
-import { join } from 'path';
+import {
+  getPromptsDir,
+  getEnvFilePath,
+  getGlobalAgentsPath,
+} from './paths';
 
 import {
   getConfigPath,
@@ -149,10 +152,10 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
   // Create directories
   mkdirSync(dirname(finalDbPath), { recursive: true });
   mkdirSync(finalToolsPath, { recursive: true });
-  mkdirSync(join(homedir(), '.jean2', 'prompts'), { recursive: true });
+  mkdirSync(getPromptsDir(), { recursive: true });
 
   // Create empty .env file
-  const envPath = join(homedir(), '.jean2', '.env');
+  const envPath = getEnvFilePath();
   if (!existsSync(envPath)) {
     writeFileSync(envPath, `# Jean2 Environment Variables
 # Add your API keys and configuration here
@@ -168,7 +171,7 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
   }
 
   // Create empty AGENTS.md file
-  const agentsPath = join(homedir(), '.jean2', 'AGENTS.md');
+  const agentsPath = getGlobalAgentsPath();
   if (!existsSync(agentsPath)) {
     writeFileSync(agentsPath, `# Jean2 Global Instructions
 #

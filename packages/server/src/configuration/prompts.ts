@@ -1,5 +1,4 @@
 import type { PromptInfo, CreatePromptRequest, UpdatePromptRequest } from '@jean2/sdk';
-import { homedir } from 'os';
 import { join } from 'path';
 import { unlink } from 'fs/promises';
 import { listPrompts, getPrompt, clearPromptsCache, parsePromptFile } from '../prompts/registry';
@@ -10,8 +9,12 @@ import {
   ConfigurationConflictError,
   ConfigurationPersistenceError,
 } from './errors';
+import { getPromptsDir } from '../paths';
 
-const PROMPTS_DIR = join(homedir(), '.jean2', 'prompts');
+function getPromptsDirPath(): string {
+  return getPromptsDir();
+}
+
 const PROMPT_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 
 function isValidPromptName(name: string): boolean {
@@ -49,7 +52,7 @@ export async function createPromptConfig(data: CreatePromptRequest): Promise<Pro
     throw new ConfigurationConflictError(`Prompt already exists: ${data.name}`);
   }
 
-  const filePath = join(PROMPTS_DIR, `${data.name}.md`);
+  const filePath = join(getPromptsDirPath(), `${data.name}.md`);
 
   try {
     await atomicWriteFile(filePath, data.content);
@@ -76,7 +79,7 @@ export async function updatePromptConfig(name: string, data: UpdatePromptRequest
     throw new ConfigurationNotFoundError('Prompt', name);
   }
 
-  const filePath = join(PROMPTS_DIR, `${name}.md`);
+  const filePath = join(getPromptsDirPath(), `${name}.md`);
 
   try {
     await atomicWriteFile(filePath, data.content);
@@ -99,7 +102,7 @@ export async function deletePromptConfig(name: string): Promise<void> {
     throw new ConfigurationNotFoundError('Prompt', name);
   }
 
-  const filePath = join(PROMPTS_DIR, `${name}.md`);
+  const filePath = join(getPromptsDirPath(), `${name}.md`);
 
   try {
     await unlink(filePath);

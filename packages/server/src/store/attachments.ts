@@ -1,9 +1,9 @@
 import { getDatabase } from './index';
 import { mkdirSync, writeFileSync, unlinkSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import type { AttachmentKind } from '@jean2/sdk';
 import { listSessionsByWorkspace } from './sessions';
+import { getAttachmentDir } from '../paths';
 
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
 
@@ -57,9 +57,7 @@ function mapRowToAttachment(row: AttachmentRow): Attachment {
   };
 }
 
-export function getAttachmentDir(workspaceId: string, sessionId: string): string {
-  return join(homedir(), '.jean2', 'data', 'upload', workspaceId, sessionId);
-}
+// getAttachmentDir is now imported from ../paths
 
 export function determineKind(mimeType: string): AttachmentKind {
   if (mimeType.startsWith('image/')) {

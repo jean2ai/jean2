@@ -1,27 +1,24 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { createHash } from 'crypto';
 import { writeFileSync, existsSync, mkdirSync, unlinkSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 
 import { createApp } from '@/app';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
+import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace, seedSession } from '#tests/seed';
-
-const TOKEN_FILE = join(homedir(), '.jean2', 'auth-token.json');
-
-const TOKEN_DIR = join(homedir(), '.jean2');
+import { getAuthTokenPath, getDataDir } from '@/paths';
 
 async function json(res: Response): Promise<any> {
   return res.json();
 }
 
 function writeTestTokenFile(token: string): void {
-  if (!existsSync(TOKEN_DIR)) {
-    mkdirSync(TOKEN_DIR, { recursive: true });
+  const tokenDir = getDataDir();
+  if (!existsSync(tokenDir)) {
+    mkdirSync(tokenDir, { recursive: true });
   }
   const hash = createHash('sha256').update(token).digest('hex');
-  writeFileSync(TOKEN_FILE, JSON.stringify({
+  writeFileSync(getAuthTokenPath(), JSON.stringify({
     token,
     hash,
     createdAt: new Date().toISOString(),
@@ -30,32 +27,16 @@ function writeTestTokenFile(token: string): void {
 
 describe('API Auth Middleware', () => {
   let app: ReturnType<typeof createApp>;
-  let originalTokenFile: string | null = null;
 
   beforeEach(() => {
-    // Back up existing token file if it exists
-    if (existsSync(TOKEN_FILE)) {
-      originalTokenFile = readFileSync(TOKEN_FILE, 'utf-8');
-    } else {
-      originalTokenFile = null;
-    }
+    setupTestDataDir();
     setupTestDatabase();
   });
 
   afterEach(() => {
     resetTestDatabase();
+    resetTestDataDir();
     delete process.env.JEAN2_DISABLE_AUTH;
-
-    // Restore original token file
-    if (originalTokenFile !== null) {
-      writeFileSync(TOKEN_FILE, originalTokenFile, { mode: 0o600 });
-    } else {
-      try {
-        unlinkSync(TOKEN_FILE);
-      } catch {
-        // File may not exist
-      }
-    }
   });
 
   // ── Public Routes (always accessible) ──────────────────────────
@@ -466,7 +447,7 @@ describe('API Auth Middleware', () => {
       delete process.env.JEAN2_DISABLE_AUTH;
       // Remove the token file to simulate first run
       try {
-        unlinkSync(TOKEN_FILE);
+        unlinkSync(getAuthTokenPath());
       } catch {
         // May not exist
       }
@@ -475,12 +456,12 @@ describe('API Auth Middleware', () => {
     });
 
     test('initializeToken creates token file on app creation', () => {
-      expect(existsSync(TOKEN_FILE)).toBe(true);
+      expect(existsSync(getAuthTokenPath())).toBe(true);
     });
 
     test('requests with the generated token succeed', async () => {
       // Read the token that initializeToken just created
-      const data = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
+      const data = JSON.parse(readFileSync(getAuthTokenPath(), 'utf-8'));
       const generatedToken = data.token;
 
       const res = await app.request('/api/sessions', {

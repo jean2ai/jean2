@@ -1,11 +1,12 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { atomicWriteFile, readFileSafe } from './files';
+import { getEnvFilePath } from '../paths';
 import { getJean2EnvValue, reloadJean2Env } from '../env';
 import { listTools } from '../tools/registry';
 import { ConfigurationPersistenceError, ConfigurationValidationError } from './errors';
 
-const ENV_FILE_PATH = join(homedir(), '.jean2', '.env');
+function getEnvFilePathForModule(): string {
+  return getEnvFilePath();
+}
 
 const SENSITIVE_PATTERNS = [
   'API_KEY',
@@ -96,7 +97,7 @@ export async function setToolEnvVar(key: string, value: string): Promise<ToolEnv
   const sensitive = isSensitiveEnvKey(trimmedKey);
 
   try {
-    const content = await readFileSafe(ENV_FILE_PATH);
+    const content = await readFileSafe(getEnvFilePathForModule());
     const lines = content ? content.split('\n') : [];
     let keyFound = false;
 
@@ -124,7 +125,7 @@ export async function setToolEnvVar(key: string, value: string): Promise<ToolEnv
       updatedLines.push(`${trimmedKey}=${trimmedValue}`);
     }
 
-    await atomicWriteFile(ENV_FILE_PATH, updatedLines.join('\n') + '\n');
+    await atomicWriteFile(getEnvFilePathForModule(), updatedLines.join('\n') + '\n');
     reloadJean2Env();
 
     const status: ToolEnvVarStatus = {
@@ -153,7 +154,7 @@ export async function clearToolEnvVar(key: string): Promise<ToolEnvVarStatus> {
   const sensitive = isSensitiveEnvKey(trimmedKey);
 
   try {
-    const content = await readFileSafe(ENV_FILE_PATH);
+    const content = await readFileSafe(getEnvFilePathForModule());
     if (!content) {
       reloadJean2Env();
       return {
@@ -180,7 +181,7 @@ export async function clearToolEnvVar(key: string): Promise<ToolEnvVarStatus> {
       return existingKey !== trimmedKey;
     });
 
-    await atomicWriteFile(ENV_FILE_PATH, updatedLines.join('\n') + '\n');
+    await atomicWriteFile(getEnvFilePathForModule(), updatedLines.join('\n') + '\n');
     reloadJean2Env();
 
     return {

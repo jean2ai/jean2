@@ -9,9 +9,11 @@
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+import { getGlobalAgentsPath as getGlobalAgentsPathFromPaths } from '../paths';
 
-const GLOBAL_AGENTS_PATH = join(homedir(), '.jean2', 'AGENTS.md');
+function getGlobalAgentsFilePath(): string {
+  return getGlobalAgentsPathFromPaths();
+}
 
 export interface LoadedInstructions {
   global: string | null;
@@ -29,9 +31,9 @@ export async function loadInstructions(workspacePath?: string): Promise<LoadedIn
   };
 
   // 1. Load global instructions
-  if (existsSync(GLOBAL_AGENTS_PATH)) {
+  if (existsSync(getGlobalAgentsFilePath())) {
     try {
-      const content = await readFile(GLOBAL_AGENTS_PATH, 'utf-8');
+      const content = await readFile(getGlobalAgentsFilePath(), 'utf-8');
       if (content.trim()) {
         result.global = content.trim();
       }
@@ -84,5 +86,5 @@ ${instructions.project}
  * Get the global AGENTS.md path (for init command)
  */
 export function getGlobalAgentsPath(): string {
-  return GLOBAL_AGENTS_PATH;
+  return getGlobalAgentsFilePath();
 }

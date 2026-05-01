@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
 import { createApp } from '@/app';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
+import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace, seedSession } from '#tests/seed';
 
 async function json(res: Response): Promise<any> {
@@ -13,12 +14,14 @@ describe('API Routes', () => {
 
   beforeEach(() => {
     process.env.JEAN2_DISABLE_AUTH = 'true';
+    setupTestDataDir();
     setupTestDatabase();
     app = createApp();
   });
 
   afterEach(() => {
     resetTestDatabase();
+    resetTestDataDir();
     delete process.env.JEAN2_DISABLE_AUTH;
   });
 

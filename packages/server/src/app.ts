@@ -93,6 +93,9 @@ function expandPath(path: string): string {
   return path;
 }
 
+// Import paths module for data directory resolution
+import { getWorkspacesDir } from './paths';
+
 export function createApp() {
   // Initialize authentication token
   initializeToken();
@@ -271,7 +274,7 @@ export function createApp() {
 
     // Auto-create default virtual workspace if none exist
     if (workspaces.length === 0) {
-      const path = join(homedir(), '.jean2', 'workspaces', crypto.randomUUID());
+      const path = join(getWorkspacesDir(), crypto.randomUUID());
 
       // Create directory if it doesn't exist
       try {
@@ -304,7 +307,7 @@ export function createApp() {
     
     // Auto-generate path for virtual workspaces if not provided
     if (isVirtual && !path) {
-      path = join(homedir(), '.jean2', 'workspaces', crypto.randomUUID());
+      path = join(getWorkspacesDir(), crypto.randomUUID());
     }
     
     // Only reject if still no path (non-virtual workspaces require a path)

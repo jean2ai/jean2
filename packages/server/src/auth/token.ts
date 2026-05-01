@@ -1,8 +1,7 @@
 // packages/server/src/auth/token.ts
 import { randomBytes, createHash } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
+
 import {
   getDisableAuth,
   getLLMOpenAIApiKey,
@@ -13,8 +12,11 @@ import {
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
 } from '../env';
+import { getDataDir, getAuthTokenPath } from '../paths';
 
-const TOKEN_FILE = join(homedir(), '.jean2', 'auth-token.json');
+function getTokenFile(): string {
+  return getAuthTokenPath();
+}
 
 const _LLM_OPENAI_API_KEY = getLLMOpenAIApiKey();
 const _LLM_ANTHROPIC_API_KEY = getLLMAnthropicApiKey();
@@ -53,15 +55,15 @@ export function hashToken(token: string): string {
  * Generates new token if none exists
  */
 export function initializeToken(): string {
-  const dir = join(homedir(), '.jean2');
+  const dir = getDataDir();
   
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
   
-  if (existsSync(TOKEN_FILE)) {
+  if (existsSync(getTokenFile())) {
     try {
-      const data: TokenData = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
+      const data: TokenData = JSON.parse(readFileSync(getTokenFile(), 'utf-8'));
       if (data?.token) {
         return data.token;
       }
@@ -80,13 +82,13 @@ export function initializeToken(): string {
   };
   
   // File mode 0o600 = read/write for owner only
-  writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
+  writeFileSync(getTokenFile(), JSON.stringify(data, null, 2), { mode: 0o600 });
   
   console.log('\n' + '='.repeat(60));
   console.log('🔑 API Token Generated');
   console.log('='.repeat(60));
   console.log(`Token: ${token}`);
-  console.log(`\nStored in: ${TOKEN_FILE}`);
+  console.log(`\nStored in: ${getTokenFile()}`);
   console.log('\nUse this token to authenticate your client.');
   console.log('='.repeat(60) + '\n');
   
@@ -102,13 +104,13 @@ export function validateToken(providedToken: string | null | undefined): boolean
     return false;
   }
   
-  if (!existsSync(TOKEN_FILE)) {
+  if (!existsSync(getTokenFile())) {
     console.warn('Token file not found. Run initializeToken() first.');
     return false;
   }
   
   try {
-    const data: TokenData = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
+    const data: TokenData = JSON.parse(readFileSync(getTokenFile(), 'utf-8'));
     const providedHash = hashToken(providedToken);
     
     // Timing-safe comparison prevents timing attacks
@@ -124,14 +126,14 @@ export function validateToken(providedToken: string | null | undefined): boolean
  * Called after successful authentication
  */
 export function updateLastUsed(): void {
-  if (!existsSync(TOKEN_FILE)) {
+  if (!existsSync(getTokenFile())) {
     return;
   }
   
   try {
-    const data: TokenData = JSON.parse(readFileSync(TOKEN_FILE, 'utf-8'));
+    const data: TokenData = JSON.parse(readFileSync(getTokenFile(), 'utf-8'));
     data.lastUsed = new Date().toISOString();
-    writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
+    writeFileSync(getTokenFile(), JSON.stringify(data, null, 2));
   } catch (error) {
     console.error('Error updating lastUsed:', error);
   }
@@ -150,7 +152,7 @@ export function regenerateToken(): string {
  * Get token file path (for CLI commands)
  */
 export function getTokenFilePath(): string {
-  return TOKEN_FILE;
+  return getTokenFile();
 }
 
 /**

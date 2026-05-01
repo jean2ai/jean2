@@ -1,15 +1,15 @@
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
 import type { PromptInfo } from '@jean2/sdk';
+import { getPromptsDir as getPromptsDirFromPaths } from '../paths';
 
 let promptsCache: PromptInfo[] | null = null;
 let lastScanTime = 0;
 const CACHE_TTL = 60_000;
 
 function getPromptsDir(): string {
-  return join(homedir(), '.jean2', 'prompts');
+  return getPromptsDirFromPaths();
 }
 
 export function ensurePromptsDir(): void {

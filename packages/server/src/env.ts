@@ -1,11 +1,10 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { getEnvFilePath, getToolsDir, getPreconfigsDir } from './paths';
 
 const envOverlay = new Map<string, string>();
 
 function loadEnvFile(): void {
-  const envPath = join(homedir(), '.jean2', '.env');
+  const envPath = getEnvFilePath();
   if (!existsSync(envPath)) {
     return;
   }
@@ -60,11 +59,11 @@ export function getDisableAuth(): boolean {
 }
 
 export function getToolsPath(): string {
-  return process.env.JEAN2_TOOLS_PATH || join(homedir(), '.jean2', 'tools');
+  return process.env.JEAN2_TOOLS_PATH || getToolsDir();
 }
 
 export function getPreconfigsPath(): string {
-  return process.env.JEAN2_PRECONFIGS_PATH || join(homedir(), '.jean2', 'preconfigs');
+  return process.env.JEAN2_PRECONFIGS_PATH || getPreconfigsDir();
 }
 
 export function getModelsPath(): string | undefined {

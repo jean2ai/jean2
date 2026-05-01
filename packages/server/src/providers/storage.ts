@@ -1,10 +1,5 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-
-function getProvidersDir(): string {
-  return join(homedir(), '.jean2', 'providers');
-}
+import { getProvidersDir, getProviderPath } from '../paths';
 
 function ensureProvidersDir(): string {
   const dir = getProvidersDir();
@@ -12,10 +7,6 @@ function ensureProvidersDir(): string {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   return dir;
-}
-
-function getProviderPath(provider: string): string {
-  return join(ensureProvidersDir(), `${provider}.json`);
 }
 
 export function loadProviderConfig<T = unknown>(provider: string): T | null {
@@ -34,6 +25,7 @@ export function loadProviderConfig<T = unknown>(provider: string): T | null {
 }
 
 export function saveProviderConfig(provider: string, config: unknown): void {
+  ensureProvidersDir();
   const path = getProviderPath(provider);
   writeFileSync(path, JSON.stringify(config, null, 2), { mode: 0o600 });
 }

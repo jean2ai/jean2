@@ -1,6 +1,5 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { atomicWriteFile, readFileSafe } from './files';
+import { getEnvFilePath } from '../paths';
 import { getJean2EnvValue, reloadJean2Env } from '../env';
 import {
   ConfigurationNotFoundError,
@@ -9,7 +8,9 @@ import {
 } from './errors';
 import type { ProviderCredentialStatus, ProviderCredentialsResponse } from '@jean2/sdk';
 
-const ENV_FILE_PATH = join(homedir(), '.jean2', '.env');
+function getEnvFilePathForModule(): string {
+  return getEnvFilePath();
+}
 
 const PROVIDER_CREDENTIALS: Array<{ provider: string; envKey: string }> = [
   { provider: 'anthropic', envKey: 'JEAN2_LLM_ANTHROPIC_API_KEY' },
@@ -45,7 +46,7 @@ export async function setProviderCredential(provider: string, apiKey: string): P
   }
 
   try {
-    const content = await readFileSafe(ENV_FILE_PATH);
+    const content = await readFileSafe(getEnvFilePathForModule());
     const lines = content ? content.split('\n') : [];
     const targetKey = cred.envKey;
     const targetValue = apiKey.trim();
@@ -75,7 +76,7 @@ export async function setProviderCredential(provider: string, apiKey: string): P
       updatedLines.push(`${targetKey}=${targetValue}`);
     }
 
-    await atomicWriteFile(ENV_FILE_PATH, updatedLines.join('\n') + '\n');
+    await atomicWriteFile(getEnvFilePathForModule(), updatedLines.join('\n') + '\n');
     reloadJean2Env();
 
     return { provider, configured: true };
@@ -92,7 +93,7 @@ export async function clearProviderCredential(provider: string): Promise<Provide
   }
 
   try {
-    const content = await readFileSafe(ENV_FILE_PATH);
+    const content = await readFileSafe(getEnvFilePathForModule());
     if (!content) {
       reloadJean2Env();
       return { provider, configured: false };
@@ -116,7 +117,7 @@ export async function clearProviderCredential(provider: string): Promise<Provide
       return key !== targetKey;
     });
 
-    await atomicWriteFile(ENV_FILE_PATH, updatedLines.join('\n') + '\n');
+    await atomicWriteFile(getEnvFilePathForModule(), updatedLines.join('\n') + '\n');
     reloadJean2Env();
 
     return { provider, configured: false };

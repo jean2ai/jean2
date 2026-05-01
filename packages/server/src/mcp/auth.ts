@@ -1,6 +1,5 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
+import { getMcpAuthPath, getDataDir } from '../paths';
 
 export interface McpAuthTokens {
   accessToken: string;
@@ -24,11 +23,13 @@ export interface McpAuthEntry {
   serverUrl?: string;
 }
 
-const AUTH_FILE = join(homedir(), '.jean2', 'mcp-auth.json');
+function getAuthFile(): string {
+  return getMcpAuthPath();
+}
 
 async function ensureDir(): Promise<void> {
   try {
-    await mkdir(join(homedir(), '.jean2'), { recursive: true });
+    await mkdir(getDataDir(), { recursive: true });
   } catch (_e) {
     // Directory exists
   }
@@ -36,7 +37,7 @@ async function ensureDir(): Promise<void> {
 
 async function readAuthFile(): Promise<Record<string, McpAuthEntry>> {
   try {
-    const content = await readFile(AUTH_FILE, 'utf-8');
+    const content = await readFile(getAuthFile(), 'utf-8');
     return JSON.parse(content) as Record<string, McpAuthEntry>;
   } catch (_e) {
     return {};
@@ -45,7 +46,7 @@ async function readAuthFile(): Promise<Record<string, McpAuthEntry>> {
 
 async function writeAuthFile(data: Record<string, McpAuthEntry>): Promise<void> {
   await ensureDir();
-  await writeFile(AUTH_FILE, JSON.stringify(data, null, 2), { mode: 0o600 });
+  await writeFile(getAuthFile(), JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
 function getEntryKey(mcpName: string, serverUrl?: string): string {

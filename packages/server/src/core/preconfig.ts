@@ -4,24 +4,26 @@ import { existsSync } from 'fs';
 import { randomUUID } from 'crypto';
 import matter from 'gray-matter';
 import type { Preconfig, PreconfigMode } from '@jean2/sdk';
-import { getPreconfigsPath } from '../env';
+import { getPreconfigsDir as getPreconfigsDirPath } from '../paths';
 import { DEFAULT_PREAMBLES } from './defaults';
 
-const PRECONFIGS_DIR = getPreconfigsPath();
+function getPreconfigsDir(): string {
+  return getPreconfigsDirPath();
+}
 
 async function ensureDir(): Promise<void> {
-  if (existsSync(PRECONFIGS_DIR)) {
+  if (existsSync(getPreconfigsDir())) {
     return;
   }
-  await mkdir(PRECONFIGS_DIR, { recursive: true });
+  await mkdir(getPreconfigsDir(), { recursive: true });
 }
 
 export function getPreconfigMdPath(id: string): string {
-  return join(PRECONFIGS_DIR, `${id}.md`);
+  return join(getPreconfigsDir(), `${id}.md`);
 }
 
 export function getPreconfigJsonPath(id: string): string {
-  return join(PRECONFIGS_DIR, `${id}.json`);
+  return join(getPreconfigsDir(), `${id}.json`);
 }
 
 export async function preconfigExists(id: string): Promise<{ md: boolean; json: boolean }> {
@@ -133,7 +135,7 @@ export async function initializePreconfigs(): Promise<void> {
 export async function listPreconfigs(): Promise<Preconfig[]> {
   await ensureDir();
 
-  const files = await readdir(PRECONFIGS_DIR).catch(() => []);
+  const files = await readdir(getPreconfigsDir()).catch(() => []);
   const mdFiles = files.filter(f => f.endsWith('.md'));
   const jsonFiles = files.filter(f => f.endsWith('.json'));
 
@@ -145,7 +147,7 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
   // Parse .md files first
   for (const file of mdFiles) {
     try {
-      const content = await readFile(join(PRECONFIGS_DIR, file), 'utf-8');
+      const content = await readFile(join(getPreconfigsDir(), file), 'utf-8');
       const parsed = parsePreconfigMd(content);
       const id = parsed.id || file.replace(/\.md$/, '');
       preconfigs.push({ ...parsed, id });
@@ -161,7 +163,7 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
       continue; // .md takes precedence
     }
     try {
-      const content = await readFile(join(PRECONFIGS_DIR, file), 'utf-8');
+      const content = await readFile(join(getPreconfigsDir(), file), 'utf-8');
       preconfigs.push(JSON.parse(content) as Preconfig);
     } catch (e) {
       console.error(`Failed to read preconfig ${file}:`, e);

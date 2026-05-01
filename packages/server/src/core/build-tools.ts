@@ -1,8 +1,7 @@
-import { homedir } from 'os';
-import { join } from 'path';
 import { tool, jsonSchema, type Tool } from 'ai';
 import { getTool, executeTool } from '@/tools';
 import { createLlmApi } from '@/tools/llm-api';
+import { getUploadDir } from '../paths';
 import { createAskApi, type AskBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
@@ -110,7 +109,7 @@ export async function buildAiSdkTools(
             workspacePath,
             sessionId,
             workspaceId,
-            allowedPaths: [join(homedir(), '.jean2', 'data', 'upload')],
+            allowedPaths: [getUploadDir()],
             toolCallId,
             abortSignal: toolAbortController.signal,
             timeout: definition.timeout,

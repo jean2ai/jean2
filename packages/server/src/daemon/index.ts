@@ -1,6 +1,6 @@
-import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
+import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '../paths';
 
 import { getPort, getHost } from '../config';
 import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile } from '../env';
@@ -32,15 +32,15 @@ interface PidFileData {
 }
 
 function getConfigDir(): string {
-  return join(homedir(), '.jean2');
+  return getDataDir();
 }
 
 export function getPidFilePath(): string {
-  return join(getConfigDir(), 'server.pid');
+  return getPidFilePathFromPaths();
 }
 
 export function getLogFilePath(): string {
-  return join(getConfigDir(), 'server.log');
+  return getLogFilePathFromPaths();
 }
 
 function ensureConfigDir(): void {

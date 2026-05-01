@@ -231,6 +231,7 @@ export function persistCompactionFailure(
 ```
 Week 1: #1 + #2 (store test helpers)       ← 5 min, unlocks all store tests
 Week 1: #7 (export compaction helpers)      ← 2 min, unlocks compaction tests
+Week 1: #9 (centralized paths)              ← DONE — all paths go through paths.ts now
 Week 2: #5 + #6 (inject dependencies)       ← 25 min, unlocks retry/compaction mocking
 Week 3: #3 (extract message router)         ← 60 min, unlocks integration tests
 Week 4: #4 (split app.ts routes)            ← 90 min, unlocks route tests
@@ -240,3 +241,42 @@ Ongoing: #8 (broadcast injection)           ← incremental
 ## Golden Rule
 
 Every refactoring should make the codebase **better tested**, not just **more testable**. Write the test that uses the new testability, verify it works, then commit both the refactoring and the test together.
+
+### 9. Centralized Path Resolution (DONE)
+
+**Problem:** `~/.jean2` was hardcoded via `join(homedir(), '.jean2', ...)` in 15+ files. Tests could not redirect paths, causing test data to leak into the production data directory.
+
+**Solution:** Created `src/paths.ts` — a single module that resolves all data directory paths through `getDataDir()`. Tests override via `setDataDirForTesting()` / `resetDataDirForTesting()`.
+
+**What changed:**
+- `src/paths.ts` — new centralized module with all path functions
+- `tests/helpers/test-dir.ts` — `setupTestDataDir()` / `resetTestDataDir()` helpers
+- All consumers (`env.ts`, `config/index.ts`, `auth/token.ts`, `init.ts`, `app.ts`, `providers/storage.ts`, `mcp/auth.ts`, `core/instructions.ts`, `core/preconfig.ts`, `core/build-tools.ts`, `configuration/prompts.ts`, `configuration/provider-credentials.ts`, `configuration/tool-env.ts`, `daemon/index.ts`, `update.ts`) now import from `paths.ts`
+- API tests use isolated temp directories instead of writing to `~/.jean2`
+- Auth tests no longer backup/restore the real token file
+
+**Usage in production code:**
+```typescript
+import { getAuthTokenPath, getPreconfigsDir } from '@/paths';
+const tokenPath = getAuthTokenPath(); // Always resolves dynamically
+```
+
+**Usage in tests:**
+```typescript
+import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
+
+beforeEach(() => {
+  setupTestDataDir();  // Creates temp dir, seeds models.json, clears caches
+  setupTestDatabase();
+});
+
+afterEach(() => {
+  resetTestDatabase();
+  resetTestDataDir();  // Clears caches, removes temp dir
+});
+```
+
+**Supported override methods (priority order):**
+1. `setDataDirForTesting(dir)` — programmatic override for tests
+2. `JEAN2_DATA_DIR` env var — for external test runners or CI
+3. Default: `~/.jean2`
