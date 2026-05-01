@@ -178,6 +178,52 @@ export interface AskResponseMessage {
   response: AskResponse;
 }
 
+export interface SandboxTextResponse {
+  type: 'text';
+  content: string;
+}
+
+export interface SandboxToolCallResponse {
+  type: 'tool-call';
+  toolName: string;
+  args: Record<string, unknown>;
+  toolCallId?: string;
+}
+
+export interface SandboxMultiToolCallResponse {
+  type: 'multi-tool-call';
+  calls: Array<{
+    toolName: string;
+    args: Record<string, unknown>;
+    toolCallId?: string;
+  }>;
+}
+
+export interface SandboxErrorResponse {
+  type: 'error';
+  error: string;
+  errorType?: 'rate_limit' | 'server' | 'timeout' | 'auth' | 'invalid_request';
+}
+
+export interface SandboxReasoningResponse {
+  type: 'reasoning';
+  reasoning: string;
+  text: string;
+}
+
+export type SandboxResponse =
+  | SandboxTextResponse
+  | SandboxToolCallResponse
+  | SandboxMultiToolCallResponse
+  | SandboxErrorResponse
+  | SandboxReasoningResponse;
+
+export interface SandboxRespondMessage {
+  type: 'sandbox.respond';
+  callId: string;
+  response: SandboxResponse;
+}
+
 // =============================================================================
 // Heartbeat Messages
 // =============================================================================
@@ -210,4 +256,5 @@ export type ClientMessage =
   | ProviderConnectMessage
   | ProviderDisconnectMessage
   | AskResponseMessage
+  | SandboxRespondMessage
   | PongMessage;

@@ -5,6 +5,7 @@ export interface ModelFactoryOptions {
   modelId: string;
   providerId: string;
   systemPrompt: string;
+  sessionId?: string;
 }
 
 export interface ModelFactoryResult {

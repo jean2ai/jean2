@@ -129,7 +129,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   }
 
   const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =
-    await getModelWithMetadata(resolvedModelId, providerId, systemMessage);
+    await getModelWithMetadata({
+      modelId: resolvedModelId,
+      providerId,
+      systemPrompt: systemMessage,
+      sessionId: _sessionId,
+    });
 
   // Resolve model definition for context window and capabilities
   const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;

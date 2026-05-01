@@ -40,6 +40,8 @@ import {
   getLLMZhipuCodingApiKey,
 } from '@/env';
 import * as providerManager from '@/providers';
+import { isSandboxActive, sandboxController } from '@/sandbox';
+import type { SandboxRespondMessage } from '@/sandbox';
 import type { ServerWebSocket } from 'bun';
 
 // ── Context ────────────────────────────────────────────────────
@@ -233,6 +235,7 @@ async function runSingleChatTurn(
   };
 
   let pendingCompaction = false;
+  const effectiveProvider = isSandboxActive() ? 'sandbox' : provider;
 
   try {
     for await (const event of streamChatWithRetry({
@@ -240,7 +243,7 @@ async function runSingleChatTurn(
       preconfig,
       messages: history,
       modelId: modelId,
-      providerId: provider,
+      providerId: effectiveProvider,
       variant: session.selectedVariant || undefined,
       workspacePath: workspacePath ?? undefined,
       workspaceId: session.workspaceId || undefined,
@@ -1059,6 +1062,17 @@ export async function handleClientMessage(
     case 'ask.response': {
       const { toolCallId, response } = msg as AskResponseMessage;
       resolveAsk(toolCallId, response);
+      break;
+    }
+
+    case 'sandbox.respond': {
+      try {
+        const { callId, response } = msg as unknown as SandboxRespondMessage;
+        sandboxController.respond(callId, response);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Sandbox response failed';
+        ctx.send(ws, { type: 'error', code: 'sandbox_error', message });
+      }
       break;
     }
 

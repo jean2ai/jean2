@@ -21,11 +21,27 @@ export interface ModelWithMetadata {
   providerOptions?: Record<string, Record<string, unknown>>;
 }
 
-export async function getModelWithMetadata(modelId?: string, providerId?: string, systemPrompt?: string): Promise<ModelWithMetadata> {
-  const defaultModelId = 'gpt-4o';
-  const resolvedModelId = modelId || defaultModelId;
+export interface ModelResolutionOptions {
+  modelId?: string;
+  providerId?: string;
+  systemPrompt?: string;
+  sessionId?: string;
+}
 
-  let provider = providerId;
+export async function getModelWithMetadata(options: ModelResolutionOptions): Promise<ModelWithMetadata>;
+export async function getModelWithMetadata(modelId?: string, providerId?: string, systemPrompt?: string): Promise<ModelWithMetadata>;
+export async function getModelWithMetadata(
+  modelIdOrOptions?: string | ModelResolutionOptions,
+  providerId?: string,
+  systemPrompt?: string,
+): Promise<ModelWithMetadata> {
+  const options: ModelResolutionOptions = typeof modelIdOrOptions === 'string'
+    ? { modelId: modelIdOrOptions, providerId, systemPrompt }
+    : (modelIdOrOptions ?? {});
+  const defaultModelId = 'gpt-4o';
+  const resolvedModelId = options.modelId || defaultModelId;
+
+  let provider = options.providerId;
   let model = resolvedModelId;
 
   if (!provider) {
@@ -52,7 +68,8 @@ export async function getModelWithMetadata(modelId?: string, providerId?: string
     const result = await createModelForProvider({
       modelId: model,
       providerId: provider,
-      systemPrompt: systemPrompt || '',
+      systemPrompt: options.systemPrompt || '',
+      sessionId: options.sessionId,
     });
     return {
       model: result.model,
@@ -143,6 +160,6 @@ export async function getModelWithMetadata(modelId?: string, providerId?: string
 }
 
 export async function getModel(modelId?: string, providerId?: string): Promise<LanguageModel> {
-  const { model } = await getModelWithMetadata(modelId, providerId);
+  const { model } = await getModelWithMetadata({ modelId, providerId });
   return model;
 }

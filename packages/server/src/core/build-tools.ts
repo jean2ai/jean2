@@ -98,7 +98,7 @@ export async function buildAiSdkTools(
         const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
 
         try {
-          const llmFactory = () => createLlmApi(modelId, providerId);
+          const llmFactory = () => createLlmApi(modelId, providerId, sessionId);
           const askFactory = (tcId: string) =>
             broadcastFn
               ? createAskApi(sessionId, tcId, definition.name, broadcastFn, workspaceId)

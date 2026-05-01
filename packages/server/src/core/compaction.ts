@@ -385,7 +385,7 @@ function markToolsAsCompacted(
  * Abstracts away model resolution and the generateText/streamText call.
  */
 export interface GenerateSummaryFn {
-  (prompt: string, policy: CompactionPolicy): Promise<{
+  (prompt: string, policy: CompactionPolicy, sessionId: string): Promise<{
     text: string;
     usage: { prompt: number; completion: number };
     effectiveModelId: string;
@@ -399,13 +399,18 @@ export interface GenerateSummaryFn {
 async function defaultGenerateSummary(
   prompt: string,
   policy: CompactionPolicy,
+  sessionId: string,
 ): Promise<{
   text: string;
   usage: { prompt: number; completion: number };
   effectiveModelId: string;
   effectiveProviderId: string;
 }> {
-  const { model, omitMaxOutputTokens } = await getModelWithMetadata(policy.modelId ?? undefined, policy.providerId ?? undefined);
+  const { model, omitMaxOutputTokens } = await getModelWithMetadata({
+    modelId: policy.modelId ?? undefined,
+    providerId: policy.providerId ?? undefined,
+    sessionId,
+  });
 
   const effectiveModelId = policy.modelId || 'gpt-4o';
   let effectiveProviderId = policy.providerId;
@@ -539,7 +544,7 @@ export async function processCompactionTask(
   console.log('[compaction] modelId:', policy.modelId, 'providerId:', policy.providerId);
 
   const generateSummary = generateSummaryFn ?? defaultGenerateSummary;
-  const { text: summary, usage, effectiveModelId, effectiveProviderId } = await generateSummary(prompt, policy);
+  const { text: summary, usage, effectiveModelId, effectiveProviderId } = await generateSummary(prompt, policy, sessionId);
 
   const now = Date.now();
   const msgId = randomUUID();

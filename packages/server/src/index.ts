@@ -30,6 +30,7 @@ import {
   getTlsCertFile,
   getTlsKeyFile,
 } from '@/env';
+import { activateSandbox } from '@/sandbox';
 
 interface WsData {
   path: string;
@@ -97,6 +98,12 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   console.log(`Found ${tools.length} tools: ${tools.map(t => t.definition.name).join(', ')}`);
 
   const app = createApp();
+
+  if (process.env.JEAN2_SANDBOX === 'true') {
+    activateSandbox((event) => {
+      broadcast(event as unknown as ServerMessage);
+    });
+  }
 
   let tls: { cert: string; key: string } | undefined;
   if (getTlsEnabled()) {

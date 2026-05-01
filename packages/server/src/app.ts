@@ -22,6 +22,7 @@ import { registerFileRoutes } from '@/routes/files';
 import { registerToolRoutes } from '@/routes/tools';
 import { registerMcpRoutes } from '@/routes/mcp';
 import { registerConfigRoutes } from '@/routes/config';
+import { registerSandboxRoutes } from '@/sandbox/routes';
 
 export function createApp() {
   // Initialize authentication token
@@ -100,6 +101,9 @@ export function createApp() {
   registerToolRoutes(app);
   registerMcpRoutes(app);
   registerConfigRoutes(app);
+  if (process.env.JEAN2_SANDBOX === 'true') {
+    registerSandboxRoutes(app);
+  }
 
   // ============================================================================
   // WebSocket Handler

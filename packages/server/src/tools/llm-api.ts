@@ -3,14 +3,15 @@ import { jsonSchema } from 'ai';
 import type { LlmApi, LlmTextOptions, LlmStructuredOptions, LlmImage } from '@jean2/sdk';
 import { getModelWithMetadata } from '@/core/model-utils';
 
-export function createLlmApi(defaultModelId?: string, defaultProviderId?: string): LlmApi {
+export function createLlmApi(defaultModelId?: string, defaultProviderId?: string, sessionId?: string): LlmApi {
   return {
     async generateText(options: LlmTextOptions): Promise<string> {
-      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata(
-        options.model || defaultModelId,
-        defaultProviderId,
-        options.system,
-      );
+      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+        modelId: options.model || defaultModelId,
+        providerId: defaultProviderId,
+        systemPrompt: options.system,
+        sessionId,
+      });
 
       const systemMessage = options.system ? { role: 'system' as const, content: options.system } : null;
       let userContent: string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string | Uint8Array; mimeType: string }> = options.prompt;
@@ -42,11 +43,12 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
     },
 
     async generateStructured<T = unknown>(options: LlmStructuredOptions): Promise<T> {
-      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata(
-        options.model || defaultModelId,
-        defaultProviderId,
-        options.system,
-      );
+      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+        modelId: options.model || defaultModelId,
+        providerId: defaultProviderId,
+        systemPrompt: options.system,
+        sessionId,
+      });
 
       const systemMessage = options.system ? { role: 'system' as const, content: options.system } : null;
       let userContent: string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string | Uint8Array; mimeType: string }> = options.prompt;
