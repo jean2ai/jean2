@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { initializeSchema, setDatabaseForTesting, resetDatabaseForTesting } from '@/store';
+import { initializeSchema, DB } from '@/store';
 
 /**
  * Create a fresh in-memory SQLite database with full schema initialized.
@@ -28,14 +28,14 @@ export function createTestDatabase(): Database {
  */
 export function setupTestDatabase(): Database {
   const db = createTestDatabase();
-  setDatabaseForTesting(db);
+  DB.configure({ database: db });
   return db;
 }
 
 /**
- * Tear down the test database singleton.
+ * Tear down the test database override.
  * Call this in afterEach() to prevent leaks.
  */
 export function resetTestDatabase(): void {
-  resetDatabaseForTesting();
+  DB.reset();
 }

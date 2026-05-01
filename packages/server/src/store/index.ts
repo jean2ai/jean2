@@ -4,44 +4,109 @@ import { mkdirSync } from 'fs';
 
 import { resolveDatabasePath } from '../config';
 
-let db: Database | null = null;
+/**
+ * Database Singleton
+ *
+ * All database access is resolved through a singleton DB instance.
+ * In production, the database is lazily created from the resolved path.
+ * It can be overridden via:
+ *   - DB.configure({ database }) (e.g. for CLI --database flag, or tests)
+ *
+ * Usage:
+ *   import { getDatabase } from '@/store';
+ *   const db = getDatabase();
+ *
+ * Override (generic — not test-specific):
+ *   import { DB } from '@/store';
+ *   DB.configure({ database: myDb });
+ *   DB.reset();
+ */
+class DatabaseSingleton {
+  private dbOverride: Database | null = null;
+  private dbDefault: Database | null = null;
 
+  /**
+   * Configure the database instance directly.
+   * Useful for injecting an in-memory database or a pre-opened connection.
+   */
+  configure(opts: { database: Database }): void {
+    // Close any previous override if it's different
+    if (this.dbOverride && this.dbOverride !== opts.database) {
+      this.dbOverride.close();
+    }
+    this.dbOverride = opts.database;
+  }
+
+  /**
+   * Reset all overrides. Closes the override database if one was set.
+   * The lazily-created default database is kept alive (call close() separately if needed).
+   */
+  reset(): void {
+    if (this.dbOverride) {
+      this.dbOverride.close();
+      this.dbOverride = null;
+    }
+  }
+
+  /**
+   * Close all database connections and reset state completely.
+   */
+  close(): void {
+    if (this.dbOverride) {
+      this.dbOverride.close();
+      this.dbOverride = null;
+    }
+    if (this.dbDefault) {
+      this.dbDefault.close();
+      this.dbDefault = null;
+    }
+  }
+
+  /**
+   * Get the active database instance.
+   * Priority:
+   *   1. Programmatic override (set via configure)
+   *   2. Lazily-created default from resolved path
+   */
+  getDatabase(): Database {
+    if (this.dbOverride) {
+      return this.dbOverride;
+    }
+
+    if (!this.dbDefault) {
+      const dbPath = resolveDatabasePath();
+      const dbDir = dirname(dbPath);
+      mkdirSync(dbDir, { recursive: true });
+
+      const db = new Database(dbPath);
+      db.run('PRAGMA journal_mode = WAL');
+      initializeSchema(db);
+      this.dbDefault = db;
+    }
+
+    return this.dbDefault;
+  }
+}
+
+/**
+ * Singleton instance. Use DB.configure() / DB.reset() to override.
+ */
+export const DB = new DatabaseSingleton();
+
+/**
+ * Get the active database instance.
+ * Convenience free function backed by the singleton.
+ */
 export function getDatabase(): Database {
-  if (!db) {
-    // Use centralized config for database path
-    const dbPath = resolveDatabasePath();
-
-    // Ensure the directory exists
-    const dbDir = dirname(dbPath);
-    mkdirSync(dbDir, { recursive: true });
-
-    db = new Database(dbPath);
-    // Enable WAL mode for better concurrency
-    db.run('PRAGMA journal_mode = WAL');
-    initializeSchema(db);
-  }
-  return db;
+  return DB.getDatabase();
 }
 
+/**
+ * Close all database connections and reset state.
+ * Convenience free function backed by the singleton.
+ */
 export function closeDatabase(): void {
-  if (db) {
-    db.close();
-    db = null;
-  }
-}
-// TODO: Refactor this into singleton
-export function setDatabaseForTesting(database: Database): void {
-  if (db && db !== database) {
-    db.close();
-  }
-  db = database;
-}
-
-export function resetDatabaseForTesting(): void {
-  if (db) {
-    db.close();
-  }
-  db = null;
+  DB.close();
 }
 
 // Force run migrations on the current database
