@@ -1,4 +1,4 @@
-import { generateText, streamText } from 'ai';
+import { generateText as aiGenerateText, streamText as aiStreamText } from 'ai';
 import { getModelWithMetadata } from './model-utils';
 import { findModel } from '@/config';
 import {
@@ -381,6 +381,99 @@ function markToolsAsCompacted(
 }
 
 /**
+ * A function that generates a summary from a prompt.
+ * Abstracts away model resolution and the generateText/streamText call.
+ */
+export interface GenerateSummaryFn {
+  (prompt: string, policy: CompactionPolicy): Promise<{
+    text: string;
+    usage: { prompt: number; completion: number };
+    effectiveModelId: string;
+    effectiveProviderId: string;
+  }>;
+}
+
+/**
+ * Default implementation that uses AI SDK generateText/streamText.
+ */
+async function defaultGenerateSummary(
+  prompt: string,
+  policy: CompactionPolicy,
+): Promise<{
+  text: string;
+  usage: { prompt: number; completion: number };
+  effectiveModelId: string;
+  effectiveProviderId: string;
+}> {
+  const { model, omitMaxOutputTokens } = await getModelWithMetadata(policy.modelId ?? undefined, policy.providerId ?? undefined);
+
+  const effectiveModelId = policy.modelId || 'gpt-4o';
+  let effectiveProviderId = policy.providerId;
+  if (!effectiveProviderId) {
+    const modelInfo = findModel(effectiveModelId);
+    effectiveProviderId = modelInfo?.providerId ||
+      (effectiveModelId.includes('/') ? 'openrouter' :
+       effectiveModelId.startsWith('claude-') ? 'anthropic' :
+       effectiveModelId.startsWith('gemini-') ? 'google' : 'openai');
+  }
+
+  const isCodex = effectiveProviderId === 'codex';
+
+  let text: string;
+  let usage: { prompt: number; completion: number };
+
+  if (isCodex) {
+    const stream = aiStreamText({
+      model,
+      prompt,
+      maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
+      providerOptions: {
+        openai: {
+          instructions: prompt,
+          store: false,
+        },
+      },
+    });
+    text = await stream.text;
+    const resultUsage = await stream.usage;
+    const resultFinishReason = await stream.finishReason;
+    if (resultFinishReason === 'length') {
+      console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
+      text += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
+    }
+    usage = {
+      prompt: resultUsage.inputTokens ?? 0,
+      completion: resultUsage.outputTokens ?? 0,
+    };
+  } else {
+    try {
+      const result = await aiGenerateText({
+        model,
+        prompt,
+        maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
+      });
+      text = result.text;
+      if (result.finishReason === 'length') {
+        console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
+        text += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
+      }
+      usage = {
+        prompt: result.usage.inputTokens ?? 0,
+        completion: result.usage.outputTokens ?? 0,
+      };
+    } catch (err) {
+      console.error('[compaction] generateText failed:', err);
+      if (err instanceof Error) {
+        console.error('[compaction] error message:', err.message);
+      }
+      throw err;
+    }
+  }
+
+  return { text, usage, effectiveModelId, effectiveProviderId };
+}
+
+/**
  * Processes a compaction task from a trigger message.
  * Creates an assistant message with the summary text.
  */
@@ -388,6 +481,7 @@ export async function processCompactionTask(
   sessionId: string,
   triggerMessageId: string,
   policy: CompactionPolicy,
+  generateSummaryFn?: GenerateSummaryFn,
 ): Promise<CompactionTaskResult> {
   // Get the trigger message
   const allMessages = listMessagesWithParts(sessionId);
@@ -444,73 +538,8 @@ export async function processCompactionTask(
 
   console.log('[compaction] modelId:', policy.modelId, 'providerId:', policy.providerId);
 
-  const { model, omitMaxOutputTokens } = await getModelWithMetadata(policy.modelId ?? undefined, policy.providerId ?? undefined);
-
-  // Resolve effective modelId/providerId - same logic as getModelWithMetadata in agent.ts
-  const effectiveModelId = policy.modelId || 'gpt-4o';
-  let effectiveProviderId = policy.providerId;
-  if (!effectiveProviderId) {
-    const modelInfo = findModel(effectiveModelId);
-    effectiveProviderId = modelInfo?.providerId ||
-      (effectiveModelId.includes('/') ? 'openrouter' :
-       effectiveModelId.startsWith('claude-') ? 'anthropic' :
-       effectiveModelId.startsWith('gemini-') ? 'google' : 'openai');
-  }
-
-  const isCodex = effectiveProviderId === 'codex';
-
-  let summary: string;
-  let usage: { prompt: number; completion: number };
-
-  if (isCodex) {
-    // Note: streamText supports maxOutputTokens via AI SDK, so we honor policy.maxOutputTokens
-    // when the policy specifies it. This ensures consistent token limits across all paths.
-    const stream = streamText({
-      model,
-      prompt,
-      maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
-      providerOptions: {
-        openai: {
-          instructions: prompt,
-          store: false,
-        },
-      },
-    });
-    summary = await stream.text;
-    const resultUsage = await stream.usage;
-    const resultFinishReason = await stream.finishReason;
-    if (resultFinishReason === 'length') {
-      console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
-      summary += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
-    }
-    usage = {
-      prompt: resultUsage.inputTokens ?? 0,
-      completion: resultUsage.outputTokens ?? 0,
-    };
-  } else {
-    try {
-      const result = await generateText({
-        model,
-        prompt,
-        maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
-      });
-      summary = result.text;
-      if (result.finishReason === 'length') {
-        console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
-        summary += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
-      }
-      usage = {
-        prompt: result.usage.inputTokens ?? 0,
-        completion: result.usage.outputTokens ?? 0,
-      };
-    } catch (err) {
-      console.error('[compaction] generateText failed:', err);
-      if (err instanceof Error) {
-        console.error('[compaction] error message:', err.message);
-      }
-      throw err;
-    }
-  }
+  const generateSummary = generateSummaryFn ?? defaultGenerateSummary;
+  const { text: summary, usage, effectiveModelId, effectiveProviderId } = await generateSummary(prompt, policy);
 
   const now = Date.now();
   const msgId = randomUUID();

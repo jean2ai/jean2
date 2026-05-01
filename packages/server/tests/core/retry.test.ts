@@ -1,4 +1,6 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { streamChatWithRetry } from '@/core/retry';
+import type { StreamChatFn, StreamChatEvent } from '@/core/retry';
 import type { ChatOptions } from '@/core/agent';
 
 // Helper to create AI-SDK-compatible errors
@@ -58,6 +60,15 @@ function makeOptions(overrides: Partial<ChatOptions> = {}): ChatOptions {
   };
 }
 
+/** Collect all events from an async generator into an array. */
+async function collect(gen: AsyncGenerator<StreamChatEvent>): Promise<StreamChatEvent[]> {
+  const events: StreamChatEvent[] = [];
+  for await (const event of gen) {
+    events.push(event);
+  }
+  return events;
+}
+
 describe('streamChatWithRetry', () => {
   beforeEach(() => {
     mockSetTimeout();
@@ -69,19 +80,13 @@ describe('streamChatWithRetry', () => {
 
   test('yields events from successful stream', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        yield { type: 'message.created', message: { id: 'm1', role: 'user', sessionId: 's1', createdAt: 0 } };
-        yield { type: 'part.created', sessionId: 's1', part: { id: 'p1', type: 'text', text: 'Hello' } };
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      yield { type: 'message.created', message: { id: 'm1', role: 'user', sessionId: 's1', createdAt: 0 } } as StreamChatEvent;
+      yield { type: 'part.created', sessionId: 's1', part: { id: 'p1', type: 'text', text: 'Hello' } } as StreamChatEvent;
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(2);
     expect(callCount).toBe(1);
@@ -89,21 +94,15 @@ describe('streamChatWithRetry', () => {
 
   test('retries on retryable errors and eventually succeeds', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        if (callCount <= 2) {
-          throw createError({ message: 'Internal server error', status: 500 });
-        }
-        yield { type: 'message.created', message: { id: 'm1', role: 'user', sessionId: 's1', createdAt: 0 } };
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      if (callCount <= 2) {
+        throw createError({ message: 'Internal server error', status: 500 });
+      }
+      yield { type: 'message.created', message: { id: 'm1', role: 'user', sessionId: 's1', createdAt: 0 } } as StreamChatEvent;
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(1);
     expect(callCount).toBe(3);
@@ -111,22 +110,16 @@ describe('streamChatWithRetry', () => {
 
   test('yields rate limit error event when max retries hit', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        throw createError({
-          message: 'Rate limit exceeded',
-          status: 429,
-          retryAfterHeader: '0',
-        });
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      throw createError({
+        message: 'Rate limit exceeded',
+        status: 429,
+        retryAfterHeader: '0',
+      });
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(1);
     const errorEvent = events[0] as { type: string; code: string };
@@ -137,21 +130,15 @@ describe('streamChatWithRetry', () => {
 
   test('yields context overflow error without retrying', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        throw createError({
-          message: 'context window exceeds limit',
-          status: 400,
-        });
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      throw createError({
+        message: 'context window exceeds limit',
+        status: 400,
+      });
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(1);
     const errorEvent = events[0] as { type: string };
@@ -161,18 +148,12 @@ describe('streamChatWithRetry', () => {
 
   test('yields server error when max retries exceeded', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        throw createError({ message: 'Server error', status: 500 });
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      throw createError({ message: 'Server error', status: 500 });
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(1);
     const errorEvent = events[0] as { type: string; code: string };
@@ -182,18 +163,12 @@ describe('streamChatWithRetry', () => {
 
   test('yields generic error for non-retryable unknown errors', async () => {
     let callCount = 0;
-    mock.module('@/core/agent', () => ({
-      streamChat: async function* (_options: ChatOptions) {
-        callCount++;
-        throw new Error('Something unexpected');
-      },
-    }));
+    const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
+      callCount++;
+      throw new Error('Something unexpected');
+    };
 
-    const { streamChatWithRetry } = await import('@/core/retry');
-    const events: unknown[] = [];
-    for await (const event of streamChatWithRetry(makeOptions())) {
-      events.push(event);
-    }
+    const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
     expect(events).toHaveLength(1);
     const errorEvent = events[0] as { type: string; code: string };

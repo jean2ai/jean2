@@ -2,18 +2,34 @@ import type { ChatOptions } from './agent';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_CHAT_FAILED } from '@/utils/errors';
 import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage } from '@jean2/sdk';
 
+/** The union of all events that streamChat can yield (or retry wraps). */
+export type StreamChatEvent =
+  | MessageEvent
+  | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null }
+  | { type: 'needs_compaction'; sessionId: string }
+  | RateLimitErrorMessage
+  | ServerErrorMessage
+  | TimeoutErrorMessage
+  | AuthErrorMessage
+  | ContextOverflowErrorMessage
+  | InvalidRequestErrorMessage
+  | ErrorMessage;
+
+/** A stream factory function matching the signature of agent.ts streamChat. */
+export type StreamChatFn = (options: ChatOptions) => AsyncGenerator<StreamChatEvent>;
+
 export async function* streamChatWithRetry(
-  options: ChatOptions
-): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | RateLimitErrorMessage | ServerErrorMessage | TimeoutErrorMessage | AuthErrorMessage | ContextOverflowErrorMessage | InvalidRequestErrorMessage | ErrorMessage> {
+  options: ChatOptions,
+  streamChatFn?: StreamChatFn,
+): AsyncGenerator<StreamChatEvent> {
   let retries = 0;
   const maxRetries = 3;
   let _lastError: ReturnType<typeof classifyApiError> | null = null;
 
   while (retries <= maxRetries) {
     try {
-      // streamChat is imported dynamically to avoid circular dependency
-      const { streamChat } = await import('./agent');
-      for await (const event of streamChat(options)) {
+      const stream = streamChatFn ?? (await import('./agent')).streamChat;
+      for await (const event of stream(options)) {
         yield event;
       }
       return;

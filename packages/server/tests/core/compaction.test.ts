@@ -1,5 +1,4 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
-import { generateText } from 'ai';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { seedWorkspaceWithSession } from '#tests/seed';
 import {
@@ -9,9 +8,10 @@ import {
   processCompactionTask,
   persistCompactionFailure,
 } from '@/core/compaction';
+import type { GenerateSummaryFn } from '@/core/compaction';
 import { createMessage, createPart, listMessagesWithParts, getPartsBySession } from '@/store';
 import type { AssistantMessage, CompactionPart, ToolPart } from '@jean2/sdk';
-import { createMockGenerateModel, createMockBroadcast } from '#tests/mocks';
+import { createMockBroadcast } from '#tests/mocks';
 
 const broadcastMock = createMockBroadcast();
 
@@ -19,15 +19,23 @@ mock.module('@/core/broadcast', () => ({
   broadcastEvent: broadcastMock.callback,
 }));
 
-mock.module('@/core/model-utils', () => ({
-  getModelWithMetadata: async () => ({
-    model: createMockGenerateModel({ text: '## Summary\n\nCompacted conversation summary.' }),
-  }),
-}));
-
-mock.module('@/config', () => ({
-  findModel: () => ({ providerId: 'openai' }),
-}));
+function createFakeGenerateSummary(overrides: {
+  text?: string;
+  usage?: { prompt: number; completion: number };
+  effectiveModelId?: string;
+  effectiveProviderId?: string;
+  shouldThrow?: Error;
+}): GenerateSummaryFn {
+  return async (_prompt: string, _policy) => {
+    if (overrides.shouldThrow) throw overrides.shouldThrow;
+    return {
+      text: overrides.text ?? '## Summary\n\nCompacted conversation summary.',
+      usage: overrides.usage ?? { prompt: 10, completion: 20 },
+      effectiveModelId: overrides.effectiveModelId ?? 'gpt-4o',
+      effectiveProviderId: overrides.effectiveProviderId ?? 'openai',
+    };
+  };
+}
 
 describe('compaction', () => {
   let sessionId: string;
@@ -245,7 +253,12 @@ describe('compaction', () => {
       const trigger = createCompactionTrigger(sessionId, 'manual');
       const policy = resolveCompactionPolicy('gpt-4o', 'openai');
 
-      const result = await processCompactionTask(sessionId, trigger.messageId, policy);
+      const result = await processCompactionTask(
+        sessionId,
+        trigger.messageId,
+        policy,
+        createFakeGenerateSummary({ text: '## Summary\n\nCompacted conversation summary.' }),
+      );
 
       expect(result.trigger.messageId).toBe(trigger.messageId);
       expect(result.trigger.reason).toBe('manual');
@@ -259,13 +272,37 @@ describe('compaction', () => {
       expect(result.tokensUsed.completion).toBe(20);
     });
 
+    test('records effective model/provider from generateSummary', async () => {
+      createUserMsg('msg1', 1000);
+      addTextPart('msg1', 'Hello');
+      createAssistantMsg('msg2', {}, 2000);
+      addTextPart('msg2', 'Hi');
+
+      const trigger = createCompactionTrigger(sessionId, 'manual');
+      const policy = resolveCompactionPolicy('gpt-4o', 'openai');
+
+      const result = await processCompactionTask(
+        sessionId,
+        trigger.messageId,
+        policy,
+        createFakeGenerateSummary({
+          text: 'Summary text',
+          effectiveModelId: 'claude-3-opus',
+          effectiveProviderId: 'anthropic',
+          usage: { prompt: 50, completion: 30 },
+        }),
+      );
+
+      expect(result.summaryMessage.modelId).toBe('claude-3-opus');
+      expect(result.summaryMessage.providerId).toBe('anthropic');
+      expect(result.tokensUsed).toEqual({ prompt: 50, completion: 30 });
+    });
+
     test('marks large tool outputs as compacted', async () => {
-      // Create a conversation with tool calls
       createUserMsg('msg1', 1000);
       addTextPart('msg1', 'Read the file');
 
       createAssistantMsg('msg2', {}, 2000);
-      // Tool with large output (over threshold)
       const toolPart: ToolPart = {
         id: 'tp1',
         messageId: 'msg2',
@@ -276,7 +313,7 @@ describe('compaction', () => {
         state: {
           status: 'completed',
           input: { path: '/test.txt' },
-          output: 'A'.repeat(5000), // Large output
+          output: 'A'.repeat(5000),
           startedAt: 2000,
           completedAt: 2100,
         },
@@ -297,9 +334,11 @@ describe('compaction', () => {
         maxPrunedToolCount: 50,
       });
 
-      await processCompactionTask(sessionId, trigger.messageId, policy);
+      await processCompactionTask(
+        sessionId, trigger.messageId, policy,
+        createFakeGenerateSummary({}),
+      );
 
-      // Check the tool part was marked as compacted
       const parts = getPartsBySession(sessionId);
       const updatedToolPart = parts.find(p => p.id === 'tp1') as ToolPart;
       expect(updatedToolPart).toBeDefined();
@@ -321,7 +360,7 @@ describe('compaction', () => {
         state: {
           status: 'completed',
           input: { name: 'test-skill' },
-          output: 'A'.repeat(5000), // Large output, but skill tools are always protected
+          output: 'A'.repeat(5000),
           startedAt: 2000,
           completedAt: 2100,
         },
@@ -342,12 +381,14 @@ describe('compaction', () => {
         maxPrunedToolCount: 50,
       });
 
-      await processCompactionTask(sessionId, trigger.messageId, policy);
+      await processCompactionTask(
+        sessionId, trigger.messageId, policy,
+        createFakeGenerateSummary({}),
+      );
 
       const parts = getPartsBySession(sessionId);
       const skillPart = parts.find(p => p.id === 'tp-skill') as ToolPart;
       expect(skillPart).toBeDefined();
-      // Skill outputs should NOT be compacted
       expect((skillPart.state as { compactedAt?: number }).compactedAt).toBeUndefined();
     });
 
@@ -366,7 +407,7 @@ describe('compaction', () => {
         state: {
           status: 'completed',
           input: { path: '/test.txt' },
-          output: 'Small output', // Under preserveSmallToolChars (200 default)
+          output: 'Small output',
           startedAt: 2000,
           completedAt: 2100,
         },
@@ -387,7 +428,10 @@ describe('compaction', () => {
         maxPrunedToolCount: 50,
       });
 
-      await processCompactionTask(sessionId, trigger.messageId, policy);
+      await processCompactionTask(
+        sessionId, trigger.messageId, policy,
+        createFakeGenerateSummary({}),
+      );
 
       const parts = getPartsBySession(sessionId);
       const smallPart = parts.find(p => p.id === 'tp-small') as ToolPart;
@@ -410,6 +454,23 @@ describe('compaction', () => {
       await expect(
         processCompactionTask(sessionId, 'msg-no-compaction', policy),
       ).rejects.toThrow('Trigger message does not have a compaction part');
+    });
+
+    test('propagates errors from generateSummary', async () => {
+      createUserMsg('msg1', 1000);
+      addTextPart('msg1', 'Hello');
+      createAssistantMsg('msg2', {}, 2000);
+      addTextPart('msg2', 'Hi');
+
+      const trigger = createCompactionTrigger(sessionId, 'manual');
+      const policy = resolveCompactionPolicy('gpt-4o', 'openai');
+
+      await expect(
+        processCompactionTask(
+          sessionId, trigger.messageId, policy,
+          createFakeGenerateSummary({ shouldThrow: new Error('LLM unavailable') }),
+        ),
+      ).rejects.toThrow('LLM unavailable');
     });
   });
 

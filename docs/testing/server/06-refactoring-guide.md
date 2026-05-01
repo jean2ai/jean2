@@ -110,65 +110,70 @@ export function createApp() {
 **Risk:** Low — mechanical move, no logic changes.
 **Time:** 90 minutes.
 
-### 5. Make `streamChatWithRetry` Accept a Stream Factory
+### 5. Make `streamChatWithRetry` Accept a Stream Factory (DONE)
 
-**Current:**
-```typescript
-// core/retry.ts
-const { streamChat } = await import('./agent');
-for await (const event of streamChat(options)) {
-  yield event;
-}
-```
+**What changed:**
+- Extracted the huge inline return type into a named `StreamChatEvent` union type
+- Added a `StreamChatFn` type alias for the stream factory signature
+- Added optional `streamChatFn` parameter to `streamChatWithRetry()` with fallback to the existing dynamic import
 
-**After:**
 ```typescript
-export interface StreamChatFn {
-  (options: ChatOptions): AsyncGenerator<...>;
-}
+export type StreamChatEvent = MessageEvent | { type: 'usage'; ... } | ... ;
+export type StreamChatFn = (options: ChatOptions) => AsyncGenerator<StreamChatEvent>;
 
 export async function* streamChatWithRetry(
   options: ChatOptions,
-  streamChatFn?: StreamChatFn,
-): AsyncGenerator<...> {
+  streamChatFn?: StreamChatFn,  // optional — tests inject, production uses default
+): AsyncGenerator<StreamChatEvent> {
   const stream = streamChatFn ?? (await import('./agent')).streamChat;
   // ...
 }
 ```
 
-**Why:** Tests can pass a mock `streamChatFn` instead of dealing with dynamic imports.
-**Risk:** Low — backward compatible (parameter is optional).
-**Time:** 10 minutes.
+**Tests:** Rewrote `tests/core/retry.test.ts` — replaced `mock.module()` calls with clean dependency injection via `streamChatFn`. Same 6 test scenarios: success, retry-then-success, rate limit exhaustion, context overflow, server error exhaustion, non-retryable errors.
 
-### 6. Make `processCompactionTask` Accept AI SDK Function
+**Risk:** Low — backward compatible (parameter is optional, all existing callers unchanged).
 
-**Current:**
+### 6. Make `processCompactionTask` Accept a Summary Generator (DONE)
+
+**What changed:**
+- Extracted the entire LLM interaction (model resolution + `generateText`/`streamText` call) into a `defaultGenerateSummary` function
+- Added `GenerateSummaryFn` interface — a high-level abstraction: `(prompt, policy) → { text, usage, effectiveModelId, effectiveProviderId }`
+- Added optional `generateSummaryFn` parameter to `processCompactionTask()` with fallback to `defaultGenerateSummary`
+- Renamed AI SDK imports to `aiGenerateText`/`aiStreamText` to avoid collision with local variables
+
 ```typescript
-import { generateText, streamText } from 'ai';
-// Direct usage in processCompactionTask
-```
-
-**After:**
-```typescript
-export interface CompactionLLM {
-  generateText: typeof import('ai').generateText;
-  streamText: typeof import('ai').streamText;
+export interface GenerateSummaryFn {
+  (prompt: string, policy: CompactionPolicy): Promise<{
+    text: string;
+    usage: { prompt: number; completion: number };
+    effectiveModelId: string;
+    effectiveProviderId: string;
+  }>;
 }
 
 export async function processCompactionTask(
   sessionId: string,
   triggerMessageId: string,
   policy: CompactionPolicy,
-  llm?: CompactionLLM,
+  generateSummaryFn?: GenerateSummaryFn,  // optional — tests inject, production uses default
 ): Promise<CompactionTaskResult> {
-  const { generateText: genText, streamText: strText } = llm ?? await import('ai');
-  // Use genText/strText instead of direct imports
+  const generateSummary = generateSummaryFn ?? defaultGenerateSummary;
+  const { text: summary, usage, effectiveModelId, effectiveProviderId } =
+    await generateSummary(prompt, policy);
+  // ...
 }
 ```
 
-**Why:** Tests can pass a fake LLM that returns canned summaries.
-**Risk:** Low — optional parameter with fallback.
-**Time:** 15 minutes.
+**Tests:** Rewrote `tests/core/compaction.test.ts` — replaced `mock.module('@/core/model-utils')` + `createMockGenerateModel()` with clean DI via `generateSummaryFn`. Added new tests for effective model/provider recording and error propagation from the summary generator. Removed `mock.module('@/config')` since config is no longer hit by the test path.
+
+**Removed from test:**
+- `import { generateText } from 'ai'` (unused)
+- `import { createMockGenerateModel } from '#tests/mocks'` (replaced by `createFakeGenerateSummary`)
+- `mock.module('@/core/model-utils', ...)` (no longer needed)
+- `mock.module('@/config', ...)` (no longer needed)
+
+**Risk:** Low — backward compatible (parameter is optional, all existing callers unchanged).
 
 ### 7. Export Compaction Helpers from `compaction.ts` (DONE)
 
@@ -226,7 +231,8 @@ export function persistCompactionFailure(
 Week 1: #1 + #2 (store test helpers)       ← 5 min, unlocks all store tests
 Week 1: #7 (export compaction helpers)      ← DONE — 27 tests in compaction-helpers.test.ts
 Week 1: #9 (centralized paths)              ← DONE — all paths go through paths.ts now
-Week 2: #5 + #6 (inject dependencies)       ← 25 min, unlocks retry/compaction mocking
+Week 2: #5 (inject stream factory)          ← DONE — retry tests use clean DI
+Week 2: #6 (inject summary generator)      ← DONE — compaction tests use clean DI
 Week 3: #3 (extract message router)         ← 60 min, unlocks integration tests
 Week 4: #4 (split app.ts routes)            ← 90 min, unlocks route tests
 Ongoing: #8 (broadcast injection)           ← incremental
