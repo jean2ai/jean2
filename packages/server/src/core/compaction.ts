@@ -237,7 +237,7 @@ export function createCompactionTrigger(
   };
 }
 
-function buildConversationText(messages: MessageWithParts[]): string {
+export function buildConversationText(messages: MessageWithParts[]): string {
   const lines: string[] = [];
 
   for (const { message, parts } of messages) {
@@ -267,7 +267,7 @@ function buildConversationText(messages: MessageWithParts[]): string {
   return lines.join('\n');
 }
 
-function formatOutput(output: unknown): string {
+export function formatOutput(output: unknown): string {
   if (typeof output === 'string') {
     return output.length > 500
       ? output.slice(0, 500) + '...(truncated)'
@@ -281,7 +281,7 @@ function formatOutput(output: unknown): string {
  * Estimate the character size of a tool's output.
  * Uses cheap serialization - no need for accurate tokenization here.
  */
-function estimateToolOutputSize(output: unknown): number {
+export function estimateToolOutputSize(output: unknown): number {
   if (output === null || output === undefined) {
     return 0;
   }

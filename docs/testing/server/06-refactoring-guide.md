@@ -170,25 +170,19 @@ export async function processCompactionTask(
 **Risk:** Low — optional parameter with fallback.
 **Time:** 15 minutes.
 
-### 7. Extract `buildConversationText` and `formatOutput` from `compaction.ts`
+### 7. Export Compaction Helpers from `compaction.ts` (DONE)
 
-These are private pure functions that are hard to test. Export them:
+**What changed:** Added `export` to three private pure functions:
+- `buildConversationText` — converts `MessageWithParts[]` into formatted text for LLM prompt
+- `formatOutput` — truncates/serializes tool output for display (500-char limit)
+- `estimateToolOutputSize` — cheap char-size estimation of tool output
 
-```typescript
-// Before:
-function buildConversationText(messages: MessageWithParts[]): string { ... }
-function formatOutput(output: unknown): string { ... }
-function estimateToolOutputSize(output: unknown): number { ... }
+**Tests:** 27 new unit tests in `tests/core/compaction-helpers.test.ts` covering:
+- `formatOutput`: string truncation, object serialization, edge cases (null, number, boolean)
+- `estimateToolOutputSize`: null/undefined → 0, string → length, object → JSON length, circular refs
+- `buildConversationText`: system skip, user/assistant text, tool parts (completed/error/pending), ordering, long output truncation
 
-// After:
-export function buildConversationText(messages: MessageWithParts[]): string { ... }
-export function formatOutput(output: unknown): string { ... }
-export function estimateToolOutputSize(output: unknown): number { ... }
-```
-
-**Why:** These contain complex formatting logic that deserves direct testing.
-**Risk:** Zero — just adding exports.
-**Time:** 30 seconds each.
+**Risk:** Zero — just added exports, no behavior change.
 
 ### 8. Pass Broadcast Function as Parameter Instead of Global
 
@@ -230,7 +224,7 @@ export function persistCompactionFailure(
 
 ```
 Week 1: #1 + #2 (store test helpers)       ← 5 min, unlocks all store tests
-Week 1: #7 (export compaction helpers)      ← 2 min, unlocks compaction tests
+Week 1: #7 (export compaction helpers)      ← DONE — 27 tests in compaction-helpers.test.ts
 Week 1: #9 (centralized paths)              ← DONE — all paths go through paths.ts now
 Week 2: #5 + #6 (inject dependencies)       ← 25 min, unlocks retry/compaction mocking
 Week 3: #3 (extract message router)         ← 60 min, unlocks integration tests
