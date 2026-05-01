@@ -47,7 +47,8 @@
     "#tests/factories": "./tests/helpers/factories.ts",
     "#tests/mocks": "./tests/helpers/mocks.ts",
     "#tests/seed": "./tests/helpers/seed.ts",
-    "#tests/test-dir": "./tests/helpers/test-dir.ts"
+    "#tests/test-dir": "./tests/helpers/test-dir.ts",
+    "#tests/mock-ws": "./tests/helpers/mock-ws.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.11",

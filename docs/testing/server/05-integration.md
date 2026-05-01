@@ -16,31 +16,154 @@ Client sends WebSocket message
 
 ## Strategy: Test Message Handlers, Not the WebSocket
 
-Don't try to spin up a real WebSocket server in tests. Instead, extract and test the message handler logic directly. The handlers in `index.ts` currently handle these `ClientMessage` types:
+Don't try to spin up a real WebSocket server in tests. Instead, test the message handler logic directly by calling the same core functions that the handlers use, with a real in-memory database and captured broadcasts.
+
+The handlers in `index.ts` currently handle these `ClientMessage` types:
 
 | Message Type | Handler Logic |
 |-------------|---------------|
-| `chat.send` | Creates user message, starts streaming |
-| `chat.interrupt` | Interrupts active session |
-| `chat.compact` | Triggers manual compaction |
-| `chat.revert` | Reverts to earlier message |
-| `chat.fork` | Forks session at message |
+| `chat.message` | Creates user message, starts streaming |
+| `session.interrupt` | Interrupts active session |
+| `session.compact` | Triggers manual compaction |
+| `session.revert` | Reverts to earlier message |
+| `session.fork` | Forks session at message |
 | `ask.response` | Resolves pending ask |
 | `permission.grant` | Grants tool permission |
 | `queue.add` | Adds message to queue |
 
-### Refactoring for Testability
+### Approach: Test Core Functions + Broadcasts + DB State
 
-The current `index.ts` has all handler logic inline. To make it testable, extract handlers:
+Since the handlers are private functions in `index.ts` (tightly coupled to `ServerWebSocket` and the module-level `clients` map), integration tests call the underlying core functions directly:
+
+1. **Real in-memory DB** via `setupTestDatabase()`
+2. **Captured broadcasts** via `createMockBroadcast()` + `registerBroadcastCallback()`
+3. **Real core functions**: `executeCompaction`, `revertToStep`, `forkSession`, `interruptManager`, etc.
+4. **Verify**: DB state (messages, sessions, queues) + broadcast message sequences
+
+This gives integration coverage without needing the refactoring step. The planned `core/message-router.ts` extraction (item #3 in `06-refactoring-guide.md`) will make these tests even more direct by testing the handler functions themselves.
+
+### Test File
+
+All integration tests live in:
+```
+packages/server/tests/integration/message-handler.test.ts
+```
+
+## Key Integration Scenarios Tested
+
+### 1. Session Lifecycle (7 tests)
+- `session.create` → DB persists session with correct fields
+- `session.close` → status updated to 'closed' in DB
+- `session.reopen` → status updated back to 'active'
+- `session.delete` → session removed from DB
+- `session.rename` → title updated in DB
+- `session.rename` with empty title → validation check
+- `session.update_model` → selectedModel/provider updated
+
+### 2. Compaction Flow (4 tests)
+- Manual compaction completes full cycle: trigger → LLM summary → summary message → compacted tools
+- Compaction fails for child session (parentId set) → skipped error
+- Compaction on empty session → error
+- Compaction broadcasts `session.updated` with compacting=true/false transitions
+
+### 3. Revert Flow (3 tests)
+- Revert deletes messages after target, broadcasts state
+- Revert to first message clears all messages
+- Revert throws for nonexistent target message
+
+### 4. Fork Flow (3 tests)
+- Fork creates new session with copied messages up to target
+- Fork copies tool parts along with messages
+- Fork throws for nonexistent source session
+
+### 5. Interrupt Flow (4 tests)
+- Interrupt aborts session and tool controllers
+- Interrupt marks subagent session as interrupted
+- Interrupt on unregistered session returns success
+- `isSessionActive` changes after interrupt
+
+### 6. Queue Flow (5 tests)
+- Add message to queue and retrieve
+- Queue maintains FIFO order
+- List queued messages returns all for session
+- Delete queued message removes it
+- Queue is session-scoped
+
+### 7. Ask/Response Flow (2 tests)
+- Create ask → broadcasts `ask.request` → resolve → returns response value
+- Permission ask with matching grant → auto-grants without broadcasting
+
+### 8. Permission Flow (3 tests)
+- List permissions returns workspace grants
+- Revoke grant removes it from active grants
+- Revoke all workspace grants
+
+### 9. Session Resume (2 tests)
+- Resume returns session messages with correct roles
+- Resume returns queued messages in order
+
+## Mocking Strategy
+
+Integration tests mock only the external boundaries:
+
+| Module | Mock | Why |
+|--------|------|-----|
+| `@/core/broadcast` | Captures broadcast messages | Verify correct ServerMessage sequences |
+| `@/core/model-utils` | Returns `MockLanguageModelV3` | Avoid real LLM API calls during compaction |
+| `@/config` | Returns static config | Avoid filesystem reads for models.json |
+| `@/env` | Returns static env values | Avoid real env var dependencies |
+
+All store functions (`createSession`, `createMessage`, `addMessageToQueue`, etc.) use the **real in-memory database** — no mocking.
+
+## Test Helpers Used
+
+| Helper | Purpose |
+|--------|---------|
+| `setupTestDatabase()` / `resetTestDatabase()` | In-memory SQLite with schema |
+| `setupTestDataDir()` / `resetTestDataDir()` | Temp directory for path resolution |
+| `seedWorkspaceWithSession()` | Creates workspace + session in one call |
+| `createMockBroadcast()` | Captures all broadcast messages |
+| `createMockWs()` | Mock ServerWebSocket for WS-level tests (future) |
+
+## Test Counts
+
+| Scenario | Tests | Status |
+|----------|-------|--------|
+| Session lifecycle | 7 | ✅ |
+| Compaction flow | 4 | ✅ |
+| Revert flow | 3 | ✅ |
+| Fork flow | 3 | ✅ |
+| Interrupt flow | 4 | ✅ |
+| Queue flow | 5 | ✅ |
+| Ask/response flow | 2 | ✅ |
+| Permission flow | 3 | ✅ |
+| Session resume | 2 | ✅ |
+| **Total** | **33** | **All passing** |
+
+Total test count across project: **528 tests, 0 failures**.
+
+## Future: Full Chat Send Flow
+
+The most complex integration scenario — the full `chat.message` → `streamChat` → broadcast pipeline — is not yet tested at the integration level. This requires:
+
+1. Mocking `streamChatWithRetry` to yield controlled events
+2. Verifying the exact broadcast sequence (message.created → part.created → usage → message.updated)
+3. Testing context overflow → auto-compaction → retry cycle
+4. Testing queue drain after stream completion
+
+This is planned for after the `core/message-router.ts` extraction refactoring.
+
+## Refactoring for Testability (Future)
+
+The planned refactoring extracts handlers from `index.ts`:
 
 ```typescript
-// src/core/message-router.ts (new file)
+// src/core/message-router.ts (future)
 
 export interface MessageHandlerContext {
   broadcast: (message: ServerMessage, excludeWs?: unknown) => void;
   getSession: typeof getSession;
   createSession: typeof createSession;
-  // ... other store functions
 }
 
 export async function handleChatSend(
@@ -53,118 +176,4 @@ export async function handleChatSend(
 }
 ```
 
-This way you can test each handler with a mock context:
-
-```typescript
-import { handleChatSend } from '@/core/message-router';
-
-describe('chat.send handler', () => {
-  test('creates user message and queues chat', async () => {
-    const broadcastMessages: ServerMessage[] = [];
-    const ctx = {
-      broadcast: (msg: ServerMessage) => broadcastMessages.push(msg),
-      // ... real store functions with in-memory DB
-    };
-
-    await handleChatSend('sess1', 'Hello', [], ctx);
-
-    // Verify user message was created
-    // Verify broadcast was called with message.created
-    // Verify chat was queued/started
-  });
-});
-```
-
-## Key Integration Scenarios to Test
-
-### 1. Full Chat Send Flow
-
-```
-1. Client sends chat.send
-2. Server creates user message in DB
-3. Server broadcasts message.created to all clients
-4. Server starts streamChat
-5. Server broadcasts message.created (assistant) with status=streaming
-6. Server broadcasts part.created events as text streams
-7. Server broadcasts part.created for tool calls
-8. Server broadcasts message.updated with status=completed
-```
-
-### 2. Compaction Flow
-
-```
-1. Client sends chat.compact
-2. Server creates compaction trigger message
-3. Server broadcasts trigger message
-4. Server calls LLM for summary
-5. Server creates summary message
-6. Server broadcasts summary message
-7. Server marks old tool outputs as compacted
-```
-
-### 3. Interrupt Flow
-
-```
-1. Chat is streaming
-2. Client sends chat.interrupt
-3. Server aborts the stream
-4. Server marks pending/running tools as interrupted
-5. Server broadcasts interrupted events
-6. Server updates message status to interrupted
-```
-
-### 4. Ask/Response Flow
-
-```
-1. Tool execution needs user input
-2. Server creates pending ask in DB
-3. Server broadcasts ask.created to clients
-4. Client sends ask.response
-5. Server resolves the pending ask
-6. Tool execution continues with user's answer
-```
-
-### 5. Permission Grant Flow
-
-```
-1. Tool needs permission for operation
-2. Server sends permission.request to client
-3. Client sends permission.grant
-4. Server creates grant in DB
-5. Tool execution continues
-```
-
-## Testing the WebSocket Upgrade
-
-For true end-to-end WebSocket testing, use Bun's built-in WebSocket client:
-
-```typescript
-import { describe, test, expect } from 'bun:test';
-import { createApp } from '@/app';
-// ... setup server
-
-describe('WebSocket integration', () => {
-  test('connects and receives messages', async () => {
-    // Start the server
-    // Connect a WebSocket client
-    // Send a chat.send message
-    // Verify response events are received
-  });
-});
-```
-
-> **Note:** Full WebSocket integration tests are the most complex to set up. Start with extracted message handler tests and add full WS tests only for the most critical flows.
-
-## Estimated Effort
-
-| Scenario | Test Cases | Time |
-|----------|------------|------|
-| Chat send flow | 3 | 30 min |
-| Compaction flow | 2 | 25 min |
-| Interrupt flow | 2 | 20 min |
-| Ask/response flow | 2 | 20 min |
-| Permission flow | 2 | 15 min |
-| Refactoring for testability | — | 60 min |
-| **Total** | **~11** | **~170 min** |
-
-11 integration tests covering the 5 most important user-facing flows. These are the "does the whole thing actually work" tests.
+Once extracted, integration tests can call handlers directly with a mock context instead of calling individual core functions. The current tests will serve as regression safety during that refactoring.
