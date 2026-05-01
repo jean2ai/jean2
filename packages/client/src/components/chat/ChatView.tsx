@@ -7,14 +7,14 @@ import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
 
-interface PendingAskRequest {
+export interface PendingAskRequest {
   toolCallId: string;
   sessionId: string;
   toolName: string;
   ask: import('@jean2/sdk').Ask;
 }
 
-interface Model {
+export interface Model {
   id: string;
   name: string;
   contextWindow: number;
@@ -31,7 +31,7 @@ interface Model {
   };
 }
 
-interface DisplayItem {
+export interface DisplayItem {
   message: import('@jean2/sdk').Message;
   parts: import('@jean2/sdk').Part[];
   isQueued?: boolean;

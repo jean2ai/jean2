@@ -22,14 +22,14 @@ import { ToolCall } from './ToolCall';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
-interface PendingAskRequest {
+export interface PendingAskRequest {
   toolCallId: string;
   sessionId: string;
   toolName: string;
   ask: import('@jean2/sdk').Ask;
 }
 
-interface DisplayItem {
+export interface DisplayItem {
   message: Message;
   parts: Part[];
   isQueued?: boolean;

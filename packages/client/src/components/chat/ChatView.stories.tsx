@@ -69,6 +69,11 @@ const meta = {
     layout: 'fullscreen',
   },
   decorators: [
+    (Story) => (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <Story />
+      </div>
+    ),
     withServerDataStore(),
     withUIStore(),
   ],
