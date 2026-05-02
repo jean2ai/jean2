@@ -1,6 +1,6 @@
 import type { ServerMessage, ClientMessage, AskResponseMessage, Ask } from '@jean2/sdk';
-import { resolveAsk, listPendingAsksByRootSession, ASK_TIMEOUT, type AskBroadcastFn } from '@/tools/ask-user-api';
-import { listAllPendingAsks, cleanupAllPendingAsks } from '@/store/pending-asks';
+import { resolveAsk, ASK_TIMEOUT, type AskBroadcastFn } from '@/tools/ask-user-api';
+import { listAllPendingAsks, cleanupAllPendingAsks, listPendingRequestsByRootSession } from '@/store/pending-asks';
 import {
   createSession,
   getSession,
@@ -764,21 +764,24 @@ export async function handleClientMessage(
         });
       }
 
+      // Clean up expired asks BEFORE replay so no stale entries are emitted
+      cleanupAllPendingAsks(ASK_TIMEOUT);
+
       // Re-send pending asks for this session and any child sessions
-      // Use DB-backed pending requests (permission asks) + legacy in-memory asks
-      const now = Date.now();
-      const pendingAsks = listPendingAsksByRootSession(msg.sessionId);
-      // Filter out asks that have expired (their timers may have fired while client was disconnected)
-      const activePendingAsks = pendingAsks.filter(ask => (now - ask.createdAt) < ASK_TIMEOUT);
+      // Use DB-backed pending requests filtered by status='pending' only
+      const activePendingAsks = listPendingRequestsByRootSession(msg.sessionId);
       for (const ask of activePendingAsks) {
-        // Rewrite child session asks to route to the root session
-        const isChildAsk = ask.sessionId !== msg.sessionId;
-        const askPayload = isChildAsk
+        // Canonicalize: use rootSessionId as display session, matching live child-session.ts behavior.
+        // When ask.rootSessionId is set and differs from ask.sessionId, the ask originated from a child
+        // and must be presented under the root with _originSessionId — regardless of which session synced.
+        const hasRootContext = ask.rootSessionId && ask.rootSessionId !== ask.sessionId;
+        const canonicalSessionId = hasRootContext ? ask.rootSessionId! : ask.sessionId;
+        const askPayload = hasRootContext
           ? { ...ask.ask, _originSessionId: ask.sessionId }
           : ask.ask;
         ctx.send(ws, {
           type: 'ask.request',
-          sessionId: msg.sessionId,
+          sessionId: canonicalSessionId,
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
           ask: askPayload as unknown as Ask,
@@ -786,27 +789,31 @@ export async function handleClientMessage(
         });
       }
 
-      // Also send pending asks from all other sessions
-      const allPendingAsks = listAllPendingAsks();
-      const otherPendingAsks = allPendingAsks.filter(
+      // Also send pending asks from all other sessions (status-based filtering)
+      // Apply same canonical rewrite for child-origin asks as the live child-session path
+      const otherPendingAsks = listAllPendingAsks().filter(
         (ask) =>
+          ask.status === 'pending' &&
           ask.sessionId !== msg.sessionId &&
-          !activePendingAsks.some((pa) => pa.toolCallId === ask.toolCallId) &&
-          (now - ask.createdAt) < ASK_TIMEOUT,
+          !activePendingAsks.some((pa) => pa.requestId === ask.requestId),
       );
       for (const ask of otherPendingAsks) {
+        // Canonicalize: if ask has a distinct root context, rewrite to root + _originSessionId
+        // This matches live child-session behavior in child-session.ts
+        const hasRootContext = ask.rootSessionId && ask.rootSessionId !== ask.sessionId;
+        const effectiveSessionId = hasRootContext ? ask.rootSessionId! : ask.sessionId;
+        const askPayload = hasRootContext
+          ? { ...ask.ask, _originSessionId: ask.sessionId }
+          : ask.ask;
         ctx.send(ws, {
           type: 'ask.request',
-          sessionId: ask.sessionId,
+          sessionId: effectiveSessionId,
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
-          ask: ask.ask,
+          ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
         });
       }
-
-      // Clean up any expired asks from DB
-      cleanupAllPendingAsks(ASK_TIMEOUT);
 
       break;
     }

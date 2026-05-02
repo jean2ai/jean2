@@ -24,6 +24,7 @@ interface UseSessionCommandsParams {
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
   removePendingAskRequest: (toolCallId: string) => void;
+  removePendingPermissionRequest: (requestId: string, toolCallId?: string) => void;
   clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   clearStreamingSessions: () => void;
   pendingSessionCreateRef: React.RefObject<boolean>;
@@ -75,6 +76,7 @@ export function useSessionCommands({
   setCurrentModel,
   setSelectedVariant,
   removePendingAskRequest,
+  removePendingPermissionRequest,
   clearPendingAskRequestsBySessionId: _clearPendingAskRequestsBySessionId,
   clearStreamingSessions,
   pendingSessionCreateRef,
@@ -247,7 +249,12 @@ export function useSessionCommands({
 
   const handleAskResponse = useCallback((toolCallId: string, response: AskResponse, requestId?: string) => {
     const client = clientRef.current;
-    removePendingAskRequest(toolCallId);
+    // For permission asks, use requestId as canonical identity
+    if (requestId) {
+      removePendingPermissionRequest(requestId, toolCallId);
+    } else {
+      removePendingAskRequest(toolCallId);
+    }
     if (client && client.connected) {
       client.send({
         type: 'ask.response',
@@ -256,7 +263,7 @@ export function useSessionCommands({
         requestId,
       });
     }
-  }, [clientRef, removePendingAskRequest]);
+  }, [clientRef, removePendingAskRequest, removePendingPermissionRequest]);
 
   const handleInterruptSession = useCallback(() => {
     const client = clientRef.current;

@@ -22,6 +22,10 @@ interface AskState {
 interface AskActions {
   addPendingRequest: (request: PendingAskRequest) => void;
   removePendingRequest: (toolCallId: string) => void;
+  /** Remove a permission request by its canonical requestId. Falls back to toolCallId for legacy asks. */
+  removePendingPermissionRequest: (requestId: string, toolCallId?: string) => void;
+  /** Replace all pending permission requests with an authoritative set from the server. */
+  replacePendingPermissionRequests: (requests: PendingAskRequest[]) => void;
   clearPendingRequests: () => void;
   clearPendingRequestsBySessionId: (sessionId: string) => void;
   registerHandler: (target: AskTarget, handler: AskHandler) => void;
@@ -36,17 +40,54 @@ export const useAskStore = create<AskStore>((set, get) => ({
   handlers: new Map(),
 
   addPendingRequest: (request) =>
-    set((state) => ({
-      pendingRequests: [
-        ...state.pendingRequests.filter((r) => r.toolCallId !== request.toolCallId),
-        request,
-      ],
-    })),
+    set((state) => {
+      // For permission asks, deduplicate by requestId (canonical identity)
+      // For generic asks, deduplicate by toolCallId (legacy behavior)
+      const isPermission = request.ask.type === 'permission';
+      const filtered = isPermission && request.requestId
+        ? state.pendingRequests.filter(
+            (r) => !(r.ask.type === 'permission' && r.requestId === request.requestId),
+          )
+        : state.pendingRequests.filter((r) => r.toolCallId !== request.toolCallId);
+
+      return {
+        pendingRequests: [...filtered, request],
+      };
+    }),
 
   removePendingRequest: (toolCallId) =>
     set((state) => ({
       pendingRequests: state.pendingRequests.filter((r) => r.toolCallId !== toolCallId),
     })),
+
+  removePendingPermissionRequest: (requestId, toolCallId) =>
+    set((state) => {
+      // Try to find by requestId first (canonical for permission asks)
+      const byRequestId = state.pendingRequests.findIndex(
+        (r) => r.ask.type === 'permission' && r.requestId === requestId,
+      );
+      if (byRequestId !== -1) {
+        return {
+          pendingRequests: state.pendingRequests.filter((_, i) => i !== byRequestId),
+        };
+      }
+      // Fallback to toolCallId for legacy/compat
+      if (toolCallId) {
+        return {
+          pendingRequests: state.pendingRequests.filter((r) => r.toolCallId !== toolCallId),
+        };
+      }
+      return state;
+    }),
+
+  replacePendingPermissionRequests: (requests) =>
+    set((state) => {
+      // Keep only non-permission pending requests, then add the new permission set
+      const nonPermission = state.pendingRequests.filter((r) => r.ask.type !== 'permission');
+      return {
+        pendingRequests: [...nonPermission, ...requests],
+      };
+    }),
 
   clearPendingRequests: () => set({ pendingRequests: [] }),
 

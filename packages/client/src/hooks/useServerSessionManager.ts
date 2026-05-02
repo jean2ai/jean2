@@ -283,6 +283,8 @@ export function useServerSessionManager({
     pendingRequests: pendingAskRequests,
     addPendingRequest: addPendingAskRequest,
     removePendingRequest: removePendingAskRequest,
+    removePendingPermissionRequest: removePendingPermissionAskRequest,
+    replacePendingPermissionRequests: replacePendingPermissionAskRequests,
     clearPendingRequests: clearPendingAskRequests,
     clearPendingRequestsBySessionId: clearPendingAskRequestsBySessionId,
   } = useAskStore(
@@ -290,6 +292,8 @@ export function useServerSessionManager({
       pendingRequests: s.pendingRequests,
       addPendingRequest: s.addPendingRequest,
       removePendingRequest: s.removePendingRequest,
+      removePendingPermissionRequest: s.removePendingPermissionRequest,
+      replacePendingPermissionRequests: s.replacePendingPermissionRequests,
       clearPendingRequests: s.clearPendingRequests,
       clearPendingRequestsBySessionId: s.clearPendingRequestsBySessionId,
     })),
@@ -641,6 +645,8 @@ export function useServerSessionManager({
       // Ask handlers
       addPendingAskRequest,
       removePendingAskRequest,
+      removePendingPermissionRequest: removePendingPermissionAskRequest,
+      replacePendingPermissionRequests: replacePendingPermissionAskRequests,
       clearPendingAskRequests,
       clearPendingAskRequestsBySessionId,
       runAskHandlers: (target, request) => {
@@ -662,7 +668,12 @@ export function useServerSessionManager({
       },
       sendAskResponse: (toolCallId, response, requestId) => {
         const client = sdkClientRef.current;
-        removePendingAskRequest(toolCallId);
+        // For permission asks, use requestId as canonical identity
+        if (requestId) {
+          removePendingPermissionAskRequest(requestId, toolCallId);
+        } else {
+          removePendingAskRequest(toolCallId);
+        }
         if (client && client.connected) {
           client.send({
             type: 'ask.response',
@@ -714,6 +725,7 @@ export function useServerSessionManager({
     setCurrentModel,
     setSelectedVariant,
     removePendingAskRequest,
+    removePendingPermissionRequest: removePendingPermissionAskRequest,
     clearPendingAskRequestsBySessionId,
     clearStreamingSessions: useConnectionStore.getState().clearStreamingSessions,
     pendingSessionCreateRef,

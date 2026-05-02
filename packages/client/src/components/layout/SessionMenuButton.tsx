@@ -47,7 +47,6 @@ interface SessionMenuButtonProps {
   onToggleSelect?: (sessionId: string) => void;
 }
 
-// Helper: Actions dropdown
 const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   isClosed,
   isEditing,
@@ -107,7 +106,6 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   );
 });
 
-// Icon component for session status
 const SessionStatusIcon = React.memo(function SessionStatusIcon({
   status,
   isStreaming,
@@ -152,25 +150,25 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const [editValue, setEditValue] = useState(session.title || '');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // O(1) lookup for derived values from the shared map
   const derived = sessionDerivedValues.get(session.id) ?? {
     isStreaming: false,
     hasPendingPermission: false,
     isRunning: false,
   };
 
-  // O(1) lookup instead of O(N) filter
   const childSessions = childrenMap.get(session.id) ?? [];
   const hasChildren = childSessions.length > 0;
   const isClosed = session.status === 'closed';
 
-  const hasActiveChild = childSessions.some(c => c.id === currentSessionId);
+  const hasActiveChild = childSessions.some((c) => c.id === currentSessionId);
+  const hasPendingPermissionInSubtree = childSessions.some((child) => {
+    const childDerived = sessionDerivedValues.get(child.id);
+    return childDerived?.hasPendingPermission;
+  });
 
-  // Read completion record directly from store
   const completionRecord = useCompletionStore(selectCompletionRecord(session.id));
-  const clearCompletion = useCompletionStore(s => s.clearCompletion);
+  const clearCompletion = useCompletionStore((s) => s.clearCompletion);
 
-  // Track current time for flash phase calculation — only when a completion is active
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!completionRecord) return;
@@ -178,11 +176,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     return () => clearInterval(interval);
   }, [!!completionRecord]);
 
-  // Derive visual state from completion record
   const isFlashing = !!completionRecord && (now - completionRecord.flashStartedAt < COMPLETION_FLASH_DURATION_MS);
   const isSticky = completionRecord?.type === 'flash-then-sticky';
 
-  // Auto-clear flash-only records after flash duration
   useEffect(() => {
     if (!completionRecord || completionRecord.type !== 'flash-only') return;
 
@@ -199,15 +195,12 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     return () => clearTimeout(timer);
   }, [completionRecord, session.id, clearCompletion]);
 
-  // Determine the highlight class: flashing takes precedence, then sticky green, then selection mode highlight
   const highlightClass = isFlashing
     ? 'animate-completion-flash rounded-md'
     : isSticky
       ? 'bg-[oklch(0.85_0.15_145_/_0.15)] rounded-md'
       : '';
 
-  // Track whether we've already performed the initial focus/select for the current edit session.
-  // This prevents focus/select from resetting on unrelated re-renders while already editing.
   const hasFocusedRef = useRef(false);
 
   useEffect(() => {
@@ -222,8 +215,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   }, [isEditing]);
 
-  // Keep edit value in sync with session.title when not editing.
-  // This catches server-side renames applied while the row is not in edit mode.
   useEffect(() => {
     if (!isEditing) {
       setEditValue(session.title || '');
@@ -258,7 +249,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   };
 
-  // Handle click based on mode: selection mode toggles selection, otherwise opens session
   const handleRowClick = () => {
     if (selectionMode && onToggleSelect) {
       onToggleSelect(session.id);
@@ -267,7 +257,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   };
 
-  // Handle checkbox click (stops propagation to prevent double-triggering)
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleSelect) {
@@ -280,7 +269,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     selectionMode && 'cursor-pointer',
   );
 
-  // No children - simple item with spacer for alignment
   if (!hasChildren) {
     return (
       <TooltipProvider delayDuration={300}>
@@ -289,7 +277,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             className={cn('flex items-center w-full', rowClassName)}
             onClick={selectionMode ? handleRowClick : undefined}
           >
-            {/* Left control area - checkbox in selection mode, spacer otherwise */}
             {selectionMode ? (
               <button
                 className="shrink-0 size-7 p-1 flex items-center justify-center hover:bg-accent/70 rounded-md transition-colors"
@@ -303,11 +290,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                 )}
               </button>
             ) : (
-              /* Spacer - same size as chevron button for alignment */
               <div className="shrink-0 size-7 p-1" />
             )}
 
-            {/* Session name (click to open or inline edit) */}
             {isEditing ? (
               <input
                 ref={inputRef}
@@ -342,7 +327,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               </SidebarMenuButton>
             )}
 
-            {/* Actions menu */}
             <SessionActionsDropdown
               isClosed={isClosed}
               isEditing={isEditing}
@@ -358,16 +342,17 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     );
   }
 
-  // Has children - collapsible item
   return (
     <TooltipProvider delayDuration={300}>
-      <Collapsible defaultOpen={isActive || hasActiveChild} className="group/collapsible">
+      <Collapsible
+        defaultOpen={isActive || hasActiveChild || derived.hasPendingPermission || hasPendingPermissionInSubtree}
+        className="group/collapsible"
+      >
         <SidebarMenuItem>
           <div
             className={cn('flex items-center w-full', rowClassName)}
             onClick={selectionMode ? handleRowClick : undefined}
           >
-            {/* Part 1: Left control - checkbox in selection mode, expand button otherwise */}
             {selectionMode ? (
               <button
                 className="shrink-0 size-7 p-1 flex items-center justify-center hover:bg-accent/70 rounded-md transition-colors"
@@ -391,7 +376,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               </CollapsibleTrigger>
             )}
 
-            {/* Part 2: Session name (click to open or inline edit) */}
             {isEditing ? (
               <input
                 ref={inputRef}
@@ -426,7 +410,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               </SidebarMenuButton>
             )}
 
-            {/* Part 3: Actions menu (3 dots) */}
             <SessionActionsDropdown
               isClosed={isClosed}
               isEditing={isEditing}
@@ -438,7 +421,6 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
             />
           </div>
 
-          {/* Nested children - recursive rendering with same childrenMap */}
           <CollapsibleContent>
             <SidebarMenuSub>
               {childSessions.map((child) => (

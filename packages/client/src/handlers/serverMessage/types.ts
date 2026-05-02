@@ -93,6 +93,8 @@ export interface SessionHandlersContext {
   // Ask related
   addPendingAskRequest: (request: PendingAskRequest) => void;
   removePendingAskRequest: (toolCallId: string) => void;
+  removePendingPermissionRequest: (requestId: string, toolCallId?: string) => void;
+  replacePendingPermissionRequests: (requests: PendingAskRequest[]) => void;
   clearPendingAskRequests: () => void;
   clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<AskResponse | undefined> | undefined;

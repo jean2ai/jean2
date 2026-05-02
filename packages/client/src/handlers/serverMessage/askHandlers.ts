@@ -49,9 +49,14 @@ export function handleAskTimeout(
   msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string; requestId?: string },
   ctx: SessionHandlersContext,
 ): void {
-  const { toolCallId } = msg;
-  const { removePendingAskRequest } = ctx;
-  removePendingAskRequest(toolCallId);
+  const { requestId, toolCallId } = msg;
+  const { removePendingAskRequest, removePendingPermissionRequest } = ctx;
+  // For permission asks, use requestId as canonical identity
+  if (requestId) {
+    removePendingPermissionRequest(requestId, toolCallId);
+  } else {
+    removePendingAskRequest(toolCallId);
+  }
 }
 
 export const askHandlers = {

@@ -93,36 +93,45 @@ export const useSidebarData = (): UseSidebarDataReturn => {
 
   // Precompute derived values from allSessions for overview mode compatibility
   const sessionDerivedValues = useMemo((): SessionDerivedValuesMap => {
-    // Build pending sets: by sessionId and by originSessionId
-    const pendingBySession = new Map<string, number>();
-    const pendingByOrigin = new Map<string, number>();
+    // Build a parent lookup for walking up to root ancestors
+    const parentMap = new Map<string, string>();
+    for (const session of allSessions) {
+      if (session.parentId) {
+        parentMap.set(session.id, session.parentId);
+      }
+    }
+
+    const pendingPermissionSessionIds = new Set<string>();
     for (const p of pendingAskRequests) {
-      pendingBySession.set(p.sessionId, (pendingBySession.get(p.sessionId) ?? 0) + 1);
+      if (p.ask.type !== 'permission') {
+        continue;
+      }
+      // Add the sessionId and originSessionId directly
+      pendingPermissionSessionIds.add(p.sessionId);
       if (p.originSessionId) {
-        pendingByOrigin.set(p.originSessionId, (pendingByOrigin.get(p.originSessionId) ?? 0) + 1);
+        pendingPermissionSessionIds.add(p.originSessionId);
+      }
+      // Walk up to root ancestor and ensure root also has the badge
+      for (const sid of [p.sessionId, p.originSessionId]) {
+        if (!sid) continue;
+        let current = parentMap.get(sid);
+        while (current) {
+          pendingPermissionSessionIds.add(current);
+          current = parentMap.get(current);
+        }
       }
     }
 
     const derived = new Map<string, { isStreaming: boolean; hasPendingPermission: boolean; isRunning: boolean }>();
     for (const session of allSessions) {
       const isStreaming = streamingSessionIds.has(session.id);
-      // Count asks directly on this session + asks originated from this session
-      let askCount = (pendingBySession.get(session.id) ?? 0) + (pendingByOrigin.get(session.id) ?? 0);
-      // Also count asks from child sessions
-      const children = childrenMap.get(session.id);
-      if (children) {
-        for (const child of children) {
-          askCount += pendingByOrigin.get(child.id) ?? 0;
-          askCount += pendingBySession.get(child.id) ?? 0;
-        }
-      }
-      const hasPendingPermission = askCount > 0;
+      const hasPendingPermission = pendingPermissionSessionIds.has(session.id);
       const isCurrentSession = session.id === currentSessionId;
       const isRunning = (isCurrentSession && isStreaming) || session.subagentStatus === 'running' || !!session.runningAt;
       derived.set(session.id, { isStreaming, hasPendingPermission, isRunning });
     }
     return derived;
-  }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId, childrenMap]);
+  }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId]);
 
   // Separate active and archived sessions (only root sessions, no parent)
   const { activeSessions, archivedSessions } = useMemo(() => {

@@ -347,7 +347,7 @@ export const ToolCall = memo(function ToolCall({
         <div className="mt-2 flex flex-col gap-2">
           {allPendingAsks.map((request) => (
             <AskQuestion
-              key={request.toolCallId}
+              key={request.requestId ?? request.toolCallId}
               request={request}
               onRespond={onAskResponse}
             />
