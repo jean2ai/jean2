@@ -62,6 +62,7 @@ export function createAskApi(
   toolName: string,
   broadcastFn: AskBroadcastFn,
   workspaceId?: string,
+  rootSessionId?: string,
 ): AskApi {
   let askCounter = 0;
 
@@ -72,6 +73,7 @@ export function createAskApi(
     if (isPermissionAsk) {
       return requestPermission({
         sessionId,
+        rootSessionId,
         toolCallId,
         toolName,
         ask: request,

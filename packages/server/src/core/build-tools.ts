@@ -10,12 +10,14 @@ import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { createSkillTool } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
+import { getSession } from '@/store';
 
 export interface BuildToolsOptions {
   toolNames: string[];
   workspacePath: string | undefined;
   workspaceId: string | undefined;
   sessionId: string;
+  rootSessionId?: string;
   modelId?: string;
   providerId?: string;
   canSpawnSubagents?: boolean | string[] | null;
@@ -32,12 +34,24 @@ export async function buildAiSdkTools(
     workspacePath,
     workspaceId,
     sessionId,
+    rootSessionId: explicitRootSessionId,
     modelId,
     providerId,
     canSpawnSubagents,
     allowedSkills,
     broadcastFn,
   } = options;
+
+  // Resolve root session ID by walking up the parent chain
+  const rootSessionId = explicitRootSessionId ?? (() => {
+    let current = sessionId;
+    let session = getSession(current);
+    while (session?.parentId) {
+      current = session.parentId;
+      session = getSession(current);
+    }
+    return current;
+  })();
 
   const tools: Record<string, Tool> = {};
 
@@ -101,7 +115,7 @@ export async function buildAiSdkTools(
           const llmFactory = () => createLlmApi(modelId, providerId, sessionId);
           const askFactory = (tcId: string) =>
             broadcastFn
-              ? createAskApi(sessionId, tcId, definition.name, broadcastFn, workspaceId)
+              ? createAskApi(sessionId, tcId, definition.name, broadcastFn, workspaceId, rootSessionId)
               : (() => { throw new Error('Cannot ask user: no broadcast channel available (broadcastFn not provided)'); }) as import('@jean2/sdk').AskApi;
 
           const result = await executeTool({
