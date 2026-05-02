@@ -283,6 +283,21 @@ export interface AskTimedOutMessage {
   requestId?: string;
 }
 
+export interface AskPendingSyncMessage {
+  type: 'ask.pending_sync';
+  /** The root session this sync is scoped to */
+  sessionId: string;
+  /** Authoritative set of pending permission asks from the server */
+  requests: Array<{
+    sessionId: string;
+    toolCallId: string;
+    toolName: string;
+    ask: Ask;
+    requestId?: string;
+    _originSessionId?: string;
+  }>;
+}
+
 // =============================================================================
 // Heartbeat Messages
 // =============================================================================
@@ -328,4 +343,5 @@ export type ServerMessage =
   | ProviderConnectedMessage
   | AskRequestMessage
   | AskTimedOutMessage
+  | AskPendingSyncMessage
   | PingMessage;

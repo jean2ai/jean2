@@ -117,6 +117,9 @@ export function subscribeToServerEvents(
   add('ask.timeout', (sessionId: unknown, toolCallId: unknown, requestId: unknown) => {
     askHandlers['ask.timeout']({ type: 'ask.timeout', sessionId: sessionId as string, toolCallId: toolCallId as string, requestId: requestId as string | undefined }, ctx()!);
   });
+  add('ask.pending_sync', (sessionId: unknown, requests: unknown) => {
+    askHandlers['ask.pending_sync']({ type: 'ask.pending_sync', sessionId: sessionId as string, requests: requests as Array<{ sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string; _originSessionId?: string }> }, ctx()!);
+  });
 
   add('error', (code: unknown, message: unknown) => {
     messagePartHandlers['error']({ type: 'error', code: code as string, message: message as string }, ctx()!);

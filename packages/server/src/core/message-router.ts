@@ -767,30 +767,34 @@ export async function handleClientMessage(
       // Clean up expired asks BEFORE replay so no stale entries are emitted
       cleanupAllPendingAsks(ASK_TIMEOUT);
 
-      // Re-send pending asks for this session and any child sessions
-      // Use DB-backed pending requests filtered by status='pending' only
+      // Collect all pending asks for this session + children, canonicalized
       const activePendingAsks = listPendingRequestsByRootSession(msg.sessionId);
+      const syncRequests: Array<{
+        sessionId: string;
+        toolCallId: string;
+        toolName: string;
+        ask: Ask;
+        requestId?: string;
+        _originSessionId?: string;
+      }> = [];
+
       for (const ask of activePendingAsks) {
-        // Canonicalize: use rootSessionId as display session, matching live child-session.ts behavior.
-        // When ask.rootSessionId is set and differs from ask.sessionId, the ask originated from a child
-        // and must be presented under the root with _originSessionId — regardless of which session synced.
         const hasRootContext = ask.rootSessionId && ask.rootSessionId !== ask.sessionId;
         const canonicalSessionId = hasRootContext ? ask.rootSessionId! : ask.sessionId;
         const askPayload = hasRootContext
           ? { ...ask.ask, _originSessionId: ask.sessionId }
           : ask.ask;
-        ctx.send(ws, {
-          type: 'ask.request',
+        syncRequests.push({
           sessionId: canonicalSessionId,
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
+          ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
         });
       }
 
-      // Also send pending asks from all other sessions (status-based filtering)
-      // Apply same canonical rewrite for child-origin asks as the live child-session path
+      // Also collect pending asks from all other sessions (status-based filtering)
       const otherPendingAsks = listAllPendingAsks().filter(
         (ask) =>
           ask.status === 'pending' &&
@@ -798,22 +802,29 @@ export async function handleClientMessage(
           !activePendingAsks.some((pa) => pa.requestId === ask.requestId),
       );
       for (const ask of otherPendingAsks) {
-        // Canonicalize: if ask has a distinct root context, rewrite to root + _originSessionId
-        // This matches live child-session behavior in child-session.ts
         const hasRootContext = ask.rootSessionId && ask.rootSessionId !== ask.sessionId;
         const effectiveSessionId = hasRootContext ? ask.rootSessionId! : ask.sessionId;
         const askPayload = hasRootContext
           ? { ...ask.ask, _originSessionId: ask.sessionId }
           : ask.ask;
-        ctx.send(ws, {
-          type: 'ask.request',
+        syncRequests.push({
           sessionId: effectiveSessionId,
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
+          ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
         });
       }
+
+      // Send a single batch sync message so the client can atomically replace
+      // stale local permission asks with the authoritative server set.
+      // Always send (even with empty requests) to clear stale client entries.
+      ctx.send(ws, {
+        type: 'ask.pending_sync',
+        sessionId: msg.sessionId,
+        requests: syncRequests,
+      });
 
       break;
     }

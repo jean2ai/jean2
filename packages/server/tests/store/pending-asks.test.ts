@@ -129,7 +129,7 @@ describe('pending-asks store', () => {
   });
 
   describe('cleanupAllPendingAsks', () => {
-    test('removes all pending asks', () => {
+    test('hard-deletes all pending asks when no maxAgeMs', () => {
       createPendingAsk(createTestAsk({ toolCallId: 'call-1' }));
       createPendingAsk(createTestAsk({ toolCallId: 'call-2' }));
 
@@ -138,20 +138,38 @@ describe('pending-asks store', () => {
       expect(listAllPendingAsks()).toHaveLength(0);
     });
 
-    test('removes asks older than maxAgeMs', () => {
+    test('expires old pending asks and deletes old terminal asks', () => {
       const oldTime = Date.now() - 10000;
       const recentTime = Date.now();
 
-      createPendingAsk(createTestAsk({ toolCallId: 'old', createdAt: oldTime }));
-      createPendingAsk(createTestAsk({ toolCallId: 'recent', createdAt: recentTime }));
+      createPendingAsk(createTestAsk({ toolCallId: 'old-pending', createdAt: oldTime }));
+      createPendingAsk(createTestAsk({ toolCallId: 'recent-pending', createdAt: recentTime }));
 
-      // Remove anything older than 5 seconds
       const count = cleanupAllPendingAsks(5000);
-      expect(count).toBe(1);
+      // Old pending is expired (1) then the just-expired row is also old terminal (deleted: 1)
+      expect(count).toBe(2); // 1 expired + 1 deleted (same row)
+
+      const remaining = listPendingAsksBySession(sessionId);
+      expect(remaining).toHaveLength(1); // only recent survives (old was expired then deleted)
+      expect(remaining[0].toolCallId).toBe('recent-pending');
+      expect(remaining[0].status).toBe('pending');
+    });
+
+    test('deletes old terminal asks but not recent ones', () => {
+      const oldTime = Date.now() - 10000;
+      const recentTime = Date.now();
+
+      // Create old approved ask
+      createPendingAsk(createTestAsk({ toolCallId: 'old-approved', createdAt: oldTime, status: 'approved' }));
+      // Create recent expired ask
+      createPendingAsk(createTestAsk({ toolCallId: 'recent-expired', createdAt: recentTime, status: 'expired' }));
+
+      const count = cleanupAllPendingAsks(5000);
+      expect(count).toBe(1); // 1 old terminal deleted
 
       const remaining = listPendingAsksBySession(sessionId);
       expect(remaining).toHaveLength(1);
-      expect(remaining[0].toolCallId).toBe('recent');
+      expect(remaining[0].toolCallId).toBe('recent-expired');
     });
   });
 });

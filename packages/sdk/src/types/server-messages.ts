@@ -29,6 +29,7 @@ import type {
   ProviderConnectedMessage,
   AskRequestMessage,
   AskTimedOutMessage,
+  AskPendingSyncMessage,
   ErrorMessage,
   RateLimitErrorMessage,
   ServerErrorMessage,
@@ -140,6 +141,10 @@ export interface SdkEventMap {
     sessionId: AskTimedOutMessage['sessionId'],
     toolCallId: AskTimedOutMessage['toolCallId'],
     requestId: AskTimedOutMessage['requestId'],
+  ];
+  'ask.pending_sync': [
+    sessionId: AskPendingSyncMessage['sessionId'],
+    requests: AskPendingSyncMessage['requests'],
   ];
 
   'error': [code: ErrorMessage['code'], message: ErrorMessage['message']];
@@ -262,6 +267,9 @@ export function routeServerMessage(
       break;
     case 'ask.timeout':
       emitter.emit('ask.timeout', msg.sessionId, msg.toolCallId, msg.requestId);
+      break;
+    case 'ask.pending_sync':
+      emitter.emit('ask.pending_sync', msg.sessionId, msg.requests);
       break;
     case 'error':
       emitter.emit('error', msg.code, msg.message);

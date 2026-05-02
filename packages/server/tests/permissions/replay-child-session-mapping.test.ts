@@ -218,7 +218,7 @@ describe('root/child permission replay and timeout cleanup (bugfix 06)', () => {
   // ===========================================================================
 
   describe('cleanup before replay ordering', () => {
-    test('cleanup deletes old rows before replay can emit them', () => {
+    test('cleanup expires old pending rows before replay can emit them', () => {
       const oldTimestamp = Date.now() - 10 * 60 * 1000; // 10 minutes ago
       const req1 = crypto.randomUUID();
       createPendingAsk(createTestPermissionAsk({
@@ -233,8 +233,9 @@ describe('root/child permission replay and timeout cleanup (bugfix 06)', () => {
 
       // Run cleanup (simulating moved-before-replay behavior)
       const ASK_TIMEOUT = 5 * 60 * 1000;
-      const deleted = cleanupAllPendingAsks(ASK_TIMEOUT);
-      expect(deleted).toBe(1);
+      const changed = cleanupAllPendingAsks(ASK_TIMEOUT);
+      // Old pending is expired (1) then the just-expired row is also old terminal (deleted: 1)
+      expect(changed).toBe(2);
 
       // After cleanup: row gone — replay would emit nothing
       pending = listPendingRequestsByRootSession(rootSessionId);

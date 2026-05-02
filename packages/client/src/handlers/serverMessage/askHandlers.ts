@@ -59,7 +59,40 @@ export function handleAskTimeout(
   }
 }
 
+export function handleAskPendingSync(
+  msg: {
+    type: 'ask.pending_sync';
+    sessionId: string;
+    requests: Array<{
+      sessionId: string;
+      toolCallId: string;
+      toolName: string;
+      ask: Ask;
+      requestId?: string;
+      _originSessionId?: string;
+    }>;
+  },
+  ctx: SessionHandlersContext,
+): void {
+  const { replacePendingPermissionRequests } = ctx;
+
+  // Convert server requests to PendingAskRequest format
+  const requests: PendingAskRequest[] = msg.requests.map((r) => ({
+    toolCallId: r.toolCallId,
+    sessionId: r.sessionId,
+    toolName: r.toolName,
+    ask: r.ask,
+    originSessionId: r._originSessionId,
+    requestId: r.requestId,
+  }));
+
+  // Atomically replace all local permission asks with the authoritative server set.
+  // This clears any stale entries from timeouts that the client missed (e.g., during disconnect).
+  replacePendingPermissionRequests(requests);
+}
+
 export const askHandlers = {
   'ask.request': handleAskRequest,
   'ask.timeout': handleAskTimeout,
+  'ask.pending_sync': handleAskPendingSync,
 } as const;

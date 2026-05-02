@@ -146,4 +146,16 @@ export type HandlerContext = SessionHandlersContext;
 export type AskHandlers = {
   'ask.request': (msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string }, ctx: SessionHandlersContext) => void;
   'ask.timeout': (msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string; requestId?: string }, ctx: SessionHandlersContext) => void;
+  'ask.pending_sync': (msg: {
+    type: 'ask.pending_sync';
+    sessionId: string;
+    requests: Array<{
+      sessionId: string;
+      toolCallId: string;
+      toolName: string;
+      ask: Ask;
+      requestId?: string;
+      _originSessionId?: string;
+    }>;
+  }, ctx: SessionHandlersContext) => void;
 };

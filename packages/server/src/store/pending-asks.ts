@@ -322,11 +322,28 @@ export function expireOldPermissionRequests(maxAgeMs: number): number {
 
 export function cleanupAllPendingAsks(maxAgeMs?: number): number {
   const db = getDatabase();
+
   if (maxAgeMs !== undefined) {
-    const cutoff = Date.now() - maxAgeMs;
-    const result = db.run('DELETE FROM pending_asks WHERE created_at < ?', [cutoff]);
-    return result.changes;
+    const now = Date.now();
+    const cutoff = now - maxAgeMs;
+
+    const expireResult = db.run(
+      `UPDATE pending_asks
+       SET status = 'expired', resolved_at = ?
+       WHERE status = 'pending' AND created_at < ?`,
+      [now, cutoff],
+    );
+
+    const deleteTerminalResult = db.run(
+      `DELETE FROM pending_asks
+       WHERE status IN ('approved', 'denied', 'expired', 'cancelled')
+       AND created_at < ?`,
+      [cutoff],
+    );
+
+    return expireResult.changes + deleteTerminalResult.changes;
   }
+
   const result = db.run('DELETE FROM pending_asks');
   return result.changes;
 }

@@ -164,6 +164,7 @@ export type {
   ProviderConnectedMessage,
   AskRequestMessage,
   AskTimedOutMessage,
+  AskPendingSyncMessage,
   ErrorMessage,
   RateLimitErrorMessage,
   ServerErrorMessage,
