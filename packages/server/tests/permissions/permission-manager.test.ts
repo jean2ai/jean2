@@ -270,7 +270,7 @@ describe('permission request manager', () => {
   // ===========================================================================
 
   describe('scope policy enforcement', () => {
-    test('file delete workspace approval is capped to session by policy', async () => {
+    test('file delete out-of-policy workspace approval is rejected', async () => {
       const deleteAsk = makePermissionAsk({
         question: 'Delete build directory?',
         resource: 'file',
@@ -297,16 +297,13 @@ describe('permission request manager', () => {
       });
 
       const msg = broadcastMessages[0] as { requestId: string };
-      // User tries to approve with workspace, but policy caps it
+      // User tries to approve with workspace, but it's not in allowedScopes
       resolvePermission(msg.requestId, { type: 'permission', grant: 'workspace' });
       await promise;
 
-      // The grant should be capped to session (highest allowed by policy)
+      // No grant should be persisted — workspace is not in allowedScopes
       const grants = getWorkspaceGrants(workspaceId);
-      expect(grants).toHaveLength(1);
-      expect(grants[0].scope).toBe('session');
-      expect(grants[0].matcher).toBe('prefix');
-      expect(grants[0].patterns).toContain('/workspace/build/');
+      expect(grants).toHaveLength(0);
     });
 
     test('non-persistable intent always gets once scope', async () => {
@@ -682,7 +679,7 @@ describe('mandatory regression tests', () => {
       expect(grants[0].action).toBe('delete');
     });
 
-    test('delete workspace approval is silently capped to session', async () => {
+    test('delete out-of-policy workspace approval is rejected', async () => {
       const promise = requestPermission({
         sessionId,
         workspaceId,
@@ -694,14 +691,13 @@ describe('mandatory regression tests', () => {
       });
 
       const msg = broadcastMessages[0] as { requestId: string };
-      // User tries to give workspace, but policy caps to session
+      // User tries to give workspace, but it's not in allowedScopes
       resolvePermission(msg.requestId, { type: 'permission', grant: 'workspace' });
       await promise;
 
+      // No grant should be persisted — workspace is not in allowedScopes
       const grants = getWorkspaceGrants(workspaceId);
-      expect(grants).toHaveLength(1);
-      // Scope should be capped to session (highest allowed)
-      expect(grants[0].scope).toBe('session');
+      expect(grants).toHaveLength(0);
     });
 
     test('delete prefix grant matches nested paths', async () => {

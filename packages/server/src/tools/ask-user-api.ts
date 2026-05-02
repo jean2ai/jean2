@@ -203,12 +203,10 @@ function persistGrant(resp: AskPermissionResponse, request: Ask, wsId: string | 
   if (permAsk.intents && permAsk.intents.length > 0) {
     const intent = permAsk.intents[0];
 
-    // Enforce scope policy
+    // Enforce scope policy: allowedScopes is the canonical source of truth.
+    // If the user's chosen scope is not in the intent's allowedScopes, reject it.
     if (!intent.allowedScopes.includes(grantScope)) {
-      grantScope = intent.allowedScopes.includes('session') ? 'session' : 'once';
-    }
-    if (!intent.persistable && grantScope !== 'once') {
-      grantScope = 'once';
+      return;
     }
     if (grantScope === 'once') return;
 

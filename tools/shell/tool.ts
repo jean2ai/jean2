@@ -97,11 +97,41 @@ function stripRedundantCd(command: string, cwd: string, resolvePath: (p: string)
   return command;
 }
 
+const FILE_ORIENTED_COMMANDS = new Set([
+  'cat', 'head', 'tail', 'less', 'more', 'wc', 'file', 'stat',
+  'ls', 'find', 'grep', 'awk', 'sed', 'sort', 'uniq', 'diff',
+  'comm', 'cut', 'tr', 'tee',
+  'touch', 'mkdir',
+  'rm', 'rmdir', 'del', 'erase',
+  'mv', 'cp', 'ln',
+]);
+
+function isLikelyUrl(arg: string): boolean {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(arg);
+}
+
 function extractPathArguments(cmd: string): string[] {
   const paths: string[] = [];
   const parts = cmd.split(/\s+/);
+  const baseCommand = parts[0]?.replace(/.*\//, '') || '';
+  const isFileCommand = FILE_ORIENTED_COMMANDS.has(baseCommand);
 
-  for (const part of parts) {
+  // For file-oriented commands, all non-flag args are path candidates
+  if (isFileCommand) {
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part) continue;
+      if (part.startsWith('-')) continue;
+      if (isLikelyUrl(part)) continue;
+      paths.push(part);
+    }
+    return paths;
+  }
+
+  // For non-file commands, only recognize explicit path prefixes
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue;
     if (part.startsWith('-')) continue;
 
     const isUnixPath = part.startsWith('/') || part.startsWith('~') || part.startsWith('./') || part.startsWith('../');
