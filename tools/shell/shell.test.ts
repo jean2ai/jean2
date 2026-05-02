@@ -759,4 +759,132 @@ describe('edge cases', () => {
     expect(result.error).toBe('USER_REJECTION');
     expect(spawnSyncCalls.length).toBe(0);
   });
+
+  // ── Redundant cd stripping tests ────────────────────────────────────
+
+  test('cd <workspace> && <cmd> strips redundant cd and avoids operator ask', async () => {
+    const ctx = createMockContext();
+    // Without stripping, the && would trigger operator detection
+    const result = await execute({ command: `cd ${WORKSPACE} && npm install` }, ctx);
+    expect(ctx.ask).not.toHaveBeenCalled();
+    expect(result).toBeDefined();
+    // The spawned command should be just "npm install", not the cd prefix
+    expect(spawnSyncCalls[0].shell).toEqual(['sh', '-c', 'npm install']);
+  });
+
+  test('cd <workspace> && <dangerous> still catches dangerous command', async () => {
+    const ctx = createMockContext();
+    await execute({ command: `cd ${WORKSPACE} && rm -rf /tmp/test` }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.metadata?.riskCategory).toBe('destructive');
+  });
+
+  test('cd <workspace> && cat .env still catches sensitive file', async () => {
+    const ctx = createMockContext();
+    await execute({ command: `cd ${WORKSPACE} && cat .env` }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+  });
+
+  test('cd <other_path> && <cmd> does NOT strip when target differs from cwd', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'cd /some/other/path && npm install' }, ctx);
+    // Different cd target → not stripped → && triggers operator detection
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.metadata?.hasOperators).toBe(true);
+  });
+
+  test('cd <workspace> && <cmd> with explicit cwd param also strips', async () => {
+    const ctx = createMockContext();
+    const result = await execute({
+      command: `cd ${WORKSPACE} && bun test`,
+      cwd: WORKSPACE,
+    }, ctx);
+    expect(ctx.ask).not.toHaveBeenCalled();
+    expect(spawnSyncCalls[0].shell).toEqual(['sh', '-c', 'bun test']);
+  });
+
+  test('cd with relative path matching workspace also strips', async () => {
+    const ctx = createMockContext();
+    // resolvePath('./project') = '/workspace/project/./project' ≠ '/workspace/project'
+    // so this should NOT strip — it's a different path
+    await execute({ command: 'cd ./project && ls' }, ctx);
+    // The relative path won't match workspace, so && is kept → operator ask
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.metadata?.hasOperators).toBe(true);
+  });
+
+  test('cd <workspace> && <cmd> uses stripped command in visualization', async () => {
+    const ctx = createMockContext();
+    const result = await execute({ command: `cd ${WORKSPACE} && echo hello` }, ctx);
+    const viz = result.visualization as { type: string; command: string } | undefined;
+    expect(viz?.command).toBe('echo hello');
+  });
+
+  test('bare cd without && is not stripped', async () => {
+    const ctx = createMockContext();
+    const result = await execute({ command: `cd ${WORKSPACE}` }, ctx);
+    // No && → no stripping, just runs the cd command
+    expect(ctx.ask).not.toHaveBeenCalled();
+    expect(spawnSyncCalls[0].shell).toEqual(['sh', '-c', `cd ${WORKSPACE}`]);
+  });
+
+  // ── Sensitive file tests ──────────────────────────────────────────
+
+  test('cat .env always requires permission', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'cat .env' }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.risk).toBe('high');
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+    expect(permAsk.metadata?.reason).toContain('sensitive files');
+  });
+
+  test('cat .env is blocked even when user rejects', async () => {
+    const ctx = createMockContext({
+      ask: mock(async () => false) as unknown as ToolContext['ask'],
+    });
+    const result = await execute({ command: 'cat .env' }, ctx);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('USER_REJECTION');
+    expect(spawnSyncCalls.length).toBe(0);
+  });
+
+  test('cat .env.production also requires permission', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'cat .env.production' }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.risk).toBe('high');
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+  });
+
+  test('cat .pem file requires permission', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'cat server.pem' }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.risk).toBe('high');
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+  });
+
+  test('cat .key file requires permission', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'cat id_rsa.key' }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.risk).toBe('high');
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+  });
+
+  test('grep across .env still requires permission', async () => {
+    const ctx = createMockContext();
+    await execute({ command: 'grep DATABASE .env' }, ctx);
+    const permAsk = getAskCall(ctx);
+    expect(permAsk.metadata?.riskCategory).toBe('sensitive-files');
+  });
+
+  test('cat normal.txt does not trigger sensitive-files', async () => {
+    const ctx = createMockContext();
+    const result = await execute({ command: 'cat normal.txt' }, ctx);
+    expect(ctx.ask).not.toHaveBeenCalled();
+    expect(result).toBeDefined();
+  });
 });

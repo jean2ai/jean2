@@ -300,7 +300,7 @@ export const SENSITIVE_FILE_PATTERNS = [
 // Canonical Shell Permission Helpers
 // =============================================================================
 
-export type ShellRiskCategory = 'destructive' | 'side-effect' | 'workspace-modification' | 'network' | 'outside-workspace';
+export type ShellRiskCategory = 'destructive' | 'side-effect' | 'workspace-modification' | 'network' | 'outside-workspace' | 'sensitive-files';
 
 export function createShellPermissionAskStructured(params: {
   command: string;

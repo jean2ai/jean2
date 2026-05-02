@@ -81,6 +81,22 @@ function parseCommand(cmd: string): ParsedCommand {
   return { baseCommand, args, flags };
 }
 
+function stripRedundantCd(command: string, cwd: string, resolvePath: (p: string) => string): string {
+  const trimmed = command.trimStart();
+  const cdMatch = trimmed.match(/^cd\s+(\S+)\s*&&\s*(.+)/i);
+  if (!cdMatch) return command;
+
+  const cdTarget = cdMatch[1];
+  const rest = cdMatch[2].trim();
+  const resolvedCdTarget = resolvePath(cdTarget);
+
+  if (resolvedCdTarget === cwd) {
+    return rest || command;
+  }
+
+  return command;
+}
+
 function extractPathArguments(cmd: string): string[] {
   const paths: string[] = [];
   const parts = cmd.split(/\s+/);
@@ -201,6 +217,24 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
     };
   }
 
+  const args = parseCommand(cmd).args;
+  const nonFlagArgs = args.filter(a => !a.startsWith('-'));
+  const hasSensitivePath = nonFlagArgs.some(a => ctx.isSensitivePath(a));
+
+  if (hasSensitivePath) {
+    return {
+      requiresAsk: true,
+      riskCategory: 'sensitive-files',
+      risk: 'high',
+      reason: 'references sensitive files (.env, .key, .pem, etc.)',
+      hasOperators,
+      workspaceBound: true,
+      resolvedPaths,
+      baseCommand: effectiveCommand,
+      flags,
+    };
+  }
+
   return {
     requiresAsk: false,
     riskCategory: 'side-effect',
@@ -216,9 +250,10 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
-    const risk = analyzeRisk(input.command, ctx);
-
     const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
+    const effectiveCommand = stripRedundantCd(input.command, resolvedCwd, ctx.resolvePath);
+    const risk = analyzeRisk(effectiveCommand, ctx);
+
     const outsideWorkspaceCwd = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
 
     if (risk.requiresAsk) {
@@ -226,14 +261,14 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
 
       if (outsideWorkspaceCwd) {
         permAsk = createOutsideWorkspaceAsk({
-          command: input.command,
+          command: effectiveCommand,
           cwd: resolvedCwd,
           resolvedPaths: risk.resolvedPaths,
           hasOperators: risk.hasOperators,
         });
       } else if (risk.riskCategory === 'outside-workspace') {
         permAsk = createShellPermissionAskStructured({
-          command: input.command,
+          command: effectiveCommand,
           baseCommand: risk.baseCommand,
           flags: risk.flags,
           risk: risk.risk,
@@ -245,14 +280,14 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
         });
       } else if (risk.riskCategory === 'workspace-modification') {
         permAsk = createWorkspaceModificationAsk({
-          command: input.command,
+          command: effectiveCommand,
           baseCommand: risk.baseCommand,
           resolvedPaths: risk.resolvedPaths,
           hasOperators: risk.hasOperators,
         });
       } else {
         permAsk = createShellPermissionAskStructured({
-          command: input.command,
+          command: effectiveCommand,
           baseCommand: risk.baseCommand,
           flags: risk.flags,
           risk: risk.risk,
@@ -276,7 +311,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     if (platform === 'windows') {
       shell = await detectWindowsShell();
     } else {
-      shell = ['sh', '-c', input.command];
+      shell = ['sh', '-c', effectiveCommand];
     }
 
     const result = Bun.spawnSync(shell, {
@@ -290,7 +325,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
 
     const visualization: ShellOutputVisualization = {
       type: 'shell-output',
-      command: input.command.substring(0, 100),
+      command: effectiveCommand.substring(0, 100),
       stdout: stdout || undefined,
       stderr: stderr || undefined,
       exitCode,
