@@ -134,10 +134,12 @@ export interface SdkEventMap {
     toolCallId: AskRequestMessage['toolCallId'],
     toolName: AskRequestMessage['toolName'],
     ask: AskRequestMessage['ask'],
+    requestId: AskRequestMessage['requestId'],
   ];
   'ask.timeout': [
     sessionId: AskTimedOutMessage['sessionId'],
     toolCallId: AskTimedOutMessage['toolCallId'],
+    requestId: AskTimedOutMessage['requestId'],
   ];
 
   'error': [code: ErrorMessage['code'], message: ErrorMessage['message']];
@@ -256,10 +258,10 @@ export function routeServerMessage(
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);
       break;
     case 'ask.request':
-      emitter.emit('ask.request', msg.sessionId, msg.toolCallId, msg.toolName, msg.ask);
+      emitter.emit('ask.request', msg.sessionId, msg.toolCallId, msg.toolName, msg.ask, msg.requestId);
       break;
     case 'ask.timeout':
-      emitter.emit('ask.timeout', msg.sessionId, msg.toolCallId);
+      emitter.emit('ask.timeout', msg.sessionId, msg.toolCallId, msg.requestId);
       break;
     case 'error':
       emitter.emit('error', msg.code, msg.message);

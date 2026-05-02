@@ -88,7 +88,7 @@ export interface UseServerSessionManagerReturn {
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
-  handleAskResponse: (toolCallId: string, response: AskResponse) => void;
+  handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;

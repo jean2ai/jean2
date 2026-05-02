@@ -111,11 +111,11 @@ export function subscribeToServerEvents(
     providerHandlers['provider.connected']({ type: 'provider.connected', provider: provider as string, connected: connected as boolean, connectedAt: connectedAt as string | undefined, accountId: accountId as string | undefined }, ctx()!);
   });
 
-  add('ask.request', (sessionId: unknown, toolCallId: unknown, toolName: unknown, ask: unknown) => {
-    askHandlers['ask.request']({ type: 'ask.request', sessionId: sessionId as string, toolCallId: toolCallId as string, toolName: toolName as string, ask: ask as Ask }, ctx()!);
+  add('ask.request', (sessionId: unknown, toolCallId: unknown, toolName: unknown, ask: unknown, requestId: unknown) => {
+    askHandlers['ask.request']({ type: 'ask.request', sessionId: sessionId as string, toolCallId: toolCallId as string, toolName: toolName as string, ask: ask as Ask, requestId: requestId as string | undefined }, ctx()!);
   });
-  add('ask.timeout', (sessionId: unknown, toolCallId: unknown) => {
-    askHandlers['ask.timeout']({ type: 'ask.timeout', sessionId: sessionId as string, toolCallId: toolCallId as string }, ctx()!);
+  add('ask.timeout', (sessionId: unknown, toolCallId: unknown, requestId: unknown) => {
+    askHandlers['ask.timeout']({ type: 'ask.timeout', sessionId: sessionId as string, toolCallId: toolCallId as string, requestId: requestId as string | undefined }, ctx()!);
   });
 
   add('error', (code: unknown, message: unknown) => {
