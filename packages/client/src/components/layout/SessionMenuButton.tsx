@@ -170,12 +170,13 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   const completionRecord = useCompletionStore(selectCompletionRecord(session.id));
   const clearCompletion = useCompletionStore(s => s.clearCompletion);
 
-  // Track current time for flash phase calculation
+  // Track current time for flash phase calculation — only when a completion is active
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!completionRecord) return;
     const interval = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [!!completionRecord]);
 
   // Derive visual state from completion record
   const isFlashing = !!completionRecord && (now - completionRecord.flashStartedAt < COMPLETION_FLASH_DURATION_MS);
@@ -185,7 +186,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   useEffect(() => {
     if (!completionRecord || completionRecord.type !== 'flash-only') return;
 
-    const remainingTime = COMPLETION_FLASH_DURATION_MS - (now - completionRecord.flashStartedAt);
+    const remainingTime = COMPLETION_FLASH_DURATION_MS - (Date.now() - completionRecord.flashStartedAt);
     if (remainingTime <= 0) {
       clearCompletion(session.id);
       return;
@@ -196,7 +197,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }, remainingTime);
 
     return () => clearTimeout(timer);
-  }, [completionRecord, session.id, clearCompletion, now]);
+  }, [completionRecord, session.id, clearCompletion]);
 
   // Determine the highlight class: flashing takes precedence, then sticky green, then selection mode highlight
   const highlightClass = isFlashing

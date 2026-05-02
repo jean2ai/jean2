@@ -13,6 +13,7 @@ import {
   getLLMBaseUrl,
 } from '@/env';
 import { getProvider, createModelForProvider } from '@/providers';
+import { isSandboxActive } from '@/sandbox';
 
 export interface ModelWithMetadata {
   model: LanguageModel;
@@ -40,6 +41,25 @@ export async function getModelWithMetadata(
     : (modelIdOrOptions ?? {});
   const defaultModelId = 'gpt-4o';
   const resolvedModelId = options.modelId || defaultModelId;
+
+  // When sandbox mode is active, route all LLM calls through the sandbox provider
+  if (isSandboxActive()) {
+    const sandboxProvider = getProvider('sandbox');
+    if (sandboxProvider) {
+      const result = await createModelForProvider({
+        modelId: resolvedModelId,
+        providerId: 'sandbox',
+        systemPrompt: options.systemPrompt || '',
+        sessionId: options.sessionId,
+      });
+      return {
+        model: result.model,
+        useProviderInstructions: result.useProviderInstructions,
+        omitMaxOutputTokens: result.omitMaxOutputTokens,
+        providerOptions: result.providerOptions,
+      };
+    }
+  }
 
   let provider = options.providerId;
   let model = resolvedModelId;
