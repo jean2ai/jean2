@@ -136,6 +136,8 @@ export interface PermissionGrant {
   revokedAt: string | null;
   revokedBy: string | null;
   metadata: Record<string, unknown> | null;
+  /** For session-scoped grants: the root session ID this grant is bound to */
+  boundRootSessionId?: string | null;
 }
 
 // =============================================================================
@@ -149,6 +151,8 @@ export interface PermissionGrantOptions {
   patterns?: string[];
   duration?: number;
   description?: string;
+  /** For session-scoped grants: bind to this root session ID */
+  boundRootSessionId?: string;
 }
 
 // =============================================================================

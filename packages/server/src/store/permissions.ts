@@ -91,6 +91,7 @@ interface PermissionGrantRow {
   revoked_at: string | null;
   revoked_by: string | null;
   metadata: string | null;
+  bound_root_session_id: string | null;
 }
 
 // =============================================================================
@@ -118,6 +119,9 @@ export function getWorkspaceGrants(
  *
  * Phase 3: Now supports optional action-based matching.
  * When action is provided, matches require both resource and action to align.
+ *
+ * Session-scoped grants are bound to a root session ID and only match
+ * requests from the same root session.
  */
 export function matchGrant(params: {
   workspaceId: string;
@@ -125,6 +129,7 @@ export function matchGrant(params: {
   resource: PermissionResource;
   action?: string;
   permissionKey: string;
+  rootSessionId?: string;
 }): { matched: boolean; grant: PermissionGrant | null } {
   const db = getDatabase();
   const now = new Date().toISOString();
@@ -139,6 +144,13 @@ export function matchGrant(params: {
   `).all(params.workspaceId, params.toolName, params.resource, now) as PermissionGrantRow[];
 
   for (const row of rows) {
+    // Session-scoped grants must match the requesting root session
+    if (row.scope === 'session' && row.bound_root_session_id) {
+      if (row.bound_root_session_id !== (params.rootSessionId ?? null)) {
+        continue;
+      }
+    }
+
     // If action is specified in the request, check if the grant's action matches
     // A grant with null/undefined action is a wildcard (matches any action for that resource)
     if (params.action && row.action && row.action !== params.action) {
@@ -192,6 +204,7 @@ export function createGrantFromOptions(
       revokedAt: null,
       revokedBy: null,
       metadata: grantOptions.description ? { description: grantOptions.description } : null,
+      boundRootSessionId: null,
     };
   }
 
@@ -200,6 +213,11 @@ export function createGrantFromOptions(
   if (grantOptions.scope === 'session' && grantOptions.duration && grantOptions.duration > 0) {
     expiresAt = new Date(Date.now() + grantOptions.duration).toISOString();
   }
+
+  // For session-scoped grants, bind to the root session ID
+  const boundRootSessionId = grantOptions.scope === 'session'
+    ? (grantOptions.boundRootSessionId ?? null)
+    : null;
 
   const grant: PermissionGrant = {
     id,
@@ -217,13 +235,14 @@ export function createGrantFromOptions(
     revokedAt: null,
     revokedBy: null,
     metadata: grantOptions.description ? { description: grantOptions.description } : null,
+    boundRootSessionId,
   };
 
   db.run(
     `INSERT INTO permission_grants (
       id, workspace_id, tool_name, resource, action, scope, matcher, pattern, 
-      allowed, granted_at, expires_at, granted_by, revoked_at, revoked_by, metadata
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      allowed, granted_at, expires_at, granted_by, revoked_at, revoked_by, metadata, bound_root_session_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       grant.id,
       grant.workspaceId,
@@ -240,6 +259,7 @@ export function createGrantFromOptions(
       grant.revokedAt,
       grant.revokedBy,
       grant.metadata ? JSON.stringify(grant.metadata) : null,
+      boundRootSessionId,
     ],
   );
 
@@ -317,5 +337,6 @@ function mapRowToGrant(row: PermissionGrantRow): PermissionGrant {
     revokedAt: row.revoked_at,
     revokedBy: row.revoked_by,
     metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    boundRootSessionId: row.bound_root_session_id ?? null,
   };
 }

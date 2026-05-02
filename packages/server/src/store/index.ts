@@ -314,6 +314,10 @@ export function initializeSchema(db: Database): void {
   // e.g. resource='file', action='read' | 'write' | 'delete'; resource='network', action='request'
   addColumnIfNotExists('permission_grants', 'action', 'TEXT');
 
+  // Migration: add bound_root_session_id for session-scoped grant isolation
+  // Session-scoped grants are only valid within the root session they were created in.
+  addColumnIfNotExists('permission_grants', 'bound_root_session_id', 'TEXT');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS pending_asks (
       id TEXT PRIMARY KEY,

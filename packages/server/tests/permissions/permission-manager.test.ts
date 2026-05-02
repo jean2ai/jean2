@@ -715,13 +715,14 @@ describe('mandatory regression tests', () => {
       resolvePermission(msg.requestId, { type: 'permission', grant: 'session' });
       await promise;
 
-      // Nested path should match
+      // Nested path should match (from same root session)
       expect(matchGrant({
         workspaceId,
         toolName: 'shell',
         resource: 'file',
         action: 'delete',
         permissionKey: '/workspace/build/dist/bundle.js',
+        rootSessionId: sessionId,
       }).matched).toBe(true);
 
       // But sibling directory should NOT match
@@ -731,6 +732,7 @@ describe('mandatory regression tests', () => {
         resource: 'file',
         action: 'delete',
         permissionKey: '/workspace/build-config/',
+        rootSessionId: sessionId,
       }).matched).toBe(false);
     });
   });

@@ -159,6 +159,9 @@ export async function requestPermission(params: RequestPermissionParams): Promis
   if (isPermissionAsk && workspaceId) {
     const permAsk = ask as PermissionAsk;
 
+    // Derive root session ID for session-scoped grant matching
+    const effectiveRootSessionId = rootSessionId ?? sessionId;
+
     // Phase 3: Use intent-based matching when intents are available
     if (permAsk.intents && permAsk.intents.length > 0) {
       for (const intent of permAsk.intents) {
@@ -169,6 +172,7 @@ export async function requestPermission(params: RequestPermissionParams): Promis
             resource: intent.resource,
             action: intent.action,
             permissionKey: target.target,
+            rootSessionId: effectiveRootSessionId,
           });
           if (matchResult.matched) {
             return true;
@@ -189,6 +193,7 @@ export async function requestPermission(params: RequestPermissionParams): Promis
       toolName,
       resource: permAsk.resource ?? 'file',
       permissionKey,
+      rootSessionId: effectiveRootSessionId,
     });
 
     if (matchResult.matched) {
@@ -413,6 +418,9 @@ function persistGrant(response: AskPermissionResponse, record: PendingAskRecord)
   const permAsk = record.ask as PermissionAsk;
   let grantScope: GrantScope = response.grant;
 
+  // Derive the bound root session ID for session-scoped grants
+  const boundRootSessionId = record.rootSessionId ?? record.sessionId;
+
   // Phase 3: Use intent-based grant persistence when intents are available
   if (permAsk.intents && permAsk.intents.length > 0) {
     const intent: PermissionIntent = permAsk.intents[0];
@@ -445,6 +453,7 @@ function persistGrant(response: AskPermissionResponse, record: PendingAskRecord)
           action: intent.action,
           duration: grantScope === 'session' ? duration : undefined,
           description: permAsk.question,
+          boundRootSessionId: grantScope === 'session' ? boundRootSessionId : undefined,
         },
       });
     }
@@ -479,6 +488,7 @@ function persistGrant(response: AskPermissionResponse, record: PendingAskRecord)
       action: permAsk.action,
       duration: grantScope === 'session' ? duration : undefined,
       description: permAsk.question,
+      boundRootSessionId: grantScope === 'session' ? boundRootSessionId : undefined,
     },
   });
 }
