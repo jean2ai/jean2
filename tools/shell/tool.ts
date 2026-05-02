@@ -140,7 +140,7 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
       riskCategory = 'destructive';
     } else if (['curl', 'wget', 'nc', 'netcat'].includes(effectiveCommand)) {
       riskCategory = 'network';
-    } else if (['sudo', 'su', 'doas', 'chmod', 'chown', 'shutdown', 'reboot', 'iptables'].includes(effectiveCommand)) {
+    } else if (['sudo', 'su', 'doas', 'chmod', 'chown', 'shutdown', 'reboot', 'halt', 'iptables'].includes(effectiveCommand)) {
       riskCategory = 'destructive';
     }
 
