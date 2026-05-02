@@ -19,15 +19,15 @@ function responseSummary(response: SandboxResponse | null): string {
 
   switch (response.type) {
     case 'text':
-      return `text \"${formatMessageContent(response.content, 40)}\"`;
+      return `text "${formatMessageContent(response.content, 40)}"`;
     case 'tool-call':
       return `tool-call ${response.toolName}`;
     case 'multi-tool-call':
       return `multi-tool-call (${response.calls.length})`;
     case 'reasoning':
-      return `reasoning \"${formatMessageContent(response.text, 40)}\"`;
+      return `reasoning "${formatMessageContent(response.text, 40)}"`;
     case 'error':
-      return `error \"${formatMessageContent(response.error, 40)}\"`;
+      return `error "${formatMessageContent(response.error, 40)}"`;
   }
 }
 
@@ -50,7 +50,7 @@ export function displayPendingCalls(calls: LlmCallContext[]): void {
     const lastMessage = [...call.messages].reverse().find((message) => message.role === 'user' || message.role === 'tool');
     if (lastMessage) {
       const label = lastMessage.role === 'tool' ? 'Tool result' : 'Last message';
-      console.log(`      ${label}: \"${formatMessageContent(lastMessage.content, 120)}\"`);
+      console.log(`      ${label}: "${formatMessageContent(lastMessage.content, 120)}"`);
     }
 
     console.log();
@@ -64,7 +64,7 @@ export function displayNotification(context: LlmCallContext): void {
 
   const lastUser = [...context.messages].reverse().find((message) => message.role === 'user');
   if (lastUser) {
-    console.log(`    Last message: \"${formatMessageContent(lastUser.content, 120)}\"`);
+    console.log(`    Last message: "${formatMessageContent(lastUser.content, 120)}"`);
   }
 }
 

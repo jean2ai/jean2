@@ -44,7 +44,7 @@ export const DisabledChecked: Story = {
 };
 
 export const WithLabel: Story = {
-  render: () => {
+  render: function SwitchWithLabel() {
     const [on, setOn] = useState(true);
     return (
       <div className="flex items-center gap-2">

@@ -1,10 +1,9 @@
 import type {
   ProviderStatus,
   ModelWithStatus,
-  ModelRuntimeStatus,
   ProviderDescriptor,
 } from '@jean2/sdk';
-import { mockId, mockIsoNow, merge } from './mockHelpers';
+import { mockIsoNow, merge } from './mockHelpers';
 
 // =============================================================================
 // ModelWithStatus Factory

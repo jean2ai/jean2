@@ -69,7 +69,7 @@ export class SandboxApiClient {
           return;
         }
 
-        let message: SandboxControlEvent | null = null;
+        let message: SandboxControlEvent;
         try {
           message = JSON.parse(payload) as SandboxControlEvent;
         } catch {
@@ -187,7 +187,7 @@ export class SandboxApiClient {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-    let payload: unknown = null;
+    let payload: unknown;
     try {
       payload = await response.json();
     } catch {

@@ -6,7 +6,7 @@ import { createWorkspace } from './mockWorkspace';
 // Session Factory
 // =============================================================================
 
-export interface MockSessionOverrides extends Partial<Session> {}
+export type MockSessionOverrides = Partial<Session>;
 
 export function createSession(overrides: MockSessionOverrides = {}): Session {
   const id = overrides.id ?? mockId('sess');

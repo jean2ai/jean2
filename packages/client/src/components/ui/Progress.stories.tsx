@@ -34,7 +34,7 @@ export const Zero: Story = {
 };
 
 export const Animated: Story = {
-  render: () => {
+  render: function ProgressAnimated() {
     const [value, setValue] = useState(0);
     return (
       <div className="w-64 space-y-3">

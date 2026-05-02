@@ -36,7 +36,7 @@ export const Invalid: Story = {
 };
 
 export const WithLabel: Story = {
-  render: () => {
+  render: function WithLabelRender() {
     const [checked, setChecked] = useState(false);
     return (
       <div className="flex items-center gap-2">

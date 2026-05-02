@@ -1,7 +1,7 @@
 import { join, resolve, extname } from 'path';
 import { homedir, tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
-import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
+import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, DirEntry, FileStat, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
 import { getJean2EnvValue } from '@/env';
 
 const BLOCKED_PATHS = [
@@ -49,6 +49,7 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
   const api: FileSystemApi = {
     tempDir,
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Overloaded signature requires any for FileSystemApi compatibility
     async readFile(path: string, encoding?: any): Promise<any> {
       const resolved = api.resolve(path);
       const fs = await import('fs/promises');
@@ -73,7 +74,7 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
       await fs.appendFile(resolved, data);
     },
 
-    async readDir(path: string): Promise<any[]> {
+    async readDir(path: string): Promise<DirEntry[]> {
       const resolved = api.resolve(path);
       const fs = await import('fs/promises');
       const entries = await fs.readdir(resolved, { withFileTypes: true });
@@ -89,7 +90,7 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
       return existsSync(resolved);
     },
 
-    async stat(path: string): Promise<any> {
+    async stat(path: string): Promise<FileStat> {
       const resolved = api.resolve(path);
       const fs = await import('fs/promises');
       const stat = await fs.stat(resolved);

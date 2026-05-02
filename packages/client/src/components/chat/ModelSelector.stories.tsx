@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ModelSelector } from './ModelSelector';
 import {
-  modelPresets,
   createModelList,
 } from '../../../.storybook/mocks/mockProvider';
 

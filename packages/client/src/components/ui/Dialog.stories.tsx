@@ -78,7 +78,7 @@ export const WithoutCloseButton: Story = {
 };
 
 export const Controlled: Story = {
-  render: () => {
+  render: function DialogControlled() {
     const [open, setOpen] = useState(false);
     return (
       <>

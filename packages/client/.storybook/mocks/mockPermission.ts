@@ -1,9 +1,7 @@
 import type {
   PermissionAsk,
-  PermissionRiskLevel,
-  GrantScope,
 } from '@jean2/sdk';
-import { mockId, merge } from './mockHelpers';
+import { merge } from './mockHelpers';
 
 // =============================================================================
 // PermissionAsk Factory

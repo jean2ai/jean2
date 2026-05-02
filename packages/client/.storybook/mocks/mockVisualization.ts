@@ -1,5 +1,4 @@
 import type {
-  AnyVisualization,
   DiffVisualization,
   DiffsVisualization,
   CodeVisualization,

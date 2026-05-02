@@ -1,6 +1,6 @@
 import { isElectron, isTauriMobile } from '@/lib/platform';
 
-let tauriStore: any = null;
+let tauriStore: { get: <T>(key: string) => Promise<T | undefined>; set: (key: string, value: unknown) => Promise<void>; delete: (key: string) => Promise<boolean>; clear: () => Promise<void>; save: () => Promise<void>; } | null = null;
 
 async function getTauriStore() {
   if (tauriStore) return tauriStore;
@@ -32,8 +32,6 @@ export const storage = {
     if (isTauriMobile()) {
       const store = await getTauriStore();
       if (store) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const value = await store.get<T>(key);
         return value ?? null;
       }

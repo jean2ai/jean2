@@ -1,9 +1,7 @@
 import type {
-  Message,
   UserMessage,
   AssistantMessage,
   SystemMessage,
-  Part,
   TextPart,
   ReasoningPart,
   ToolPart,

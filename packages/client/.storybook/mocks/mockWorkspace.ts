@@ -5,7 +5,7 @@ import { mockId, mockIsoNow, merge } from './mockHelpers';
 // Workspace Factory
 // =============================================================================
 
-export interface MockWorkspaceOverrides extends Partial<Workspace> {}
+export type MockWorkspaceOverrides = Partial<Workspace>;
 
 export function createWorkspace(overrides: MockWorkspaceOverrides = {}): Workspace {
   const id = overrides.id ?? mockId('ws');

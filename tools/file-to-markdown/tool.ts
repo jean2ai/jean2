@@ -93,7 +93,6 @@ async function convertDocx(buffer: Uint8Array): Promise<string> {
 // XLSX / ODS — xlsx (SheetJS CE, MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type XLSXModule = typeof import('xlsx');
 
 async function convertXlsx(buffer: Uint8Array): Promise<string> {
@@ -195,7 +194,6 @@ async function convertPptx(buffer: Uint8Array): Promise<string> {
         }
       };
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         traverse(parsed?.['p:sld']?.['p:cSld']?.[0]?.['p:spTree']);
       } catch { /* ignore traversal errors */ }
       return `# Slide ${i + 1}\n\n${texts.join('\n')}\n\n---\n\n`;

@@ -5,7 +5,7 @@ import { mockId, merge } from './mockHelpers';
 // Preconfig Factory
 // =============================================================================
 
-export interface MockPreconfigOverrides extends Partial<Preconfig> {}
+export type MockPreconfigOverrides = Partial<Preconfig>;
 
 export function createPreconfig(
   overrides: MockPreconfigOverrides = {},

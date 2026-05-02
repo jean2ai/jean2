@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { Message } from '@jean2/sdk';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { MessageBubble } from './MessageBubble';
 import {

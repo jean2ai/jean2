@@ -12,7 +12,7 @@ function isValidScheme(value: string): value is StorybookThemeScheme {
   return THEME_SCHEMES.includes(value as StorybookThemeScheme);
 }
 
-export function ThemeDecorator(Story: React.ComponentType, context: StoryContext) {
+export function ThemeDecorator(Story: React.ComponentType, _context: StoryContext) {
   const [globals] = useGlobals();
 
   const mode = isValidMode(globals.themeMode) ? globals.themeMode : 'dark';

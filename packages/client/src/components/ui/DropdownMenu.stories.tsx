@@ -69,7 +69,7 @@ export const Default: Story = {
 };
 
 export const WithCheckboxItems: Story = {
-  render: () => {
+  render: function DropdownMenuCheckboxItems() {
     const [showStatusBar, setShowStatusBar] = useState(true);
     const [showActivityBar, setShowActivityBar] = useState(false);
     const [showPanel, setShowPanel] = useState(false);
@@ -106,7 +106,7 @@ export const WithCheckboxItems: Story = {
 };
 
 export const WithRadioItems: Story = {
-  render: () => {
+  render: function DropdownMenuRadioItems() {
     const [position, setPosition] = useState('bottom');
     return (
       <DropdownMenu>

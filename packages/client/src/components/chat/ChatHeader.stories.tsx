@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ChatHeader } from './ChatHeader';
 import {
   createSession,
-  sessionPresets,
 } from '../../../.storybook/mocks/mockSession';
 import {
   createPreconfigList,

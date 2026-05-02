@@ -28,7 +28,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  render: () => {
+  render: function ConfirmationDefault() {
     const [open, setOpen] = useState(false);
     return (
       <>
@@ -46,7 +46,7 @@ export const Default: Story = {
 };
 
 export const Destructive: Story = {
-  render: () => {
+  render: function ConfirmationDestructive() {
     const [open, setOpen] = useState(false);
     return (
       <>
@@ -66,7 +66,7 @@ export const Destructive: Story = {
 };
 
 export const CustomLabels: Story = {
-  render: () => {
+  render: function ConfirmationCustomLabels() {
     const [open, setOpen] = useState(false);
     return (
       <>

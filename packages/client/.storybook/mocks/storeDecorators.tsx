@@ -156,7 +156,7 @@ export function withUIStore(overrides: UIStoreDefaults = {}) {
 // -----------------------------------------------------------------------------
 
 interface ConnectionStoreDefaults {
-  connected?: boolean;
+  connected?: ConnectionStoreState['connected'];
   authError?: string | null;
   connectionTimedOut?: boolean;
   retryCount?: number;
@@ -187,7 +187,7 @@ export function withConnectionStore(overrides: ConnectionStoreDefaults = {}) {
 // -----------------------------------------------------------------------------
 
 interface ChatLayoutStoreDefaults {
-  showFilesPanel?: boolean;
+  showFilesPanel?: ChatLayoutStoreState['showFilesPanel'];
   showTerminalPanel?: boolean;
   sessionsPanelWidth?: number;
   filesPanelWidth?: number;
@@ -233,7 +233,7 @@ export function withAskStore(overrides: AskStoreDefaults = {}) {
 // -----------------------------------------------------------------------------
 
 interface CompletionStoreDefaults {
-  completionState?: Map<string, CompletionRecord>;
+  completionState?: CompletionStoreState['completionState'];
 }
 
 const defaultCompletionState = (): CompletionStoreDefaults => ({

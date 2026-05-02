@@ -1,11 +1,11 @@
 import type { ToolDefinition, ToolResult } from '@jean2/sdk';
-import { mockId, merge } from './mockHelpers';
+import { merge } from './mockHelpers';
 
 // =============================================================================
 // ToolDefinition Factory
 // =============================================================================
 
-export interface MockToolDefinitionOverrides extends Partial<ToolDefinition> {}
+export type MockToolDefinitionOverrides = Partial<ToolDefinition>;
 
 export function createToolDefinition(
   overrides: MockToolDefinitionOverrides = {},

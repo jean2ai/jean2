@@ -1,5 +1,6 @@
 import { generateText, generateObject } from 'ai';
 import { jsonSchema } from 'ai';
+import type { ModelMessage } from 'ai';
 import type { LlmApi, LlmTextOptions, LlmStructuredOptions, LlmImage } from '@jean2/sdk';
 import { getModelWithMetadata } from '@/core/model-utils';
 
@@ -34,9 +35,9 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
 
       const result = await generateText({
         model,
-        messages: messages as any,
+        messages: messages as ModelMessage[],
         maxOutputTokens: omitMaxOutputTokens ? undefined : (options.maxTokens ?? 4096),
-        providerOptions: providerOptions as any,
+        providerOptions: providerOptions as unknown as Parameters<typeof generateText>[0]['providerOptions'],
       });
 
       return result.text;
@@ -71,10 +72,10 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
 
       const result = await generateObject({
         model,
-        messages: messages as any,
+        messages: messages as ModelMessage[],
         schema: jsonSchema(options.schema),
         maxOutputTokens: omitMaxOutputTokens ? undefined : (options.maxTokens ?? 4096),
-        providerOptions: providerOptions as any,
+        providerOptions: providerOptions as unknown as Parameters<typeof generateObject>[0]['providerOptions'],
       });
 
       return result.object as T;

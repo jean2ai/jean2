@@ -10,7 +10,8 @@ import { triggerUpdateCheck } from './updater.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const Store = (ElectronStore as any).default || ElectronStore;
+// electron-store ESM/CJS interop: default export may be nested under `.default`
+const Store = (ElectronStore as unknown as { default?: typeof ElectronStore }).default || ElectronStore;
 const store = new Store({
   name: 'jean2-config',
 });
