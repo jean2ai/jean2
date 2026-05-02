@@ -7,6 +7,8 @@ export interface PendingAskRequest {
   toolName: string;
   ask: Ask;
   originSessionId?: string;
+  /** Canonical request identity for permission asks (correlates with server DB) */
+  requestId?: string;
 }
 
 // Handler type: receives the ask, returns AskResponse or undefined (to fall through to UI)

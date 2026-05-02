@@ -1,22 +1,28 @@
 import { useEffect } from 'react';
 import type { AskHandler } from '@/stores/askStore';
-import type { AskPermissionResponse } from '@jean2/sdk';
+import type { AskPermissionResponse, GrantScope } from '@jean2/sdk';
 import { useAskStore } from '@/stores/askStore';
 
 const permissionHandler: AskHandler = (request) => {
-  // Check if it's a permission ask (either with explicit target or canonical type)
   const ask = request.ask;
   const isPermissionAsk = ('target' in ask && ask.target === 'permission') || ask.type === 'permission';
-  
+
   if (!isPermissionAsk) return undefined;
 
   // Only auto-approve low-risk permissions
-  if ('risk' in ask && ask.risk === 'low') {
-    return { type: 'permission', grant: 'session' } satisfies AskPermissionResponse;
+  if (!('risk' in ask) || ask.risk !== 'low') {
+    return undefined;
   }
 
-  // Fall through to user UI
-  return undefined;
+  // Respect the allowed scopes from server policy
+  const allowedScopes = 'allowedScopes' in ask
+    ? (ask.allowedScopes as GrantScope[]) ?? ['once', 'session', 'workspace']
+    : ['once', 'session', 'workspace'];
+
+  // Use 'session' if allowed, otherwise 'once' — never auto-approve 'workspace' scope
+  const autoScope = allowedScopes.includes('session') ? 'session' : 'once';
+
+  return { type: 'permission', grant: autoScope } satisfies AskPermissionResponse;
 };
 
 export function usePermissionAutoApprove(): void {

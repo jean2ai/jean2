@@ -21,13 +21,7 @@ import { MessageBubble } from './MessageBubble';
 import { ToolCall } from './ToolCall';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-
-export interface PendingAskRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  ask: import('@jean2/sdk').Ask;
-}
+import type { PendingAskRequest } from '@/stores/askStore';
 
 export interface DisplayItem {
   message: Message;
@@ -42,7 +36,7 @@ interface VirtualizedTranscriptProps {
   sessionId: string;
   sessionStatus?: string;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
@@ -194,7 +188,7 @@ const MessageParts = memo(function MessageParts({
 }: {
   parts: Part[];
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
   serverUrl?: string;
@@ -307,7 +301,7 @@ interface MessageRowProps {
   messagesWithParts: MessageWithParts[];
   sessionId: string;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;

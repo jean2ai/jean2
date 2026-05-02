@@ -10,11 +10,18 @@ import type {
 // =============================================================================
 // Canonical Permission Contract - Server Implementation
 // 
-// This module implements the canonical permission contract:
-// - GrantScope: once/session/workspace/always
+// This module implements the canonical permission storage and matching:
+// - GrantScope: once/session/workspace (no 'always')
 // - GrantMatcher: exact/prefix/glob/shell-command
 // - PermissionResource: file/path/shell-command/network/etc.
 // - "once" grants are NOT persisted (one-time use only)
+//
+// Permission responses flow through ask.* protocol:
+//   Tool → ctx.ask(permissionAsk) → permission-request-manager → ask.request
+//   Client responds via ask.response → permission-request-manager → persistGrant
+//
+// This is the ONLY permission storage module. The legacy `tool_permissions` table
+// exists in the schema for backward compatibility but is no longer read or written.
 // =============================================================================
 
 // =============================================================================
@@ -73,6 +80,7 @@ interface PermissionGrantRow {
   workspace_id: string;
   tool_name: string;
   resource: string;
+  action: string | null;
   scope: string;
   matcher: string;
   pattern: string;
@@ -107,16 +115,21 @@ export function getWorkspaceGrants(
 /**
  * Match a permission request against stored grants
  * Returns the first matching grant if found
+ *
+ * Phase 3: Now supports optional action-based matching.
+ * When action is provided, matches require both resource and action to align.
  */
 export function matchGrant(params: {
   workspaceId: string;
   toolName: string;
   resource: PermissionResource;
+  action?: string;
   permissionKey: string;
 }): { matched: boolean; grant: PermissionGrant | null } {
   const db = getDatabase();
   const now = new Date().toISOString();
   
+  // When action is provided, include it in the match condition
   const rows = db.query(`
     SELECT * FROM permission_grants
     WHERE workspace_id = ? AND tool_name = ? AND resource = ?
@@ -126,6 +139,12 @@ export function matchGrant(params: {
   `).all(params.workspaceId, params.toolName, params.resource, now) as PermissionGrantRow[];
 
   for (const row of rows) {
+    // If action is specified in the request, check if the grant's action matches
+    // A grant with null/undefined action is a wildcard (matches any action for that resource)
+    if (params.action && row.action && row.action !== params.action) {
+      continue;
+    }
+    
     // Parse JSON patterns and match each individually
     const patterns: string[] = JSON.parse(row.pattern || '[]');
     const matches = patterns.some(p =>
@@ -147,6 +166,7 @@ export function createGrantFromOptions(
     workspaceId: string;
     toolName: string;
     resource: PermissionResource;
+    action?: string;
     permissionKey: string;
   } & { grantOptions: PermissionGrantOptions }
 ): PermissionGrant | null {
@@ -186,6 +206,7 @@ export function createGrantFromOptions(
     workspaceId: matchParams.workspaceId,
     toolName: matchParams.toolName,
     resource: matchParams.resource,
+    action: grantOptions.action,
     scope: grantOptions.scope || 'workspace',
     matcher: grantOptions.matcher || 'exact',
     patterns: grantOptions.patterns || [matchParams.permissionKey],
@@ -200,14 +221,15 @@ export function createGrantFromOptions(
 
   db.run(
     `INSERT INTO permission_grants (
-      id, workspace_id, tool_name, resource, scope, matcher, pattern, 
+      id, workspace_id, tool_name, resource, action, scope, matcher, pattern, 
       allowed, granted_at, expires_at, granted_by, revoked_at, revoked_by, metadata
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       grant.id,
       grant.workspaceId,
       grant.toolName,
       grant.resource,
+      grant.action ?? null,
       grant.scope,
       grant.matcher,
       JSON.stringify(grant.patterns), // Store patterns as JSON to avoid comma-separation issues
@@ -254,136 +276,38 @@ export function revokeAllWorkspaceGrants(
 }
 
 // =============================================================================
-// Legacy Permission Functions (backward compatibility)
+// Legacy tool_permissions table: REMOVED
+//
+// The legacy `tool_permissions` table and its functions were removed in Phase 5.
+// The canonical permission storage is the `permission_grants` table, managed by
+// the functions above (getWorkspaceGrants, matchGrant, createGrantFromOptions, etc.).
+//
+// Removed functions:
+// - checkCachedPermission() → use matchGrant()
+// - grantPermission() → use createGrantFromOptions()
+// - revokePermission() → use revokeGrant()
+// - getWorkspacePermissions() → use getWorkspaceGrants()
+// - getWorkspacePermissionsHistory() → use getWorkspaceGrants({ includeRevoked: true })
+// - revokeAllWorkspacePermissions() → use revokeAllWorkspaceGrants()
+//
+// The `tool_permissions` table still exists in the schema for backward compatibility
+// with databases that have legacy data, but no new data is written to it.
 // =============================================================================
-
-interface ToolPermissionRow {
-  id: string;
-  workspace_id: string;
-  tool_name: string;
-  permission_type: string;
-  permission_key: string;
-  allowed: number;
-  granted_at: string;
-  granted_by: string | null;
-  revoked_at: string | null;
-  revoked_by: string | null;
-  metadata: string | null;
-}
-
-export function checkCachedPermission(
-  workspaceId: string,
-  toolName: string,
-  permissionType: string,
-  permissionKey: string
-): { allowed: boolean; permission: ToolPermissionRow } | null {
-  const db = getDatabase();
-  const row = db.query(`
-    SELECT * FROM tool_permissions
-    WHERE workspace_id = ? AND tool_name = ? AND permission_type = ?
-      AND permission_key = ? AND allowed = 1 AND revoked_at IS NULL
-    LIMIT 1
-  `).get(workspaceId, toolName, permissionType, permissionKey) as ToolPermissionRow | undefined;
-
-  if (!row) return null;
-  return { allowed: true, permission: row };
-}
-
-export interface GrantPermissionParams {
-  workspaceId: string;
-  toolName: string;
-  permissionType: string;
-  permissionKey: string;
-  allowed: boolean;
-  grantedBy: string | null;
-  metadata?: Record<string, unknown>;
-}
-
-export function grantPermission(params: GrantPermissionParams): ToolPermissionRow {
-  const db = getDatabase();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  db.run(`
-    INSERT INTO tool_permissions
-    (id, workspace_id, tool_name, permission_type, permission_key, allowed, granted_at, granted_by, revoked_at, revoked_by, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    id,
-    params.workspaceId,
-    params.toolName,
-    params.permissionType,
-    params.permissionKey,
-    params.allowed ? 1 : 0,
-    now,
-    params.grantedBy,
-    null,
-    null,
-    params.metadata ? JSON.stringify(params.metadata) : null,
-  ]);
-
-  return {
-    id,
-    workspace_id: params.workspaceId,
-    tool_name: params.toolName,
-    permission_type: params.permissionType,
-    permission_key: params.permissionKey,
-    allowed: params.allowed ? 1 : 0,
-    granted_at: now,
-    granted_by: params.grantedBy,
-    revoked_at: null,
-    revoked_by: null,
-    metadata: params.metadata ? JSON.stringify(params.metadata) : null,
-  };
-}
-
-export function revokePermission(id: string, revokedBy: string | null): void {
-  const db = getDatabase();
-  const now = new Date().toISOString();
-  db.run(`
-    UPDATE tool_permissions SET revoked_at = ?, revoked_by = ? WHERE id = ?
-  `, [now, revokedBy, id]);
-}
-
-export function getWorkspacePermissions(workspaceId: string, includeRevoked = false): ToolPermissionRow[] {
-  const db = getDatabase();
-  const query = includeRevoked
-    ? 'SELECT * FROM tool_permissions WHERE workspace_id = ? ORDER BY granted_at DESC'
-    : 'SELECT * FROM tool_permissions WHERE workspace_id = ? AND revoked_at IS NULL ORDER BY granted_at DESC';
-  const rows = db.query(query).all(workspaceId) as ToolPermissionRow[];
-  return rows;
-}
-
-export function getWorkspacePermissionsHistory(workspaceId: string, limit = 100): ToolPermissionRow[] {
-  const db = getDatabase();
-  const rows = db.query(`
-    SELECT * FROM tool_permissions WHERE workspace_id = ?
-    ORDER BY granted_at DESC LIMIT ?
-  `).all(workspaceId, limit) as ToolPermissionRow[];
-  return rows;
-}
-
-export function revokeAllWorkspacePermissions(workspaceId: string, revokedBy: string | null): number {
-  const db = getDatabase();
-  const now = new Date().toISOString();
-  const result = db.run(`
-    UPDATE tool_permissions SET revoked_at = ?, revoked_by = ?
-    WHERE workspace_id = ? AND revoked_at IS NULL
-  `, [now, revokedBy, workspaceId]);
-  return result.changes;
-}
 
 // =============================================================================
 // Row Mapping
 // =============================================================================
 
 function mapRowToGrant(row: PermissionGrantRow): PermissionGrant {
+  // Map legacy 'always' scope to 'workspace' at read time
+  const scope = row.scope === 'always' ? 'workspace' : (row.scope as GrantScope);
   return {
     id: row.id,
     workspaceId: row.workspace_id,
     toolName: row.tool_name,
     resource: row.resource as PermissionResource,
-    scope: row.scope as GrantScope,
+    action: row.action ?? undefined,
+    scope,
     matcher: row.matcher as GrantMatcher,
     patterns: JSON.parse(row.pattern || '[]'),
     allowed: row.allowed === 1,

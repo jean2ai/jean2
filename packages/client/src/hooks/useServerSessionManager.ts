@@ -660,7 +660,7 @@ export function useServerSessionManager({
           return undefined;
         })();
       },
-      sendAskResponse: (toolCallId, response) => {
+      sendAskResponse: (toolCallId, response, requestId) => {
         const client = sdkClientRef.current;
         removePendingAskRequest(toolCallId);
         if (client && client.connected) {
@@ -668,6 +668,7 @@ export function useServerSessionManager({
             type: 'ask.response',
             toolCallId,
             response,
+            requestId,
           });
         }
       },

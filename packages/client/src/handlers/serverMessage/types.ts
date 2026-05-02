@@ -96,7 +96,7 @@ export interface SessionHandlersContext {
   clearPendingAskRequests: () => void;
   clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<AskResponse | undefined> | undefined;
-  sendAskResponse: (toolCallId: string, response: AskResponse) => void;
+  sendAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
 }
 
 export type SessionHandlers = {
@@ -142,6 +142,6 @@ export type ProviderHandlers = {
 export type HandlerContext = SessionHandlersContext;
 
 export type AskHandlers = {
-  'ask.request': (msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask }, ctx: SessionHandlersContext) => void;
-  'ask.timeout': (msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string }, ctx: SessionHandlersContext) => void;
+  'ask.request': (msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string }, ctx: SessionHandlersContext) => void;
+  'ask.timeout': (msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string; requestId?: string }, ctx: SessionHandlersContext) => void;
 };

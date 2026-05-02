@@ -27,7 +27,7 @@ export interface AppMainContentProps {
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
   onNavigateBack: () => void;

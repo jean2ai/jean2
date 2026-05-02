@@ -1,9 +1,12 @@
 import type { ClientMessage } from '../shared';
-import type { GrantScope, PermissionDuration } from '../shared-types/permission';
 
 /**
  * Permissions namespace for managing persisted permission grants.
- * Note: Interactive permission prompts are handled via ask.* protocol.
+ *
+ * Interactive permission prompts are handled via the ask.* protocol
+ * (ask.request / ask.response). This namespace handles only the
+ * management (list/revoke) of persisted grants after they've been
+ * created through the ask flow.
  */
 export class PermissionsNamespace {
   constructor(private send: (msg: ClientMessage) => void) {}
@@ -27,46 +30,5 @@ export class PermissionsNamespace {
    */
   revokeAll(workspaceId: string): void {
     this.send({ type: 'permission.revoke_all', workspaceId });
-  }
-}
-
-/**
- * Permission Grant namespace for structured grant responses.
- * Used when responding to permission ask requests.
- */
-export class PermissionGrantNamespace {
-  constructor(private send: (msg: ClientMessage) => void) {}
-
-  /**
-   * Grant permission for a request.
-   * Used when user approves a permission ask.
-   */
-  grant(
-    requestId: string,
-    grantedScopes: GrantScope[],
-    options?: {
-      rememberDecision?: boolean;
-      rememberDuration?: PermissionDuration;
-      userNote?: string;
-    }
-  ): void {
-    this.send({
-      type: 'permission.grant',
-      requestId,
-      grantedScopes,
-      ...options,
-    });
-  }
-
-  /**
-   * Deny a permission request.
-   * Used when user denies a permission ask.
-   */
-  deny(requestId: string, reason?: string): void {
-    this.send({
-      type: 'permission.deny',
-      requestId,
-      reason,
-    });
   }
 }

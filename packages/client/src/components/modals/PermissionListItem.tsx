@@ -1,7 +1,19 @@
-import { Trash2, Shield } from 'lucide-react';
+import { Trash2, Shield, Eye, Pencil, Trash, Globe, Terminal } from 'lucide-react';
 import type { PermissionGrant } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+
+// Static component to satisfy react-hooks/static-components rule
+function ActionIconDisplay({ action }: { action?: string }) {
+  switch (action) {
+    case 'read': return <Eye className="size-3" data-icon="inline-start" />;
+    case 'write': return <Pencil className="size-3" data-icon="inline-start" />;
+    case 'delete': return <Trash className="size-3" data-icon="inline-start" />;
+    case 'request': return <Globe className="size-3" data-icon="inline-start" />;
+    case 'execute': return <Terminal className="size-3" data-icon="inline-start" />;
+    default: return <Shield className="size-3" data-icon="inline-start" />;
+  }
+}
 
 interface PermissionListItemProps {
   permission: PermissionGrant;
@@ -21,9 +33,42 @@ function formatScope(scope: string): string {
     case 'once': return 'Once';
     case 'session': return 'Session';
     case 'workspace': return 'Workspace';
-    case 'always': return 'Always';
+    case 'always': return 'Workspace';
     default: return scope;
   }
+}
+
+function getActionLabel(action?: string): string | null {
+  switch (action) {
+    case 'read': return 'Read';
+    case 'write': return 'Write';
+    case 'delete': return 'Delete';
+    case 'request': return 'Network';
+    case 'execute': return 'Execute';
+    default: return null;
+  }
+}
+
+
+
+function getResourceLabel(resource: string): string {
+  switch (resource) {
+    case 'file': return 'File';
+    case 'path': return 'Path';
+    case 'directory': return 'Directory';
+    case 'shell-command': return 'Shell';
+    case 'network': return 'Network';
+    default: return resource;
+  }
+}
+
+function formatPatternDisplay(patterns: string[]): string {
+  if (patterns.length === 0) return 'All';
+  return patterns.map(p => {
+    if (p.startsWith('file:')) return p.slice(5);
+    if (p.startsWith('shell-command:')) return p.slice(15);
+    return p;
+  }).join(', ');
 }
 
 export function PermissionListItem({
@@ -31,17 +76,17 @@ export function PermissionListItem({
   onRevoke,
 }: PermissionListItemProps) {
   const isRevoked = !!permission.revokedAt;
-  const patternDisplay = permission.patterns.length > 0
-    ? permission.patterns.join(', ')
-    : 'All';
+  const actionLabel = getActionLabel(permission.action);
+  const resourceLabel = getResourceLabel(permission.resource);
+  const patternDisplay = formatPatternDisplay(permission.patterns);
 
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0 min-w-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Badge variant={isRevoked ? 'outline' : 'secondary'}>
-            <Shield className="size-3" data-icon="inline-start" />
-            {permission.resource}
+            <ActionIconDisplay action={permission.action} />
+            {actionLabel ? `${resourceLabel} ${actionLabel}` : resourceLabel}
           </Badge>
           <Badge variant="outline" className="text-xs">
             {permission.toolName}

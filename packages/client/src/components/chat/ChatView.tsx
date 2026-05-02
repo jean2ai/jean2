@@ -6,13 +6,7 @@ import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
-
-export interface PendingAskRequest {
-  toolCallId: string;
-  sessionId: string;
-  toolName: string;
-  ask: import('@jean2/sdk').Ask;
-}
+import type { PendingAskRequest } from '@/stores/askStore';
 
 export interface Model {
   id: string;
@@ -52,7 +46,7 @@ interface ChatViewProps {
   onChangeModel: (modelId: string, providerId: string) => void;
   onChangeVariant: (variant: string | null) => void;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onRename: (sessionId: string, title: string) => void;
   usage: {
     promptTokens: number;

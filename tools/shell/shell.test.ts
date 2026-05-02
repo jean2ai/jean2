@@ -453,29 +453,36 @@ describe('risk analysis: low risk commands', () => {
 // ══════════════════════════════════════════════════════════════════
 
 describe('permission ask structure', () => {
-  test('dangerous command ask has permission type and shell-command resource', async () => {
+  test('dangerous command ask has permission type and file resource (target-based)', async () => {
     const ctx = createMockContext();
     await execute({ command: 'rm -rf /tmp/test' }, ctx);
     const permAsk = getAskCall(ctx);
     expect(permAsk.type).toBe('permission');
-    expect(permAsk.resource).toBe('shell-command');
+    // Phase 3: rm -rf now produces resource='file', action='delete' instead of 'shell-command'
+    expect(permAsk.resource).toBe('file');
+    expect(permAsk.action).toBe('delete');
   });
 
-  test('dangerous command ask has patterns for matching', async () => {
+  test('dangerous command ask has target-based patterns', async () => {
     const ctx = createMockContext();
     await execute({ command: 'rm -rf /tmp/test' }, ctx);
     const permAsk = getAskCall(ctx);
     expect(permAsk.patterns).toBeDefined();
     expect(permAsk.patterns!.length).toBeGreaterThan(0);
-    expect(permAsk.patterns).toContain('rm');
+    // Phase 3: patterns now contain the file target path, not the command name
+    expect(permAsk.patterns).toContain('/tmp/test/');
   });
 
-  test('rm -rf includes both -rf and -r patterns', async () => {
+  test('rm -rf produces prefix-matched delete target with trailing slash', async () => {
     const ctx = createMockContext();
     await execute({ command: 'rm -rf /tmp/test' }, ctx);
     const permAsk = getAskCall(ctx);
-    expect(permAsk.patterns).toContain('rm:-rf');
-    expect(permAsk.patterns).toContain('rm:-r');
+    // Phase 3: recursive delete produces prefix match with trailing slash
+    expect(permAsk.intents).toBeDefined();
+    expect(permAsk.intents![0].resource).toBe('file');
+    expect(permAsk.intents![0].action).toBe('delete');
+    expect(permAsk.intents![0].targets[0].matcher).toBe('prefix');
+    expect(permAsk.intents![0].targets[0].target).toBe('/tmp/test/');
   });
 
   test('ask includes command metadata', async () => {

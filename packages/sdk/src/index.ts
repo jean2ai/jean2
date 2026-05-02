@@ -28,7 +28,7 @@ export type { HttpClientConfig } from './transport/http';
 
 export { SessionsNamespace } from './namespaces/sessions';
 export { ChatNamespace } from './namespaces/chat';
-export { PermissionsNamespace, PermissionGrantNamespace } from './namespaces/permissions';
+export { PermissionsNamespace } from './namespaces/permissions';
 export { QueueNamespace } from './namespaces/queue';
 export { ProvidersNamespace } from './namespaces/providers';
 

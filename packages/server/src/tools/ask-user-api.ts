@@ -1,17 +1,38 @@
-import type { Ask, AskApi, PermissionAsk, AskPermissionResponse, GrantScope } from '@jean2/sdk';
+import type { Ask, AskApi, AskPermissionResponse, GrantScope } from '@jean2/sdk';
 import type { AskRequestMessage, AskTimedOutMessage } from '@jean2/sdk';
 import {
   SHELL_DANGEROUS_COMMANDS,
   SHELL_FILESYSTEM_COMMANDS,
 } from '@jean2/sdk';
 import {
-  matchGrant,
   createGrantFromOptions,
 } from '@/store/permissions';
 import {
   createPendingAsk,
   removePendingAsksByToolCallId,
 } from '@/store/pending-asks';
+import {
+  requestPermission,
+  resolvePermission as resolvePermissionRequest,
+  rejectPermissionsBySession,
+} from '@/tools/permission-request-manager';
+
+// =============================================================================
+// Ask User API
+//
+// This module provides the public API for tools to ask questions to users.
+//
+// Permission asks (type === 'permission') are routed through the dedicated
+// permission-request-manager, which uses DB-backed request records and
+// resolves by requestId.
+//
+// Generic asks (type !== 'permission') remain under the legacy in-memory
+// path for now. They will be migrated in a future phase.
+// =============================================================================
+
+// =============================================================================
+// Legacy in-memory ask handling (generic asks only)
+// =============================================================================
 
 interface PendingAsk {
   resolve: (response: unknown) => void;
@@ -31,31 +52,9 @@ const askTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export type AskBroadcastFn = (message: AskRequestMessage | AskTimedOutMessage) => void;
 
-function buildPermissionKey(
-  toolName: string,
-  resource: string | undefined,
-  patterns: string[] | undefined,
-): string {
-  if (patterns && patterns.length > 0) {
-    return patterns[0];
-  }
-  if (resource) {
-    return resource;
-  }
-  return toolName;
-}
-
-function isDangerousShellIdentity(identity: string | undefined): boolean {
-  if (!identity) return false;
-  const lower = identity.toLowerCase();
-
-  const dangerous = SHELL_DANGEROUS_COMMANDS.some(command => lower === command || lower.startsWith(command + ' '));
-  if (dangerous) {
-    return true;
-  }
-
-  return SHELL_FILESYSTEM_COMMANDS.some(command => lower === command || lower.startsWith(command + ' '));
-}
+// =============================================================================
+// Create Ask API (used by tools)
+// =============================================================================
 
 export function createAskApi(
   sessionId: string,
@@ -69,27 +68,20 @@ export function createAskApi(
   const ask = async (request: Ask): Promise<unknown> => {
     const isPermissionAsk = request.type === 'permission';
 
-    if (isPermissionAsk && workspaceId) {
-      const permAsk = request as PermissionAsk;
-
-      const permissionKey = buildPermissionKey(
+    // Route permission asks through the dedicated permission-request-manager
+    if (isPermissionAsk) {
+      return requestPermission({
+        sessionId,
+        toolCallId,
         toolName,
-        permAsk.resource ?? 'file',
-        permAsk.patterns,
-      );
-
-      const matchResult = matchGrant({
+        ask: request,
+        broadcastFn: broadcastFn as unknown as Parameters<typeof requestPermission>[0]['broadcastFn'],
         workspaceId,
-        toolName,
-        resource: permAsk.resource ?? 'file',
-        permissionKey,
+        timeoutMs: ASK_TIMEOUT,
       });
-
-      if (matchResult.matched) {
-        return true;
-      }
     }
 
+    // Generic asks: legacy in-memory path
     const askId = `${toolCallId}#${++askCounter}`;
 
     return new Promise<unknown>((resolve, reject) => {
@@ -121,6 +113,10 @@ export function createAskApi(
         toolName,
         ask: request,
         createdAt: Date.now(),
+        requestId: askId,
+        status: 'pending',
+        isPermission: false,
+        workspaceId,
       });
 
       const timerId = setTimeout(() => {
@@ -142,6 +138,10 @@ export function createAskApi(
 
   return ask as AskApi;
 }
+
+// =============================================================================
+// Resolve / Reject — handles both permission and generic asks
+// =============================================================================
 
 function extractResolutionValue(response: unknown): unknown {
   if (!response || typeof response !== 'object') return response;
@@ -166,48 +166,120 @@ function extractResolutionValue(response: unknown): unknown {
   }
 }
 
-export function resolveAsk(toolCallId: string, response: unknown): boolean {
-  function isGranted(resp: unknown): boolean | undefined {
-    if (!resp || typeof resp !== 'object') return undefined;
-    const r = resp as Record<string, unknown>;
-    if (r.type !== 'permission') return undefined;
-    const permResp = resp as AskPermissionResponse;
-    return permResp.grant !== 'deny';
+function buildPermissionKey(
+  toolName: string,
+  resource: string | undefined,
+  patterns: string[] | undefined,
+): string {
+  if (patterns && patterns.length > 0) {
+    return patterns[0];
+  }
+  if (resource) {
+    return resource;
+  }
+  return toolName;
+}
+
+function isDangerousShellIdentity(identity: string | undefined): boolean {
+  if (!identity) return false;
+  const lower = identity.toLowerCase();
+
+  const dangerous = SHELL_DANGEROUS_COMMANDS.some(command => lower === command || lower.startsWith(command + ' '));
+  if (dangerous) {
+    return true;
   }
 
-  function persistGrant(resp: AskPermissionResponse, request: Ask, wsId: string | undefined, pending: PendingAsk): void {
-    if (!wsId || resp.grant === 'deny') return;
+  return SHELL_FILESYSTEM_COMMANDS.some(command => lower === command || lower.startsWith(command + ' '));
+}
 
-    const permAsk = request as PermissionAsk;
-    let grantScope: GrantScope = resp.grant;
-    const metadata = permAsk.metadata as Record<string, unknown> | undefined;
-    const identity = typeof metadata?.baseCommand === 'string' ? metadata.baseCommand : undefined;
+// Legacy grant persistence for generic asks that happen to be permission-like
+function persistGrant(resp: AskPermissionResponse, request: Ask, wsId: string | undefined, pending: PendingAsk): void {
+  if (!wsId || resp.grant === 'deny') return;
 
-    if (permAsk.resource === 'shell-command' && isDangerousShellIdentity(identity)) {
+  const permAsk = request as import('@jean2/sdk').PermissionAsk;
+  let grantScope: GrantScope = resp.grant;
+
+  // If intents are available, use intent-based persistence
+  if (permAsk.intents && permAsk.intents.length > 0) {
+    const intent = permAsk.intents[0];
+
+    // Enforce scope policy
+    if (!intent.allowedScopes.includes(grantScope)) {
+      grantScope = intent.allowedScopes.includes('session') ? 'session' : 'once';
+    }
+    if (!intent.persistable && grantScope !== 'once') {
       grantScope = 'once';
     }
+    if (grantScope === 'once') return;
 
     const duration = resp.duration || (grantScope === 'session' ? 30 * 60 * 1000 : undefined);
-
-    createGrantFromOptions({
-      workspaceId: wsId,
-      toolName: pending.toolName,
-      resource: permAsk.resource ?? 'file',
-      permissionKey: buildPermissionKey(
-        pending.toolName,
-        permAsk.resource ?? 'file',
-        permAsk.patterns,
-      ),
-      grantOptions: {
-        scope: grantScope,
-        matcher: (permAsk.resource ?? 'file') === 'shell-command' ? 'shell-command' : 'exact',
-        patterns: permAsk.patterns,
-        duration: grantScope === 'session' ? duration : undefined,
-        description: permAsk.question,
-      },
-    });
+    for (const target of intent.targets) {
+      createGrantFromOptions({
+        workspaceId: wsId,
+        toolName: pending.toolName,
+        resource: intent.resource,
+        action: intent.action,
+        permissionKey: target.target,
+        grantOptions: {
+          scope: grantScope,
+          matcher: target.matcher === 'prefix' ? 'prefix' : 'exact',
+          patterns: [target.target],
+          action: intent.action,
+          duration: grantScope === 'session' ? duration : undefined,
+          description: permAsk.question,
+        },
+      });
+    }
+    return;
   }
 
+  // Legacy fallback
+  const metadata = permAsk.metadata as Record<string, unknown> | undefined;
+  const identity = typeof metadata?.baseCommand === 'string' ? metadata.baseCommand : undefined;
+
+  if (permAsk.resource === 'shell-command' && isDangerousShellIdentity(identity)) {
+    grantScope = 'once';
+  }
+
+  const duration = resp.duration || (grantScope === 'session' ? 30 * 60 * 1000 : undefined);
+
+  createGrantFromOptions({
+    workspaceId: wsId,
+    toolName: pending.toolName,
+    resource: permAsk.resource ?? 'file',
+    action: permAsk.action,
+    permissionKey: buildPermissionKey(
+      pending.toolName,
+      permAsk.resource ?? 'file',
+      permAsk.patterns,
+    ),
+    grantOptions: {
+      scope: grantScope,
+      matcher: (permAsk.resource ?? 'file') === 'shell-command' ? 'shell-command' : 'exact',
+      patterns: permAsk.patterns,
+      action: permAsk.action,
+      duration: grantScope === 'session' ? duration : undefined,
+      description: permAsk.question,
+    },
+  });
+}
+
+function isGranted(resp: unknown): boolean | undefined {
+  if (!resp || typeof resp !== 'object') return undefined;
+  const r = resp as Record<string, unknown>;
+  if (r.type !== 'permission') return undefined;
+  const permResp = resp as AskPermissionResponse;
+  return permResp.grant !== 'deny';
+}
+
+export function resolveAsk(toolCallId: string, response: unknown, requestId?: string): boolean {
+  // If requestId is provided, route to the permission-request-manager
+  // This handles permission asks from the new codepath
+  if (requestId) {
+    return resolvePermissionRequest(requestId, response);
+  }
+
+  // Legacy path: resolve by toolCallId-based keys
   if (pendingAsks.has(toolCallId)) {
     const pending = pendingAsks.get(toolCallId)!;
     clearAskTimer(toolCallId);
@@ -271,6 +343,11 @@ export function rejectPendingAsksBySession(sessionId: string, error?: Error): st
   const rejectedAskIds: string[] = [];
   const interruptError = error ?? new Error('Session interrupted');
 
+  // Reject permission asks through the permission-request-manager
+  const rejectedRequestIds = rejectPermissionsBySession(sessionId, interruptError);
+  rejectedAskIds.push(...rejectedRequestIds);
+
+  // Reject legacy generic asks
   for (const [askId, pending] of pendingAsks) {
     if (pending.sessionId === sessionId) {
       clearAskTimer(askId);
@@ -300,4 +377,7 @@ function clearAskTimer(askId: string): void {
   }
 }
 
+// Re-export for backward compatibility — but reconnect should use
+// getPendingRequestsByRootSession from permission-request-manager for
+// permission asks
 export { listPendingAsksBySession, listPendingAsksByRootSession } from '@/store/pending-asks';

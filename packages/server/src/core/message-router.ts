@@ -765,6 +765,7 @@ export async function handleClientMessage(
       }
 
       // Re-send pending asks for this session and any child sessions
+      // Use DB-backed pending requests (permission asks) + legacy in-memory asks
       const now = Date.now();
       const pendingAsks = listPendingAsksByRootSession(msg.sessionId);
       // Filter out asks that have expired (their timers may have fired while client was disconnected)
@@ -781,6 +782,7 @@ export async function handleClientMessage(
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
           ask: askPayload as unknown as Ask,
+          requestId: ask.requestId,
         });
       }
 
@@ -799,6 +801,7 @@ export async function handleClientMessage(
           toolCallId: ask.toolCallId,
           toolName: ask.toolName,
           ask: ask.ask,
+          requestId: ask.requestId,
         });
       }
 
@@ -1060,8 +1063,8 @@ export async function handleClientMessage(
     }
 
     case 'ask.response': {
-      const { toolCallId, response } = msg as AskResponseMessage;
-      resolveAsk(toolCallId, response);
+      const { toolCallId, response, requestId } = msg as AskResponseMessage;
+      resolveAsk(toolCallId, response, requestId);
       break;
     }
 

@@ -1,7 +1,5 @@
-import type {
-  GrantScope,
-  PermissionDuration,
-} from '../shared-types/permission';
+// No permission type imports needed — permission grant/deny messages removed.
+// All permission responses go through ask.response (AskResponseMessage).
 
 export interface SessionCreateMessage {
   type: 'session.create';
@@ -85,21 +83,6 @@ export interface PermissionRevokeAllMessage {
   workspaceId: string;
 }
 
-// New structured permission response (replaces old alwaysAllow pattern)
-export interface PermissionGrantMessage {
-  type: 'permission.grant';
-  requestId: string;
-  grantedScopes: GrantScope[];
-  rememberDecision?: boolean;
-  rememberDuration?: PermissionDuration;
-  userNote?: string;
-}
-
-export interface PermissionDenyMessage {
-  type: 'permission.deny';
-  requestId: string;
-  reason?: string;
-}
 
 
 // =============================================================================
@@ -176,6 +159,8 @@ export interface AskResponseMessage {
   type: 'ask.response';
   toolCallId: string;
   response: AskResponse;
+  /** Canonical request identity for permission asks. Used to correlate responses. */
+  requestId?: string;
 }
 
 export interface SandboxTextResponse {
@@ -245,8 +230,6 @@ export type ClientMessage =
   | PermissionListRequestMessage
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage
-  | PermissionGrantMessage
-  | PermissionDenyMessage
   | SessionCompactMessage
   | SessionRevertMessage
   | SessionForkMessage

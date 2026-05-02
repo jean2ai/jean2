@@ -40,6 +40,9 @@ describe('pending-asks store', () => {
       toolName: overrides.toolName ?? 'test-tool',
       ask: overrides.ask ?? { type: 'permission', question: 'Allow?' },
       createdAt: overrides.createdAt ?? Date.now(),
+      requestId: overrides.requestId ?? 'req-1',
+      status: overrides.status ?? 'pending',
+      isPermission: overrides.isPermission ?? true,
     };
   }
 

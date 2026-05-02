@@ -102,11 +102,6 @@ export interface PermissionListMessage {
   grants: PermissionGrant[];
 }
 
-export interface PermissionGrantedMessage {
-  type: 'permission.granted';
-  grant: PermissionGrant;
-}
-
 export interface PermissionRevokedMessage {
   type: 'permission.revoked';
   grantId: string;
@@ -276,12 +271,16 @@ export interface AskRequestMessage {
   toolCallId: string;
   toolName: string;
   ask: Ask;
+  /** Canonical request identity for permission asks. Used to correlate responses. */
+  requestId?: string;
 }
 
 export interface AskTimedOutMessage {
   type: 'ask.timeout';
   sessionId: string;
   toolCallId: string;
+  /** Canonical request identity for the timed-out permission ask. */
+  requestId?: string;
 }
 
 // =============================================================================
@@ -308,7 +307,6 @@ export type ServerMessage =
   | SessionDeletedMessage
   | SessionRenamedMessage
   | PermissionListMessage
-  | PermissionGrantedMessage
   | PermissionRevokedMessage
   | PermissionAllRevokedMessage
   | CompactionCompleteMessage

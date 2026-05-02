@@ -31,7 +31,6 @@ export type { Preconfig, PreconfigMode } from '../shared';
 export type { PromptInfo } from '../shared';
 
 export type {
-  ToolPermission,
   PermissionType,
   PermissionScope,
   GrantScope,
@@ -42,7 +41,6 @@ export type {
   AskPermissionResponse,
   PermissionAsk,
   PermissionScopeDefinition,
-  PermissionDuration,
   PermissionAction,
   PermissionResource,
   PermissionRiskLevel,

@@ -48,7 +48,7 @@ const LazyOutput = memo(function LazyOutput({ content, className }: LazyOutputPr
 interface ToolCallProps {
   part: ToolPart;
   pendingAskRequests: PendingAskRequest[];
-  onAskResponse: (toolCallId: string, response: AskResponse) => void;
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
 }
 

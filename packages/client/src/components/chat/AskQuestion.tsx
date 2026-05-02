@@ -9,7 +9,7 @@ import type { PendingAskRequest } from '@/stores/askStore';
 
 interface AskQuestionProps {
   request: PendingAskRequest;
-  onRespond: (toolCallId: string, response: AskResponse) => void;
+  onRespond: (toolCallId: string, response: AskResponse, requestId?: string) => void;
 }
 
 
@@ -443,18 +443,67 @@ function PermissionAskView({
     critical: 'text-destructive',
   };
 
-  // Determine operation label for file permissions
-  const operationLabel = ask.metadata?.operation === 'write'
-    ? 'Writing to'
-    : ask.metadata?.operation === 'edit'
-      ? 'Editing'
-      : ask.metadata?.operation === 'read'
-        ? 'Reading'
-        : null;
+  // Extract intent info for better UX
+  const primaryIntent = ask.intents?.[0];
+  const effectiveAction = ask.action ?? primaryIntent?.action;
+  const effectiveResource = ask.resource ?? primaryIntent?.resource ?? 'shell-command';
+
+  // Determine operation label from action
+  const operationLabel = effectiveAction === 'read'
+    ? 'Reading'
+    : effectiveAction === 'write'
+      ? 'Writing to'
+      : effectiveAction === 'delete'
+        ? 'Deleting'
+        : effectiveAction === 'request'
+          ? 'Requesting'
+          : effectiveAction === 'execute'
+            ? 'Executing'
+            : null;
+
+  // Determine allowed scopes — use server-provided list or fallback
+  const allowedScopes = ask.allowedScopes ?? ['once', 'session', 'workspace'];
+  const nonPersistableReason = primaryIntent?.persistable === false
+    ? primaryIntent.nonPersistableReason
+    : undefined;
+
+  // Build scope button labels based on intent
+  const scopeLabels: Record<string, string> = {};
+  if (effectiveResource === 'file' && effectiveAction === 'read') {
+    scopeLabels['session'] = 'Allow for This Session';
+    scopeLabels['workspace'] = 'Always Allow Reading This File';
+  } else if (effectiveResource === 'file' && effectiveAction === 'write') {
+    scopeLabels['session'] = 'Allow for This Session';
+    scopeLabels['workspace'] = 'Always Allow Writing This File';
+  } else if (effectiveResource === 'file' && effectiveAction === 'delete') {
+    scopeLabels['session'] = 'Allow for This Session';
+  } else if (effectiveResource === 'network') {
+    scopeLabels['session'] = 'Allow for This Session';
+    scopeLabels['workspace'] = 'Always Allow This Network Request';
+  } else if (effectiveResource === 'shell-command') {
+    scopeLabels['session'] = 'Allow for This Session';
+  }
+
+  const getScopeLabel = (scope: string): string => {
+    if (scopeLabels[scope]) return scopeLabels[scope];
+    switch (scope) {
+      case 'once': return 'Allow Once';
+      case 'session': return 'Allow for This Session';
+      case 'workspace': return 'Allow for Workspace';
+      case 'always': return 'Allow for Workspace';
+      default: return `Allow (${scope})`;
+    }
+  };
+
+  // Build target display from intent targets
+  const intentTargets = primaryIntent?.targets ?? [];
+  const displayTargets = intentTargets.length > 0
+    ? intentTargets.map(t => t.target.split('/').pop() || t.target)
+    : [];
 
   // Helper to render shell command
   const renderShellCommand = (): React.ReactElement | null => {
-    if (ask.resource !== 'shell-command' || typeof ask.metadata?.command !== 'string') {
+    if (effectiveResource !== 'shell-command' || typeof ask.metadata?.command !== 'string') {
       return null;
     }
     return (
@@ -471,7 +520,7 @@ function PermissionAskView({
   const renderFilePaths = (): React.ReactElement | null => {
     const paths = ask.paths as string[] | undefined;
     const isFileResource =
-      ask.resource === 'file' || ask.resource === 'path' || ask.resource === 'directory';
+      effectiveResource === 'file' || effectiveResource === 'path' || effectiveResource === 'directory';
     if (!paths || paths.length === 0 || !isFileResource) {
       return null;
     }
@@ -487,7 +536,7 @@ function PermissionAskView({
 
   // Helper to render network URL
   const renderNetworkUrl = (): React.ReactElement | null => {
-    if (ask.resource !== 'network' || typeof ask.metadata?.url !== 'string') {
+    if (effectiveResource !== 'network' || typeof ask.metadata?.url !== 'string') {
       return null;
     }
     return (
@@ -496,6 +545,20 @@ function PermissionAskView({
         <pre className="text-xs bg-muted/50 border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">
           {ask.metadata.url}
         </pre>
+      </div>
+    );
+  };
+
+  // Helper to render intent targets
+  const renderIntentTargets = (): React.ReactElement | null => {
+    if (displayTargets.length === 0 || effectiveResource === 'shell-command') return null;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {displayTargets.map((target, i) => (
+          <code key={i} className="text-xs bg-muted/50 border rounded px-1.5 py-0.5 font-mono">
+            {target}
+          </code>
+        ))}
       </div>
     );
   };
@@ -515,10 +578,16 @@ function PermissionAskView({
       {renderShellCommand()}
       {renderFilePaths()}
       {renderNetworkUrl()}
+      {renderIntentTargets()}
       {ask.metadata?.description && typeof ask.metadata.description === 'string' && !ask.description ? (
         <p className="text-xs text-muted-foreground">{ask.metadata.description as string}</p>
       ) : null}
-      <div className="flex gap-2">
+      {nonPersistableReason && (
+        <p className="text-xs text-muted-foreground italic">
+          This command is too dynamic to save as a reusable permission ({nonPersistableReason}).
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
         <Button
           variant="destructive"
           size="sm"
@@ -526,19 +595,16 @@ function PermissionAskView({
         >
           Block
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onRespond({ type: 'permission', grant: 'once' })}
-        >
-          Allow Once
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => onRespond({ type: 'permission', grant: 'workspace' })}
-        >
-          Allow for Workspace
-        </Button>
+        {allowedScopes.map((scope) => (
+          <Button
+            key={scope}
+            variant={scope === 'workspace' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onRespond({ type: 'permission', grant: scope })}
+          >
+            {getScopeLabel(scope)}
+          </Button>
+        ))}
       </div>
     </div>
   );
@@ -576,57 +642,57 @@ function ClientCapabilityAskView({
 
 // --- Main component ---
 export function AskQuestion({ request, onRespond }: AskQuestionProps) {
-  const { toolCallId, toolName, ask } = request;
+  const { toolCallId, toolName, ask, requestId } = request;
 
   // Handlers for each ask type - properly typed to match AskResponse variants
   const handleSingleSelect = useCallback(
     (value: string) => {
-      onRespond(toolCallId, { type: 'single_select', value });
+      onRespond(toolCallId, { type: 'single_select', value }, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handleMultiSelect = useCallback(
     (values: string[]) => {
-      onRespond(toolCallId, { type: 'multi_select', values });
+      onRespond(toolCallId, { type: 'multi_select', values }, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handleText = useCallback(
     (value: string) => {
-      onRespond(toolCallId, { type: 'text', value });
+      onRespond(toolCallId, { type: 'text', value }, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handleConfirm = useCallback(
     (confirmed: boolean) => {
-      onRespond(toolCallId, { type: 'confirm', confirmed });
+      onRespond(toolCallId, { type: 'confirm', confirmed }, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handleForm = useCallback(
     (response: AskFormResponse) => {
-      onRespond(toolCallId, response);
+      onRespond(toolCallId, response, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handlePermission = useCallback(
     (response: AskPermissionResponse) => {
-      onRespond(toolCallId, response);
+      onRespond(toolCallId, response, requestId);
     },
-    [toolCallId, onRespond],
+    [toolCallId, onRespond, requestId],
   );
 
   const handleClientCapability = useCallback(
     (result: unknown) => {
       const capability = ask.type === 'client_capability' ? ask.capability : '';
-      onRespond(toolCallId, { type: 'client_capability', capability, result });
+      onRespond(toolCallId, { type: 'client_capability', capability, result }, requestId);
     },
-    [toolCallId, onRespond, ask],
+    [toolCallId, onRespond, ask, requestId],
   );
 
   // Determine icon and border color by type discriminator

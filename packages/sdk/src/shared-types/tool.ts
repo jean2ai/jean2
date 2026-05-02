@@ -33,12 +33,10 @@ export type {
   GrantMatcher,
   PermissionGrant,
   PermissionGrantOptions,
-  ToolPermission,
   SecurityCheckInput,
   SecurityCheckResult,
   PermissionAsk,
   AskPermissionResponse,
-  PermissionDuration,
   PermissionDecision,
 } from './permission';
 

@@ -19,7 +19,6 @@ import type {
   ChatUsageMessage,
   CompactionCompleteMessage,
   PermissionListMessage,
-  PermissionGrantedMessage,
   PermissionRevokedMessage,
   PermissionAllRevokedMessage,
   QueueListMessage,
@@ -101,12 +100,11 @@ export interface SdkEventMap {
     tokensUsed: CompactionCompleteMessage['tokensUsed'],
   ];
 
-  // Permission grant management events (uses new PersistedPermissionGrant model)
+  // Permission grant management events
   'permission.list': [
     workspaceId: PermissionListMessage['workspaceId'],
     grants: PermissionListMessage['grants'],
   ];
-  'permission.granted': [grant: PermissionGrantedMessage['grant']];
   'permission.revoked': [grantId: PermissionRevokedMessage['grantId']];
   'permission.all_revoked': [
     workspaceId: PermissionAllRevokedMessage['workspaceId'],
@@ -232,9 +230,6 @@ export function routeServerMessage(
       break;
     case 'permission.list':
       emitter.emit('permission.list', msg.workspaceId, msg.grants);
-      break;
-    case 'permission.granted':
-      emitter.emit('permission.granted', msg.grant);
       break;
     case 'permission.revoked':
       emitter.emit('permission.revoked', msg.grantId);

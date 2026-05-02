@@ -3,10 +3,10 @@ import type { SessionHandlersContext } from './types';
 import type { PendingAskRequest } from '@/stores/askStore';
 
 export function handleAskRequest(
-  msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask },
+  msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string },
   ctx: SessionHandlersContext,
 ): void {
-  const { sessionId, toolCallId, toolName, ask } = msg;
+  const { sessionId, toolCallId, toolName, ask, requestId } = msg;
   const { addPendingAskRequest, runAskHandlers, sendAskResponse } = ctx;
 
   const request: PendingAskRequest = {
@@ -15,6 +15,7 @@ export function handleAskRequest(
     toolName,
     ask,
     originSessionId: (ask as { _originSessionId?: string })._originSessionId,
+    requestId,
   };
 
   // Derive target from ask type (PermissionAsk has implicit 'permission' target)
@@ -28,7 +29,7 @@ export function handleAskRequest(
     handlers
       .then((result) => {
         if (result !== undefined) {
-          sendAskResponse(toolCallId, result);
+          sendAskResponse(toolCallId, result, requestId);
         } else {
           // No handler resolved it — show to user
           addPendingAskRequest(request);
@@ -45,7 +46,7 @@ export function handleAskRequest(
 }
 
 export function handleAskTimeout(
-  msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string },
+  msg: { type: 'ask.timeout'; sessionId: string; toolCallId: string; requestId?: string },
   ctx: SessionHandlersContext,
 ): void {
   const { toolCallId } = msg;

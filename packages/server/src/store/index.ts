@@ -205,6 +205,15 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_session ON parts(session_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_type ON parts(type)');
 
+  // =============================================================================
+  // Legacy `tool_permissions` Table (DEPRECATED — read-only, kept for migration)
+  //
+  // This table is no longer written to by runtime code.
+  // It is preserved for backward compatibility with databases that have legacy data.
+  // The canonical permission table is `permission_grants` (defined below).
+  //
+  // Do NOT add new readers or writers for this table.
+  // =============================================================================
   db.run(`
     CREATE TABLE IF NOT EXISTS tool_permissions (
       id TEXT PRIMARY KEY,
@@ -278,6 +287,7 @@ export function initializeSchema(db: Database): void {
     pattern TEXT NOT NULL,
     tool_name TEXT NOT NULL,
     resource TEXT NOT NULL,
+    action TEXT,
     allowed INTEGER NOT NULL,
     granted_at TEXT NOT NULL,
     expires_at TEXT,
@@ -300,6 +310,10 @@ export function initializeSchema(db: Database): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_scope
     ON permission_grants(workspace_id, scope, granted_by)`);
 
+  // Phase 1 Migration: add action column to permission_grants for resource-target semantics
+  // e.g. resource='file', action='read' | 'write' | 'delete'; resource='network', action='request'
+  addColumnIfNotExists('permission_grants', 'action', 'TEXT');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS pending_asks (
       id TEXT PRIMARY KEY,
@@ -314,6 +328,58 @@ export function initializeSchema(db: Database): void {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_session ON pending_asks(session_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_tool_call ON pending_asks(tool_call_id)');
+
+  // =============================================================================
+  // Phase 1 Migration: Evolve pending_asks into durable permission request storage
+  //
+  // New columns:
+  //   request_id       — dedicated per-ask identity (UUID), separate from toolCallId
+  //   workspace_id     — workspace context for the ask
+  //   root_session_id  — root session for hierarchy traversal
+  //   origin_session_id— original session (differs from session_id for child asks)
+  //   status           — lifecycle: pending | approved | denied | expired | cancelled
+  //   expires_at       — absolute timestamp when the request expires
+  //   resolved_at      — when the request was resolved
+  //   resolution_json  — JSON payload of the resolution (grant scope, etc.)
+  //   is_permission    — flag: 1 = permission ask, 0 = generic ask
+  // =============================================================================
+
+  const pendingAsksColumns = new Set(
+    (db.query('PRAGMA table_info(pending_asks)').all() as { name: string }[]).map(c => c.name),
+  );
+
+  if (!pendingAsksColumns.has('request_id')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN request_id TEXT');
+  }
+  if (!pendingAsksColumns.has('workspace_id')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN workspace_id TEXT');
+  }
+  if (!pendingAsksColumns.has('root_session_id')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN root_session_id TEXT');
+  }
+  if (!pendingAsksColumns.has('origin_session_id')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN origin_session_id TEXT');
+  }
+  if (!pendingAsksColumns.has('status')) {
+    db.run("ALTER TABLE pending_asks ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
+  }
+  if (!pendingAsksColumns.has('expires_at')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN expires_at INTEGER');
+  }
+  if (!pendingAsksColumns.has('resolved_at')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN resolved_at INTEGER');
+  }
+  if (!pendingAsksColumns.has('resolution_json')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN resolution_json TEXT');
+  }
+  if (!pendingAsksColumns.has('is_permission')) {
+    db.run('ALTER TABLE pending_asks ADD COLUMN is_permission INTEGER NOT NULL DEFAULT 0');
+  }
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_request_id ON pending_asks(request_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_status ON pending_asks(status)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_root_session ON pending_asks(root_session_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_workspace ON pending_asks(workspace_id)');
 
   // Migration: drop orphaned tool_approvals table (superseded by ask system)
   try {

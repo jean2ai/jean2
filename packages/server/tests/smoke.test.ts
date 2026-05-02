@@ -32,7 +32,6 @@ describe('test infrastructure smoke test', () => {
       expect(tableNames).toContain('sessions');
       expect(tableNames).toContain('messages');
       expect(tableNames).toContain('parts');
-      expect(tableNames).toContain('tool_permissions');
       expect(tableNames).toContain('permission_grants');
       expect(tableNames).toContain('pending_asks');
       expect(tableNames).toContain('queued_messages');
