@@ -16,6 +16,7 @@ interface SandboxPromptMessage {
 interface SandboxModelCallOptions {
   prompt: SandboxPromptMessage[];
   tools?: unknown;
+  abortSignal?: AbortSignal;
 }
 
 interface SandboxLanguageModelOptions {
@@ -124,7 +125,7 @@ export class SandboxLanguageModel {
 
   async doStream(options: SandboxModelCallOptions): Promise<{ stream: ReadableStream<unknown> }> {
     const context = this.createContext(options, 'stream');
-    const response = await sandboxController.waitForResponse(context);
+    const response = await sandboxController.waitForResponse(context, options.abortSignal);
     const stream = wrapStreamWithCompletion(this.responseToStream(response), context.callId);
 
     return { stream };
@@ -137,7 +138,7 @@ export class SandboxLanguageModel {
     warnings: [];
   }> {
     const context = this.createContext(options, 'generate');
-    const response = await sandboxController.waitForResponse(context);
+    const response = await sandboxController.waitForResponse(context, options.abortSignal);
 
     try {
       return this.responseToGenerateResult(response);

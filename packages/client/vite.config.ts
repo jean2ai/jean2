@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import pkg from './package.json';
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -14,12 +15,9 @@ export default defineConfig({
   base: './',
   clearScreen: false,
   plugins: [
-    TanStackRouterVite({ autoCodeSplitting: true }),
-    react({
-      reactCompiler: {
-        target: '19',
-      },
-    }),
+    tanstackRouter({ autoCodeSplitting: true }),
+    react(),
+    babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwindcss(),
   ],
   resolve: {

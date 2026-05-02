@@ -1,6 +1,8 @@
 import type { InterruptReason, SessionInterruptResult } from '@jean2/sdk';
 import { getSession, getChildSessions, updateSession } from '@/store';
 import { rejectPendingAsksBySession } from '@/tools/ask-user-api';
+import { sandboxController } from '@/sandbox/controller';
+import { isSandboxActive } from '@/sandbox';
 
 interface SessionAbortContext {
   sessionId: string;
@@ -83,6 +85,11 @@ class InterruptManager {
     // Reject any pending asks for this session to unblock waiting tool executions
     const pendingAskIds = rejectPendingAsksBySession(sessionId);
     rejectedAsks.push(...pendingAskIds);
+    
+    // Reject any pending sandbox calls for this session to unblock waitForResponse()
+    if (isSandboxActive()) {
+      sandboxController.rejectAllPendingForSession(sessionId);
+    }
     
     // Only set subagentStatus for actual subagent sessions (those with a parentId)
     // Main sessions should not have their status changed to error on interrupt

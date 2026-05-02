@@ -45,6 +45,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@rolldown/plugin-babel": "^0.2.3",
     "@storybook/react-vite": "^10.3.6",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/router-cli": "^1.166.33",

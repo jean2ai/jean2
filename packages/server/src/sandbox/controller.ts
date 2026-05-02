@@ -9,6 +9,7 @@ import type {
 interface PendingCall {
   context: LlmCallContext;
   resolve: (response: SandboxResponse) => void;
+  reject: (reason: unknown) => void;
 }
 
 interface InternalAutoResponderRule extends AutoResponderRule {
@@ -74,7 +75,7 @@ export class SandboxController {
     this.setAutoResponderRules(initialRules);
   }
 
-  async waitForResponse(context: LlmCallContext): Promise<SandboxResponse> {
+  async waitForResponse(context: LlmCallContext, abortSignal?: AbortSignal): Promise<SandboxResponse> {
     const historyEntry: SandboxHistoryEntry = {
       callId: context.callId,
       context,
@@ -100,8 +101,26 @@ export class SandboxController {
     });
     this.broadcastHistory();
 
-    return new Promise<SandboxResponse>((resolve) => {
-      this.pendingCalls.set(context.callId, { context, resolve });
+    return new Promise<SandboxResponse>((resolve, reject) => {
+      const pendingCall: PendingCall = { context, resolve, reject };
+      this.pendingCalls.set(context.callId, pendingCall);
+
+      if (abortSignal) {
+        if (abortSignal.aborted) {
+          this.pendingCalls.delete(context.callId);
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+          return;
+        }
+
+        const onAbort = (): void => {
+          if (this.pendingCalls.has(context.callId)) {
+            this.pendingCalls.delete(context.callId);
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          }
+        };
+
+        abortSignal.addEventListener('abort', onAbort, { once: true });
+      }
     });
   }
 
@@ -121,6 +140,30 @@ export class SandboxController {
 
     this.broadcastHistory();
     pending.resolve(response);
+  }
+
+  rejectPendingCall(callId: string, reason: unknown): void {
+    const pending = this.pendingCalls.get(callId);
+    if (!pending) {
+      return;
+    }
+
+    this.pendingCalls.delete(callId);
+    pending.reject(reason);
+  }
+
+  rejectAllPendingForSession(sessionId: string): string[] {
+    const rejectedCallIds: string[] = [];
+
+    for (const [callId, pending] of this.pendingCalls) {
+      if (pending.context.sessionId === sessionId) {
+        this.pendingCalls.delete(callId);
+        pending.reject(new DOMException('The operation was aborted.', 'AbortError'));
+        rejectedCallIds.push(callId);
+      }
+    }
+
+    return rejectedCallIds;
   }
 
   complete(callId: string): void {
@@ -170,6 +213,9 @@ export class SandboxController {
   }
 
   reset(): void {
+    for (const pending of this.pendingCalls.values()) {
+      pending.reject(new Error('Sandbox controller reset'));
+    }
     this.pendingCalls = new Map<string, PendingCall>();
     this.history = [];
     this.autoResponderRules = [];
