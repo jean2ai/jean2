@@ -7,6 +7,7 @@ import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
 import { loadInstructions, formatInstructions } from './instructions';
 import { randomUUID } from 'crypto';
 import { interruptManager } from './interrupt';
+import { rejectPendingAsksBySession } from '@/tools/ask-user-api';
 import { broadcastSessionUpdated } from './broadcast';
 import { getModelWithMetadata } from './model-utils';
 
@@ -329,6 +330,12 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   } finally {
     // Cleanup interrupt registration - always runs on success, error, or abort
     interruptManager.unregisterSession(_sessionId);
+
+    // Reject any lingering permission asks for this session.
+    // When the session ends (maxSteps reached, error, abort), tools that were
+    // waiting for user permission won't get a response — clean them up so the
+    // client UI (chat prompts + sidebar warning icons) is cleared immediately.
+    rejectPendingAsksBySession(_sessionId);
 
     // Clear runningAt and broadcast session update for main sessions
     if (isMainSession) {

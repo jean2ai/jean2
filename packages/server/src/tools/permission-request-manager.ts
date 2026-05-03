@@ -42,6 +42,9 @@ interface PermissionWaiter {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   createdAt: number;
+  sessionId: string;
+  toolCallId: string;
+  broadcastFn: PermissionBroadcastFn;
 }
 
 const waiters = new Map<string, PermissionWaiter>();
@@ -236,6 +239,9 @@ export async function requestPermission(params: RequestPermissionParams): Promis
       resolve,
       reject,
       createdAt: now,
+      sessionId,
+      toolCallId,
+      broadcastFn,
     });
 
     const timerId = setTimeout(() => {
@@ -343,6 +349,39 @@ export function rejectPermission(requestId: string, error: Error): boolean {
 }
 
 /**
+ * Reject all pending permission requests for a specific toolCallId.
+ * Used when a tool execution ends (timeout/error/completion) to clean up
+ * any lingering permission asks the tool was waiting on.
+ *
+ * Broadcasts ask.timeout for each rejected waiter so the client removes the UI prompt.
+ * Returns list of rejected requestIds.
+ */
+export function rejectPermissionsByToolCallId(toolCallId: string, error?: Error): string[] {
+  const rejectedIds: string[] = [];
+  const timeoutError = error ?? new Error('Tool execution ended');
+
+  for (const [requestId, waiter] of waiters) {
+    if (waiter.toolCallId === toolCallId) {
+      clearTimer(requestId);
+      // Mark as expired in DB
+      expirePermissionRequestByRequestId(requestId);
+      // Broadcast ask.timeout so the client removes the permission prompt
+      waiter.broadcastFn({
+        type: 'ask.timeout',
+        sessionId: waiter.sessionId,
+        toolCallId: waiter.toolCallId,
+        requestId,
+      });
+      waiter.reject(timeoutError);
+      waiters.delete(requestId);
+      rejectedIds.push(requestId);
+    }
+  }
+
+  return rejectedIds;
+}
+
+/**
  * Reject all pending permission requests for a session.
  * Used on session interrupt/close.
  *
@@ -356,13 +395,22 @@ export function rejectPermissionsBySession(sessionId: string, error?: Error): st
   // Cancel all pending DB records for this session
   cancelPendingRequestsBySession(sessionId);
 
-  // Reject in-memory waiters
+  // Reject in-memory waiters and broadcast ask.timeout to client
   for (const [requestId, waiter] of waiters) {
     // We need to find which waiters belong to this session
     // Check the DB record
     const record = getPermissionRequestByRequestId(requestId);
     if (record && record.sessionId === sessionId) {
       clearTimer(requestId);
+      // Broadcast ask.timeout so the client removes the permission prompt from the UI.
+      // Use the original sessionId from the waiter — the broadcastFn (e.g. askBroadcastFn
+      // in child-session.ts) will rewrite it to the root session ID if needed.
+      waiter.broadcastFn({
+        type: 'ask.timeout',
+        sessionId: waiter.sessionId,
+        toolCallId: waiter.toolCallId,
+        requestId,
+      });
       waiter.reject(interruptError);
       waiters.delete(requestId);
       rejectedIds.push(requestId);

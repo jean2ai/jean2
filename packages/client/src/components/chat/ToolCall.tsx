@@ -119,10 +119,9 @@ const areToolCallPropsEqual = (
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.onAskResponse !== next.onAskResponse) return false;
 
-  const status = prev.part.state.status;
-  if (status !== 'pending' && status !== 'running') return true;
-
-  // Check direct ask
+  // Always check asks — even when the tool status is no longer pending/running,
+  // we need to re-render if asks are removed (e.g. after a subagent timeout
+  // that cancels permission prompts) so the UI cleans them up.
   const prevDirectAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
   const nextDirectAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
   if (prevDirectAsk !== nextDirectAsk) return false;
@@ -131,7 +130,6 @@ const areToolCallPropsEqual = (
   const prevTaskSessionId = extractTaskSessionId(prev.part);
   const nextTaskSessionId = extractTaskSessionId(next.part);
   if (prevTaskSessionId || nextTaskSessionId) {
-    // Check if any child session asks changed (approximate check)
     const prevChildAsks = prev.pendingAskRequests.filter(r => 
       r.originSessionId === prevTaskSessionId || 
       r.originSessionId === nextTaskSessionId ||

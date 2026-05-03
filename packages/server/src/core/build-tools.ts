@@ -2,7 +2,7 @@ import { tool, jsonSchema, type Tool } from 'ai';
 import { getTool, executeTool } from '@/tools';
 import { createLlmApi } from '@/tools/llm-api';
 import { getUploadDir } from '@/paths';
-import { createAskApi, type AskBroadcastFn } from '@/tools/ask-user-api';
+import { createAskApi, rejectPendingAsksByToolCallId, type AskBroadcastFn } from '@/tools/ask-user-api';
 import * as mcp from '@/mcp';
 import { interruptManager } from './interrupt';
 import { broadcastEvent, type BroadcastFn } from './broadcast';
@@ -139,6 +139,10 @@ export async function buildAiSdkTools(
           return truncateToolResult(result.result, sessionId, name);
         } finally {
           interruptManager.unregisterToolExecution(sessionId, toolCallId);
+          // Clean up any pending asks this tool was waiting on (e.g., if the tool
+          // timed out while waiting for user permission). Broadcasts ask.timeout
+          // so the client removes the permission prompt from the UI.
+          rejectPendingAsksByToolCallId(toolCallId);
         }
       },
     });

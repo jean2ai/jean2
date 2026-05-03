@@ -15,6 +15,7 @@ import {
   requestPermission,
   resolvePermission as resolvePermissionRequest,
   rejectPermissionsBySession,
+  rejectPermissionsByToolCallId,
 } from '@/tools/permission-request-manager';
 
 // =============================================================================
@@ -44,6 +45,7 @@ interface PendingAsk {
   toolName: string;
   workspaceId?: string;
   isPermissionAsk: boolean;
+  broadcastFn: AskBroadcastFn;
 }
 
 const pendingAsks = new Map<string, PendingAsk>();
@@ -107,6 +109,7 @@ export function createAskApi(
         toolName,
         workspaceId,
         isPermissionAsk,
+        broadcastFn,
       });
 
       createPendingAsk({
@@ -337,6 +340,40 @@ export function rejectAsk(toolCallId: string, error: Error): boolean {
   }
 
   return false;
+}
+
+/**
+ * Reject all pending asks (permission + legacy) for a specific toolCallId.
+ * Used when a tool execution ends (timeout/error/completion) to clean up
+ * any lingering asks the tool was waiting on.
+ * Broadcasts ask.timeout so the client removes the UI prompt.
+ */
+export function rejectPendingAsksByToolCallId(toolCallId: string, error?: Error): string[] {
+  const rejectedIds: string[] = [];
+  const timeoutError = error ?? new Error('Tool execution ended');
+
+  // Reject permission asks through the permission-request-manager
+  const rejectedRequestIds = rejectPermissionsByToolCallId(toolCallId, timeoutError);
+  rejectedIds.push(...rejectedRequestIds);
+
+  // Reject legacy generic asks
+  for (const [askId, pending] of pendingAsks) {
+    if (pending.toolCallId === toolCallId || askId === toolCallId || askId.startsWith(`${toolCallId}#`)) {
+      clearAskTimer(askId);
+      // Broadcast ask.timeout so the client removes the UI prompt
+      pending.broadcastFn({
+        type: 'ask.timeout',
+        sessionId: pending.sessionId,
+        toolCallId: pending.toolCallId,
+      });
+      pending.reject(timeoutError);
+      pendingAsks.delete(askId);
+      removePendingAsksByToolCallId(pending.toolCallId);
+      rejectedIds.push(askId);
+    }
+  }
+
+  return rejectedIds;
 }
 
 export function rejectPendingAsksBySession(sessionId: string, error?: Error): string[] {
