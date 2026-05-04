@@ -30,6 +30,7 @@
     "electron:build:mac:release": "cd packages/client-electron && bun run electron:build:mac:release",
     "electron:build:win": "cd packages/client-electron && bun run electron:build:win",
     "test:server": "bun test packages/server",
+    "test:server:coverage": "cd packages/server && bun test --coverage",
     "test:tools": "bun test tools",
     "test": "bun test packages/server packages/sdk tools",
     "sandbox": "bun packages/sandbox-cli/src/cli.ts"
