@@ -40,7 +40,7 @@ export const definition: ToolDefinition = {
   timeout: 60000,
 };
 
-function computeChecksum(filePath: string, size: number, mtimeMs: number): string {
+export function computeChecksum(filePath: string, size: number, mtimeMs: number): string {
   return Bun.hash(`${filePath}:${size}:${mtimeMs}`).toString(16).padStart(8, '0');
 }
 
@@ -48,9 +48,9 @@ function computeChecksum(filePath: string, size: number, mtimeMs: number): strin
 // Format detection
 // ---------------------------------------------------------------------------
 
-type SupportedFormat = 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'odt' | 'ods' | 'odp' | 'zip';
+export type SupportedFormat = 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'odt' | 'ods' | 'odp' | 'zip';
 
-function detectFormat(path: string): SupportedFormat | null {
+export function detectFormat(path: string): SupportedFormat | null {
   const lower = path.toLowerCase();
   if (lower.endsWith('.pdf')) return 'pdf';
   if (lower.endsWith('.docx')) return 'docx';
@@ -67,7 +67,7 @@ function detectFormat(path: string): SupportedFormat | null {
 // PDF — pdf-parse (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertPdf(buffer: Uint8Array): Promise<string> {
+export async function convertPdf(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/pdf.js
   // pdf-parse v1.x ships CJS with no native deps — works in Bun via CJS interop
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +80,7 @@ async function convertPdf(buffer: Uint8Array): Promise<string> {
 // DOCX — mammoth (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertDocx(buffer: Uint8Array): Promise<string> {
+export async function convertDocx(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/docx.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mammoth = (await import('mammoth') as any).default ?? await import('mammoth');
@@ -95,7 +95,7 @@ async function convertDocx(buffer: Uint8Array): Promise<string> {
 
 type XLSXModule = typeof import('xlsx');
 
-async function convertXlsx(buffer: Uint8Array): Promise<string> {
+export async function convertXlsx(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/xlsx.js
   // xlsx (SheetJS CE) ships proper ESM — works cleanly in Bun
   const mod = await import('xlsx');
@@ -104,7 +104,7 @@ async function convertXlsx(buffer: Uint8Array): Promise<string> {
   return sheetToMarkdown(workbook, XLSX);
 }
 
-async function convertOds(buffer: Uint8Array): Promise<string> {
+export async function convertOds(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/ods.js
   const mod = await import('xlsx');
   const XLSX = mod as XLSXModule;
@@ -112,7 +112,7 @@ async function convertOds(buffer: Uint8Array): Promise<string> {
   return sheetToMarkdown(workbook, XLSX);
 }
 
-function sheetToMarkdown(
+export function sheetToMarkdown(
   workbook: { SheetNames: string[]; Sheets: Record<string, unknown> },
   XLSX: XLSXModule,
 ): string {
@@ -154,7 +154,7 @@ function sheetToMarkdown(
 // PPTX — adm-zip + xml2js (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertPptx(buffer: Uint8Array): Promise<string> {
+export async function convertPptx(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/pptx.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const AdmZip = ((await import('adm-zip')).default ?? (await import('adm-zip'))) as any;
@@ -207,7 +207,7 @@ async function convertPptx(buffer: Uint8Array): Promise<string> {
 // ODT — adm-zip + xml2js (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertOdt(buffer: Uint8Array): Promise<string> {
+export async function convertOdt(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/odt.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const AdmZip = ((await import('adm-zip')).default ?? (await import('adm-zip'))) as any;
@@ -346,7 +346,7 @@ async function convertOdt(buffer: Uint8Array): Promise<string> {
 // ODP — adm-zip + xml2js (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertOdp(buffer: Uint8Array): Promise<string> {
+export async function convertOdp(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/odp.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const AdmZip = ((await import('adm-zip')).default ?? (await import('adm-zip'))) as any;
@@ -433,7 +433,7 @@ async function convertOdp(buffer: Uint8Array): Promise<string> {
 // ZIP — adm-zip (MIT: jojomondag/FileToMarkdown)
 // ---------------------------------------------------------------------------
 
-async function convertZip(buffer: Uint8Array): Promise<string> {
+export async function convertZip(buffer: Uint8Array): Promise<string> {
   // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/zip.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const AdmZip = ((await import('adm-zip')).default ?? (await import('adm-zip'))) as any;
@@ -476,7 +476,7 @@ async function convertZip(buffer: Uint8Array): Promise<string> {
 // Main dispatcher
 // ---------------------------------------------------------------------------
 
-async function convertToMarkdown(filePath: string, buffer: Uint8Array): Promise<string> {
+export async function convertToMarkdown(filePath: string, buffer: Uint8Array): Promise<string> {
   const format = detectFormat(filePath);
   if (!format) {
     throw new Error(

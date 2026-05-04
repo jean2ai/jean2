@@ -26,7 +26,7 @@ beforeEach(() => {
     allowedPaths: [],
     fs: {} as ToolContext['fs'],
     llm: {} as ToolContext['llm'],
-    ask: mock(async () => true),
+    ask: mock(async () => true) as unknown as ToolContext['ask'],
     env: {
       get: (key: string) => key === 'TODOS_DB_PATH' ? TEST_DB_PATH : undefined,
       require: (_key: string) => { throw new Error('Not set'); },

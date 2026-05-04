@@ -23,7 +23,7 @@ beforeEach(() => {
     allowedPaths: [],
     fs: {} as ToolContext['fs'],
     llm: {} as ToolContext['llm'],
-    ask: mock(async () => true),
+    ask: mock(async () => true) as unknown as ToolContext['ask'],
     env: {
       get: (key: string) => key === 'TODOS_DB_PATH' ? TEST_DB_PATH : undefined,
       require: (_key: string) => { throw new Error('Not set'); },
@@ -76,7 +76,7 @@ describe('todowrite: validation', () => {
 
   test('rejects invalid status', async () => {
     const result = await execute({
-      todos: [{ content: 'test', status: 'invalid' }],
+      todos: [{ content: 'test', status: 'invalid' as unknown as 'pending' }],
     }, ctx);
     expect(result.success).toBe(false);
     expect(result.error).toContain('invalid status');
@@ -84,7 +84,7 @@ describe('todowrite: validation', () => {
 
   test('rejects invalid priority', async () => {
     const result = await execute({
-      todos: [{ content: 'test', status: 'pending', priority: 'urgent' }],
+      todos: [{ content: 'test', status: 'pending', priority: 'urgent' as unknown as 'high' }],
     }, ctx);
     expect(result.success).toBe(false);
     expect(result.error).toContain('invalid priority');
@@ -158,7 +158,7 @@ describe('todowrite: writing todos', () => {
         },
       };
       const result = await execute({
-        todos: [{ content: `Task ${status}`, status }],
+        todos: [{ content: `Task ${status}`, status: status as 'pending' | 'in_progress' | 'completed' | 'cancelled' }],
       }, uniqueCtx);
       expect(result.success).toBe(true);
       // Cleanup

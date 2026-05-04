@@ -110,7 +110,7 @@ describe('ls: directory listing', () => {
     expect(result.success).toBe(true);
     const content = (result.result as { content: string }).content;
     expect(content).toContain('./');
-    expect(content).toContain('├──') || expect(content).toContain('└──');
+    expect(content.includes('├──') || content.includes('└──')).toBe(true);
   });
 });
 
