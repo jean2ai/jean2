@@ -8,7 +8,6 @@ import {
   createPendingAsk,
   listPendingRequestsByRootSession,
   listAllPendingAsks,
-  cleanupAllPendingAsks,
   type PendingAskRecord,
 } from '@/store/pending-asks';
 

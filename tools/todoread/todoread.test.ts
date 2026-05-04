@@ -2,7 +2,7 @@ import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { definition, execute } from './tool';
 import type { ToolContext } from '@jean2/sdk';
 import { Database } from 'bun:sqlite';
-import { existsSync, mkdirSync, rmSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 

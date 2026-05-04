@@ -1,6 +1,6 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock } from 'bun:test';
 import { definition, execute } from './tool';
-import { createMockContext, VirtualFS, WORKSPACE } from '../test-utils';
+import { createMockContext, VirtualFS } from '../test-utils';
 
 let vfs: VirtualFS;
 let ctx: ReturnType<typeof createMockContext>;
@@ -64,7 +64,7 @@ describe('question: validation', () => {
 
 describe('question: question types', () => {
   test('sends form ask with questions', async () => {
-    const mockAsk = mock(async (req: unknown) => ({
+    const mockAsk = mock(async (_req: unknown) => ({
       type: 'form',
       answers: [{ question: 'Name?', answer: 'John' }],
     })) as unknown as typeof ctx.ask;

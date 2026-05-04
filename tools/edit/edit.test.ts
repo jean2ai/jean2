@@ -1,6 +1,6 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { definition, execute } from './tool';
-import { createMockContext, VirtualFS, WORKSPACE, getAskCall } from '../test-utils';
+import { createMockContext, VirtualFS, WORKSPACE } from '../test-utils';
 
 let vfs: VirtualFS;
 let ctx: ReturnType<typeof createMockContext>;
@@ -266,7 +266,7 @@ describe('edit: error handling', () => {
 describe('edit: permissions', () => {
   test('outside workspace requires permission', async () => {
     vfs.writeFile('/tmp/external/file.txt', 'hello');
-    const result = await execute({
+    const _result = await execute({
       path: '/tmp/external/file.txt',
       oldString: 'hello',
       newString: 'world',
@@ -292,7 +292,7 @@ describe('edit: permissions', () => {
 
   test('sensitive file requires permission', async () => {
     vfs.writeFile(`${WORKSPACE}/.env`, 'SECRET=abc');
-    const result = await execute({
+    const _result = await execute({
       path: `${WORKSPACE}/.env`,
       oldString: 'SECRET=abc',
       newString: 'SECRET=xyz',

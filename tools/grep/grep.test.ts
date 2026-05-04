@@ -108,7 +108,7 @@ describe('grep: permissions', () => {
 
   test('outside workspace requires permission', async () => {
     vfs.writeFile('/tmp/external/file.txt', 'hello');
-    const result = await execute({ pattern: 'hello', path: '/tmp/external' }, ctx);
+    const _result = await execute({ pattern: 'hello', path: '/tmp/external' }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 
@@ -124,7 +124,7 @@ describe('grep: permissions', () => {
 
   test('sensitive path requires permission', async () => {
     vfs.writeFile(`${WORKSPACE}/.env`, 'SECRET=abc');
-    const result = await execute({ pattern: 'SECRET', path: `${WORKSPACE}/.env` }, ctx);
+    const _result = await execute({ pattern: 'SECRET', path: `${WORKSPACE}/.env` }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 

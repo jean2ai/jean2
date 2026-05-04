@@ -138,7 +138,7 @@ describe('multiedit: failure modes', () => {
 describe('multiedit: permissions', () => {
   test('outside workspace requires permission', async () => {
     vfs.writeFile('/tmp/external/file.txt', 'hello');
-    const result = await execute({
+    const _result = await execute({
       path: '/tmp/external/file.txt',
       edits: [{ oldString: 'hello', newString: 'world' }],
     }, ctx);
@@ -160,7 +160,7 @@ describe('multiedit: permissions', () => {
 
   test('sensitive file requires permission', async () => {
     vfs.writeFile(`${WORKSPACE}/.env`, 'SECRET=abc');
-    const result = await execute({
+    const _result = await execute({
       path: `${WORKSPACE}/.env`,
       edits: [{ oldString: 'SECRET=abc', newString: 'SECRET=xyz' }],
     }, ctx);
@@ -169,7 +169,7 @@ describe('multiedit: permissions', () => {
 
   test('more than 10 edits requires permission', async () => {
     vfs.writeFile(`${WORKSPACE}/test.ts`, 'line\n'.repeat(15));
-    const edits = Array.from({ length: 11 }, (_, i) => ({
+    const edits = Array.from({ length: 11 }, (_: unknown, _i: number) => ({
       oldString: `line`,
       newString: `edited`,
     }));

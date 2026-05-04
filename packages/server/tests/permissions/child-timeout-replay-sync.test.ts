@@ -2,7 +2,6 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { seedWorkspaceWithSession, seedSession } from '#tests/seed';
-import { createSession } from '@/store/sessions';
 import {
   createPendingAsk,
   listPendingRequestsByRootSession,
@@ -209,8 +208,7 @@ describe('child timeout replay sync (bugfix 08)', () => {
       }));
 
       // Create another root session to query from (different workspace to avoid conflict)
-      const otherResult = seedWorkspaceWithSession({ id: 'ws2', name: 'Other Workspace', path: '/other' });
-      const otherRootId = otherResult.sessionId;
+      seedWorkspaceWithSession({ id: 'ws2', name: 'Other Workspace', path: '/other' });
 
       // listAllPendingAsks includes child asks
       const all = listAllPendingAsks();
@@ -230,13 +228,13 @@ describe('child timeout replay sync (bugfix 08)', () => {
       const reqIds = Array.from({ length: 4 }, () => crypto.randomUUID());
 
       // Create 4 asks, resolve/expire/cancel 3
-      const id1 = createPendingAsk(createPermissionAsk({
+      const _id1 = createPendingAsk(createPermissionAsk({
         requestId: reqIds[0],
         toolCallId: 'call-approved',
       }));
       resolvePermissionRequestByRequestId(reqIds[0], 'approved');
 
-      const id2 = createPendingAsk(createPermissionAsk({
+      const _id2 = createPendingAsk(createPermissionAsk({
         requestId: reqIds[1],
         toolCallId: 'call-denied',
       }));
@@ -248,7 +246,7 @@ describe('child timeout replay sync (bugfix 08)', () => {
       }));
       expirePermissionRequest(id3);
 
-      const id4 = createPendingAsk(createPermissionAsk({
+      const _id4 = createPendingAsk(createPermissionAsk({
         requestId: reqIds[3],
         toolCallId: 'call-cancelled',
         sessionId: childSessionId,

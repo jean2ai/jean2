@@ -12,10 +12,6 @@ export default tseslint.config(
       '**/data/**',
       '**/src-tauri/target/**',
       '**/storybook-static/**',
-      '**/*.test.ts',
-      '**/*.test.tsx',
-      '**/*.spec.ts',
-      '**/*.spec.tsx',
     ],
   },
   

@@ -114,10 +114,8 @@ describe('apply-patch: permissions', () => {
 
     // Override resolvePath to map to blocked path
     const blockedCtx = { ...ctx };
-    const result = await execute({ patch }, blockedCtx);
+    const _result = await execute({ patch }, blockedCtx);
     // The patch paths need to resolve to blocked paths
-    // Since our mock resolvePath doesn't produce blocked paths for relative paths,
-    // we need to test the logic differently
     // This is a structural check - the tool does check blocked files
   });
 
@@ -152,7 +150,7 @@ describe('apply-patch: permissions', () => {
 @@ -1,1 +0,0 @@
 -content to delete`;
 
-    const result = await execute({ patch }, ctx);
+    const _result = await execute({ patch }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 

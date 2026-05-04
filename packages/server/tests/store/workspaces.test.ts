@@ -9,7 +9,6 @@ import {
   updateWorkspace,
   deleteWorkspace,
   countSessionsInWorkspace,
-  type CreateWorkspaceInput,
 } from '@/store/workspaces';
 import { createSession, getSession } from '@/store/sessions';
 import { createTestSession } from '#tests/factories';

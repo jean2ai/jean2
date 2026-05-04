@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import type { TextPart, ToolPart, ReasoningPart, MessageEvent } from '@jean2/sdk';
+
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { seedWorkspaceWithSession } from '#tests/seed';
 import { createMessage } from '@/store/messages';

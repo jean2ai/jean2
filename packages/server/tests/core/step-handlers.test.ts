@@ -1,9 +1,9 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import type { StepPart, MessageEvent } from '@jean2/sdk';
+import type { StepPart } from '@jean2/sdk';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { seedWorkspaceWithSession } from '#tests/seed';
 import { createMessage } from '@/store/messages';
-import { createStepCallbacks, type StepCallbacksContext, type CallbackEvent } from '@/core/step-handlers';
+import { createStepCallbacks, type StepCallbacksContext } from '@/core/step-handlers';
 
 describe('step-handlers', () => {
   let sessionId: string;

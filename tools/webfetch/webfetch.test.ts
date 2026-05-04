@@ -1,6 +1,6 @@
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { definition, execute } from './tool';
-import { createMockContext, VirtualFS, WORKSPACE } from '../test-utils';
+import { createMockContext, VirtualFS } from '../test-utils';
 
 let vfs: VirtualFS;
 let ctx: ReturnType<typeof createMockContext>;
@@ -120,7 +120,7 @@ describe('webfetch: HTTP vs HTTPS', () => {
   });
 
   test('HTTP URL requires permission', async () => {
-    const result = await execute({ url: 'http://example.com' }, ctx);
+    const _result = await execute({ url: 'http://example.com' }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 

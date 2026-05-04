@@ -22,7 +22,7 @@ import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
 import { forkSession } from '@/core/fork';
 import { interruptManager } from '@/core/interrupt';
-import { resolveAsk, createAskApi, ASK_TIMEOUT } from '@/tools/ask-user-api';
+import { resolveAsk, createAskApi } from '@/tools/ask-user-api';
 import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
 import type { AssistantMessage, ToolPart, ServerMessage } from '@jean2/sdk';
 
@@ -144,7 +144,7 @@ describe('Integration: WebSocket message handlers', () => {
   // ===========================================================================
   describe('session lifecycle', () => {
     test('session.create → DB + broadcast', () => {
-      const session = createSession({
+      createSession({
         id: 'sess-new',
         workspaceId,
         preconfigId: null,
@@ -271,6 +271,7 @@ describe('Integration: WebSocket message handlers', () => {
 
       await executeCompaction(sessionId, 'manual');
 
+      /* eslint-disable @typescript-eslint/no-explicit-any */
       const sessionUpdates = broadcastMock.messages.filter(
         (m: any) => m.type === 'session.updated',
       );
@@ -281,6 +282,7 @@ describe('Integration: WebSocket message handlers', () => {
 
       const lastUpdate = sessionUpdates[sessionUpdates.length - 1] as any;
       expect(lastUpdate.session.compacting).toBe(false);
+      /* eslint-enable @typescript-eslint/no-explicit-any */
     });
   });
 
@@ -542,9 +544,11 @@ describe('Integration: WebSocket message handlers', () => {
       const askPromise = askApi({ type: 'text', question: 'What is your name?', target: 'human' });
 
       const askEvents = broadcastMock.messages.filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (m: any) => m.type === 'ask.request',
       );
       expect(askEvents).toHaveLength(1);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((askEvents[0] as any).toolCallId).toBe('call-1');
 
       const resolved = resolveAsk('call-1', { type: 'text', value: 'Jean' });
@@ -585,6 +589,7 @@ describe('Integration: WebSocket message handlers', () => {
       expect(result).toBe(true);
 
       const askEvents = broadcastMock.messages.filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (m: any) => m.type === 'ask.request',
       );
       expect(askEvents).toHaveLength(0);

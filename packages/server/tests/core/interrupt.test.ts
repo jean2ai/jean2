@@ -141,7 +141,7 @@ describe('InterruptManager', () => {
       const childSession = createSession({ ...childInput, subagentStatus: 'running' });
 
       // Also register child with interrupt manager so it can be interrupted
-      const childController = interruptManager.registerSession(childSession.id);
+      const _childController = interruptManager.registerSession(childSession.id);
 
       const result = await interruptManager.interruptSession(sessionId);
 

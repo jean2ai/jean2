@@ -1,7 +1,7 @@
 import { describe, test, expect, mock, afterEach } from 'bun:test';
 import type { Session } from '@jean2/sdk';
 
-interface ExecutorResult {
+interface _ExecutorResult {
   ok: boolean;
   error?: string;
   reason: string;

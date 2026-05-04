@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { createErrorEvent } from '@/core/error-handling';
-import { classifyApiError, ApiErrorType } from '@/utils/errors';
+import { classifyApiError } from '@/utils/errors';
 
 describe('createErrorEvent', () => {
   test('creates auth error event for authentication errors', () => {

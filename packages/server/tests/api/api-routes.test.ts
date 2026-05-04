@@ -5,6 +5,7 @@ import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace, seedSession } from '#tests/seed';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function json(res: Response): Promise<any> {
   return res.json();
 }

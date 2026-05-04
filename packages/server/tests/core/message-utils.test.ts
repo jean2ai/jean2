@@ -5,12 +5,9 @@ import { convertToAiSdkMessages } from '@/core/message-utils';
 import type { MessageWithParts, AssistantMessage, ToolPart, CompactionPart } from '@jean2/sdk';
 
 describe('convertToAiSdkMessages', () => {
-  let sessionId: string;
-
   beforeEach(() => {
     setupTestDatabase();
-    const ctx = seedWorkspaceWithSession();
-    sessionId = ctx.sessionId;
+    seedWorkspaceWithSession();
   });
 
   afterEach(() => {
@@ -167,7 +164,7 @@ describe('convertToAiSdkMessages', () => {
     const toolResult = result.find(r => r.role === 'tool');
     expect(toolResult).toBeDefined();
     const content = toolResult!.content as Array<{ type: string; output?: unknown }>;
-    const toolResultBlock = content.find((c: any) => c.type === 'tool-result');
+    const toolResultBlock = content.find((c: Record<string, unknown>) => c.type === 'tool-result');
     expect(toolResultBlock).toBeDefined();
   });
 
@@ -253,10 +250,10 @@ describe('convertToAiSdkMessages', () => {
     const toolResult = result.find(r => r.role === 'tool');
     expect(toolResult).toBeDefined();
     const content = toolResult!.content as Array<{ type: string; output?: unknown }>;
-    const toolResultBlock = content.find((c: any) => c.type === 'tool-result');
+    const toolResultBlock = content.find((c: Record<string, unknown>) => c.type === 'tool-result');
     expect(toolResultBlock).toBeDefined();
     // Skill tools with compactedAt should still have real output, not the "cleared" marker
-    const output = (toolResultBlock as any).output;
+    const output = (toolResultBlock as Record<string, unknown>).output;
     expect(output).toBeDefined();
     // The output should NOT be the "[Old tool result content cleared]" placeholder
     if (output && typeof output === 'object' && 'value' in output) {

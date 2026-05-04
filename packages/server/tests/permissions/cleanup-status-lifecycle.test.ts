@@ -6,9 +6,7 @@ import {
   createPendingAsk,
   listPendingRequestsByRootSession,
   listAllPendingAsks,
-  listPendingAsksBySession,
   expirePermissionRequest,
-  resolvePermissionRequestByRequestId,
   cleanupAllPendingAsks,
   type PendingAskRecord,
 } from '@/store/pending-asks';

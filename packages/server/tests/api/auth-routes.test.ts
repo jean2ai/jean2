@@ -8,6 +8,7 @@ import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace, seedSession } from '#tests/seed';
 import { getAuthTokenPath, getDataDir } from '@/paths';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function json(res: Response): Promise<any> {
   return res.json();
 }

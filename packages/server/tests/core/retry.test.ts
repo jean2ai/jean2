@@ -110,6 +110,7 @@ describe('streamChatWithRetry', () => {
 
   test('yields rate limit error event when max retries hit', async () => {
     let callCount = 0;
+    // eslint-disable-next-line require-yield
     const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
       callCount++;
       throw createError({
@@ -130,6 +131,7 @@ describe('streamChatWithRetry', () => {
 
   test('yields context overflow error without retrying', async () => {
     let callCount = 0;
+    // eslint-disable-next-line require-yield
     const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
       callCount++;
       throw createError({
@@ -148,6 +150,7 @@ describe('streamChatWithRetry', () => {
 
   test('yields server error when max retries exceeded', async () => {
     let callCount = 0;
+    // eslint-disable-next-line require-yield
     const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
       callCount++;
       throw createError({ message: 'Server error', status: 500 });
@@ -163,6 +166,7 @@ describe('streamChatWithRetry', () => {
 
   test('yields generic error for non-retryable unknown errors', async () => {
     let callCount = 0;
+    // eslint-disable-next-line require-yield
     const mockStream: StreamChatFn = async function* (_options: ChatOptions) {
       callCount++;
       throw new Error('Something unexpected');

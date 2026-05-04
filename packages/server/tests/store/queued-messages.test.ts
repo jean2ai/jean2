@@ -55,7 +55,7 @@ describe('queued-messages store', () => {
     });
 
     test('createQueuedMessage preserves attachments', () => {
-      const msg = createQueuedMessage(createTestQueuedMsg({
+      const _msg = createQueuedMessage(createTestQueuedMsg({
         id: 'qm2',
         attachments: [{ id: 'att1', kind: 'file' }],
       }));

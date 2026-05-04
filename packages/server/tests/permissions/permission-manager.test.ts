@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
-import { seedWorkspace, seedWorkspaceWithSession } from '#tests/seed';
+import { seedWorkspaceWithSession } from '#tests/seed';
 import {
   requestPermission,
   resolvePermission,
@@ -9,7 +9,6 @@ import {
   rejectPermissionsBySession,
   getPendingRequestsByRootSession,
   hasPendingWaiter,
-  getPendingWaiterCount,
 } from '@/tools/permission-request-manager';
 import { listPendingAsksBySession } from '@/store/pending-asks';
 import {

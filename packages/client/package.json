@@ -16,7 +16,11 @@
     "typecheck": "tsr generate && tsc --noEmit",
     "preview": "vite preview",
     "storybook": "storybook dev --port 6006",
-    "storybook:build": "storybook build"
+    "storybook:build": "storybook build",
+    "test": "bun vitest run",
+    "test:watch": "bun vitest",
+    "test:ui": "bun vitest --ui",
+    "test:coverage": "bun vitest run --coverage"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -51,14 +55,20 @@
     "@tanstack/router-cli": "^1.166.33",
     "@tanstack/router-plugin": "^1.167.18",
     "@tauri-apps/cli": "^2.10.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
+    "@vitest/ui": "4.1.5",
     "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.25.0",
+    "happy-dom": "^20.9.0",
     "storybook": "^10.3.6",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.2",
-    "vite": "^8.0.0"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.5"
   }
 }

@@ -91,7 +91,7 @@ describe('glob: permissions', () => {
 
   test('outside workspace requires permission', async () => {
     vfs.addDir('/tmp/external');
-    const result = await execute({ pattern: '*.ts', path: '/tmp/external' }, ctx);
+    const _result = await execute({ pattern: '*.ts', path: '/tmp/external' }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 

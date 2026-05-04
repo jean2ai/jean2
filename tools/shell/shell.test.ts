@@ -806,7 +806,7 @@ describe('edge cases', () => {
 
   test('cd <workspace> && <cmd> with explicit cwd param also strips', async () => {
     const ctx = createMockContext();
-    const result = await execute({
+    const _result = await execute({
       command: `cd ${WORKSPACE} && bun test`,
       cwd: WORKSPACE,
     }, ctx);
@@ -833,7 +833,7 @@ describe('edge cases', () => {
 
   test('bare cd without && is not stripped', async () => {
     const ctx = createMockContext();
-    const result = await execute({ command: `cd ${WORKSPACE}` }, ctx);
+    const _result = await execute({ command: `cd ${WORKSPACE}` }, ctx);
     // No && → no stripping, just runs the cd command
     expect(ctx.ask).not.toHaveBeenCalled();
     expect(spawnSyncCalls[0].shell).toEqual(['sh', '-c', `cd ${WORKSPACE}`]);

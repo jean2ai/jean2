@@ -41,7 +41,7 @@ describe('messages store', () => {
   let sessionId: string;
 
   beforeEach(() => {
-    const ctx = setupTestDatabase();
+    const _ctx = setupTestDatabase();
     const result = seedWorkspaceWithSession();
     sessionId = result.sessionId;
   });

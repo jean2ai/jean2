@@ -196,7 +196,7 @@ describe('read-file permissions', () => {
 
   test('outside workspace requires permission', async () => {
     vfs.writeFile('/tmp/external/file.txt', 'data');
-    const result = await execute({ path: '/tmp/external/file.txt' }, ctx);
+    const _result = await execute({ path: '/tmp/external/file.txt' }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
   });
 
@@ -205,14 +205,14 @@ describe('read-file permissions', () => {
       ask: mock(async () => false) as unknown as typeof ctx.ask,
     });
     vfs.writeFile('/tmp/external/file.txt', 'data');
-    const result = await execute({ path: '/tmp/external/file.txt' }, rejectCtx);
-    expect(result.success).toBe(false);
-    expect(result.error).toBe('USER_REJECTION');
+    const _result = await execute({ path: '/tmp/external/file.txt' }, rejectCtx);
+    expect(_result.success).toBe(false);
+    expect(_result.error).toBe('USER_REJECTION');
   });
 
   test('sensitive file requires permission', async () => {
     vfs.writeFile(`${WORKSPACE}/.env`, 'SECRET=abc');
-    const result = await execute({ path: `${WORKSPACE}/.env` }, ctx);
+    const _result = await execute({ path: `${WORKSPACE}/.env` }, ctx);
     expect(ctx.ask).toHaveBeenCalled();
     const permAsk = getAskCall(ctx);
     expect(permAsk.metadata?.isSensitiveFile).toBe(true);
@@ -238,7 +238,7 @@ describe('read-file permissions', () => {
   test('allowedPaths bypasses permission checks', async () => {
     const allowedCtx = createMockContext(vfs, { allowedPaths: ['/tmp/external'] });
     vfs.writeFile('/tmp/external/file.txt', 'data');
-    const result = await execute({ path: '/tmp/external/file.txt' }, allowedCtx);
+    const _result = await execute({ path: '/tmp/external/file.txt' }, allowedCtx);
     expect(allowedCtx.ask).not.toHaveBeenCalled();
   });
 });

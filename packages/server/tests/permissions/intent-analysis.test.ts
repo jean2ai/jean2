@@ -7,7 +7,6 @@ import {
   createOutsideWorkspaceAsk,
   createWorkspaceModificationAsk,
   type PermissionIntent,
-  type ShellEffectAnalysis,
 } from '@jean2/sdk';
 
 // =============================================================================

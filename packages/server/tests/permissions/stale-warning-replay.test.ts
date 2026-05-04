@@ -8,9 +8,8 @@ import {
   createPendingAsk,
   listPendingRequestsByRootSession,
   listAllPendingAsks,
-  resolvePermissionRequest,
-  resolvePermissionRequestByRequestId,
   expirePermissionRequest,
+  resolvePermissionRequestByRequestId,
   cancelPendingRequestsBySession,
   type PendingAskRecord,
 } from '@/store/pending-asks';

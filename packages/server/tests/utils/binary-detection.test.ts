@@ -6,7 +6,7 @@ const tempFiles: string[] = [];
 afterEach(() => {
   for (const path of tempFiles) {
     try {
-      Bun.file(path).size;
+      void Bun.file(path).size;
     } catch {
       // already gone
     }

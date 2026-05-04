@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach } from 'bun:test';
 import { definition, execute } from './tool';
 import { createMockContext, VirtualFS, WORKSPACE } from '../test-utils';
 
