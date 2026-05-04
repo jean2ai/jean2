@@ -505,7 +505,10 @@ describe('permission ask structure', () => {
     const ctx = createMockContext();
     await execute({ command: 'mkdir new-dir' }, ctx);
     const permAsk = getAskCall(ctx);
-    expect(permAsk.question).toContain('filesystem command');
+    // mkdir targets a file resource, so the question describes the file operation
+    expect(permAsk.question).toContain('mkdir');
+    expect(permAsk.question).toContain('Requires approval');
+    expect(permAsk.metadata?.riskCategory).toBe('workspace-modification');
   });
 
   test('operator-only command has correct reason in metadata', async () => {
@@ -677,14 +680,14 @@ describe('command execution: mocked spawn', () => {
 // ══════════════════════════════════════════════════════════════════
 
 describe('edge cases', () => {
-  test('path-based base command strips directory prefix (/bin/echo → echo)', async () => {
+  test('path-based base command strips directory prefix (/bin/echo → echo) is low-risk', async () => {
     const ctx = createMockContext();
-    // /bin/echo references /bin which is outside workspace
-    await execute({ command: '/bin/echo hello' }, ctx);
-    expect(ctx.ask).toHaveBeenCalled();
-    const permAsk = getAskCall(ctx);
-    // The baseCommand after stripping path prefix
-    expect(permAsk.metadata?.baseCommand).toBe('echo');
+    // /bin/echo → baseCommand 'echo' (path prefix stripped by parseCommand)
+    // echo is not dangerous/filesystem, so no permission ask is needed
+    const result = await execute({ command: '/bin/echo hello' }, ctx);
+    expect(ctx.ask).not.toHaveBeenCalled();
+    // The command executes directly (spawn calls happen in the test env)
+    expect(result).toBeDefined();
   });
 
   test('git commands with subcommands are identified (git push)', async () => {

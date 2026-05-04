@@ -52,7 +52,7 @@ function isPrivateIP(hostname: string): boolean {
   const match = cleanHostname.match(ipv4Regex);
 
   if (match) {
-    const [a, b, _c, _d] = match.map(Number);
+    const [, a, b, _c, _d] = match.map(Number);
 
     if (a === 10) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;

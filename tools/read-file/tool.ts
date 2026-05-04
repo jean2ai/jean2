@@ -38,7 +38,7 @@ export const definition: ToolDefinition = {
 };
 
 async function isBinaryFile(filePath: string, content: string): Promise<boolean> {
-  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  const ext = '.' + (filePath.split('.').pop()?.toLowerCase() || '');
   const binaryExts = [
     '.zip', '.tar', '.gz', '.exe', '.dll', '.so', '.class', '.jar', '.war',
     '.7z', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods', '.odp',

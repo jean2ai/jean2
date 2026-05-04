@@ -43,6 +43,7 @@ async function setupMocks(opts: {
 
   mock.module('@/tools/ask-user-api', () => ({
     createAskApi: mock(() => ({})),
+    rejectPendingAsksByToolCallId: mock((_toolCallId: string, _error?: Error) => []),
   }));
 
   mock.module('@/core/subagent', () => ({
@@ -65,6 +66,15 @@ async function setupMocks(opts: {
 
   mock.module('@/store', () => ({
     transitionToolToRunningByCallId: mock(() => null),
+    getSession: mock(() => ({ id: 'sess-1' })),
+  }));
+
+  mock.module('@/paths', () => ({
+    getUploadDir: mock(() => '/tmp/uploads'),
+  }));
+
+  mock.module('@/core/broadcast', () => ({
+    broadcastEvent: mock(() => {}),
   }));
 
   mock.module('@/utils/truncate-tool-result', () => ({
