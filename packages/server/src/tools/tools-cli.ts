@@ -227,6 +227,10 @@ export interface UpdateOptions {
   dryRun?: boolean;
 }
 
+export interface ReinstallOptions {
+  names?: string[];
+}
+
 export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResult> {
   const toolArgs = options.names || [];
 
@@ -372,6 +376,114 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
 
   log.step('✨ Done');
   return { success: updateErrorCount === 0 };
+}
+
+export async function toolsReinstall(options: ReinstallOptions): Promise<ToolsCliResult> {
+  const toolArgs = options.names || [];
+
+  let tools: RepositoryTool[];
+
+  try {
+    const fetchSpinner = spinner();
+    fetchSpinner.start('Fetching tool registry...');
+    tools = await fetchRepositoryWithVersions();
+    fetchSpinner.stop('Fetching tool registry... done');
+    restoreTerminalState();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(message);
+    return { success: false, error: message };
+  }
+
+  const toolsDir = getToolsBaseDir();
+  const installedTools = await getInstalledTools(toolsDir);
+  const installedMap = new Map(installedTools.map((t) => [t.name, t]));
+
+  let toReinstall = tools.filter((t) => installedMap.has(t.name));
+
+  if (toolArgs.length > 0) {
+    const nameSet = new Set(toolArgs);
+    toReinstall = toReinstall.filter((t) => nameSet.has(t.name));
+
+    const notInstalled = toolArgs.filter((n) => !installedMap.has(n));
+    if (notInstalled.length > 0) {
+      log.warn(`Tools not installed: ${notInstalled.join(', ')}`);
+    }
+  }
+
+  if (toReinstall.length === 0) {
+    log.step('jean2 tools · reinstall');
+    log.step('');
+    log.step('  No installed tools to reinstall.');
+    log.step('✨ Done');
+    return { success: true };
+  }
+
+  log.step('jean2 tools · reinstall');
+  log.step('');
+  for (const tool of toReinstall) {
+    const installedInfo = installedMap.get(tool.name);
+    const installedVersion = installedInfo?.version || '?';
+    log.step(`  ${tool.name.padEnd(11)}${installedVersion} → ${tool.version}${installedVersion === tool.version ? ' (same version)' : ''}`);
+  }
+  log.step('');
+
+  const confirmed = await confirm({
+    message: `Reinstall ${toReinstall.length} ${pluralize(toReinstall.length, 'tool')}?`,
+  });
+
+  restoreTerminalState();
+
+  if (isCancel(confirmed)) {
+    cancel();
+    return { success: true };
+  }
+
+  if (!confirmed) {
+    log.step('Reinstall cancelled.');
+    log.step('✨ Done');
+    return { success: true };
+  }
+
+  const reinstallResults: TaskResult[] = [];
+  for (const tool of toReinstall) {
+    try {
+      const result = await installToolFromUrl(
+        tool.artifactUrl,
+        tool.name,
+        toolsDir,
+      );
+      if (result.success) {
+        log.step(`  ✔ ${tool.name} reinstalled`);
+        reinstallResults.push({ status: 'ok', value: tool.name });
+      } else {
+        const stageLabel = result.stage ? ` [${result.stage}]` : '';
+        log.error(`  ✗ ${tool.name}${stageLabel} failed: ${result.error ?? 'unknown error'}`);
+        reinstallResults.push({ status: 'error', reason: result.error });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error(`  ✗ ${tool.name} failed: ${message}`);
+      reinstallResults.push({ status: 'error', reason: message });
+    }
+  }
+
+  const reinstalledCount = reinstallResults.filter((r: TaskResult) => r.status === 'ok').length;
+  const errorCount = reinstallResults.filter((r: TaskResult) => r.status === 'error').length;
+
+  log.step('');
+  log.step(`  ${reinstalledCount} ${pluralize(reinstalledCount, 'tool')} reinstalled`);
+  if (errorCount > 0) {
+    log.error(`${errorCount} ${pluralize(errorCount, 'tool')} failed:`);
+    for (const r of reinstallResults) {
+      if (r.status === 'error' && r.reason) {
+        log.error(`  • ${r.reason}`);
+      }
+    }
+  }
+
+  log.step('✨ Done');
+  return { success: errorCount === 0 };
 }
 
 export interface RemoveOptions {
@@ -564,6 +676,8 @@ export function toolsHelp(): void {
     update [names...]     Update installed tools to latest
       --dry-run             Preview updates without installing
 
+    reinstall [names...] Reinstall installed tools (ignores version)
+
     remove [names...]     Remove installed tools
       --all                 Remove all tools
 
@@ -577,6 +691,8 @@ export function toolsHelp(): void {
     jean2 tools install --all           Install all tools
     jean2 tools install grep glob      Install specific tools
     jean2 tools update                 Update all installed tools
+    jean2 tools reinstall              Reinstall all installed tools
+    jean2 tools reinstall grep         Reinstall a specific tool
     jean2 tools outdated               Check for updates
 `);
 }
@@ -618,6 +734,12 @@ export async function runToolsCommand(args: ToolsCommandArgs): Promise<ToolsCliR
       return toolsUpdate({
         names: names ?? [],
         dryRun: flags.dryRun,
+      });
+    }
+
+    case 'reinstall': {
+      return toolsReinstall({
+        names: names ?? [],
       });
     }
 
