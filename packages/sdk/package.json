@@ -1,6 +1,6 @@
 {
   "name": "@jean2/sdk",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -11,6 +11,7 @@
     }
   },
   "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && bun scripts/add-js-extensions.ts",
     "typecheck": "tsc --noEmit",
     "version:sync": "echo \"export const version: string = '$npm_package_version';\" > src/version.ts"
   }

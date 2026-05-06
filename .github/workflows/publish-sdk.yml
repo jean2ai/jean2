@@ -1,0 +1,50 @@
+name: Publish SDK to NPM
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/sdk/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build SDK
+        run: |
+          cd packages/sdk
+          bun run build
+
+      - name: Prepare package.json for npm
+        run: |
+          cd packages/sdk
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          node -e "const p=require('./package.npm.json');p.version='$VERSION';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+
+      - name: Setup npm auth
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Publish to npm
+        run: |
+          cd packages/sdk
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "Publishing version $VERSION"
+          npm publish --provenance --access public
