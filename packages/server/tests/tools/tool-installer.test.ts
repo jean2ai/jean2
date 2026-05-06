@@ -148,8 +148,8 @@ describe('tool-installer', () => {
       const manifest = readInstallManifest(toolsDir, 'test-fixture-tool');
       expect(manifest).not.toBeNull();
       expect(manifest!.sourceUrl).toBe(`file://${archivePath}`);
-      expect(manifest!.entry).toBe('tool.ts');
-      expect(manifest!.installStrategy).toBe('source+npm');
+      expect(manifest!.entry).toBe('tool.js');
+      expect(manifest!.installStrategy).toBe('source+npm+bundle');
     });
 
     test('installs with SHA-256 verification', async () => {
