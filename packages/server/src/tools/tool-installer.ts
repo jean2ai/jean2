@@ -1,31 +1,36 @@
-import { spawn } from 'child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import type { LoadedTool } from '@jean2/sdk';
 import { resolveToolsPath, getDefaultToolsPath } from '@/config';
 import { clearCache as clearToolsCache } from './registry';
+import { downloadArtifact, verifyChecksum, extractArtifact, validateArtifactStructure, ArtifactError } from './tool-artifact';
+import { installDependencies, NpmInstallError } from './tool-npm-installer';
+import { readInstallManifest, writeInstallManifest, type InstallManifest } from './tool-install-manifest';
+import { bundleTool, ToolBundleError } from './tool-bundler';
 
 const VERSION_FILE = 'VERSION';
-const INSTALL_MANIFEST = '.install-manifest.json';
 
-export interface InstallManifest {
-  version: string | null;
-  installedAt: string;
-  sourcePath?: string;
-  sourceUrl?: string;
-}
+export type { InstallManifest } from './tool-install-manifest';
 
 export interface InstallResult {
   success: boolean;
   toolName: string;
   version?: string;
   error?: string;
+  stage?: string;
 }
 
 export interface InstalledTool {
   name: string;
   version: string | null;
   path: string;
+}
+
+export interface RemoveResult {
+  success: boolean;
+  toolName: string;
+  error?: string;
 }
 
 function ensureToolsDir(toolsDir: string): string {
@@ -39,34 +44,8 @@ function getToolDir(toolsDir: string, toolName: string): string {
   return join(toolsDir, toolName);
 }
 
-function getManifestPath(toolsDir: string, toolName: string): string {
-  return join(getToolDir(toolsDir, toolName), INSTALL_MANIFEST);
-}
-
-function getVersionPath(toolsDir: string, toolName: string): string {
-  return join(getToolDir(toolsDir, toolName), VERSION_FILE);
-}
-
-function readManifest(toolsDir: string, toolName: string): InstallManifest | null {
-  const manifestPath = getManifestPath(toolsDir, toolName);
-  if (!existsSync(manifestPath)) {
-    return null;
-  }
-  try {
-    const content = readFileSync(manifestPath, 'utf-8');
-    return JSON.parse(content) as InstallManifest;
-  } catch {
-    return null;
-  }
-}
-
-function saveManifest(toolsDir: string, toolName: string, manifest: InstallManifest): void {
-  const manifestPath = getManifestPath(toolsDir, toolName);
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-}
-
-function readVersion(toolsDir: string, toolName: string): string | null {
-  const versionPath = getVersionPath(toolsDir, toolName);
+function readVersion(toolDir: string): string | null {
+  const versionPath = join(toolDir, VERSION_FILE);
   if (!existsSync(versionPath)) {
     return null;
   }
@@ -77,91 +56,9 @@ function readVersion(toolsDir: string, toolName: string): string | null {
   }
 }
 
-function copyDirectoryRecursive(src: string, dest: string): void {
-  if (!existsSync(dest)) {
-    mkdirSync(dest, { recursive: true });
-  }
-
-  const entries = readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = join(src, entry.name);
-    const destPath = join(dest, entry.name);
-
-    if (entry.isDirectory()) {
-      copyDirectoryRecursive(srcPath, destPath);
-    } else {
-      const content = readFileSync(srcPath);
-      writeFileSync(destPath, content);
-    }
-  }
-}
-
-async function extractArchive(
-  archivePath: string,
-  destDir: string,
-): Promise<void> {
-  const ext = archivePath.toLowerCase();
-
-  if (ext.endsWith('.tar.gz') || ext.endsWith('.tgz')) {
-    return extractTarGz(archivePath, destDir);
-  } else if (ext.endsWith('.zip')) {
-    return extractZip(archivePath, destDir);
-  } else {
-    throw new Error(`Unsupported archive format: ${ext}`);
-  }
-}
-
-async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('tar', ['-xzf', tarPath, '-C', destDir], {
-      cwd: destDir,
-      stdio: 'pipe',
-    });
-
-    let stderr = '';
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`tar extraction failed: ${stderr}`));
-      }
-    });
-
-    child.on('error', reject);
-  });
-}
-
-async function extractZip(zipPath: string, destDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('unzip', ['-o', zipPath, '-d', destDir], {
-      cwd: destDir,
-      stdio: 'pipe',
-    });
-
-    let stderr = '';
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`unzip extraction failed: ${stderr}`));
-      }
-    });
-
-    child.on('error', reject);
-  });
-}
-
-async function validateToolModule(toolPath: string): Promise<{ name: string }> {
+async function validateToolModule(modulePath: string): Promise<{ name: string }> {
   try {
-    const module = await import(toolPath);
+    const module = await import(modulePath);
 
     if (!module.definition || typeof module.execute !== 'function') {
       throw new Error('Tool must export "definition" and "execute"');
@@ -172,19 +69,11 @@ async function validateToolModule(toolPath: string): Promise<{ name: string }> {
       throw new Error('tool.definition.name is required');
     }
 
-    return {
-      name,
-    };
+    return { name };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to load tool module: ${message}`, { cause: err });
   }
-}
-
-export interface RemoveResult {
-  success: boolean;
-  toolName: string;
-  error?: string;
 }
 
 export async function installTool(
@@ -212,6 +101,18 @@ export async function installTool(
   }
   const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
 
+  try {
+    await installDependencies({ toolDir: sourcePath });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      toolName: '',
+      error: message,
+      stage: 'npm-install',
+    };
+  }
+
   let toolName: string;
 
   try {
@@ -223,26 +124,66 @@ export async function installTool(
       success: false,
       toolName: '',
       error: message,
+      stage: 'validate',
     };
   }
 
-  const targetDir = getToolDir(toolsDir, toolName);
+  const finalDir = getToolDir(toolsDir, toolName);
+  const stagingDir = finalDir + '.staging';
 
-  if (existsSync(targetDir)) {
-    rmSync(targetDir, { recursive: true, force: true });
+  if (existsSync(stagingDir)) {
+    rmSync(stagingDir, { recursive: true, force: true });
   }
 
-  mkdirSync(targetDir, { recursive: true });
-  copyDirectoryRecursive(sourcePath, targetDir);
+  mkdirSync(stagingDir, { recursive: true });
 
-  const version = readVersion(toolsDir, toolName);
+  cpSync(sourcePath, stagingDir, { recursive: true });
+
+  const version = readVersion(stagingDir);
 
   const manifest: InstallManifest = {
-    version,
+    toolName,
+    toolVersion: version,
     installedAt: new Date().toISOString(),
     sourcePath,
+    entry: existsSync(toolJsPath) ? 'tool.js' : 'tool.ts',
+    runtime: 'bun',
+    installStrategy: 'source+npm',
   };
-  saveManifest(toolsDir, toolName, manifest);
+  writeInstallManifest(stagingDir, manifest);
+
+  if (existsSync(finalDir)) {
+    const backupDir = finalDir + '.previous';
+    if (existsSync(backupDir)) {
+      rmSync(backupDir, { recursive: true, force: true });
+    }
+    renameSync(finalDir, backupDir);
+  }
+
+  try {
+    renameSync(stagingDir, finalDir);
+  } catch (err: unknown) {
+    const backupDir = finalDir + '.previous';
+    if (existsSync(backupDir)) {
+      try {
+        renameSync(backupDir, finalDir);
+      } catch {
+        // best effort rollback
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      toolName,
+      error: `Atomic move failed: ${message}`,
+      stage: 'finalize',
+    };
+  }
+
+  const backupDir = finalDir + '.previous';
+  if (existsSync(backupDir)) {
+    rmSync(backupDir, { recursive: true, force: true });
+  }
 
   clearToolsCache();
 
@@ -253,119 +194,207 @@ export async function installTool(
   };
 }
 
+export interface InstallFromUrlOptions {
+  url: string;
+  toolName: string;
+  toolsDir: string;
+  entry?: string;
+  artifactSha256?: string;
+}
+
 export async function installToolFromUrl(
   url: string,
   toolName: string,
   toolsDir: string,
+  options?: { entry?: string; artifactSha256?: string },
 ): Promise<InstallResult> {
+  const entry = options?.entry ?? 'tool.ts';
+  const artifactSha256 = options?.artifactSha256;
+
   ensureToolsDir(toolsDir);
 
-  const tempDir = join(toolsDir, `.install-temp-${Date.now()}`);
-
+  const tempDir = join(tmpdir(), `jean2-install-${Date.now()}-${toolName}`);
   mkdirSync(tempDir, { recursive: true });
 
-  const archivePath = join(tempDir, 'archive');
-
-  let response: Response;
   try {
-    response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const { archivePath } = await downloadArtifact(url, tempDir);
+    await verifyChecksum(archivePath, artifactSha256);
+
+    const extractedRoot = await extractArtifact(archivePath, tempDir);
+
+    const validation = validateArtifactStructure(extractedRoot, entry);
+    if (!validation.hasPackageJson) {
+      return {
+        success: false,
+        toolName,
+        error: 'Artifact missing package.json',
+        stage: 'validate',
+      };
     }
-    const buffer = await response.arrayBuffer();
-    await Bun.write(archivePath, buffer);
-  } catch (err: unknown) {
-    rmSync(tempDir, { recursive: true, force: true });
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      success: false,
-      toolName,
-      error: `Download failed: ${message}`,
+
+    try {
+      await installDependencies({ toolDir: extractedRoot });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        toolName,
+        error: message,
+        stage: 'npm-install',
+      };
+    }
+
+    // Bundle tool.ts -> tool.js (inlines all deps so import() works in compiled binary)
+    let bundledEntry = entry;
+    try {
+      await bundleTool(extractedRoot, entry);
+      bundledEntry = 'tool.js';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        toolName,
+        error: message,
+        stage: 'validate',
+      };
+    }
+
+    let resolvedToolName: string;
+    try {
+      resolvedToolName = await resolveToolNameFromModule(extractedRoot, bundledEntry);
+    } catch (err: unknown) {
+      return {
+        success: false,
+        toolName,
+        error: err instanceof Error ? err.message : String(err),
+        stage: 'validate',
+      };
+    }
+
+    const finalDir = getToolDir(toolsDir, resolvedToolName);
+    const stagingDir = finalDir + '.staging';
+
+    if (existsSync(stagingDir)) {
+      rmSync(stagingDir, { recursive: true, force: true });
+    }
+
+    mkdirSync(stagingDir, { recursive: true });
+
+    cpSync(extractedRoot, stagingDir, {
+      recursive: true,
+      filter: (src) => {
+        const basename = src.split('/').pop() || '';
+        return !basename.startsWith('.install-temp');
+      },
+    });
+
+    const version = readVersion(stagingDir);
+
+    const manifest: InstallManifest = {
+      toolName: resolvedToolName,
+      toolVersion: version,
+      installedAt: new Date().toISOString(),
+      sourceUrl: url,
+      artifactSha256,
+      entry: bundledEntry,
+      runtime: 'bun',
+      installStrategy: 'source+npm+bundle',
     };
-  }
+    writeInstallManifest(stagingDir, manifest);
 
-  try {
-    await extractArchive(archivePath, tempDir);
-  } catch (err: unknown) {
-    rmSync(tempDir, { recursive: true, force: true });
-    const message = err instanceof Error ? err.message : String(err);
+    if (existsSync(finalDir)) {
+      const backupDir = finalDir + '.previous';
+      if (existsSync(backupDir)) {
+        rmSync(backupDir, { recursive: true, force: true });
+      }
+      renameSync(finalDir, backupDir);
+    }
+
+    try {
+      renameSync(stagingDir, finalDir);
+    } catch (err: unknown) {
+      const backupDir = finalDir + '.previous';
+      if (existsSync(backupDir)) {
+        try {
+          renameSync(backupDir, finalDir);
+        } catch {
+          // best effort rollback
+        }
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        toolName: resolvedToolName,
+        error: `Atomic move failed: ${message}`,
+        stage: 'finalize',
+      };
+    }
+
+    const backupDir = finalDir + '.previous';
+    if (existsSync(backupDir)) {
+      rmSync(backupDir, { recursive: true, force: true });
+    }
+
+    clearToolsCache();
+
     return {
-      success: false,
-      toolName,
-      error: `Extraction failed: ${message}`,
+      success: true,
+      toolName: resolvedToolName,
+      version: version || undefined,
     };
-  }
-
-  const entries = readdirSync(tempDir, { withFileTypes: true });
-  const extractedDir = entries.length === 1 && entries[0].isDirectory()
-    ? join(tempDir, entries[0].name)
-    : tempDir;
-
-  const toolJsPath = join(extractedDir, 'tool.js');
-  const toolTsPath = join(extractedDir, 'tool.ts');
-  if (!existsSync(toolJsPath) && !existsSync(toolTsPath)) {
-    rmSync(tempDir, { recursive: true, force: true });
-    return {
-      success: false,
-      toolName,
-      error: 'Archive does not contain tool.js or tool.ts',
-    };
-  }
-  const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
-
-  let resolvedToolName: string;
-
-  try {
-    const validated = await validateToolModule(modulePath);
-    resolvedToolName = validated.name;
   } catch (err: unknown) {
-    rmSync(tempDir, { recursive: true, force: true });
+    if (err instanceof ArtifactError) {
+      return {
+        success: false,
+        toolName,
+        error: err.message,
+        stage: err.stage,
+      };
+    }
+    if (err instanceof NpmInstallError) {
+      return {
+        success: false,
+        toolName,
+        error: err.message,
+        stage: 'npm-install',
+      };
+    }
     const message = err instanceof Error ? err.message : String(err);
     return {
       success: false,
       toolName,
       error: message,
     };
-  }
-
-  const finalTargetDir = getToolDir(toolsDir, resolvedToolName);
-
-  if (existsSync(finalTargetDir)) {
-    rmSync(finalTargetDir, { recursive: true, force: true });
-  }
-
-  mkdirSync(finalTargetDir, { recursive: true });
-
-  const files = readdirSync(extractedDir, { withFileTypes: true });
-  for (const entry of files) {
-    const src = join(extractedDir, entry.name);
-    const dest = join(finalTargetDir, entry.name);
-    if (entry.isDirectory()) {
-      copyDirectoryRecursive(src, dest);
-    } else {
-      const content = readFileSync(src);
-      writeFileSync(dest, content);
+  } finally {
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
     }
   }
+}
 
-  rmSync(tempDir, { recursive: true, force: true });
+async function resolveToolNameFromModule(
+  toolDir: string,
+  entry: string,
+): Promise<string> {
+  const modulePath = join(toolDir, entry);
 
-  const version = readVersion(toolsDir, resolvedToolName);
+  try {
+    const module = await import(modulePath);
 
-  const manifest: InstallManifest = {
-    version,
-    installedAt: new Date().toISOString(),
-    sourceUrl: url,
-  };
-  saveManifest(toolsDir, resolvedToolName, manifest);
+    if (!module.definition || typeof module.execute !== 'function') {
+      throw new Error('Tool must export "definition" and "execute"');
+    }
 
-  clearToolsCache();
+    const name = module.definition.name;
+    if (!name) {
+      throw new Error('tool.definition.name is required');
+    }
 
-  return {
-    success: true,
-    toolName: resolvedToolName,
-    version: version || undefined,
-  };
+    return name;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Module validation failed: ${message}`, { cause: err });
+  }
 }
 
 export async function removeTool(
@@ -383,6 +412,12 @@ export async function removeTool(
   }
 
   rmSync(toolDir, { recursive: true, force: true });
+
+  const backupDir = toolDir + '.previous';
+  if (existsSync(backupDir)) {
+    rmSync(backupDir, { recursive: true, force: true });
+  }
+
   clearToolsCache();
 
   return {
@@ -405,10 +440,14 @@ export async function getInstalledTools(
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
+      if (entry.name.endsWith('.staging') || entry.name.endsWith('.previous')) continue;
 
       const toolName = entry.name;
-      const toolJsPath = join(toolsDir, toolName, 'tool.js');
-      const toolTsPath = join(toolsDir, toolName, 'tool.ts');
+      const toolDir = join(toolsDir, toolName);
+
+      const manifest = readInstallManifest(toolsDir, toolName);
+      const toolJsPath = join(toolDir, 'tool.js');
+      const toolTsPath = join(toolDir, 'tool.ts');
 
       if (!existsSync(toolJsPath) && !existsSync(toolTsPath)) continue;
 
@@ -426,14 +465,14 @@ export async function getInstalledTools(
 
       if (!loadedTool) continue;
 
-      const version = readVersion(toolsDir, toolName) ||
-        readManifest(toolsDir, toolName)?.version ||
+      const version = readVersion(toolDir) ||
+        manifest?.toolVersion ||
         null;
 
       tools.push({
         name: toolName,
         version,
-        path: join(toolsDir, toolName),
+        path: toolDir,
       });
     }
   } catch {
@@ -460,13 +499,14 @@ export async function getInstalledToolVersion(
   toolName: string,
   toolsDir: string,
 ): Promise<string | null> {
-  const version = readVersion(toolsDir, toolName);
+  const toolDir = getToolDir(toolsDir, toolName);
+  const version = readVersion(toolDir);
   if (version !== null) {
     return version;
   }
 
-  const manifest = readManifest(toolsDir, toolName);
-  return manifest?.version ?? null;
+  const manifest = readInstallManifest(toolsDir, toolName);
+  return manifest?.toolVersion ?? null;
 }
 
 export function getToolInstallDir(toolName: string): string {

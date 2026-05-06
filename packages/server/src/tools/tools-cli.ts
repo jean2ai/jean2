@@ -4,7 +4,6 @@ import { restoreTerminalState } from './clack-utils';
 
 import {
   fetchRepositoryWithVersions,
-  resolveDownloadUrl,
   type RepositoryTool,
 } from './tool-repository';
 
@@ -184,14 +183,18 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
 
   for (const tool of selected) {
     try {
-      const downloadUrl = resolveDownloadUrl(tool.name, tool.version);
-      const result = await installToolFromUrl(downloadUrl, tool.name, toolsDir);
+      const result = await installToolFromUrl(
+        tool.artifactUrl,
+        tool.name,
+        toolsDir,
+      );
 
       if (result.success) {
         log.step(`  ✔ ${tool.name} installed`);
         results.push({ status: 'ok', value: tool.name });
       } else {
-        log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
+        const stageLabel = result.stage ? ` [${result.stage}]` : '';
+        log.error(`  ✗ ${tool.name}${stageLabel} failed: ${result.error ?? 'unknown error'}`);
         results.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {
@@ -333,13 +336,17 @@ export async function toolsUpdate(options: UpdateOptions): Promise<ToolsCliResul
   const updateResults: TaskResult[] = [];
   for (const { tool } of outdated) {
     try {
-      const downloadUrl = resolveDownloadUrl(tool.name, tool.version);
-      const result = await installToolFromUrl(downloadUrl, tool.name, toolsDir);
+      const result = await installToolFromUrl(
+        tool.artifactUrl,
+        tool.name,
+        toolsDir,
+      );
       if (result.success) {
         log.step(`  ✔ ${tool.name} updated`);
         updateResults.push({ status: 'ok', value: tool.name });
       } else {
-        log.error(`  ✗ ${tool.name} failed: ${result.error ?? 'unknown error'}`);
+        const stageLabel = result.stage ? ` [${result.stage}]` : '';
+        log.error(`  ✗ ${tool.name}${stageLabel} failed: ${result.error ?? 'unknown error'}`);
         updateResults.push({ status: 'error', reason: result.error });
       }
     } catch (err: unknown) {

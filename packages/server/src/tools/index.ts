@@ -12,12 +12,12 @@ export {
   getToolInstallDir,
   getToolsBaseDir,
   getDefaultToolsBaseDir,
+  clearCache as clearInstallerCache,
   type InstallResult,
   type InstalledTool,
   type InstallManifest,
   type RemoveResult,
 } from './tool-installer';
-export { getRuntimeSetup, getPlatformSetup, hasSetupForRuntime, verifyRuntime, offerRuntimeSetup } from './runtime-setup';
 export {
   runToolsCommand,
   toolsList,

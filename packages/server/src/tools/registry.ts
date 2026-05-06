@@ -4,6 +4,7 @@ import { watch } from 'fs';
 import { join, resolve, relative } from 'path';
 import type { ToolDefinition, LoadedTool } from '@jean2/sdk';
 import { resolveToolsPath } from '@/config';
+import { readInstallManifest } from './tool-install-manifest';
 
 const toolsCache: Map<string, LoadedTool> = new Map();
 let lastScanTime = 0;
@@ -18,14 +19,29 @@ function getDefaultToolsPath(): string {
 }
 
 async function loadToolModule(toolDir: string): Promise<LoadedTool | null> {
-  const toolJsPath = join(toolDir, 'tool.js');
-  const toolTsPath = join(toolDir, 'tool.ts');
+  const toolName = toolDir.split('/').pop() || '';
+  const toolsBasePath = toolDir.split('/').slice(0, -1).join('/');
+
+  const manifest = readInstallManifest(toolsBasePath, toolName);
 
   let modulePath: string | null = null;
-  if (existsSync(toolJsPath)) {
-    modulePath = toolJsPath;
-  } else if (existsSync(toolTsPath)) {
-    modulePath = toolTsPath;
+
+  if (manifest?.entry) {
+    const manifestEntryPath = join(toolDir, manifest.entry);
+    if (existsSync(manifestEntryPath)) {
+      modulePath = manifestEntryPath;
+    }
+  }
+
+  if (!modulePath) {
+    const toolJsPath = join(toolDir, 'tool.js');
+    const toolTsPath = join(toolDir, 'tool.ts');
+
+    if (existsSync(toolJsPath)) {
+      modulePath = toolJsPath;
+    } else if (existsSync(toolTsPath)) {
+      modulePath = toolTsPath;
+    }
   }
 
   if (!modulePath) {
@@ -36,13 +52,17 @@ async function loadToolModule(toolDir: string): Promise<LoadedTool | null> {
     const module = await import(modulePath);
 
     if (!module.definition || typeof module.execute !== 'function') {
-      console.warn(`Tool at ${toolDir} missing required exports (definition, execute)`);
+      console.warn(
+        `Tool at ${toolDir} missing required exports (definition, execute)`,
+      );
       return null;
     }
 
     const definition: ToolDefinition = module.definition;
     if (!definition.name || !definition.inputSchema) {
-      console.warn(`Tool at ${toolDir} has invalid definition (missing name or inputSchema)`);
+      console.warn(
+        `Tool at ${toolDir} has invalid definition (missing name or inputSchema)`,
+      );
       return null;
     }
 
@@ -51,8 +71,23 @@ async function loadToolModule(toolDir: string): Promise<LoadedTool | null> {
       execute: module.execute,
       path: toolDir,
     };
-  } catch (e) {
-    console.warn(`Failed to load tool module at ${toolDir}:`, e);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+
+    if (message.includes('Cannot find module')) {
+      console.warn(
+        `Tool at ${toolDir} has missing dependencies: ${message}`,
+      );
+    } else if (
+      message.includes('SyntaxError') ||
+      message.includes('Unexpected')
+    ) {
+      console.warn(
+        `Tool at ${toolDir} has a syntax/load error: ${message}`,
+      );
+    } else {
+      console.warn(`Failed to load tool module at ${toolDir}:`, e);
+    }
     return null;
   }
 }
@@ -67,14 +102,13 @@ function invalidateToolAtPath(filePath: string): void {
   if (!toolDir || toolDir === '.' || toolDir === '..') return;
 
   const toolPath = join(watcherToolsPath, toolDir);
-  const toolCacheKey = Array.from(toolsCache.keys()).find(key => {
+  const toolCacheKey = Array.from(toolsCache.keys()).find((key) => {
     const cachedTool = toolsCache.get(key);
     return cachedTool?.path === toolPath;
   });
 
   if (toolCacheKey) {
     toolsCache.delete(toolCacheKey);
-    console.log(`Cache invalidated for tool: ${toolCacheKey}`);
   }
 }
 
@@ -89,7 +123,9 @@ function scheduleInvalidation(filePath: string): void {
   }, 100);
 }
 
-export function watchTools(toolsPath: string = getDefaultToolsPath()): void {
+export function watchTools(
+  toolsPath: string = getDefaultToolsPath(),
+): void {
   if (watcher) {
     stopWatching();
   }
@@ -98,17 +134,20 @@ export function watchTools(toolsPath: string = getDefaultToolsPath()): void {
   watcherToolsPath = absoluteToolsPath;
 
   try {
-    watcher = watch(absoluteToolsPath, { recursive: true }, (_event, filename) => {
-      if (!filename) return;
-      const filePath = join(absoluteToolsPath, filename);
-      scheduleInvalidation(filePath);
-    });
+    watcher = watch(
+      absoluteToolsPath,
+      { recursive: true },
+      (_event, filename) => {
+        if (!filename) return;
+        const filePath = join(absoluteToolsPath, filename);
+        scheduleInvalidation(filePath);
+      },
+    );
 
     watcher.on('error', (err) => {
       console.warn(`Tool watcher error: ${err}`);
     });
 
-    console.log(`Watching tools directory for changes: ${absoluteToolsPath}`);
   } catch (_e) {
     console.warn(`Failed to start tool watcher for: ${absoluteToolsPath}`);
     watcherToolsPath = null;
@@ -127,10 +166,11 @@ export function stopWatching(): void {
   }
 
   watcherToolsPath = null;
-  console.log('Tool watcher stopped');
 }
 
-export async function scanTools(toolsPath: string = getDefaultToolsPath()): Promise<LoadedTool[]> {
+export async function scanTools(
+  toolsPath: string = getDefaultToolsPath(),
+): Promise<LoadedTool[]> {
   const tools: LoadedTool[] = [];
   const absoluteToolsPath = resolve(toolsPath);
 
@@ -139,6 +179,8 @@ export async function scanTools(toolsPath: string = getDefaultToolsPath()): Prom
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
+      if (entry.name.endsWith('.staging') || entry.name.endsWith('.previous'))
+        continue;
 
       const toolDir = join(absoluteToolsPath, entry.name);
       const loaded = await loadToolModule(toolDir);
@@ -174,7 +216,7 @@ export async function listTools(): Promise<ToolDefinition[]> {
     await scanTools();
   }
 
-  return Array.from(toolsCache.values()).map(t => t.definition);
+  return Array.from(toolsCache.values()).map((t) => t.definition);
 }
 
 export function clearCache(): void {

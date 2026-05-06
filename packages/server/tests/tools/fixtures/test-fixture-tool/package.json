@@ -1,0 +1,7 @@
+{
+  "name": "@jean2/tool-test-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {}
+}

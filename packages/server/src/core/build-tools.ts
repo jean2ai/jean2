@@ -136,7 +136,13 @@ export async function buildAiSdkTools(
             return { error: result.error };
           }
 
-          return truncateToolResult(result.result, sessionId, name);
+          const toolOutput = truncateToolResult(result.result, sessionId, name);
+
+          if (result.visualization && toolOutput && typeof toolOutput === 'object') {
+            return { ...toolOutput as Record<string, unknown>, _visualization: result.visualization };
+          }
+
+          return toolOutput;
         } finally {
           interruptManager.unregisterToolExecution(sessionId, toolCallId);
           // Clean up any pending asks this tool was waiting on (e.g., if the tool
