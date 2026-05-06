@@ -1,0 +1,14 @@
+{
+  "name": "@jean2/tool-file-to-markdown",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@jean2/sdk": "^0.9.0",
+    "pdf-parse": "^1.1.4",
+    "mammoth": "^1.8.0",
+    "xlsx": "^0.18.5",
+    "adm-zip": "^0.5.16",
+    "xml2js": "^0.6.2"
+  }
+}

@@ -190,10 +190,12 @@ jobs:
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
+        if: matrix.item.type == 'server'
         with:
           bun-version: latest
 
       - name: Install
+        if: matrix.item.type == 'server'
         run: bun install
 
       - name: Release
@@ -222,16 +224,25 @@ jobs:
             git tag -f "$TAG"
             git push origin "$TAG" --force
 
-            # Build the tool
-            bun run tools/build.ts --tool "$PACKAGE_NAME" --output dist/tools
+            # Package source artifacts (tool.ts + package.json + VERSION)
+            WORKDIR=$(mktemp -d)
+            tar -czf "$PACKAGE_NAME.tar.gz" \
+              -C "$P" \
+              --exclude='*.test.ts' \
+              --exclude='*.test.mjs' \
+              --exclude='node_modules' \
+              --exclude='.git' \
+              tool.ts package.json VERSION
 
-            # Package built output
-            tar -czf "$PACKAGE_NAME.tar.gz" -C "dist/tools/$PACKAGE_NAME" .
+            # Compute SHA-256 checksum
+            SHA256=$(shasum -a 256 "$PACKAGE_NAME.tar.gz" | cut -d' ' -f1)
+            echo "$SHA256" > "$PACKAGE_NAME.tar.gz.sha256"
+            echo "SHA-256: $SHA256"
 
             [[ "$V" == *"-"* ]] && PRE="--prerelease" || PRE=""
             NOTES_FLAG=""
             if [ -s "changelogs/tools/$PACKAGE_NAME/v${V}.md" ]; then
               NOTES_FLAG="--notes-file changelogs/tools/$PACKAGE_NAME/v${V}.md"
             fi
-            gh release create "$TAG" --title "Tool $PACKAGE_NAME $V" $PRE $NOTES_FLAG "$PACKAGE_NAME.tar.gz"
+            gh release create "$TAG" --title "Tool $PACKAGE_NAME $V" $PRE $NOTES_FLAG "$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME.tar.gz.sha256"
           fi
