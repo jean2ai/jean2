@@ -18,7 +18,6 @@ interface PendingAskRow {
   tool_name: string;
   ask_json: string;
   created_at: number;
-  // Phase 1 columns (nullable for backward compat with pre-migration rows)
   request_id: string | null;
   workspace_id: string | null;
   root_session_id: string | null;

@@ -20,8 +20,7 @@ import type {
 //   Tool → ctx.ask(permissionAsk) → permission-request-manager → ask.request
 //   Client responds via ask.response → permission-request-manager → persistGrant
 //
-// This is the ONLY permission storage module. The legacy `tool_permissions` table
-// exists in the schema for backward compatibility but is no longer read or written.
+// This is the ONLY permission storage module.
 // =============================================================================
 
 // =============================================================================
@@ -294,25 +293,6 @@ export function revokeAllWorkspaceGrants(
   );
   return result.changes;
 }
-
-// =============================================================================
-// Legacy tool_permissions table: REMOVED
-//
-// The legacy `tool_permissions` table and its functions were removed in Phase 5.
-// The canonical permission storage is the `permission_grants` table, managed by
-// the functions above (getWorkspaceGrants, matchGrant, createGrantFromOptions, etc.).
-//
-// Removed functions:
-// - checkCachedPermission() → use matchGrant()
-// - grantPermission() → use createGrantFromOptions()
-// - revokePermission() → use revokeGrant()
-// - getWorkspacePermissions() → use getWorkspaceGrants()
-// - getWorkspacePermissionsHistory() → use getWorkspaceGrants({ includeRevoked: true })
-// - revokeAllWorkspacePermissions() → use revokeAllWorkspaceGrants()
-//
-// The `tool_permissions` table still exists in the schema for backward compatibility
-// with databases that have legacy data, but no new data is written to it.
-// =============================================================================
 
 // =============================================================================
 // Row Mapping

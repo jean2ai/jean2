@@ -117,6 +117,10 @@ export function runMigrations(): void {
 }
 
 export function initializeSchema(db: Database): void {
+  // Drop legacy tables from the stable release that are no longer used
+  db.run('DROP TABLE IF EXISTS tool_permissions');
+  db.run('DROP TABLE IF EXISTS tool_approvals');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id TEXT PRIMARY KEY,
@@ -205,80 +209,6 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_session ON parts(session_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_type ON parts(type)');
 
-  // =============================================================================
-  // Legacy `tool_permissions` Table (DEPRECATED — read-only, kept for migration)
-  //
-  // This table is no longer written to by runtime code.
-  // It is preserved for backward compatibility with databases that have legacy data.
-  // The canonical permission table is `permission_grants` (defined below).
-  //
-  // Do NOT add new readers or writers for this table.
-  // =============================================================================
-  db.run(`
-    CREATE TABLE IF NOT EXISTS tool_permissions (
-      id TEXT PRIMARY KEY,
-      workspace_id TEXT NOT NULL,
-      tool_name TEXT NOT NULL,
-      permission_type TEXT NOT NULL,
-      permission_key TEXT NOT NULL,
-      allowed INTEGER NOT NULL,
-      granted_at TEXT NOT NULL,
-      granted_by TEXT,
-      revoked_at TEXT,
-      revoked_by TEXT,
-      expires_at TEXT,
-      scope TEXT,
-      duration TEXT,
-      metadata TEXT,
-      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Migration: add new columns if they don't exist (for existing databases)
-  const addColumnIfNotExists = (table: string, column: string, type: string) => {
-    try {
-      db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-    } catch (_e: unknown) {
-      // Column may already exist
-    }
-  };
-
-  addColumnIfNotExists('tool_permissions', 'expires_at', 'TEXT');
-  addColumnIfNotExists('tool_permissions', 'scope', 'TEXT');
-  addColumnIfNotExists('tool_permissions', 'duration', 'TEXT');
-
-  // Migration: rename permission_type column to resource in permission_grants
-  // This fixes the schema/query mismatch between the canonical PermissionResource type
-  // and the old column name. Must run before any queries use the 'resource' column name.
-  try {
-    // Check if old column exists and new column doesn't
-    const columns = db.query("PRAGMA table_info(permission_grants)").all() as { name: string }[];
-    const columnNames = new Set(columns.map(c => c.name));
-    if (columnNames.has('permission_type') && !columnNames.has('resource')) {
-      db.run('ALTER TABLE permission_grants ADD COLUMN resource TEXT');
-      // Migrate data from permission_type to resource
-      db.run('UPDATE permission_grants SET resource = permission_type WHERE resource IS NULL');
-    }
-  } catch (_e: unknown) {
-    // Migration may have already been applied or table doesn't exist yet
-  }
-
-  // Index for fast permission lookups
-  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_lookup
-    ON tool_permissions(workspace_id, tool_name, permission_type, permission_key, allowed, revoked_at)`);
-
-  // Index for listing workspace permissions
-  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_workspace
-    ON tool_permissions(workspace_id, revoked_at)`);
-
-  // Index for history queries
-  db.run(`CREATE INDEX IF NOT EXISTS idx_tool_permissions_history
-    ON tool_permissions(workspace_id, granted_at)`);
-
-  // =============================================================================
-  // New Structured Permission Grants Table
-  // =============================================================================
-
   db.run(`CREATE TABLE IF NOT EXISTS permission_grants (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -295,6 +225,7 @@ export function initializeSchema(db: Database): void {
     revoked_at TEXT,
     revoked_by TEXT,
     metadata TEXT,
+    bound_root_session_id TEXT,
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
   )`);
 
@@ -310,14 +241,6 @@ export function initializeSchema(db: Database): void {
   db.run(`CREATE INDEX IF NOT EXISTS idx_permission_grants_scope
     ON permission_grants(workspace_id, scope, granted_by)`);
 
-  // Phase 1 Migration: add action column to permission_grants for resource-target semantics
-  // e.g. resource='file', action='read' | 'write' | 'delete'; resource='network', action='request'
-  addColumnIfNotExists('permission_grants', 'action', 'TEXT');
-
-  // Migration: add bound_root_session_id for session-scoped grant isolation
-  // Session-scoped grants are only valid within the root session they were created in.
-  addColumnIfNotExists('permission_grants', 'bound_root_session_id', 'TEXT');
-
   db.run(`
     CREATE TABLE IF NOT EXISTS pending_asks (
       id TEXT PRIMARY KEY,
@@ -326,71 +249,25 @@ export function initializeSchema(db: Database): void {
       tool_name TEXT NOT NULL,
       ask_json TEXT NOT NULL,
       created_at INTEGER NOT NULL,
+      request_id TEXT,
+      workspace_id TEXT,
+      root_session_id TEXT,
+      origin_session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      expires_at INTEGER,
+      resolved_at INTEGER,
+      resolution_json TEXT,
+      is_permission INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
 
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_session ON pending_asks(session_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_tool_call ON pending_asks(tool_call_id)');
-
-  // =============================================================================
-  // Phase 1 Migration: Evolve pending_asks into durable permission request storage
-  //
-  // New columns:
-  //   request_id       — dedicated per-ask identity (UUID), separate from toolCallId
-  //   workspace_id     — workspace context for the ask
-  //   root_session_id  — root session for hierarchy traversal
-  //   origin_session_id— original session (differs from session_id for child asks)
-  //   status           — lifecycle: pending | approved | denied | expired | cancelled
-  //   expires_at       — absolute timestamp when the request expires
-  //   resolved_at      — when the request was resolved
-  //   resolution_json  — JSON payload of the resolution (grant scope, etc.)
-  //   is_permission    — flag: 1 = permission ask, 0 = generic ask
-  // =============================================================================
-
-  const pendingAsksColumns = new Set(
-    (db.query('PRAGMA table_info(pending_asks)').all() as { name: string }[]).map(c => c.name),
-  );
-
-  if (!pendingAsksColumns.has('request_id')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN request_id TEXT');
-  }
-  if (!pendingAsksColumns.has('workspace_id')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN workspace_id TEXT');
-  }
-  if (!pendingAsksColumns.has('root_session_id')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN root_session_id TEXT');
-  }
-  if (!pendingAsksColumns.has('origin_session_id')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN origin_session_id TEXT');
-  }
-  if (!pendingAsksColumns.has('status')) {
-    db.run("ALTER TABLE pending_asks ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
-  }
-  if (!pendingAsksColumns.has('expires_at')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN expires_at INTEGER');
-  }
-  if (!pendingAsksColumns.has('resolved_at')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN resolved_at INTEGER');
-  }
-  if (!pendingAsksColumns.has('resolution_json')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN resolution_json TEXT');
-  }
-  if (!pendingAsksColumns.has('is_permission')) {
-    db.run('ALTER TABLE pending_asks ADD COLUMN is_permission INTEGER NOT NULL DEFAULT 0');
-  }
-
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_request_id ON pending_asks(request_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_status ON pending_asks(status)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_root_session ON pending_asks(root_session_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pending_asks_workspace ON pending_asks(workspace_id)');
-
-  // Migration: drop orphaned tool_approvals table (superseded by ask system)
-  try {
-    db.run('DROP TABLE IF EXISTS tool_approvals');
-  } catch (_e: unknown) {
-    // Table may not exist
-  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS queued_messages (
@@ -403,12 +280,6 @@ export function initializeSchema(db: Database): void {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
-
-  try {
-    db.run(`ALTER TABLE queued_messages ADD COLUMN attachments TEXT`);
-  } catch (_e: unknown) {
-    // Column may already exist
-  }
 
   db.run('CREATE INDEX IF NOT EXISTS idx_queued_messages_session ON queued_messages(session_id, position)');
 
