@@ -9,7 +9,7 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
     async generateText(options: LlmTextOptions): Promise<string> {
       const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
         modelId: options.model || defaultModelId,
-        providerId: defaultProviderId,
+        providerId: options.provider || defaultProviderId,
         systemPrompt: options.system,
         sessionId,
       });
@@ -46,7 +46,7 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
     async generateStructured<T = unknown>(options: LlmStructuredOptions): Promise<T> {
       const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
         modelId: options.model || defaultModelId,
-        providerId: defaultProviderId,
+        providerId: options.provider || defaultProviderId,
         systemPrompt: options.system,
         sessionId,
       });

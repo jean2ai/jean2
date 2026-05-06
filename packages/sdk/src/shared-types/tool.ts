@@ -161,6 +161,7 @@ export interface LlmTextOptions {
   prompt: string;
   system?: string;
   model?: string;
+  provider?: string;
   image?: LlmImage | LlmImage[];
   maxTokens?: number;
 }
@@ -169,6 +170,7 @@ export interface LlmStructuredOptions extends Omit<LlmTextOptions, never> {
   prompt: string;
   system?: string;
   model?: string;
+  provider?: string;
   image?: LlmImage | LlmImage[];
   maxTokens?: number;
   schema: Record<string, unknown>;
