@@ -23,6 +23,26 @@ export function handleAskRequest(
     : ask.type === 'client_capability' ? 'client' 
     : 'human';
 
+  // Play permission sound when the request will be shown to the user.
+  // Uses canonical dedup key (requestId for permission asks, toolCallId as fallback)
+  // to ensure the sound plays only once per unique permission, even when the same
+  // permission surfaces across a subagent session tree.
+  const maybePlayPermissionSound = () => {
+    if (ask.type !== 'permission') return;
+    const {
+      sessionsRef,
+      notifiedToolCallIdsRef,
+      permissionSoundEnabledRef,
+      playPermissionSound,
+    } = ctx;
+    const dedupKey = requestId ?? toolCallId;
+    const session = sessionsRef.current.find(s => s.id === sessionId);
+    if (session?.parentId === null && permissionSoundEnabledRef.current && !notifiedToolCallIdsRef.current.has(dedupKey)) {
+      playPermissionSound();
+      notifiedToolCallIdsRef.current.add(dedupKey);
+    }
+  };
+
   // Try programmatic handlers first
   const handlers = runAskHandlers(target, request);
   if (handlers) {
@@ -33,15 +53,18 @@ export function handleAskRequest(
         } else {
           // No handler resolved it — show to user
           addPendingAskRequest(request);
+          maybePlayPermissionSound();
         }
       })
       .catch(() => {
         // Handler errored — show to user
         addPendingAskRequest(request);
+        maybePlayPermissionSound();
       });
   } else {
     // No handlers registered for this target — show to user
     addPendingAskRequest(request);
+    maybePlayPermissionSound();
   }
 }
 
