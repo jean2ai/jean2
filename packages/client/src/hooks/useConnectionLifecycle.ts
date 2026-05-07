@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Jean2Client } from '@jean2/sdk';
+import type { ClientDescriptor } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useAskStore } from '@/stores/askStore';
+import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import { subscribeToServerEvents } from './subscribeToServerEvents';
+import { resolveClientDescriptor } from '@/config/client-identity';
 
 const CONNECTION_TIMEOUT = 10000;
 const MAX_RETRY_DELAY = 30000;
@@ -34,6 +37,7 @@ export function useConnectionLifecycle({
   const internalClientRef = useRef<Jean2Client | null>(null);
   const clientRef = externalClientRef ?? internalClientRef;
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [clientDescriptor, setClientDescriptor] = useState<ClientDescriptor | null>(null);
 
   const retry = useCallback(() => {
     useConnectionStore.getState().setRetryCount(0);
@@ -45,9 +49,21 @@ export function useConnectionLifecycle({
   const connected = useConnectionStore((s) => s.connected);
   const connectionTimedOut = useConnectionStore((s) => s.connectionTimedOut);
 
+  useEffect(() => {
+    if (!apiToken || !serverUrl) return;
+    let cancelled = false;
+    resolveClientDescriptor().then((descriptor) => {
+      if (!cancelled) {
+        setClientDescriptor(descriptor);
+        useClientIdentityStore.getState().setClientId(descriptor.clientId);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [apiToken, serverUrl]);
+
   // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
-    if (!apiToken || !serverUrl) {
+    if (!apiToken || !serverUrl || !clientDescriptor) {
       return;
     }
 
@@ -55,6 +71,7 @@ export function useConnectionLifecycle({
       url: serverUrl,
       token: apiToken,
       autoSyncPermissions: false,
+      clientDescriptor,
     });
 
     clientRef.current = client;
@@ -100,10 +117,10 @@ export function useConnectionLifecycle({
         clientRef.current = null;
       }
     };
-  }, [apiToken, serverUrl, reconnectAttempt]);
+  }, [apiToken, serverUrl, clientDescriptor, reconnectAttempt]);
 
   useEffect(() => {
-    if (apiToken && serverUrl && !connected && !connectionTimedOut) {
+    if (apiToken && serverUrl && clientDescriptor && !connected && !connectionTimedOut) {
       const timeoutId = setTimeout(() => {
         if (!useConnectionStore.getState().connected) {
           useConnectionStore.getState().setConnectionTimedOut(true);
@@ -112,7 +129,7 @@ export function useConnectionLifecycle({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [apiToken, serverUrl, reconnectAttempt, connected, connectionTimedOut]);
+  }, [apiToken, serverUrl, clientDescriptor, reconnectAttempt, connected, connectionTimedOut]);
 
   useEffect(() => {
     if (!connectionTimedOut || connected || !apiToken || !serverUrl) return;

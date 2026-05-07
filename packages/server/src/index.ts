@@ -3,11 +3,17 @@ globalThis.AI_SDK_LOG_WARNINGS = false;
 import { readFileSync } from 'fs';
 
 import { createApp } from '@/app';
-import { registerBroadcastCallback } from '@/core/broadcast';
+import { registerBroadcastCallback, registerSendToControllerCallback, registerBroadcastToSessionCallback, registerSendToAskTargetsCallback, sendToAskTargetsEvent } from '@/core/broadcast';
 import { handleClientMessage, type RouterContext, type ClientEntry } from '@/core/message-router';
+import {
+  registerConnection as registryRegisterConnection,
+  unregisterConnection as registryUnregisterConnection,
+  touchConnection,
+} from '@/core/client-registry';
+import { handleConnectionDisconnect as handleControlDisconnect, sweepExpiredGrace, clearStaleTakeoverRequests, buildControlUpdatedMessage, getParticipantConnections, getControllerConnections } from '@/core/session-control-registry';
 import { scanTools } from '@/tools';
 import { closeDatabase } from '@/store';
-import type { ServerMessage, ClientMessage } from '@jean2/sdk';
+import type { ServerMessage, ClientMessage, AskAuthority } from '@jean2/sdk';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
 import {
@@ -62,7 +68,31 @@ function send(ws: ServerWebSocket, msg: ServerMessage) {
   ws.send(JSON.stringify(msg));
 }
 
-const routerContext: RouterContext = { send, broadcast, clients };
+function broadcastToSession(sessionId: string, message: ServerMessage, excludeWs?: ServerWebSocket) {
+  const messageStr = JSON.stringify(message);
+  const connections = getParticipantConnections(sessionId);
+  for (const conn of connections) {
+    if (conn.ws !== excludeWs && conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(messageStr);
+    }
+  }
+}
+
+function sendToController(sessionId: string, message: ServerMessage) {
+  const messageStr = JSON.stringify(message);
+  const connections = getControllerConnections(sessionId);
+  for (const conn of connections) {
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(messageStr);
+    }
+  }
+}
+
+function sendToAskTargets(sessionId: string, authority: AskAuthority, message: ServerMessage) {
+  sendToAskTargetsEvent(sessionId, authority, message);
+}
+
+const routerContext: RouterContext = { send, broadcast, broadcastToSession, sendToController, sendToAskTargets, clients };
 
 async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   cleanupRunningSessionsOnStartup();
@@ -76,6 +106,9 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   console.log('Starting AI Agent Server...');
 
   registerBroadcastCallback(broadcast as (message: ServerMessage, excludeWs?: unknown) => void);
+  registerSendToControllerCallback(sendToController);
+  registerBroadcastToSessionCallback(broadcastToSession);
+  registerSendToAskTargetsCallback(send as (ws: unknown, msg: ServerMessage) => void);
 
   const availableProviders: string[] = [];
   if (getLLMOpenAIApiKey()) availableProviders.push('openai');
@@ -307,6 +340,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           return;
         }
         clients.set(ws, { missedPings: 0 });
+        registryRegisterConnection(ws);
       },
 
       close(ws) {
@@ -321,6 +355,11 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           return;
         }
         clients.delete(ws);
+        const disconnectTransitions = handleControlDisconnect(ws);
+        for (const { sessionId, reason } of disconnectTransitions) {
+          broadcastToSession(sessionId, buildControlUpdatedMessage(sessionId, reason));
+        }
+        registryUnregisterConnection(ws);
       },
 
       async message(ws, message) {
@@ -344,6 +383,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   const HEARTBEAT_INTERVAL_MS = 30_000;
   const MAX_MISSED_PINGS = 3;
+  const GRACE_SWEEP_INTERVAL_MS = 5_000;
 
   const heartbeatInterval = setInterval(() => {
     for (const [ws, data] of clients.entries()) {
@@ -354,16 +394,30 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           clients.delete(ws);
         } else {
           ws.send(JSON.stringify({ type: 'ping' }));
+          touchConnection(ws);
         }
       }
     }
   }, HEARTBEAT_INTERVAL_MS);
+
+  const graceSweepInterval = setInterval(() => {
+    const expiredSessionIds = sweepExpiredGrace();
+    for (const sessionId of expiredSessionIds) {
+      broadcastToSession(sessionId, buildControlUpdatedMessage(sessionId, 'grace_expired'));
+    }
+
+    const staleTakeoverResults = clearStaleTakeoverRequests();
+    for (const { sessionId, reason } of staleTakeoverResults) {
+      broadcastToSession(sessionId, buildControlUpdatedMessage(sessionId, reason));
+    }
+  }, GRACE_SWEEP_INTERVAL_MS);
 
   console.log(`AI Agent Server running at ${protocol}://${host}:${port}`);
 
   const onShutdown = (signal: string) => {
     console.log(`Received ${signal}, shutting down...`);
     clearInterval(heartbeatInterval);
+    clearInterval(graceSweepInterval);
     cleanup();
     process.exit(0);
   };
@@ -373,6 +427,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   const cleanup = () => {
     clearInterval(heartbeatInterval);
+    clearInterval(graceSweepInterval);
     server.stop();
     getTerminalManager().destroyAllSessions();
     closeDatabase();

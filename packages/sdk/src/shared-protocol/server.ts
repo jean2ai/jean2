@@ -3,6 +3,25 @@ import type { Message, Part, MessageWithParts, QueuedMessage } from '../shared-t
 import type { PermissionGrant } from '../shared-types/permission';
 import type { SessionInterruptResult } from '../shared-types/interrupt';
 import type { Ask } from '../shared-types/tool';
+import type { ClientDescriptor } from './client';
+import type { SessionControlState, AskAuthority } from '../shared-types/control';
+
+// =============================================================================
+// Client Control: Registration Response (Server → Client)
+// =============================================================================
+
+export interface ClientRegisteredMessage {
+  type: 'client.registered';
+  client: ClientDescriptor;
+  connectionId: string;
+  serverTime: number;
+}
+
+export interface ClientRejectedMessage {
+  type: 'client.rejected';
+  code: 'invalid_client' | 'missing_registration' | 'unsupported_capability';
+  message: string;
+}
 
 export interface SessionCreatedMessage {
   type: 'session.created';
@@ -19,6 +38,7 @@ export interface SessionResumedMessage {
     totalTokens: number;
   };
   isRunning?: boolean;
+  control?: SessionControlState;
 }
 
 export interface MessageCreatedMessage {
@@ -163,6 +183,48 @@ export interface SessionForkedMessage {
 }
 
 // =============================================================================
+// Session Control Messages (Server → Client)
+// =============================================================================
+
+export type SessionControlUpdateReason =
+  | 'auto_claimed'
+  | 'claimed'
+  | 'released'
+  | 'takeover_requested'
+  | 'takeover_approved'
+  | 'takeover_auto_approved'
+  | 'takeover_denied'
+  | 'grace_entered'
+  | 'grace_reattached'
+  | 'grace_expired'
+  | 'expired'
+  | 'reattached';
+
+export interface SessionControlUpdatedMessage {
+  type: 'session.control.updated';
+  control: SessionControlState;
+  reason: SessionControlUpdateReason;
+}
+
+export type ControllerGatedAction =
+  | 'chat.message'
+  | 'session.interrupt'
+  | 'session.update'
+  | 'session.update_model'
+  | 'queue.add'
+  | 'queue.remove'
+  | 'ask.response';
+
+export interface SessionActionRejectedMessage {
+  type: 'session.action_rejected';
+  sessionId: string;
+  action: ControllerGatedAction | string;
+  code: 'not_controller' | 'session_uncontrolled' | 'registration_required';
+  message: string;
+  control: SessionControlState;
+}
+
+// =============================================================================
 // Interrupt Messages
 // =============================================================================
 
@@ -273,6 +335,8 @@ export interface AskRequestMessage {
   ask: Ask;
   /** Canonical request identity for permission asks. Used to correlate responses. */
   requestId?: string;
+  /** Authority metadata defining who can see and respond to this ask. */
+  authority?: AskAuthority;
 }
 
 export interface AskTimedOutMessage {
@@ -281,6 +345,15 @@ export interface AskTimedOutMessage {
   toolCallId: string;
   /** Canonical request identity for the timed-out permission ask. */
   requestId?: string;
+}
+
+export interface AskResponseRejectedMessage {
+  type: 'ask.response_rejected';
+  sessionId: string;
+  toolCallId: string;
+  requestId?: string;
+  code: 'not_controller' | 'not_allowed' | 'ask_not_found' | 'ask_already_resolved';
+  message: string;
 }
 
 export interface AskPendingSyncMessage {
@@ -295,6 +368,7 @@ export interface AskPendingSyncMessage {
     ask: Ask;
     requestId?: string;
     _originSessionId?: string;
+    authority?: AskAuthority;
   }>;
 }
 
@@ -307,6 +381,8 @@ export interface PingMessage {
 }
 
 export type ServerMessage =
+  | ClientRegisteredMessage
+  | ClientRejectedMessage
   | MessageCreatedMessage
   | MessageUpdatedMessage
   | PartCreatedMessage
@@ -314,6 +390,8 @@ export type ServerMessage =
   | PartAppendMessage
   | SessionCreatedMessage
   | SessionResumedMessage
+  | SessionControlUpdatedMessage
+  | SessionActionRejectedMessage
   | ChatUsageMessage
   | ErrorMessage
   | SessionClosedMessage
@@ -343,5 +421,6 @@ export type ServerMessage =
   | ProviderConnectedMessage
   | AskRequestMessage
   | AskTimedOutMessage
+  | AskResponseRejectedMessage
   | AskPendingSyncMessage
   | PingMessage;

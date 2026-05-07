@@ -4,6 +4,7 @@ import type {
   PermissionAsk,
   GrantScope,
   PermissionIntent,
+  AskAuthority,
 } from '@jean2/sdk';
 import {
   matchGrant,
@@ -51,6 +52,11 @@ const waiters = new Map<string, PermissionWaiter>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const PERMISSION_TIMEOUT = 5 * 60 * 1000;
+
+const DEFAULT_ASK_AUTHORITY: AskAuthority = {
+  visibilityScope: 'controller_only',
+  resolutionMode: 'controller_only',
+};
 
 // =============================================================================
 // Broadcast type — same as ask-user-api
@@ -231,6 +237,7 @@ export async function requestPermission(params: RequestPermissionParams): Promis
     toolName,
     ask,
     requestId,
+    authority: DEFAULT_ASK_AUTHORITY,
   });
 
   // Return a promise that will be resolved by resolvePermission or timeout

@@ -31,6 +31,7 @@ export { ChatNamespace } from './namespaces/chat';
 export { PermissionsNamespace } from './namespaces/permissions';
 export { QueueNamespace } from './namespaces/queue';
 export { ProvidersNamespace } from './namespaces/providers';
+export { ControlNamespace } from './namespaces/control';
 
 export {
   TerminalConnection,

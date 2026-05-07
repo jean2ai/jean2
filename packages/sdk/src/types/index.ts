@@ -107,7 +107,33 @@ export type {
 
 // Protocol types
 export type {
+  SessionControlStatus,
+  SessionControlState,
+  SessionParticipantInfo,
+  AskAuthority,
+  ClientCapability,
+} from '../shared';
+
+export {
+  CLIENT_CAPABILITIES,
+} from '../shared';
+
+export type {
+  SessionControlUpdatedMessage,
+  SessionControlUpdateReason,
+  SessionActionRejectedMessage,
+  ControllerGatedAction,
+} from '../shared';
+
+export type {
+  ClientDescriptor,
   ClientMessage,
+  ClientRegisterMessage,
+  TakeoverDecision,
+  SessionControlClaimMessage,
+  SessionControlReleaseMessage,
+  SessionControlRequestTakeoverMessage,
+  SessionControlRespondTakeoverMessage,
   SessionCreateMessage,
   SessionResumeMessage,
   ChatMessage,
@@ -135,6 +161,8 @@ export type {
 
 // Individual server message types
 export type {
+  ClientRegisteredMessage,
+  ClientRejectedMessage,
   SessionCreatedMessage,
   SessionResumedMessage,
   MessageCreatedMessage,
@@ -164,6 +192,7 @@ export type {
   ProviderConnectedMessage,
   AskRequestMessage,
   AskTimedOutMessage,
+  AskResponseRejectedMessage,
   AskPendingSyncMessage,
   ErrorMessage,
   RateLimitErrorMessage,

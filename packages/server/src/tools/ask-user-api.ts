@@ -1,4 +1,5 @@
 import type { Ask, AskApi, AskPermissionResponse, GrantScope } from '@jean2/sdk';
+import type { AskAuthority } from '@jean2/sdk';
 import type { AskRequestMessage, AskTimedOutMessage } from '@jean2/sdk';
 import {
   SHELL_DANGEROUS_COMMANDS,
@@ -10,6 +11,7 @@ import {
 import {
   createPendingAsk,
   removePendingAsksByToolCallId,
+  getPermissionRequestByRequestId,
 } from '@/store/pending-asks';
 import {
   requestPermission,
@@ -51,6 +53,11 @@ interface PendingAsk {
 const pendingAsks = new Map<string, PendingAsk>();
 export const ASK_TIMEOUT = 5 * 60 * 1000;
 const askTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+const DEFAULT_ASK_AUTHORITY: AskAuthority = {
+  visibilityScope: 'controller_only',
+  resolutionMode: 'controller_only',
+};
 
 export type AskBroadcastFn = (message: AskRequestMessage | AskTimedOutMessage) => void;
 
@@ -95,6 +102,7 @@ export function createAskApi(
         toolCallId,
         toolName,
         ask: request,
+        authority: DEFAULT_ASK_AUTHORITY,
       });
 
       pendingAsks.set(askId, {
@@ -404,6 +412,26 @@ export function hasPendingAsk(toolCallId: string): boolean {
     if (key.startsWith(`${toolCallId}#`)) return true;
   }
   return false;
+}
+
+export function getSessionIdForPendingAsk(toolCallId: string, requestId?: string): string | null {
+  if (requestId) {
+    const record = getPermissionRequestByRequestId(requestId);
+    if (record) return record.sessionId;
+  }
+  if (pendingAsks.has(toolCallId)) {
+    return pendingAsks.get(toolCallId)!.sessionId;
+  }
+  for (const [key, pending] of pendingAsks) {
+    if (key === toolCallId || key.startsWith(`${toolCallId}#`)) {
+      return pending.sessionId;
+    }
+  }
+  if (!requestId) {
+    const record = getPermissionRequestByRequestId(toolCallId);
+    if (record) return record.sessionId;
+  }
+  return null;
 }
 
 function clearAskTimer(askId: string): void {

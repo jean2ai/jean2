@@ -1,5 +1,5 @@
-import type { ServerMessage, ClientMessage, AskResponseMessage, Ask } from '@jean2/sdk';
-import { resolveAsk, ASK_TIMEOUT, type AskBroadcastFn } from '@/tools/ask-user-api';
+import type { ServerMessage, ClientMessage, AskResponseMessage, Ask, ClientRegisterMessage, SessionControlClaimMessage, SessionControlReleaseMessage, SessionControlRequestTakeoverMessage, SessionControlRespondTakeoverMessage, AskAuthority } from '@jean2/sdk';
+import { resolveAsk, ASK_TIMEOUT, getSessionIdForPendingAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { listAllPendingAsks, cleanupAllPendingAsks, listPendingRequestsByRootSession } from '@/store/pending-asks';
 import {
   createSession,
@@ -43,6 +43,18 @@ import * as providerManager from '@/providers';
 import { isSandboxActive, sandboxController } from '@/sandbox';
 import type { SandboxRespondMessage } from '@/sandbox';
 import type { ServerWebSocket } from 'bun';
+import { handleClientRegistration, getClientIdForWs } from './client-registry';
+import {
+  handleSessionResume as handleControlSessionResume,
+  handleClaim as handleControlClaim,
+  handleRelease as handleControlRelease,
+  handleRequestTakeover as handleControlRequestTakeover,
+  handleRespondTakeover as handleControlRespondTakeover,
+  buildControlUpdatedMessage,
+  checkControllerGate,
+  getControlState,
+} from './session-control-registry';
+import { checkAskResponseEligibility } from './capability-router';
 
 // ── Context ────────────────────────────────────────────────────
 
@@ -56,8 +68,32 @@ export interface RouterContext {
   send: (ws: ServerWebSocket, msg: ServerMessage) => void;
   /** Broadcast a message to all connected clients (optionally excluding one) */
   broadcast: (message: ServerMessage, excludeWs?: ServerWebSocket) => void;
+  /** Broadcast a message to all connections participating in a session */
+  broadcastToSession: (sessionId: string, message: ServerMessage, excludeWs?: ServerWebSocket) => void;
+  /** Send a message to all connections of the current controller of a session */
+  sendToController: (sessionId: string, message: ServerMessage) => void;
+  /** Send an ask to the resolved delivery targets based on the ask's authority */
+  sendToAskTargets: (sessionId: string, authority: AskAuthority, message: ServerMessage) => void;
   /** Map of connected WS clients for session tracking and heartbeat */
   clients: Map<ServerWebSocket, ClientEntry>;
+}
+
+// ── Controller gate helper ─────────────────────────────────────
+
+function sendGateRejection(
+  ctx: RouterContext,
+  ws: ServerWebSocket,
+  rejection: NonNullable<ReturnType<typeof checkControllerGate>>,
+): true {
+  ctx.send(ws, {
+    type: 'session.action_rejected',
+    sessionId: rejection.sessionId,
+    action: rejection.action,
+    code: rejection.code,
+    message: rejection.message,
+    control: rejection.control,
+  });
+  return true;
 }
 
 // ── Compaction failure tracking ────────────────────────────────
@@ -130,7 +166,7 @@ async function drainQueue(
     return null;
   }
 
-  ctx.broadcast({
+  ctx.broadcastToSession(sessionId, {
     type: 'queue.sending',
     sessionId,
     queueId: nextMsg.id,
@@ -190,8 +226,8 @@ async function runSingleChatTurn(
   };
   createPart(textPart, sessionId);
 
-  ctx.broadcast({ type: 'message.created', message: userMessage });
-  ctx.broadcast({ type: 'part.created', sessionId, part: textPart });
+  ctx.broadcastToSession(sessionId, { type: 'message.created', message: userMessage });
+  ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: textPart });
 
   if (attachments && attachments.length > 0) {
     for (const attachment of attachments) {
@@ -211,7 +247,7 @@ async function runSingleChatTurn(
           mimeType: attachmentRecord.mimeType,
         };
         createPart(imagePart, sessionId);
-        ctx.broadcast({ type: 'part.created', sessionId, part: imagePart });
+        ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: imagePart });
       } else {
         const filePart = {
           id: partId,
@@ -223,7 +259,7 @@ async function runSingleChatTurn(
           filename: attachmentRecord.filename,
         };
         createPart(filePart, sessionId);
-        ctx.broadcast({ type: 'part.created', sessionId, part: filePart });
+        ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: filePart });
       }
     }
   }
@@ -231,7 +267,14 @@ async function runSingleChatTurn(
   const { messages: history } = buildEffectiveContextHistory(sessionId);
 
   const askBroadcastFn: AskBroadcastFn = (message) => {
-    ctx.broadcast(message as ServerMessage);
+    if (message.type === 'ask.request') {
+      const authority = message.authority ?? { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const };
+      ctx.sendToAskTargets(sessionId, authority, message as ServerMessage);
+    } else if (message.type === 'ask.timeout') {
+      ctx.sendToController(sessionId, message as ServerMessage);
+    } else {
+      ctx.broadcast(message as ServerMessage);
+    }
   };
 
   let pendingCompaction = false;
@@ -251,28 +294,28 @@ async function runSingleChatTurn(
     })) {
       switch (event.type) {
         case 'message.created':
-          ctx.broadcast(event);
+          ctx.broadcastToSession(sessionId, event);
           break;
 
         case 'message.updated':
           updateMessage(event.message.id, event.message);
-          ctx.broadcast(event);
+          ctx.broadcastToSession(sessionId, event);
           break;
 
         case 'part.created':
-          ctx.broadcast(event);
+          ctx.broadcastToSession(sessionId, event);
           break;
 
         case 'part.updated':
-          ctx.broadcast(event);
+          ctx.broadcastToSession(sessionId, event);
           break;
 
         case 'part.append':
-          ctx.broadcast(event);
+          ctx.broadcastToSession(sessionId, event);
           break;
 
         case 'usage': {
-          ctx.broadcast({
+          ctx.broadcastToSession(sessionId, {
             type: 'chat.usage',
             sessionId,
             usage: event.usage,
@@ -634,7 +677,7 @@ async function handleSessionRevert(
       targetMessageId: msg.messageId,
     });
 
-    ctx.broadcast({
+    ctx.broadcastToSession(msg.sessionId, {
       type: 'session.reverted',
       sessionId: msg.sessionId,
       revertedTo: result.revertedTo,
@@ -642,7 +685,7 @@ async function handleSessionRevert(
     });
 
     const currentState = listMessagesWithParts(msg.sessionId);
-    ctx.broadcast({
+    ctx.broadcastToSession(msg.sessionId, {
       type: 'session.state',
       sessionId: msg.sessionId,
       messages: currentState,
@@ -671,7 +714,7 @@ async function handleSessionFork(
       title: msg.title,
     });
 
-    ctx.broadcast({
+    ctx.broadcastToSession(msg.sessionId, {
       type: 'session.forked',
       originalSessionId: msg.sessionId,
       forkedSession: result.forkedSession,
@@ -691,6 +734,76 @@ export async function handleClientMessage(
   msg: ClientMessage,
 ): Promise<void> {
   switch (msg.type) {
+    case 'client.register': {
+      handleClientRegistration(ws, msg as ClientRegisterMessage, ctx.send);
+      break;
+    }
+
+    case 'session.control.claim': {
+      const claimMsg = msg as SessionControlClaimMessage;
+      const result = handleControlClaim(claimMsg.sessionId, ws);
+      if (result.success) {
+        ctx.broadcastToSession(claimMsg.sessionId, buildControlUpdatedMessage(claimMsg.sessionId, result.transitionReason), ws);
+      } else {
+        ctx.send(ws, {
+          type: 'error',
+          code: result.code,
+          message: result.error,
+        });
+      }
+      break;
+    }
+
+    case 'session.control.release': {
+      const releaseMsg = msg as SessionControlReleaseMessage;
+      const result = handleControlRelease(releaseMsg.sessionId, ws);
+      if (result.success) {
+        ctx.broadcastToSession(releaseMsg.sessionId, buildControlUpdatedMessage(releaseMsg.sessionId, result.transitionReason));
+      } else {
+        ctx.send(ws, {
+          type: 'error',
+          code: result.code,
+          message: result.error,
+        });
+      }
+      break;
+    }
+
+    case 'session.control.request_takeover': {
+      const takeoverMsg = msg as SessionControlRequestTakeoverMessage;
+      const result = handleControlRequestTakeover(takeoverMsg.sessionId, ws);
+      if (result.success) {
+        ctx.broadcastToSession(takeoverMsg.sessionId, buildControlUpdatedMessage(takeoverMsg.sessionId, result.transitionReason));
+      } else {
+        ctx.send(ws, {
+          type: 'error',
+          code: result.code,
+          message: result.error,
+        });
+      }
+      break;
+    }
+
+    case 'session.control.respond_takeover': {
+      const respondMsg = msg as SessionControlRespondTakeoverMessage;
+      const result = handleControlRespondTakeover(
+        respondMsg.sessionId,
+        ws,
+        respondMsg.requesterClientId,
+        respondMsg.decision,
+      );
+      if (result.success) {
+        ctx.broadcastToSession(respondMsg.sessionId, buildControlUpdatedMessage(respondMsg.sessionId, result.transitionReason));
+      } else {
+        ctx.send(ws, {
+          type: 'error',
+          code: result.code,
+          message: result.error,
+        });
+      }
+      break;
+    }
+
     case 'session.create': {
       const sessionId = crypto.randomUUID();
       const session = createSession({
@@ -732,6 +845,8 @@ export async function handleClientMessage(
       }
       ctx.clients.set(ws, { sessionId: session.id, missedPings: 0 });
 
+      const controlResult = handleControlSessionResume(session.id, ws);
+
       const isRunning = interruptManager.isSessionActive(session.id);
 
       reconcileSessionCompaction(session.id);
@@ -753,7 +868,12 @@ export async function handleClientMessage(
           totalTokens: reconciledSession!.totalTokens ?? 0,
         } : undefined,
         isRunning,
+        control: controlResult.controlState,
       });
+
+      if (controlResult.transitionReason) {
+        ctx.broadcastToSession(session.id, buildControlUpdatedMessage(session.id, controlResult.transitionReason), ws);
+      }
 
       const queuedMessages = listQueuedMessages(msg.sessionId);
       if (queuedMessages.length > 0) {
@@ -776,6 +896,7 @@ export async function handleClientMessage(
         ask: Ask;
         requestId?: string;
         _originSessionId?: string;
+        authority?: { visibilityScope: 'controller_only'; resolutionMode: 'controller_only' };
       }> = [];
 
       for (const ask of activePendingAsks) {
@@ -791,6 +912,7 @@ export async function handleClientMessage(
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
           ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
+          authority: { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
         });
       }
 
@@ -814,6 +936,7 @@ export async function handleClientMessage(
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
           ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
+          authority: { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
         });
       }
 
@@ -835,6 +958,8 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         return;
       }
+      const gateUpdate = checkControllerGate(msg.sessionId, 'session.update', ws);
+      if (gateUpdate) { sendGateRejection(ctx, ws, gateUpdate); break; }
       const updates: { preconfigId?: string; selectedVariant?: string | null } = {};
       if (msg.preconfigId !== undefined) {
         updates.preconfigId = msg.preconfigId;
@@ -856,6 +981,8 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         return;
       }
+      const gateModel = checkControllerGate(msg.sessionId, 'session.update_model', ws);
+      if (gateModel) { sendGateRejection(ctx, ws, gateModel); break; }
       const updated = updateSession(msg.sessionId, {
         selectedModel: msg.modelId,
         selectedProvider: msg.providerId,
@@ -905,11 +1032,13 @@ export async function handleClientMessage(
         break;
       }
       const updatedSession = updateSession(msg.sessionId, { title: trimmedTitle });
-      ctx.broadcast({ type: 'session.renamed', session: updatedSession! });
+      ctx.broadcastToSession(msg.sessionId, { type: 'session.renamed', session: updatedSession! });
       break;
     }
 
     case 'chat.message': {
+      const gateChat = checkControllerGate(msg.sessionId, 'chat.message', ws);
+      if (gateChat) { sendGateRejection(ctx, ws, gateChat); break; }
       await handleChat(ctx, ws, msg.sessionId, msg.content, msg.attachments);
       break;
     }
@@ -953,6 +1082,8 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         break;
       }
+      const gateInterrupt = checkControllerGate(msg.sessionId, 'session.interrupt', ws);
+      if (gateInterrupt) { sendGateRejection(ctx, ws, gateInterrupt); break; }
 
       try {
         const result = await interruptManager.interruptSession(
@@ -960,7 +1091,7 @@ export async function handleClientMessage(
           msg.reason || 'user_request',
         );
 
-        ctx.broadcast({
+        ctx.broadcastToSession(msg.sessionId, {
           type: 'session.interrupted',
           sessionId: msg.sessionId,
           result,
@@ -978,6 +1109,8 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
         return;
       }
+      const gateQueueAdd = checkControllerGate(msg.sessionId, 'queue.add', ws);
+      if (gateQueueAdd) { sendGateRejection(ctx, ws, gateQueueAdd); break; }
 
       if (!msg.content || !msg.content.trim()) {
         ctx.send(ws, { type: 'error', code: 'invalid_content', message: 'Content cannot be empty' });
@@ -1001,6 +1134,8 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'not_found', message: 'Queued message not found' });
         return;
       }
+      const gateQueueRemove = checkControllerGate(queuedMsg.sessionId, 'queue.remove', ws);
+      if (gateQueueRemove) { sendGateRejection(ctx, ws, gateQueueRemove); break; }
 
       deleteQueuedMessage(msg.queueId);
 
@@ -1082,6 +1217,52 @@ export async function handleClientMessage(
 
     case 'ask.response': {
       const { toolCallId, response, requestId } = msg as AskResponseMessage;
+      const askSessionId = getSessionIdForPendingAsk(toolCallId, requestId);
+      if (askSessionId) {
+        const controlState = getControlState(askSessionId);
+        const senderClientId = getClientIdForWs(ws);
+
+        // Check eligibility using capability-aware routing.
+        // Default authority is controller_only — the checkAskResponseEligibility
+        // function handles all resolution modes (controller_only, designated_clients,
+        // first_eligible). For now all asks use the default, but the infrastructure
+        // is ready for per-ask custom authority.
+        const defaultAuthority: AskAuthority = {
+          visibilityScope: 'controller_only',
+          resolutionMode: 'controller_only',
+        };
+
+        if (!senderClientId && controlState.status !== 'uncontrolled') {
+          ctx.send(ws, {
+            type: 'ask.response_rejected',
+            sessionId: askSessionId,
+            toolCallId,
+            requestId,
+            code: 'not_allowed',
+            message: 'Client must be registered to respond to asks',
+          });
+          break;
+        }
+
+        const eligibility = checkAskResponseEligibility(
+          senderClientId ?? '',
+          askSessionId,
+          controlState.controllerClientId,
+          defaultAuthority,
+        );
+
+        if (!eligibility.eligible) {
+          ctx.send(ws, {
+            type: 'ask.response_rejected',
+            sessionId: askSessionId,
+            toolCallId,
+            requestId,
+            code: senderClientId !== controlState.controllerClientId ? 'not_controller' : 'not_allowed',
+            message: eligibility.reason ?? 'You are not eligible to respond to this ask',
+          });
+          break;
+        }
+      }
       resolveAsk(toolCallId, response, requestId);
       break;
     }

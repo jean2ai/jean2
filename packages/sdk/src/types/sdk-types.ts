@@ -7,6 +7,7 @@ export interface ClientConfig {
   apiBase?: string;
   autoSyncPermissions?: boolean;
   connectionTimeout?: number;
+  clientDescriptor?: import('../shared-protocol/client').ClientDescriptor;
 }
 
 export type ConnectionState =

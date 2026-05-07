@@ -7,6 +7,7 @@ import type {
   ProviderStatus,
   Ask,
   AskResponse,
+  SessionControlState,
 } from '@jean2/sdk';
 import type { PendingAskRequest } from '@/stores/askStore';
 import type { CompletionRecord } from '@/stores/completionStore';
@@ -103,7 +104,7 @@ export interface SessionHandlersContext {
 
 export type SessionHandlers = {
   'session.created': (msg: { type: 'session.created'; session: Session }, ctx: SessionHandlersContext) => void;
-  'session.resumed': (msg: { type: 'session.resumed'; session: Session; messages?: MessageWithParts[]; usage?: SessionUsage; isRunning?: boolean }, ctx: SessionHandlersContext) => void;
+  'session.resumed': (msg: { type: 'session.resumed'; session: Session; messages?: MessageWithParts[]; usage?: SessionUsage; isRunning?: boolean; control?: SessionControlState }, ctx: SessionHandlersContext) => void;
   'session.closed': (msg: { type: 'session.closed'; sessionId: string }, ctx: SessionHandlersContext) => void;
   'session.reopened': (msg: { type: 'session.reopened'; session: Session }, ctx: SessionHandlersContext) => void;
   'session.deleted': (msg: { type: 'session.deleted'; sessionId: string }, ctx: SessionHandlersContext) => void;

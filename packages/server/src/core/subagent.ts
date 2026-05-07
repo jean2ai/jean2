@@ -3,7 +3,7 @@ import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './child-session';
 import { getModelsConfig, findModel } from '@/config';
-import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
+import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, broadcastToSessionEvent, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
 import { randomUUID } from 'crypto';
 
 /**
@@ -59,6 +59,7 @@ export interface SubagentInput {
   broadcast?: BroadcastFn;
   broadcastSessionCreated?: BroadcastSessionFn;
   broadcastSessionUpdated?: BroadcastSessionFn;
+  broadcastToSession?: BroadcastFn;
 }
 
 export interface SubagentOutput {
@@ -152,6 +153,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     broadcast: broadcastFn = broadcastEvent as BroadcastFn,
     broadcastSessionCreated: broadcastSessCreated = broadcastSessionCreated as BroadcastSessionFn,
     broadcastSessionUpdated: broadcastSessUpdated = broadcastSessionUpdated as BroadcastSessionFn,
+    broadcastToSession: broadcastToSessionFn,
   } = input;
 
   // Check if already aborted before starting
@@ -297,6 +299,9 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
         : parentProviderId,
       variant: subagentPreconfig.variant ?? undefined,
       broadcast: broadcastFn,
+      broadcastToSession: broadcastToSessionFn ?? ((msg: import('@jean2/sdk').ServerMessage) => {
+        broadcastToSessionEvent(sessionId, msg);
+      }),
     });
 
     // Check if was aborted during execution

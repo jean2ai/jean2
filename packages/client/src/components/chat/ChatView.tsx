@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Lock, Eye, ArrowDown } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { Lock, Eye, ArrowDown, ShieldOff } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
 import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind, AskResponse } from '@jean2/sdk';
 import { ChatHeader } from './ChatHeader';
@@ -7,6 +7,8 @@ import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
 import type { PendingAskRequest } from '@/stores/askStore';
+import { useSessionControlStore, type ActionRejection } from '@/stores/sessionControlStore';
+import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 
 export interface Model {
   id: string;
@@ -72,6 +74,10 @@ interface ChatViewProps {
   inputRef?: React.RefObject<MessageInputHandle | null>;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
+  onClaimControl?: (sessionId: string) => void;
+  onReleaseControl?: (sessionId: string) => void;
+  onRequestTakeover?: (sessionId: string) => void;
+  onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
 }
 
 function mergeMessagesWithQueue(
@@ -180,9 +186,54 @@ export function ChatView({
   inputRef,
   scrollToBottomRef,
   autoFollowToggleRef,
+  onClaimControl,
+  onReleaseControl,
+  onRequestTakeover,
+  onRespondTakeover,
 }: ChatViewProps) {
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
+
+  const controlState = useSessionControlStore((s) => s.controlBySessionId[session.id]);
+  const myClientId = useClientIdentityStore((s) => s.clientId);
+  const isObserver = controlState?.status === 'controlled' && controlState.controllerClientId !== myClientId;
+  const isInGrace = controlState?.status === 'grace';
+  const isInputDisabled = isObserver || isInGrace;
+
+  const [rejectionNotice, setRejectionNotice] = useState<string | null>(null);
+  const rejectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showRejectionNotice = useCallback((message: string) => {
+    if (rejectionTimerRef.current) {
+      clearTimeout(rejectionTimerRef.current);
+    }
+    setRejectionNotice(message);
+    rejectionTimerRef.current = setTimeout(() => {
+      setRejectionNotice(null);
+      rejectionTimerRef.current = null;
+    }, 4_000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (rejectionTimerRef.current) {
+        clearTimeout(rejectionTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    let lastRejection: ActionRejection | null = null;
+    const unsub = useSessionControlStore.subscribe((state) => {
+      if (state.lastActionRejection !== lastRejection) {
+        lastRejection = state.lastActionRejection;
+        if (lastRejection && lastRejection.sessionId === session.id) {
+          showRejectionNotice(lastRejection.message);
+        }
+      }
+    });
+    return unsub;
+  }, [session.id, showRejectionNotice]);
 
   const [autoFollow, setAutoFollow] = useState(true);
 
@@ -239,6 +290,10 @@ export function ChatView({
         canCompact={messagesWithParts.length >= 2}
         selectedVariant={selectedVariant}
         variants={variants}
+        onClaimControl={onClaimControl}
+        onReleaseControl={onReleaseControl}
+        onRequestTakeover={onRequestTakeover}
+        onRespondTakeover={onRespondTakeover}
       />
 
       {/* Transcript area with floating auto-follow button */}
@@ -280,10 +335,11 @@ export function ChatView({
         </button>
       </div>
 
-      {session.status === 'active' && !session.parentId && (          <MessageInput
+      {session.status === 'active' && !session.parentId && (
+        <MessageInput
           ref={inputRef}
           onSendMessage={onSendMessage}
-          disabled={isCompacting}
+          disabled={isCompacting || isInputDisabled}
           workspaceId={session.workspaceId}
           sdkClient={sdkClient}
           prompts={prompts}
@@ -296,6 +352,20 @@ export function ChatView({
         <div className="p-4 border-t border-border bg-muted/50 text-center flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Lock className="size-4" />
           This is a subagent session (read-only)
+        </div>
+      )}
+
+      {isObserver && (
+        <div className="px-4 py-2 border-t border-border bg-muted/30 text-center flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <ShieldOff className="size-3.5" />
+          You are observing this session. Input is disabled.
+        </div>
+      )}
+
+      {rejectionNotice && (
+        <div className="px-4 py-2 border-t border-orange-500/30 bg-orange-50 dark:bg-orange-950/30 text-center flex items-center justify-center gap-2 text-xs text-orange-600 dark:text-orange-400">
+          <ShieldOff className="size-3.5" />
+          {rejectionNotice}
         </div>
       )}
     </div>

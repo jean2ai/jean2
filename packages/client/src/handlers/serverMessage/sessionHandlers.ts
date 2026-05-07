@@ -1,5 +1,6 @@
-import type { Session, MessageWithParts } from '@jean2/sdk';
+import type { Session, MessageWithParts, SessionControlState } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
+import { useSessionControlStore } from '@/stores/sessionControlStore';
 
 export function handleSessionCreated(
   msg: { type: 'session.created'; session: Session },
@@ -37,10 +38,10 @@ export function handleSessionCreated(
 }
 
 export function handleSessionResumed(
-  msg: { type: 'session.resumed'; session: Session; messages?: MessageWithParts[]; usage?: SessionUsage; isRunning?: boolean },
+  msg: { type: 'session.resumed'; session: Session; messages?: MessageWithParts[]; usage?: SessionUsage; isRunning?: boolean; control?: SessionControlState },
   ctx: SessionHandlersContext,
 ): void {
-  const { session, messages, usage, isRunning } = msg;
+  const { session, messages, usage, isRunning, control } = msg;
   const {
     setCurrentSession,
     removeInterruptedSession,
@@ -104,6 +105,10 @@ export function handleSessionResumed(
     setSelectedVariant(null);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
+
+  if (control) {
+    useSessionControlStore.getState().setControlState(session.id, control);
+  }
 }
 
 export function handleSessionClosed(

@@ -105,4 +105,5 @@ export const STORAGE_KEYS = {
   SERVER_URL: 'jean2_server_url',
   THEME: 'jean2-theme',
   ACTIVE_WORKSPACE_ID: 'activeWorkspaceId',
+  CLIENT_ID: 'jean2_client_id',
 } as const;

@@ -38,6 +38,10 @@ export interface AppMainContentProps {
   onClearCompactionSuccess: () => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
+  onClaimControl?: (sessionId: string) => void;
+  onReleaseControl?: (sessionId: string) => void;
+  onRequestTakeover?: (sessionId: string) => void;
+  onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
 }
 
 export function AppMainContent({
@@ -63,6 +67,10 @@ export function AppMainContent({
   onClearCompactionSuccess,
   scrollToBottomRef,
   autoFollowToggleRef,
+  onClaimControl,
+  onReleaseControl,
+  onRequestTakeover,
+  onRespondTakeover,
 }: AppMainContentProps) {
   // Read from stores
   const connected = useConnectionStore(s => s.connected);
@@ -186,6 +194,10 @@ export function AppMainContent({
       sdkClient={sdkClient}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
+      onClaimControl={onClaimControl}
+      onReleaseControl={onReleaseControl}
+      onRequestTakeover={onRequestTakeover}
+      onRespondTakeover={onRespondTakeover}
     />
   );
 }

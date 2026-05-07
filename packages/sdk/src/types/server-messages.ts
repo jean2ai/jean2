@@ -1,7 +1,11 @@
 import type {
   ServerMessage,
+  ClientRegisteredMessage,
+  ClientRejectedMessage,
   SessionCreatedMessage,
   SessionResumedMessage,
+  SessionControlUpdatedMessage,
+  SessionActionRejectedMessage,
   MessageCreatedMessage,
   MessageUpdatedMessage,
   PartCreatedMessage,
@@ -29,6 +33,7 @@ import type {
   ProviderConnectedMessage,
   AskRequestMessage,
   AskTimedOutMessage,
+  AskResponseRejectedMessage,
   AskPendingSyncMessage,
   ErrorMessage,
   RateLimitErrorMessage,
@@ -48,12 +53,34 @@ export interface SdkEventMap {
   'disconnected': [payload: { code: number; reason: string; wasClean: boolean }];
   'error.connection': [error: Error];
 
+  'client.registered': [
+    client: ClientRegisteredMessage['client'],
+    connectionId: ClientRegisteredMessage['connectionId'],
+    serverTime: ClientRegisteredMessage['serverTime'],
+  ];
+  'client.rejected': [
+    code: ClientRejectedMessage['code'],
+    message: ClientRejectedMessage['message'],
+  ];
+
   'session.created': [session: SessionCreatedMessage['session']];
   'session.resumed': [
     session: SessionResumedMessage['session'],
     messages: SessionResumedMessage['messages'],
     usage: SessionResumedMessage['usage'],
     isRunning: SessionResumedMessage['isRunning'],
+    control: SessionResumedMessage['control'],
+  ];
+  'session.control.updated': [
+    control: SessionControlUpdatedMessage['control'],
+    reason: SessionControlUpdatedMessage['reason'],
+  ];
+  'session.action_rejected': [
+    sessionId: SessionActionRejectedMessage['sessionId'],
+    action: SessionActionRejectedMessage['action'],
+    code: SessionActionRejectedMessage['code'],
+    message: SessionActionRejectedMessage['message'],
+    control: SessionActionRejectedMessage['control'],
   ];
   'session.closed': [sessionId: SessionClosedMessage['sessionId']];
   'session.reopened': [session: SessionReopenedMessage['session']];
@@ -136,6 +163,14 @@ export interface SdkEventMap {
     toolName: AskRequestMessage['toolName'],
     ask: AskRequestMessage['ask'],
     requestId: AskRequestMessage['requestId'],
+    authority: AskRequestMessage['authority'],
+  ];
+  'ask.response_rejected': [
+    sessionId: AskResponseRejectedMessage['sessionId'],
+    toolCallId: AskResponseRejectedMessage['toolCallId'],
+    requestId: AskResponseRejectedMessage['requestId'],
+    code: AskResponseRejectedMessage['code'],
+    message: AskResponseRejectedMessage['message'],
   ];
   'ask.timeout': [
     sessionId: AskTimedOutMessage['sessionId'],
@@ -181,11 +216,23 @@ export function routeServerMessage(
   msg: ServerMessage,
 ): void {
   switch (msg.type) {
+    case 'client.registered':
+      emitter.emit('client.registered', msg.client, msg.connectionId, msg.serverTime);
+      break;
+    case 'client.rejected':
+      emitter.emit('client.rejected', msg.code, msg.message);
+      break;
     case 'session.created':
       emitter.emit('session.created', msg.session);
       break;
     case 'session.resumed':
-      emitter.emit('session.resumed', msg.session, msg.messages, msg.usage, msg.isRunning);
+      emitter.emit('session.resumed', msg.session, msg.messages, msg.usage, msg.isRunning, msg.control);
+      break;
+    case 'session.control.updated':
+      emitter.emit('session.control.updated', msg.control, msg.reason);
+      break;
+    case 'session.action_rejected':
+      emitter.emit('session.action_rejected', msg.sessionId, msg.action, msg.code, msg.message, msg.control);
       break;
     case 'session.closed':
       emitter.emit('session.closed', msg.sessionId);
@@ -263,7 +310,10 @@ export function routeServerMessage(
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);
       break;
     case 'ask.request':
-      emitter.emit('ask.request', msg.sessionId, msg.toolCallId, msg.toolName, msg.ask, msg.requestId);
+      emitter.emit('ask.request', msg.sessionId, msg.toolCallId, msg.toolName, msg.ask, msg.requestId, msg.authority);
+      break;
+    case 'ask.response_rejected':
+      emitter.emit('ask.response_rejected', msg.sessionId, msg.toolCallId, msg.requestId, msg.code, msg.message);
       break;
     case 'ask.timeout':
       emitter.emit('ask.timeout', msg.sessionId, msg.toolCallId, msg.requestId);

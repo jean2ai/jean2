@@ -1,9 +1,9 @@
-import type { Ask } from '@jean2/sdk';
+import type { Ask, AskAuthority } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 import type { PendingAskRequest } from '@/stores/askStore';
 
 export function handleAskRequest(
-  msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string },
+  msg: { type: 'ask.request'; sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string; authority?: AskAuthority },
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, toolCallId, toolName, ask, requestId } = msg;
@@ -93,6 +93,7 @@ export function handleAskPendingSync(
       ask: Ask;
       requestId?: string;
       _originSessionId?: string;
+      authority?: AskAuthority;
     }>;
   },
   ctx: SessionHandlersContext,
@@ -114,8 +115,23 @@ export function handleAskPendingSync(
   replacePendingPermissionRequests(requests);
 }
 
+export function handleAskResponseRejected(
+  msg: {
+    type: 'ask.response_rejected';
+    sessionId: string;
+    toolCallId: string;
+    requestId?: string;
+    code: string;
+    message: string;
+  },
+  _ctx: SessionHandlersContext,
+): void {
+  console.warn(`Ask response rejected: [${msg.code}] ${msg.message} (sessionId=${msg.sessionId}, toolCallId=${msg.toolCallId})`);
+}
+
 export const askHandlers = {
   'ask.request': handleAskRequest,
   'ask.timeout': handleAskTimeout,
   'ask.pending_sync': handleAskPendingSync,
+  'ask.response_rejected': handleAskResponseRejected,
 } as const;

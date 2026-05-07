@@ -1,4 +1,5 @@
 import type { ClientConfig, ClientMessage, ConnectionState } from './types';
+import type { ClientDescriptor } from './shared-protocol/client';
 import { TypedEventEmitter } from './emitter';
 import type { SdkEventMap } from './types/server-messages';
 import { routeServerMessage } from './types/server-messages';
@@ -9,6 +10,7 @@ import { ChatNamespace } from './namespaces/chat';
 import { PermissionsNamespace } from './namespaces/permissions';
 import { QueueNamespace } from './namespaces/queue';
 import { ProvidersNamespace } from './namespaces/providers';
+import { ControlNamespace } from './namespaces/control';
 import { TerminalNamespace } from './namespaces/terminal';
 import { HttpNamespace } from './rest/http-namespace';
 
@@ -17,12 +19,15 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   private transport: WebSocketTransport;
   private _httpClient: HttpClient;
   private _state: ConnectionState = 'disconnected';
+  private _connectionId: string | null = null;
+  private _registeredClient: ClientDescriptor | null = null;
 
   readonly sessions: SessionsNamespace;
   readonly chat: ChatNamespace;
   readonly permissions: PermissionsNamespace;
   readonly queue: QueueNamespace;
   readonly providers: ProvidersNamespace;
+  readonly control: ControlNamespace;
   readonly http: HttpNamespace;
   readonly terminal: TerminalNamespace;
 
@@ -47,6 +52,7 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     this.permissions = new PermissionsNamespace(send);
     this.queue = new QueueNamespace(send);
     this.providers = new ProvidersNamespace(send);
+    this.control = new ControlNamespace(send);
     this.http = new HttpNamespace(this._httpClient);
     this.terminal = new TerminalNamespace({
       url: config.url,
@@ -56,11 +62,25 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
 
     this.transport.onOpen = () => {
       this._state = 'connected';
+      this._connectionId = null;
+      this._registeredClient = null;
+
+      if (this.config.clientDescriptor) {
+        this.send({
+          type: 'client.register',
+          client: this.config.clientDescriptor,
+        });
+      }
+
       this.emit('connected');
       this.emit('*', { source: 'lifecycle', type: 'connected', payload: undefined });
     };
 
     this.transport.onMessage = (msg) => {
+      if (msg.type === 'client.registered') {
+        this._connectionId = msg.connectionId;
+        this._registeredClient = msg.client;
+      }
       routeServerMessage(this, msg);
     };
 
@@ -111,6 +131,18 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
 
   get httpClient(): HttpClient {
     return this._httpClient;
+  }
+
+  get connectionId(): string | null {
+    return this._connectionId;
+  }
+
+  get registeredClient(): ClientDescriptor | null {
+    return this._registeredClient;
+  }
+
+  get clientId(): string | null {
+    return this._registeredClient?.clientId ?? null;
   }
 
   send(message: ClientMessage): void {

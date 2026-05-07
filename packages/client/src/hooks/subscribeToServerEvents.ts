@@ -1,4 +1,4 @@
-import type { Jean2Client, SessionInterruptResult } from '@jean2/sdk';
+import type { Jean2Client, SessionInterruptResult, SessionControlState } from '@jean2/sdk';
 import type { RefObject } from 'react';
 import type { Session, Message, Part, MessageWithParts, PermissionGrant, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
@@ -7,6 +7,7 @@ import { messagePartHandlers } from '@/handlers/serverMessage';
 import { permissionQueueHandlers } from '@/handlers/serverMessage';
 import { providerHandlers } from '@/handlers/serverMessage';
 import { askHandlers } from '@/handlers/serverMessage';
+import { controlHandlers } from '@/handlers/serverMessage';
 
 type CtxRef = RefObject<SessionHandlersContext | null>;
 
@@ -26,9 +27,9 @@ export function subscribeToServerEvents(
   add('session.created', (session: unknown) => {
     sessionHandlers['session.created']({ type: 'session.created', session: session as Session }, ctx()!);
   });
-  add('session.resumed', (session: unknown, messages: unknown, usage: unknown, isRunning: unknown) => {
+  add('session.resumed', (session: unknown, messages: unknown, usage: unknown, isRunning: unknown, control: unknown) => {
     sessionHandlers['session.resumed'](
-      { type: 'session.resumed', session: session as Session, messages: messages as MessageWithParts[] | undefined, usage: usage as SessionUsage | undefined, isRunning: isRunning as boolean | undefined },
+      { type: 'session.resumed', session: session as Session, messages: messages as MessageWithParts[] | undefined, usage: usage as SessionUsage | undefined, isRunning: isRunning as boolean | undefined, control: control as SessionControlState | undefined },
       ctx()!,
     );
   });
@@ -58,6 +59,20 @@ export function subscribeToServerEvents(
   });
   add('session.state', (sessionId: unknown, messages: unknown) => {
     sessionHandlers['session.state']({ type: 'session.state', sessionId: sessionId as string, messages: messages as MessageWithParts[] }, ctx()!);
+  });
+
+  add('session.control.updated', (control: unknown, reason: unknown) => {
+    controlHandlers['session.control.updated'](
+      { type: 'session.control.updated', control: control as SessionControlState, reason: reason as import('@jean2/sdk').SessionControlUpdateReason },
+      ctx()!,
+    );
+  });
+
+  add('session.action_rejected', (sessionId: unknown, action: unknown, code: unknown, message: unknown, control: unknown) => {
+    controlHandlers['session.action_rejected'](
+      { type: 'session.action_rejected', sessionId: sessionId as string, action: action as string, code: code as string, message: message as string, control: control as SessionControlState },
+      ctx()!,
+    );
   });
 
   add('message.created', (message: unknown) => {
@@ -111,14 +126,17 @@ export function subscribeToServerEvents(
     providerHandlers['provider.connected']({ type: 'provider.connected', provider: provider as string, connected: connected as boolean, connectedAt: connectedAt as string | undefined, accountId: accountId as string | undefined }, ctx()!);
   });
 
-  add('ask.request', (sessionId: unknown, toolCallId: unknown, toolName: unknown, ask: unknown, requestId: unknown) => {
-    askHandlers['ask.request']({ type: 'ask.request', sessionId: sessionId as string, toolCallId: toolCallId as string, toolName: toolName as string, ask: ask as Ask, requestId: requestId as string | undefined }, ctx()!);
+  add('ask.request', (sessionId: unknown, toolCallId: unknown, toolName: unknown, ask: unknown, requestId: unknown, authority: unknown) => {
+    askHandlers['ask.request']({ type: 'ask.request', sessionId: sessionId as string, toolCallId: toolCallId as string, toolName: toolName as string, ask: ask as Ask, requestId: requestId as string | undefined, authority: authority as import('@jean2/sdk').AskAuthority | undefined }, ctx()!);
+  });
+  add('ask.response_rejected', (sessionId: unknown, toolCallId: unknown, requestId: unknown, code: unknown, message: unknown) => {
+    askHandlers['ask.response_rejected']({ type: 'ask.response_rejected', sessionId: sessionId as string, toolCallId: toolCallId as string, requestId: requestId as string | undefined, code: code as string, message: message as string }, ctx()!);
   });
   add('ask.timeout', (sessionId: unknown, toolCallId: unknown, requestId: unknown) => {
     askHandlers['ask.timeout']({ type: 'ask.timeout', sessionId: sessionId as string, toolCallId: toolCallId as string, requestId: requestId as string | undefined }, ctx()!);
   });
   add('ask.pending_sync', (sessionId: unknown, requests: unknown) => {
-    askHandlers['ask.pending_sync']({ type: 'ask.pending_sync', sessionId: sessionId as string, requests: requests as Array<{ sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string; _originSessionId?: string }> }, ctx()!);
+    askHandlers['ask.pending_sync']({ type: 'ask.pending_sync', sessionId: sessionId as string, requests: requests as Array<{ sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string; _originSessionId?: string; authority?: import('@jean2/sdk').AskAuthority }> }, ctx()!);
   });
 
   add('error', (code: unknown, message: unknown) => {

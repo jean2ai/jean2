@@ -61,6 +61,10 @@ export default function SessionContent() {
       onClearCompactionSuccess={() => setCompactionSuccess(false)}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
+      onClaimControl={sessionManager.claimControl}
+      onReleaseControl={sessionManager.releaseControl}
+      onRequestTakeover={sessionManager.requestTakeover}
+      onRespondTakeover={sessionManager.respondTakeover}
     />
   );
 }

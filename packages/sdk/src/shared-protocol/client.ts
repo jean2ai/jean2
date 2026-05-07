@@ -1,6 +1,30 @@
 // No permission type imports needed — permission grant/deny messages removed.
 // All permission responses go through ask.response (AskResponseMessage).
 
+// =============================================================================
+// Client Control: Descriptor
+// =============================================================================
+
+export interface ClientDescriptor {
+  clientId: string;
+  clientType: 'desktop' | 'web' | 'extension' | 'sdk' | 'mobile';
+  displayName: string;
+  interactionMode: 'human' | 'headless' | 'hybrid';
+  capabilities: string[];
+  instanceMetadata?: Record<string, unknown>;
+}
+
+// =============================================================================
+// Client Control: Registration (Client → Server)
+// =============================================================================
+
+export interface ClientRegisterMessage {
+  type: 'client.register';
+  client: ClientDescriptor;
+  reconnectToken?: string;
+  currentSessionId?: string;
+}
+
 export interface SessionCreateMessage {
   type: 'session.create';
   workspaceId?: string;
@@ -210,6 +234,34 @@ export interface SandboxRespondMessage {
 }
 
 // =============================================================================
+// Control Action Messages (Client → Server)
+// =============================================================================
+
+export interface SessionControlClaimMessage {
+  type: 'session.control.claim';
+  sessionId: string;
+}
+
+export interface SessionControlReleaseMessage {
+  type: 'session.control.release';
+  sessionId: string;
+}
+
+export interface SessionControlRequestTakeoverMessage {
+  type: 'session.control.request_takeover';
+  sessionId: string;
+}
+
+export type TakeoverDecision = 'approve' | 'deny';
+
+export interface SessionControlRespondTakeoverMessage {
+  type: 'session.control.respond_takeover';
+  sessionId: string;
+  requesterClientId: string;
+  decision: TakeoverDecision;
+}
+
+// =============================================================================
 // Heartbeat Messages
 // =============================================================================
 
@@ -218,6 +270,7 @@ export interface PongMessage {
 }
 
 export type ClientMessage = 
+  | ClientRegisterMessage
   | SessionCreateMessage 
   | SessionResumeMessage
   | ChatMessage
@@ -240,4 +293,8 @@ export type ClientMessage =
   | ProviderDisconnectMessage
   | AskResponseMessage
   | SandboxRespondMessage
+  | SessionControlClaimMessage
+  | SessionControlReleaseMessage
+  | SessionControlRequestTakeoverMessage
+  | SessionControlRespondTakeoverMessage
   | PongMessage;
