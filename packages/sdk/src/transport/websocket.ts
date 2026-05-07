@@ -38,7 +38,7 @@ export class WebSocketTransport {
 
       const timeoutMs = this.config.connectionTimeout ?? 10000;
       const timeoutId = setTimeout(() => {
-        this._ws?.close(1001, 'Connection timeout');
+        this._ws?.close(1000, 'Connection timeout');
         reject(new ConnectionError(`Connection timeout (${timeoutMs}ms)`));
       }, timeoutMs);
 

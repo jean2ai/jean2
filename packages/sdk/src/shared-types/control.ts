@@ -27,22 +27,20 @@ export interface SessionParticipantInfo {
 // Client Capabilities
 //
 // Declared by clients during registration. Used by the server for
-// capability-aware ask routing in Phase 7.
+// capability-aware ask routing.
 // =============================================================================
 
-export type ClientCapability =
-  | 'chat_ui'
-  | 'ask_ui'
-  | 'browser_automation'
-  | 'tab_context'
-  | 'notifications'
-  | 'terminal_ui'
-  | 'file_picker';
-
-export const CLIENT_CAPABILITIES: readonly ClientCapability[] = [
+export type ClientCapability = string;
+// `ClientCapability` is intentionally open-ended so new client-integrated
+// features do not require SDK core type changes.
+//
+// `WELL_KNOWN_CLIENT_CAPABILITIES` is only a conventional list of common
+// built-in capability names, not the exhaustive set of valid capabilities.
+export const WELL_KNOWN_CLIENT_CAPABILITIES = [
   'chat_ui',
   'ask_ui',
   'browser_automation',
+  'active_tab_read',
   'tab_context',
   'notifications',
   'terminal_ui',
@@ -56,7 +54,7 @@ export const CLIENT_CAPABILITIES: readonly ClientCapability[] = [
 // =============================================================================
 
 export interface AskAuthority {
-  visibilityScope: 'controller_only' | 'session_participants';
+  visibilityScope: 'controller_only' | 'session_participants' | 'global';
   resolutionMode: 'controller_only' | 'designated_clients' | 'first_eligible';
   allowedResponderClientIds?: string[];
   requiredCapabilities?: ClientCapability[];

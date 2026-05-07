@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Jean2 Autochrome",
+  "description": "Jean2 browser automation extension - reads active tab content for AI sessions",
+  "version": "0.1.0",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {},
+  "action": {
+    "default_title": "Jean2 Autochrome"
+  }
+}

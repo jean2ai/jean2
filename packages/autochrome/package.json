@@ -1,0 +1,19 @@
+{
+  "name": "@jean2/autochrome",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Jean2 Autochrome - Chrome extension for browser automation",
+  "scripts": {
+    "build": "bun run build.ts",
+    "build:prod": "bun run build.ts --production",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jean2/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "typescript": "^5.7.2"
+  }
+}

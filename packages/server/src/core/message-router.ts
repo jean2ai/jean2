@@ -1,5 +1,5 @@
 import type { ServerMessage, ClientMessage, AskResponseMessage, Ask, ClientRegisterMessage, SessionControlClaimMessage, SessionControlReleaseMessage, SessionControlRequestTakeoverMessage, SessionControlRespondTakeoverMessage, AskAuthority } from '@jean2/sdk';
-import { resolveAsk, ASK_TIMEOUT, getSessionIdForPendingAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
+import { resolveAsk, ASK_TIMEOUT, getSessionIdForPendingAsk, getAuthorityForPendingAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { listAllPendingAsks, cleanupAllPendingAsks, listPendingRequestsByRootSession } from '@/store/pending-asks';
 import {
   createSession,
@@ -896,7 +896,7 @@ export async function handleClientMessage(
         ask: Ask;
         requestId?: string;
         _originSessionId?: string;
-        authority?: { visibilityScope: 'controller_only'; resolutionMode: 'controller_only' };
+        authority?: AskAuthority;
       }> = [];
 
       for (const ask of activePendingAsks) {
@@ -905,6 +905,7 @@ export async function handleClientMessage(
         const askPayload = hasRootContext
           ? { ...ask.ask, _originSessionId: ask.sessionId }
           : ask.ask;
+        const askAuthority = getAuthorityForPendingAsk(ask.toolCallId);
         syncRequests.push({
           sessionId: canonicalSessionId,
           toolCallId: ask.toolCallId,
@@ -912,7 +913,7 @@ export async function handleClientMessage(
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
           ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
-          authority: { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
+          authority: askAuthority ?? { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
         });
       }
 
@@ -929,6 +930,7 @@ export async function handleClientMessage(
         const askPayload = hasRootContext
           ? { ...ask.ask, _originSessionId: ask.sessionId }
           : ask.ask;
+        const askAuthority = getAuthorityForPendingAsk(ask.toolCallId);
         syncRequests.push({
           sessionId: effectiveSessionId,
           toolCallId: ask.toolCallId,
@@ -936,7 +938,7 @@ export async function handleClientMessage(
           ask: askPayload as unknown as Ask,
           requestId: ask.requestId,
           ...(hasRootContext ? { _originSessionId: ask.sessionId } : {}),
-          authority: { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
+          authority: askAuthority ?? { visibilityScope: 'controller_only' as const, resolutionMode: 'controller_only' as const },
         });
       }
 
@@ -1223,14 +1225,13 @@ export async function handleClientMessage(
         const senderClientId = getClientIdForWs(ws);
 
         // Check eligibility using capability-aware routing.
-        // Default authority is controller_only — the checkAskResponseEligibility
-        // function handles all resolution modes (controller_only, designated_clients,
-        // first_eligible). For now all asks use the default, but the infrastructure
-        // is ready for per-ask custom authority.
-        const defaultAuthority: AskAuthority = {
-          visibilityScope: 'controller_only',
-          resolutionMode: 'controller_only',
-        };
+        // Look up the authority stored with the pending ask first;
+        // fall back to controller_only for legacy asks without stored authority.
+        const askAuthority: AskAuthority =
+          getAuthorityForPendingAsk(toolCallId) ?? {
+            visibilityScope: 'controller_only',
+            resolutionMode: 'controller_only',
+          };
 
         if (!senderClientId && controlState.status !== 'uncontrolled') {
           ctx.send(ws, {
@@ -1248,7 +1249,7 @@ export async function handleClientMessage(
           senderClientId ?? '',
           askSessionId,
           controlState.controllerClientId,
-          defaultAuthority,
+          askAuthority,
         );
 
         if (!eligibility.eligible) {

@@ -1,4 +1,4 @@
-import type { Ask, AskApi, AskPermissionResponse, GrantScope } from '@jean2/sdk';
+import type { Ask, AskApi, AskPermissionResponse, GrantScope, ClientCapability } from '@jean2/sdk';
 import type { AskAuthority } from '@jean2/sdk';
 import type { AskRequestMessage, AskTimedOutMessage } from '@jean2/sdk';
 import {
@@ -48,6 +48,7 @@ interface PendingAsk {
   workspaceId?: string;
   isPermissionAsk: boolean;
   broadcastFn: AskBroadcastFn;
+  authority?: AskAuthority;
 }
 
 const pendingAsks = new Map<string, PendingAsk>();
@@ -64,6 +65,21 @@ export type AskBroadcastFn = (message: AskRequestMessage | AskTimedOutMessage) =
 // =============================================================================
 // Create Ask API (used by tools)
 // =============================================================================
+
+function resolveAuthorityForAsk(request: Ask): AskAuthority {
+  if (
+    request.type === 'client_capability' &&
+    'target' in request &&
+    request.target === 'client'
+  ) {
+    return {
+      visibilityScope: 'global',
+      resolutionMode: 'first_eligible',
+      requiredCapabilities: [request.capability as ClientCapability],
+    };
+  }
+  return DEFAULT_ASK_AUTHORITY;
+}
 
 export function createAskApi(
   sessionId: string,
@@ -94,6 +110,7 @@ export function createAskApi(
 
     // Generic asks: legacy in-memory path
     const askId = `${toolCallId}#${++askCounter}`;
+    const authority = resolveAuthorityForAsk(request);
 
     return new Promise<unknown>((resolve, reject) => {
       broadcastFn({
@@ -102,7 +119,7 @@ export function createAskApi(
         toolCallId,
         toolName,
         ask: request,
-        authority: DEFAULT_ASK_AUTHORITY,
+        authority,
       });
 
       pendingAsks.set(askId, {
@@ -118,6 +135,7 @@ export function createAskApi(
         workspaceId,
         isPermissionAsk,
         broadcastFn,
+        authority,
       });
 
       createPendingAsk({
@@ -412,6 +430,18 @@ export function hasPendingAsk(toolCallId: string): boolean {
     if (key.startsWith(`${toolCallId}#`)) return true;
   }
   return false;
+}
+
+export function getAuthorityForPendingAsk(toolCallId: string): AskAuthority | undefined {
+  if (pendingAsks.has(toolCallId)) {
+    return pendingAsks.get(toolCallId)?.authority;
+  }
+  for (const [key, pending] of pendingAsks) {
+    if (key === toolCallId || key.startsWith(`${toolCallId}#`)) {
+      return pending.authority;
+    }
+  }
+  return undefined;
 }
 
 export function getSessionIdForPendingAsk(toolCallId: string, requestId?: string): string | null {

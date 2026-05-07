@@ -1,5 +1,5 @@
 import type { AskAuthority, ClientCapability } from '@jean2/sdk';
-import { getClientByClientId } from './client-registry';
+import { getClientByClientId, getConnectionsForClient, getAllClients } from './client-registry';
 import {
   getParticipantClientIds,
   getControllerConnections,
@@ -134,6 +134,41 @@ export function checkAskResponseEligibility(
   }
 }
 
+// ── Global capability connections ────────────────────────────
+
+/**
+ * Get connections of all globally registered clients that have
+ * the required capabilities. Used for 'global' visibility scope
+ * where delivery should not depend on session participation.
+ */
+function getGlobalCapabilityConnections(
+  requiredCapabilities?: ClientCapability[],
+): RegisteredConnection[] {
+  const result: RegisteredConnection[] = [];
+  for (const client of getAllClients().values()) {
+    if (!clientHasCapabilities(client.clientId, requiredCapabilities)) continue;
+    const conns = getConnectionsForClient(client.clientId);
+    result.push(...conns);
+  }
+  return result;
+}
+
+/**
+ * Get clientIds of all globally registered clients that have
+ * the required capabilities.
+ */
+function getGlobalCapabilityClientIds(
+  requiredCapabilities?: ClientCapability[],
+): string[] {
+  const result: string[] = [];
+  for (const client of getAllClients().values()) {
+    if (clientHasCapabilities(client.clientId, requiredCapabilities)) {
+      result.push(client.clientId);
+    }
+  }
+  return result;
+}
+
 // ── Delivery target resolution ───────────────────────────────
 
 export interface AskDeliveryTargets {
@@ -144,22 +179,38 @@ export interface AskDeliveryTargets {
 /**
  * Resolve which connections should receive an ask based on its authority.
  *
- * Visibility scope determines who SEES the ask.
- * Resolution mode + capabilities determine who can RESPOND.
+ * Visibility scope determines who SEES the ask:
+ * - controller_only:      Only the session controller's connections
+ * - session_participants: All session participants' connections
+ * - global:               All connected registered clients with matching capabilities
  *
- * These are intentionally separate concerns:
- * - An ask visible to session_participants but resolutionMode=controller_only
- *   means everyone sees it but only the controller can answer.
- * - An ask visible to controller_only with resolutionMode=designated_clients
- *   would be unusual but technically possible (controller sees it,
- *   designated non-controller clients would also need it — this is handled
- *   by the delivery function).
+ * Resolution mode + capabilities determine who can RESPOND.
  */
 export function resolveAskDeliveryTargets(
   sessionId: string,
   authority: AskAuthority,
 ): AskDeliveryTargets {
   const { visibilityScope, resolutionMode, allowedResponderClientIds, requiredCapabilities } = authority;
+
+  // Global scope: deliver to all connected clients with matching capabilities,
+  // regardless of session participation. Used for headless execution clients
+  // (e.g., browser extensions) that may not be session participants.
+  if (visibilityScope === 'global') {
+    if (resolutionMode === 'first_eligible' && requiredCapabilities && requiredCapabilities.length > 0) {
+      const eligibleConns = getGlobalCapabilityConnections(requiredCapabilities);
+      return { connections: eligibleConns, excludeControllerCheck: true };
+    }
+    if (resolutionMode === 'designated_clients' && allowedResponderClientIds && allowedResponderClientIds.length > 0) {
+      const conns: RegisteredConnection[] = [];
+      for (const clientId of allowedResponderClientIds) {
+        conns.push(...getConnectionsForClient(clientId));
+      }
+      return { connections: conns, excludeControllerCheck: true };
+    }
+    // Default global: all connections of all registered clients
+    const allConns = getGlobalCapabilityConnections(requiredCapabilities);
+    return { connections: allConns, excludeControllerCheck: true };
+  }
 
   // Base delivery: visibility scope determines initial audience
   if (visibilityScope === 'controller_only') {
@@ -266,7 +317,7 @@ export function getEligibleResponderClientIds(
     }
 
     case 'first_eligible':
-      return getParticipantClientIds(sessionId).filter(id => clientHasCapabilities(id, requiredCapabilities));
+      return getGlobalCapabilityClientIds(requiredCapabilities);
 
     default:
       return [];

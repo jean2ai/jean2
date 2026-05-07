@@ -115,7 +115,7 @@ export type {
 } from '../shared';
 
 export {
-  CLIENT_CAPABILITIES,
+  WELL_KNOWN_CLIENT_CAPABILITIES,
 } from '../shared';
 
 export type {
