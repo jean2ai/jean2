@@ -743,7 +743,7 @@ export async function handleClientMessage(
       const claimMsg = msg as SessionControlClaimMessage;
       const result = handleControlClaim(claimMsg.sessionId, ws);
       if (result.success) {
-        ctx.broadcastToSession(claimMsg.sessionId, buildControlUpdatedMessage(claimMsg.sessionId, result.transitionReason), ws);
+        ctx.broadcastToSession(claimMsg.sessionId, buildControlUpdatedMessage(claimMsg.sessionId, result.transitionReason));
       } else {
         ctx.send(ws, {
           type: 'error',
