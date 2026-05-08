@@ -240,16 +240,22 @@ describe('sheetToMarkdown', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════
-// convertPdf (mocked pdf-parse)
+// convertPdf (mocked pdfjs-dist)
 // ══════════════════════════════════════════════════════════════════
 
 describe('convertPdf', () => {
-  test('extracts text from PDF buffer using pdf-parse', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async (buf: Uint8Array) => {
-        void buf;
-        return { text: '  Hello PDF World  ' };
-      },
+  test('extracts text from PDF buffer using pdfjs-dist', async () => {
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: '  Hello PDF World  ' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await convertPdf(new Uint8Array(0));
@@ -257,9 +263,16 @@ describe('convertPdf', () => {
   });
 
   test('handles multi-page PDF text', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({
-        text: 'Page 1 content\nPage 2 content\nPage 3 content',
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 3,
+          getPage: (n: number) => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: `Page ${n} content` }],
+            }),
+          }),
+        }),
       }),
     }));
 
@@ -270,8 +283,17 @@ describe('convertPdf', () => {
   });
 
   test('handles empty PDF', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: '   ' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: '   ' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await convertPdf(new Uint8Array(0));
@@ -820,8 +842,17 @@ describe('file-to-markdown execute()', () => {
   });
 
   test('converts PDF file and returns line-numbered content', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Hello PDF\nSecond line\nThird line' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Hello PDF\nSecond line\nThird line' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -890,8 +921,17 @@ describe('file-to-markdown execute()', () => {
   });
 
   test('respects offset parameter', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -905,8 +945,17 @@ describe('file-to-markdown execute()', () => {
   });
 
   test('respects limit parameter', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -925,8 +974,17 @@ describe('file-to-markdown execute()', () => {
 
     // We need the file to exist so the tool gets past stat checks
     // But offset validation happens after conversion, so we need a converter mock
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'content' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'content' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await execute({ path: `${WORKSPACE}/doc.pdf`, offset: 0 }, ctx);
@@ -937,8 +995,17 @@ describe('file-to-markdown execute()', () => {
   test('shows truncation message when content exceeds MAX_BYTES', async () => {
     // Create a long document that exceeds the 50KB line limit
     const lines = Array.from({ length: 5000 }, (_, i) => `Line ${i + 1}: ${'x'.repeat(100)}`);
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: lines.join('\n') }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: lines.map((line) => ({ str: line })),
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/big.pdf`, 'fake-pdf-content');
@@ -952,8 +1019,17 @@ describe('file-to-markdown execute()', () => {
 
   test('truncates lines longer than 2000 chars', async () => {
     const longLine = 'A'.repeat(3000);
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: longLine }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: longLine }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -971,8 +1047,17 @@ describe('file-to-markdown execute()', () => {
 
 describe('file-to-markdown caching', () => {
   test('writes converted result to cache', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Cached content' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Cached content' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -988,10 +1073,19 @@ describe('file-to-markdown caching', () => {
   test('reads from cache on second call (no converter invocation)', async () => {
     let converterCalls = 0;
 
-    mock.module('pdf-parse', () => ({
-      default: async () => {
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => {
         converterCalls++;
-        return { text: 'Original content' };
+        return {
+          promise: Promise.resolve({
+            numPages: 1,
+            getPage: () => Promise.resolve({
+              getTextContent: () => Promise.resolve({
+                items: [{ str: 'Original content' }],
+              }),
+            }),
+          }),
+        };
       },
     }));
 
@@ -1035,8 +1129,18 @@ describe('file-to-markdown permissions', () => {
     });
     vfs.writeFile('/tmp/external/doc.pdf', 'fake-pdf-content');
 
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'External content' }),
+
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'External content' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await execute({ path: '/tmp/external/doc.pdf' }, outsideCtx);
@@ -1061,8 +1165,18 @@ describe('file-to-markdown permissions', () => {
     });
     vfs.writeFile(`${WORKSPACE}/.env.pdf`, 'fake-pdf-content');
 
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Sensitive content' }),
+
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Sensitive content' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await execute({ path: `${WORKSPACE}/.env.pdf` }, sensitiveCtx);
@@ -1090,8 +1204,17 @@ describe('file-to-markdown permissions', () => {
     });
     vfs.writeFile('/data/docs/report.pdf', 'fake-pdf-content');
 
-    mock.module('pdf-parse', () => ({
-      default: async () => ({ text: 'Report content' }),
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.resolve({
+          numPages: 1,
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
+              items: [{ str: 'Report content' }],
+            }),
+          }),
+        }),
+      }),
     }));
 
     const result = await execute({ path: '/data/docs/report.pdf' }, allowedCtx);
@@ -1107,8 +1230,10 @@ describe('file-to-markdown permissions', () => {
 
 describe('file-to-markdown error handling', () => {
   test('handles converter throwing an error', async () => {
-    mock.module('pdf-parse', () => ({
-      default: async () => { throw new Error('Corrupt PDF'); },
+    mock.module('pdfjs-dist', () => ({
+      getDocument: () => ({
+        promise: Promise.reject(new Error('Corrupt PDF')),
+      }),
     }));
 
     vfs.writeFile(`${WORKSPACE}/broken.pdf`, 'corrupted-data');

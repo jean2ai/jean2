@@ -64,16 +64,23 @@ export function detectFormat(path: string): SupportedFormat | null {
 }
 
 // ---------------------------------------------------------------------------
-// PDF — pdf-parse (MIT: jojomondag/FileToMarkdown)
+// PDF — pdfjs-dist (Apache 2.0: Mozilla)
 // ---------------------------------------------------------------------------
 
 export async function convertPdf(buffer: Uint8Array): Promise<string> {
-  // Adapted from https://github.com/jojomondag/FileToMarkdown — src/converters/pdf.js
-  // pdf-parse v1.x ships CJS with no native deps — works in Bun via CJS interop
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const PDF = ((await import('pdf-parse')) as any).default ?? (await import('pdf-parse'));
-  const result = await PDF(buffer as unknown as Buffer);
-  return result.text.trim();
+  const pdfjsLib = await import('pdfjs-dist');
+  const doc = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => item.str)
+      .join('');
+    pages.push(pageText);
+  }
+  return pages.join('\n\n').trim();
 }
 
 // ---------------------------------------------------------------------------
