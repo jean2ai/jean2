@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
 import { FileMentionChip } from './FileMentionChip';
-import { useHighlightBackground } from '@/hooks/useHighlightBackground';
+// import { useHighlightBackground } from '@/hooks/useHighlightBackground';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
@@ -107,9 +107,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const openFilePreview = useUIStore((s) => s.openFilePreview);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
-  const mentionPaths = useMemo(() => mentions.map(m => m.path), [mentions]);
-
-  useHighlightBackground(textareaRef, input, mentionPaths);
+  // Disabled: canvas background highlight overlay was not working well
+  // const mentionPaths = useMemo(() => mentions.map(m => m.path), [mentions]);
+  // useHighlightBackground(textareaRef, input, mentionPaths);
 
   useEffect(() => {
     if (mentions.length === 0) return;
