@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Archive, Square, Minimize2, Shield, Eye, Wifi, Hand, Unlock } from 'lucide-react';
+import { ArrowLeft, Archive, Square, Minimize2 } from 'lucide-react';
 import type { Session, Preconfig } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { TokenMeter } from './TokenMeter';
 import { ModelSelector } from './ModelSelector';
 import { VariantSelector } from './VariantSelector';
 import { PreconfigSelector } from './PreconfigSelector';
+import { SessionControlButton } from './SessionControlButton';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import {useIsCompact, useIsMobile} from '@/hooks/use-mobile';
@@ -51,6 +52,29 @@ interface ChatHeaderProps {
   onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
 }
 
+type ControlUiState =
+  | 'uncontrolled'
+  | 'controller'
+  | 'observer'
+  | 'takeover_controller'
+  | 'takeover_requester'
+  | 'grace';
+
+function deriveControlUiState(
+  controlStatus: string | undefined,
+  isController: boolean,
+): ControlUiState {
+  if (!controlStatus || controlStatus === 'uncontrolled') return 'uncontrolled';
+  if (controlStatus === 'grace') return 'grace';
+  if (controlStatus === 'takeover_requested') {
+    return isController ? 'takeover_controller' : 'takeover_requester';
+  }
+  if (controlStatus === 'controlled') {
+    return isController ? 'controller' : 'observer';
+  }
+  return 'uncontrolled';
+}
+
 export function ChatHeader({
   session,
   preconfigs,
@@ -86,7 +110,8 @@ export function ChatHeader({
   const isActiveControlled = controlState?.status === 'controlled' || controlState?.status === 'takeover_requested';
   const isController = isActiveControlled && controlState.controllerClientId === myClientId;
   const isObserver = isActiveControlled && controlState.controllerClientId !== myClientId;
-  const isInGrace = controlState?.status === 'grace';
+
+  const controlUiState = deriveControlUiState(controlState?.status, isController);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -176,88 +201,6 @@ export function ChatHeader({
                 Archived
               </Badge>
             )}
-
-            {isController && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="border-green-500/50 text-green-600 dark:text-green-400">
-                    <Shield className="size-3" data-icon="inline-start" />
-                    In Control
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>You are controlling this session</TooltipContent>
-              </Tooltip>
-            )}
-
-            {isObserver && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-                    <Eye className="size-3" data-icon="inline-start" />
-                    Observer
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>Another client is controlling this session</TooltipContent>
-              </Tooltip>
-            )}
-
-            {isInGrace && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className="border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
-                    <Wifi className="size-3" data-icon="inline-start" />
-                    Reconnecting...
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>Controller disconnected — waiting for reconnection</TooltipContent>
-              </Tooltip>
-            )}
-
-            {controlState?.status === 'takeover_requested' && controlState.pendingTakeover && (
-              isController ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1">
-                      <Badge variant="outline" className="border-orange-500/50 text-orange-600 dark:text-orange-400">
-                        <Hand className="size-3" data-icon="inline-start" />
-                        Takeover Requested
-                      </Badge>
-                      {onRespondTakeover && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
-                            onClick={() => onRespondTakeover(session.id, controlState.pendingTakeover!.requestedByClientId, 'approve')}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-                            onClick={() => onRespondTakeover(session.id, controlState.pendingTakeover!.requestedByClientId, 'deny')}
-                          >
-                            Deny
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>Another client wants to take control</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Badge variant="outline" className="border-orange-500/50 text-orange-600 dark:text-orange-400">
-                      <Hand className="size-3" data-icon="inline-start" />
-                      Takeover Pending
-                    </Badge>
-                  </TooltipTrigger>
-                  <TooltipContent>A takeover request is being reviewed</TooltipContent>
-                </Tooltip>
-              )
-            )}
           </div>
 
           <Separator className="md:hidden" />
@@ -292,52 +235,16 @@ export function ChatHeader({
 
             <Separator orientation="vertical" className="hidden md:block" />
 
-            {isController && controlState?.status === 'controlled' && onReleaseControl && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent"
-                    onClick={() => onReleaseControl(session.id)}
-                  >
-                    <Unlock className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Release control</TooltipContent>
-              </Tooltip>
-            )}
-
-            {isObserver && controlState?.status === 'controlled' && onRequestTakeover && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent"
-                    onClick={() => onRequestTakeover(session.id)}
-                  >
-                    <Hand className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Request control</TooltipContent>
-              </Tooltip>
-            )}
-
-            {(!controlState || controlState.status === 'uncontrolled') && onClaimControl && myClientId && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent"
-                    onClick={() => onClaimControl(session.id)}
-                  >
-                    <Shield className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Claim control</TooltipContent>
-              </Tooltip>
+            {myClientId && (
+              <SessionControlButton
+                uiState={controlUiState}
+                sessionId={session.id}
+                pendingRequesterClientId={controlState?.pendingTakeover?.requestedByClientId}
+                onClaimControl={onClaimControl}
+                onReleaseControl={onReleaseControl}
+                onRequestTakeover={onRequestTakeover}
+                onRespondTakeover={onRespondTakeover}
+              />
             )}
 
             {onCompact && (
