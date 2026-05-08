@@ -256,6 +256,7 @@ describe('convertPdf', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await convertPdf(new Uint8Array(0));
@@ -274,6 +275,7 @@ describe('convertPdf', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await convertPdf(new Uint8Array(0));
@@ -294,6 +296,7 @@ describe('convertPdf', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await convertPdf(new Uint8Array(0));
@@ -853,6 +856,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -932,6 +936,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -956,6 +961,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -985,6 +991,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await execute({ path: `${WORKSPACE}/doc.pdf`, offset: 0 }, ctx);
@@ -1006,6 +1013,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/big.pdf`, 'fake-pdf-content');
@@ -1030,6 +1038,7 @@ describe('file-to-markdown execute()', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -1058,6 +1067,7 @@ describe('file-to-markdown caching', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -1087,6 +1097,7 @@ describe('file-to-markdown caching', () => {
           }),
         };
       },
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/doc.pdf`, 'fake-pdf-content');
@@ -1141,6 +1152,7 @@ describe('file-to-markdown permissions', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await execute({ path: '/tmp/external/doc.pdf' }, outsideCtx);
@@ -1177,6 +1189,7 @@ describe('file-to-markdown permissions', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await execute({ path: `${WORKSPACE}/.env.pdf` }, sensitiveCtx);
@@ -1215,6 +1228,7 @@ describe('file-to-markdown permissions', () => {
           }),
         }),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     const result = await execute({ path: '/data/docs/report.pdf' }, allowedCtx);
@@ -1234,6 +1248,7 @@ describe('file-to-markdown error handling', () => {
       getDocument: () => ({
         promise: Promise.reject(new Error('Corrupt PDF')),
       }),
+      GlobalWorkerOptions: { workerSrc: '' },
     }));
 
     vfs.writeFile(`${WORKSPACE}/broken.pdf`, 'corrupted-data');

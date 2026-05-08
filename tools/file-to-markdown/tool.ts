@@ -2,6 +2,7 @@
 // Adapted from jojomondag/FileToMarkdown (MIT) — converted per-converter logic ported to TypeScript + Jean2 wrapper
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
+import { join } from 'path';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const DEFAULT_READ_LIMIT = 2000;
@@ -69,6 +70,8 @@ export function detectFormat(path: string): SupportedFormat | null {
 
 export async function convertPdf(buffer: Uint8Array): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
+  // Resolve worker from node_modules — tools have their own node_modules/ directory
+  pdfjsLib.GlobalWorkerOptions.workerSrc = join(import.meta.dir, 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
   const doc = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
