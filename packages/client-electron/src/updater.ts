@@ -7,9 +7,50 @@ const log = electronLog.default || electronLog;
 type UpdateInfo = import('electron-updater').UpdateInfo;
 
 const UPDATE_CHECK_INTERVAL = 4 * 60 * 60 * 1000;
+const GITHUB_OWNER = 'rabbyte-tech';
+const GITHUB_REPO = 'jean2';
 
-function checkForUpdates(): void {
+async function resolveLatestClientReleaseTag(): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
+      {
+        headers: { 'User-Agent': 'jean2-updater' },
+      },
+    );
+    if (!response.ok) return null;
+    const releases = await response.json() as Array<{ tag_name: string; prerelease: boolean; assets: Array<{ name: string }> }>;
+    const platformSuffix = process.platform === 'darwin' ? 'latest-mac.yml' : 'latest.yml';
+    const clientRelease = releases.find(
+      (r) =>
+        r.tag_name.startsWith('client/v') &&
+        !r.prerelease &&
+        r.assets.some((a) => a.name === platformSuffix),
+    );
+    return clientRelease?.tag_name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function configureFeedURL(): Promise<void> {
+  const tag = await resolveLatestClientReleaseTag();
+  if (tag) {
+    const baseUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${encodeURIComponent(tag)}`;
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: baseUrl,
+      channel: 'latest',
+    });
+    console.log(`[Updater] Using generic provider with URL: ${baseUrl}`);
+  } else {
+    console.log('[Updater] Could not resolve client release, falling back to default GitHub provider');
+  }
+}
+
+async function checkForUpdates(): Promise<void> {
   console.log('[Updater] Checking for updates...');
+  await configureFeedURL();
   autoUpdater.checkForUpdates().catch((err) => {
     console.error('[Updater] Error checking for updates:', err);
   });
