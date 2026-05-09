@@ -443,6 +443,29 @@ export function useServerSessionManager({
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession]);
 
+  // Auto-resume session when arriving via direct URL (e.g. page refresh)
+  // On refresh, WebSocket connects before sessions are loaded, so the normal
+  // "resume on connect" logic in useConnectionLifecycle misses the sessionId.
+  // This effect fires once sessions load and we derive currentSession from the URL.
+  const hasResumedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (
+      sessionIdFromUrl &&
+      currentSession &&
+      connected &&
+      sdkClientRef.current &&
+      !hasResumedRef.current.has(sessionIdFromUrl)
+    ) {
+      const hasMessages = activeSessionId
+        ? !!useSessionStore.getState().messagesBySession[activeSessionId]?.length
+        : false;
+      if (!hasMessages) {
+        hasResumedRef.current.add(sessionIdFromUrl);
+        sdkClientRef.current.sessions.resume(sessionIdFromUrl);
+      }
+    }
+  }, [sessionIdFromUrl, currentSession, connected, activeSessionId]);
+
   useEffect(() => {
     notifiedToolCallIdsRef.current.clear();
   }, [currentSession?.id]);
