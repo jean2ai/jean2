@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { SavedServer } from '@jean2/sdk';
+import type { SavedServer, PermissionRiskLevel } from '@jean2/sdk';
+import type { UseBoundStore, StoreApi } from 'zustand';
 
 // --- Dialogs ---
 interface DialogState {
@@ -58,10 +59,38 @@ interface SettingsActions {
   setPermissionSoundEnabled: (enabled: boolean) => void;
 }
 
-// --- Combined Store ---
-type UIStore = DialogState & DialogActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions;
+// --- Auto-Approve Severity ---
+const AUTO_APPROVE_KEY = 'jean2_auto_approve_severity';
 
-export const useUIStore = create<UIStore>((set) => ({
+function loadAutoApproveMap(): Record<string, PermissionRiskLevel | 'off'> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(AUTO_APPROVE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistAutoApproveMap(map: Record<string, PermissionRiskLevel | 'off'>): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(AUTO_APPROVE_KEY, JSON.stringify(map));
+  }
+}
+
+interface AutoApproveState {
+  autoApproveBySession: Record<string, PermissionRiskLevel | 'off'>;
+}
+
+interface AutoApproveActions {
+  setAutoApproveMaxSeverity: (sessionId: string, level: PermissionRiskLevel | 'off') => void;
+  getAutoApproveMaxSeverity: (sessionId: string) => PermissionRiskLevel | 'off' | null;
+}
+
+// --- Combined Store ---
+type UIStore = DialogState & DialogActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions & AutoApproveState & AutoApproveActions;
+
+export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set) => ({
   // --- Dialogs ---
   showSettings: false,
   showConfiguration: false,
@@ -101,4 +130,19 @@ export const useUIStore = create<UIStore>((set) => ({
 
   openFilePreview: (target) => set({ filePreviewTarget: target }),
   closeFilePreview: () => set({ filePreviewTarget: null }),
+
+  // --- Auto-Approve Severity ---
+  autoApproveBySession: loadAutoApproveMap(),
+
+  setAutoApproveMaxSeverity: (sessionId, level) =>
+    set((state) => {
+      const next = { ...state.autoApproveBySession };
+      next[sessionId] = level;
+      persistAutoApproveMap(next);
+      return { autoApproveBySession: next };
+    }),
+
+  getAutoApproveMaxSeverity: (sessionId): PermissionRiskLevel | 'off' | null => {
+    return useUIStore.getState().autoApproveBySession[sessionId] ?? null;
+  },
 }));

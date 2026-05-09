@@ -1,35 +1,54 @@
 import { useEffect } from 'react';
 import type { AskHandler } from '@/stores/askStore';
-import type { AskPermissionResponse, GrantScope } from '@jean2/sdk';
+import type { AskPermissionResponse, GrantScope, PermissionRiskLevel } from '@jean2/sdk';
 import { useAskStore } from '@/stores/askStore';
+import { useUIStore } from '@/stores/uiStore';
 
-const permissionHandler: AskHandler = (request) => {
-  const ask = request.ask;
-  const isPermissionAsk = ('target' in ask && ask.target === 'permission') || ask.type === 'permission';
+const RISK_ORDER: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
 
-  if (!isPermissionAsk) return undefined;
+function isAtOrBelow(risk: PermissionRiskLevel, max: PermissionRiskLevel): boolean {
+  return RISK_ORDER.indexOf(risk) <= RISK_ORDER.indexOf(max);
+}
 
-  // Only auto-approve low-risk permissions
-  if (!('risk' in ask) || ask.risk !== 'low') {
-    return undefined;
-  }
+function createPermissionHandler(): AskHandler {
+  return (request) => {
+    const ask = request.ask;
+    const isPermissionAsk = ('target' in ask && ask.target === 'permission') || ask.type === 'permission';
 
-  // Respect the allowed scopes from server policy
-  const allowedScopes = 'allowedScopes' in ask
-    ? (ask.allowedScopes as GrantScope[]) ?? ['once', 'session', 'workspace']
-    : ['once', 'session', 'workspace'];
+    if (!isPermissionAsk) return undefined;
 
-  // Use 'session' if allowed, otherwise 'once' — never auto-approve 'workspace' scope
-  const autoScope = allowedScopes.includes('session') ? 'session' : 'once';
+    // Check the per-session auto-approve severity setting
+    const maxSeverity = useUIStore.getState().getAutoApproveMaxSeverity(request.sessionId);
 
-  return { type: 'permission', grant: autoScope } satisfies AskPermissionResponse;
-};
+    // If no per-session setting, auto-approve 'low' by default (backward compatible)
+    // If explicitly 'off', skip auto-approve entirely
+    if (maxSeverity === 'off') return undefined;
+    const effectiveMax = maxSeverity ?? 'low';
+
+    // Check risk level
+    const risk = ('risk' in ask ? ask.risk : undefined) as PermissionRiskLevel | undefined;
+    if (!risk || !isAtOrBelow(risk, effectiveMax)) {
+      return undefined;
+    }
+
+    // Respect the allowed scopes from server policy
+    const allowedScopes = 'allowedScopes' in ask
+      ? (ask.allowedScopes as GrantScope[]) ?? ['once', 'session', 'workspace']
+      : ['once', 'session', 'workspace'];
+
+    // Use 'session' if allowed, otherwise 'once' — never auto-approve 'workspace' scope
+    const autoScope = allowedScopes.includes('session') ? 'session' : 'once';
+
+    return { type: 'permission', grant: autoScope } satisfies AskPermissionResponse;
+  };
+}
 
 export function usePermissionAutoApprove(): void {
   useEffect(() => {
-    useAskStore.getState().registerHandler('permission', permissionHandler);
+    const handler = createPermissionHandler();
+    useAskStore.getState().registerHandler('permission', handler);
     return () => {
-      useAskStore.getState().unregisterHandler('permission', permissionHandler);
+      useAskStore.getState().unregisterHandler('permission', handler);
     };
   }, []);
 }

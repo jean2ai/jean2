@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import { Send, Square, Paperclip, AlertTriangle } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { FileAutocomplete } from '@/components/files/FileAutocomplete';
 import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
 import { FileMentionChip } from './FileMentionChip';
+import { AutoApproveSelector } from './AutoApproveSelector';
 // import { useHighlightBackground } from '@/hooks/useHighlightBackground';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
@@ -458,7 +459,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   if (isStreaming && onStopStreaming) {
     return (
-      <div className="p-4 border-t border-border bg-card">
+      <div className="p-4 border-t border-border bg-background">
         <div className="flex items-center justify-center gap-3">
           <div className="animate-pulse flex items-center gap-2 text-muted-foreground">
             <div className="size-2 rounded-full bg-primary animate-bounce" />
@@ -490,46 +491,53 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'p-4 border-t border-border bg-card',
+        'px-4 pt-2 pb-3 bg-background',
         isDragOver && 'ring-2 ring-primary'
       )}
     >
-      {(pendingAttachments.length > 0 || !isStreaming) && (
-        <div className="flex gap-2 flex-wrap mb-2">
-          {pendingAttachments.map(a => (
-            <PendingAttachment
-              key={a.id}
-              id={a.id}
-              kind={a.kind}
-              filename={a.filename}
-              size={a.size}
-              previewUrl={a.previewUrl}
-              isUploading={a.isUploading}
-              onRemove={removeAttachment}
-            />
-          ))}
-        </div>
-      )}
-      {pendingAttachments.length > 0 && modelSupportsImage === false && (
-        <div className="flex items-center gap-1.5 mb-2 text-xs text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="size-3 shrink-0" />
-          <span>This model will not inspect images directly. They will be sent as file paths instead.</span>
-        </div>
-      )}
-      {mentions.length > 0 && (
-        <div className="flex gap-2 flex-wrap mb-2">
-          {mentions.map((mention) => (
-            <FileMentionChip
-              key={mention.path}
-              path={mention.path}
-              onRemove={handleMentionRemove}
-              onPreview={handleMentionPreview}
-            />
-          ))}
-        </div>
-      )}
-      <div className="flex gap-3 items-end">
-        <div className="flex-1 relative">
+      <div
+        className={cn(
+          'rounded-xl bg-input/30 overflow-hidden',
+          'focus-within:ring-1 focus-within:ring-ring/40',
+          'transition-shadow',
+          isDragOver && 'ring-2 ring-primary border-primary'
+        )}
+      >
+        {(pendingAttachments.length > 0 || !isStreaming) && (
+          <div className="flex gap-2 flex-wrap px-3 pt-3">
+            {pendingAttachments.map(a => (
+              <PendingAttachment
+                key={a.id}
+                id={a.id}
+                kind={a.kind}
+                filename={a.filename}
+                size={a.size}
+                previewUrl={a.previewUrl}
+                isUploading={a.isUploading}
+                onRemove={removeAttachment}
+              />
+            ))}
+          </div>
+        )}
+        {pendingAttachments.length > 0 && modelSupportsImage === false && (
+          <div className="flex items-center gap-1.5 px-3 pt-2 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="size-3 shrink-0" />
+            <span>This model will not inspect images directly. They will be sent as file paths instead.</span>
+          </div>
+        )}
+        {mentions.length > 0 && (
+          <div className="flex gap-2 flex-wrap px-3 pt-2">
+            {mentions.map((mention) => (
+              <FileMentionChip
+                key={mention.path}
+                path={mention.path}
+                onRemove={handleMentionRemove}
+                onPreview={handleMentionPreview}
+              />
+            ))}
+          </div>
+        )}
+        <div className="relative">
           <Popover open={showPromptAc || showFileAc} onOpenChange={(open) => {
             if (!open) {
               setAcMode('none');
@@ -547,8 +555,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 placeholder={placeholder}
                 disabled={disabled}
                 className={cn(
-                  'min-h-[44px] max-h-[150px] resize-none pr-12 chat-input-scrollbar',
-                  'focus-visible:ring-1'
+                  'min-h-[52px] max-h-[200px] resize-none border-0 bg-transparent dark:bg-transparent shadow-none',
+                  'px-3 pt-3 pb-0 chat-input-scrollbar',
+                  'focus-visible:ring-0 focus-visible:shadow-none',
+                  'placeholder:text-muted-foreground/60'
                 )}
                 rows={1}
                 data-chat-input="true"
@@ -587,46 +597,66 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </PopoverContent>
           </Popover>
         </div>
-        <button
-          type="button"
-          className="flex items-center justify-center size-11 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:pointer-events-none"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-        >
-          <Paperclip className="size-4" />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*,.pdf,.doc,.docx,.txt,.csv,.json,.xml,.md"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files) addFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
-        <Button
-          type="submit"
-          disabled={isDisabled}
-          size="default"
-          className="h-11"
-        >
-          <Send className="size-4" />
-        </Button>
-      </div>
-      <div className="mt-2 text-xs text-muted-foreground text-center hidden sm:flex items-center justify-center gap-1">
-        <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">/</kbd>
-        <span>prompts</span>
-        <span className="mx-2">•</span>
-        <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">@</kbd>
-        <span>files</span>
-        <span className="mx-2">•</span>
-        <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>
-        <span>to send</span>
-        <span className="mx-2">•</span>
-        <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Shift + Enter</kbd>
-        <span>for new line</span>
+
+        <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="flex items-center justify-center size-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+              aria-label="Attach file"
+            >
+              <Paperclip className="size-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*,.pdf,.doc,.docx,.txt,.csv,.json,.xml,.md"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) addFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            {sessionId && (
+              <AutoApproveSelector
+                sessionId={sessionId}
+                disabled={disabled}
+              />
+            )}
+          </div>
+
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">/</kbd>
+            <span>prompts</span>
+            <span className="mx-1">•</span>
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">@</kbd>
+            <span>files</span>
+            <span className="mx-1">•</span>
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>
+            <span>to send</span>
+            <span className="mx-1">•</span>
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⇧ Enter</kbd>
+            <span>new line</span>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isDisabled}
+            size="icon"
+            className={cn(
+              'size-8 rounded-full',
+              canSend && !disabled
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'bg-muted text-muted-foreground'
+            )}
+            aria-label="Send message"
+          >
+            <ArrowUp className="size-4" />
+          </Button>
+        </div>
       </div>
     </form>
   );
