@@ -137,7 +137,7 @@ export function registerIpcHandlers(
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) return;
     window.setTitleBarOverlay({
-      color: mode === 'dark' ? '#1a1a1a' : '#fafafa',
+      color: mode === 'dark' ? '#000000' : '#ffffff',
       symbolColor: mode === 'dark' ? '#a0a0a0' : '#3a3a3a',
     });
   });
