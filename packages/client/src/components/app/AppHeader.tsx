@@ -1,6 +1,6 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
-import { isElectron, isWindows } from '@/lib/platform';
+import { isElectron, isMac, isWindows } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,7 +29,7 @@ export function AppHeader() {
   return (
     <>
       {/* Traffic light spacer for macOS - provides space for native window controls */}
-      {isElectron() && (
+      {isElectron() && isMac() && (
           <div className="block md:hidden h-[30px] shrink-0 z-[60]" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
       <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background sticky top-0 z-[60] shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
@@ -101,12 +101,15 @@ export function AppHeader() {
       </header>
 
       {/* Traffic light spacer for macOS - provides space for native window controls */}
-      {isElectron() && (
+      {isElectron() && isMac() && (
         <div className="hidden md:block h-[30px] shrink-0" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
 
-      <header className={`hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0${isElectron() && isWindows() ? ' pr-36' : ''}`}>
-        <div className="flex items-center gap-2">
+      <header
+        className={`hidden md:flex items-center justify-between p-3 border-b border-border bg-sidebar h-11 shrink-0${isElectron() && isWindows() ? ' pr-36' : ''}`}
+        style={isElectron() && isWindows() ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
+      >
+        <div className="flex items-center gap-2" style={isElectron() && isWindows() ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
           <div className="flex items-center gap-1">
             <ServerSwitcher
               compact
@@ -121,7 +124,7 @@ export function AppHeader() {
           </div>
         </div>
         <TooltipProvider>
-          <div className="flex items-center gap-2" style={isElectron() ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
+          <div className="flex items-center gap-2" style={isElectron() && isWindows() ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
             <>
               <Tooltip>
                 <TooltipTrigger asChild>

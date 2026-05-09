@@ -61,3 +61,8 @@ export function isWindows(): boolean {
   if (typeof navigator === 'undefined') return false;
   return /Win/i.test(navigator.platform || navigator.userAgent);
 }
+
+export function isMac(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Mac/i.test(navigator.platform || navigator.userAgent);
+}
