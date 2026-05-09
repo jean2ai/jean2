@@ -69,7 +69,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   const lineCount = useMemo(() => content.split('\n').length, [content]);
 
   return (
-    <div className="visualization-container overflow-x-auto border border-border rounded-md">
+    <div className="visualization-container max-w-full overflow-x-auto border border-border rounded-md">
       <div>
         <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
@@ -83,8 +83,8 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
           <button
             type="button"
             onClick={handlePathClick}
-            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted"
-            title="Open file preview"
+            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted min-w-0 truncate"
+            title={path}
           >
             {path}
             <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
@@ -126,7 +126,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
                       <span className={cn('w-10 text-right pr-2 select-none border-r', isDark ? 'text-muted-foreground border-white/10' : 'text-muted-foreground border-border')}>
                         {lineKey + 1}
                       </span>
-                      <span className="pl-2 flex-1 whitespace-pre">
+                      <span className="pl-2 flex-1 whitespace-pre overflow-hidden">
                         {line.map((token, tokenKey) => (
                           <span key={tokenKey} {...getTokenProps({ token })} />
                         ))}

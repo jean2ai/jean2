@@ -78,7 +78,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
       );
     },
     p({ children }: ComponentProps<'p'>) {
-      return <p className="last:mb-0 leading-relaxed wrap-break-words">{children}</p>;
+      return <p className="last:mb-0 leading-relaxed break-words">{children}</p>;
     },
     ul({ children }: ComponentProps<'ul'>) {
       return <ul className="list-outside list-disc pl-8">{children}</ul>;
@@ -141,7 +141,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
   }), [inverted, codeTheme]);
 
   return (
-    <div className={cn('w-full markdown-render overflow-x-auto wrap-break-words break', className)}>
+    <div className={cn('w-full markdown-render overflow-x-auto break-words', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}

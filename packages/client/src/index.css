@@ -586,47 +586,9 @@
   --radius-4xl: calc(var(--radius) * 2.5);
 }
 
-/* Code block responsive sizing and scrollbar styling */
+/* Code block scrollbar styling */
 pre {
-  max-width: calc(100vw - 80px);
   overflow-x: auto;
-}
-
-/* Viewport-specific max-widths */
-@media (min-width: 400px) {
-  pre {
-    max-width: calc(100vw - 80px);
-  }
-}
-
-@media (min-width: 640px) {
-  pre {
-    max-width: calc(100vw - 120px);
-  }
-}
-
-@media (min-width: 768px) {
-  pre {
-    max-width: calc(100vw - 320px);
-  }
-}
-
-@media (min-width: 1024px) {
-  pre {
-    max-width: calc(100vw - 400px);
-  }
-}
-
-@media (min-width: 1280px) {
-  pre {
-    max-width: 900px;
-  }
-}
-
-@media (min-width: 1536px) {
-  pre {
-    max-width: 800px;
-  }
 }
 
 /* Styled scrollbar for code blocks - uses theme variables */
@@ -655,47 +617,9 @@ pre {
   scrollbar-color: var(--muted-foreground) var(--muted);
 }
 
-/* Visualization components responsive sizing */
+/* Visualization components */
 .visualization-container {
-  max-width: calc(100vw - 60px);
   overflow-x: auto;
-}
-
-/* Viewport-specific max-widths for visualizations */
-@media (min-width: 400px) {
-  .visualization-container {
-    max-width: calc(100vw - 60px);
-  }
-}
-
-@media (min-width: 640px) {
-  .visualization-container {
-    max-width: calc(100vw - 80px);
-  }
-}
-
-@media (min-width: 768px) {
-  .visualization-container {
-    max-width: calc(100vw - 320px);
-  }
-}
-
-@media (min-width: 1024px) {
-  .visualization-container {
-    max-width: calc(100vw - 400px);
-  }
-}
-
-@media (min-width: 1280px) {
-  .visualization-container {
-    max-width: 1100px;
-  }
-}
-
-@media (min-width: 1536px) {
-  .visualization-container {
-    max-width: 1200px;
-  }
 }
 
 /* Scrollbar styling for visualization containers */

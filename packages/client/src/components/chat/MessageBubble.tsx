@@ -46,7 +46,7 @@ export function MessageBubble({
     <div
       className={cn(
         'flex flex-col gap-1 animate-slide-up min-w-0',
-        isUser ? 'items-end' : 'items-start'
+        isUser ? 'items-end' : 'items-stretch'
       )}
     >
       <div
@@ -120,13 +120,9 @@ export function MessageBubble({
 
       <div
         className={cn(
-          'rounded-2xl px-4 py-3 relative group min-w-0 overflow-hidden',
-          isUser ? 'max-w-[90%]' : 'max-w-full',
-          isQueued
-            ? 'bg-muted border-2 border-dashed border-muted-foreground/30 opacity-80'
-            : isUser
-              ? 'bg-primary text-primary-foreground rounded-br-md'
-              : 'bg-card text-card-foreground border border-border rounded-bl-md'
+          'relative group min-w-0 overflow-hidden',
+          isUser ? 'rounded-2xl px-4 py-3 max-w-[90%] bg-primary text-primary-foreground rounded-br-md' : 'w-full overflow-visible',
+          isQueued && 'rounded-2xl px-4 py-3 bg-muted border-2 border-dashed border-muted-foreground/30 opacity-80'
         )}
       >
         {isQueued && (

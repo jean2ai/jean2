@@ -558,7 +558,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   'min-h-[52px] max-h-[200px] resize-none border-0 bg-transparent dark:bg-transparent shadow-none',
                   'px-3 pt-3 pb-0 chat-input-scrollbar',
                   'focus-visible:ring-0 focus-visible:shadow-none',
-                  'placeholder:text-muted-foreground/60'
+                  'placeholder:text-muted-foreground/60',
+                  'disabled:bg-transparent disabled:opacity-100 dark:disabled:bg-transparent'
                 )}
                 rows={1}
                 data-chat-input="true"

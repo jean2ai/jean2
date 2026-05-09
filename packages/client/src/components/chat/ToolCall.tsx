@@ -241,6 +241,8 @@ export const ToolCall = memo(function ToolCall({
           <div
             className="flex items-center gap-2 py-1 cursor-pointer hover:text-foreground transition-colors text-muted-foreground"
           >
+            {getStatusIcon(status)}
+
             {isOpen ? (
               <ChevronDown className="size-4 text-muted-foreground" />
             ) : (
@@ -251,30 +253,26 @@ export const ToolCall = memo(function ToolCall({
             <span className="text-xs truncate max-w-[120px] sm:max-w-none">{part.name}</span>
 
             {!isOpen && (
-              <span className="text-xs text-muted-foreground font-mono truncate flex-1 min-w-0 sm:max-w-[200px] hidden sm:block">
+              <span className="text-xs text-muted-foreground font-mono truncate flex-1 min-w-0 hidden sm:block">
                 {truncatedArgs}
               </span>
             )}
 
-            <div className="ml-auto flex items-center gap-2">
-              {getStatusIcon(status)}
-
-              {taskSessionId && onNavigateToSubagent && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 sm:w-auto sm:px-2"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNavigateToSubagent(taskSessionId!);
-                  }}
-                  title="View session"
-                >
-                  <ExternalLink className="size-3" />
-                  <span className="hidden sm:inline ml-1">View</span>
-                </Button>
-              )}
-            </div>
+            {taskSessionId && onNavigateToSubagent && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-6 w-6 p-0 sm:w-auto sm:px-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigateToSubagent(taskSessionId!);
+                }}
+                title="View session"
+              >
+                <ExternalLink className="size-3" />
+                <span className="hidden sm:inline ml-1">View</span>
+              </Button>
+            )}
           </div>
         </CollapsibleTrigger>
 

@@ -77,7 +77,7 @@ const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumb
       <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r', isDark ? 'border-white/10' : 'border-border')}>
         {newLineNumber ?? ''}
       </span>
-      <span className="pl-2 flex-1 whitespace-pre flex">
+      <span className="pl-2 flex-1 whitespace-pre overflow-hidden flex">
         <span className={prefixColor}>
           {type === 'added' && '+'}
           {type === 'removed' && '-'}
@@ -122,7 +122,7 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   };
 
   return (
-    <div className="visualization-container overflow-x-auto border border-border rounded-md">
+    <div className="visualization-container max-w-full overflow-x-auto border border-border rounded-md">
       <div>
         <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
@@ -136,8 +136,8 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
           <button
             type="button"
             onClick={handlePathClick}
-            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted"
-            title="Open file preview"
+            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted min-w-0 truncate"
+            title={path}
           >
             {path}
             <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
