@@ -1,5 +1,6 @@
 import { Highlight, themes } from 'prism-react-renderer';
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 export interface FilePreviewCodeViewProps {
   content: string;
@@ -8,7 +9,8 @@ export interface FilePreviewCodeViewProps {
   showLineNumbers?: boolean;
 }
 
-const CODE_THEME_DEFAULT = themes.oneDark;
+const CODE_THEME_DARK = themes.oneDark;
+const CODE_THEME_LIGHT = themes.oneLight;
 
 export default function FilePreviewCodeView({
   content,
@@ -16,10 +18,14 @@ export default function FilePreviewCodeView({
   language,
   showLineNumbers = true,
 }: FilePreviewCodeViewProps) {
+  const { resolvedMode } = useTheme();
+  const isDark = resolvedMode === 'dark';
+  const codeTheme = isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT;
+
   return (
-    <div className={cn('h-full overflow-auto bg-[#282c34] chat-transcript-scrollbar')} style={{ WebkitOverflowScrolling: 'touch' }}>
+    <div className={cn('h-full overflow-auto chat-transcript-scrollbar')} style={{ WebkitOverflowScrolling: 'touch', backgroundColor: codeTheme.plain.backgroundColor || (isDark ? '#282c34' : '#fafafa') }}>
       <Highlight
-        theme={CODE_THEME_DEFAULT}
+        theme={codeTheme}
         code={content}
         language={language || 'plaintext'}
       >

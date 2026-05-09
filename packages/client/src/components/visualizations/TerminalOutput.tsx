@@ -9,7 +9,7 @@ export function TerminalOutput({ command, stdout, stderr, exitCode }: TerminalOu
   const isSuccess = exitCode === 0;
 
   return (
-    <div className="visualization-container border border-white/10 rounded-md overflow-hidden">
+    <div className="visualization-container border border-border rounded-md overflow-hidden">
       <div className="bg-muted px-3 py-2 flex items-center justify-between">
         <div className="font-mono text-xs text-muted-foreground truncate flex-1 mr-2">
           <span className="text-muted-foreground">$ </span>

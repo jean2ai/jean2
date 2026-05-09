@@ -3,8 +3,11 @@ import { Check, FileText, AlertCircle, ChevronDown, ChevronRight, ExternalLink }
 import { Highlight, themes } from 'prism-react-renderer';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useTheme } from '@/components/providers/ThemeProvider';
+import { cn } from '@/lib/utils';
 
-const CODE_THEME = themes.oneDark;
+const CODE_THEME_DARK = themes.oneDark;
+const CODE_THEME_LIGHT = themes.oneLight;
 
 interface CodeBlockProps {
   content: string;
@@ -49,6 +52,10 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   const openFilePreview = useUIStore((s) => s.openFilePreview);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
+  const { resolvedMode } = useTheme();
+  const isDark = resolvedMode === 'dark';
+  const codeTheme = isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT;
+
   const handlePathClick = () => {
     if (!activeWorkspace) return;
     openFilePreview({
@@ -62,7 +69,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
   const lineCount = useMemo(() => content.split('\n').length, [content]);
 
   return (
-    <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
+    <div className="visualization-container overflow-x-auto border border-border rounded-md">
       <div>
         <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
@@ -102,8 +109,8 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
           )}
         </div>
 
-        <div style={{ backgroundColor: '#282c34' }}>
-          <Highlight theme={CODE_THEME} code={content} language={detectedLanguage}>
+        <div style={{ backgroundColor: codeTheme.plain.backgroundColor }}>
+          <Highlight theme={codeTheme} code={content} language={detectedLanguage}>
             {({ tokens, getTokenProps }) => {
               const displayedTokens = expanded ? tokens : tokens.slice(0, PREVIEW_LINE_COUNT);
 
@@ -116,7 +123,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
                         highlightSet.has(lineKey + 1) ? 'bg-yellow-500/20' : ''
                       }`}
                     >
-                      <span className="w-10 text-right pr-2 text-muted-foreground select-none border-r border-white/10">
+                      <span className={cn('w-10 text-right pr-2 select-none border-r', isDark ? 'text-muted-foreground border-white/10' : 'text-muted-foreground border-border')}>
                         {lineKey + 1}
                       </span>
                       <span className="pl-2 flex-1 whitespace-pre">

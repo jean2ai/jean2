@@ -4,10 +4,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { Highlight, themes } from 'prism-react-renderer';
-
-const CODE_THEME_DEFAULT = themes.oneDark;
-const CODE_THEME_INVERTED = themes.nightOwl;
 import { cn } from '@/lib/utils';
+import { useTheme } from '@/components/providers/ThemeProvider';
+
+const CODE_THEME_DARK = themes.oneDark;
+const CODE_THEME_LIGHT = themes.oneLight;
+const CODE_THEME_INVERTED_DARK = themes.nightOwl;
+const CODE_THEME_INVERTED_LIGHT = themes.nightOwlLight;
 
 export interface MarkdownRendererProps {
   children: string;
@@ -18,6 +21,13 @@ export interface MarkdownRendererProps {
 type ComponentProps<T extends ElementType> = ComponentPropsWithoutRef<T>;
 
 export const MarkdownRenderer = memo(function MarkdownRenderer({ children, className, inverted = false }: MarkdownRendererProps) {
+  const { resolvedMode } = useTheme();
+  const isDark = resolvedMode === 'dark';
+
+  const codeTheme = inverted
+    ? (isDark ? CODE_THEME_INVERTED_DARK : CODE_THEME_INVERTED_LIGHT)
+    : (isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT);
+
   const components: Components = useMemo(() => ({
     code({ className: codeClassName, children: codeChildren, ...props }) {
       const match = /language-(\w+)/.exec(codeClassName || '');
@@ -31,7 +41,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
       if (!isInline && language) {
         return (
           <div className="w-full max-w-full overflow-x-auto my-2 min-w-0">
-            <Highlight theme={inverted ? CODE_THEME_INVERTED : CODE_THEME_DEFAULT} code={codeString.trim()} language={language}>
+            <Highlight theme={codeTheme} code={codeString.trim()} language={language}>
               {({ className: hlClassName, style, tokens, getLineProps, getTokenProps }) => (
                 <pre className={cn('rounded-lg text-sm p-3', hlClassName)} style={style}>
                   {tokens.map((line, i) => (
@@ -128,7 +138,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
         </td>
       );
     },
-  }), [inverted]);
+  }), [inverted, codeTheme]);
 
   return (
     <div className={cn('w-full markdown-render overflow-x-auto wrap-break-words break', className)}>

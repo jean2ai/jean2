@@ -2,11 +2,13 @@ import { ChevronDown, ChevronRight, ExternalLink, FileText } from 'lucide-react'
 import { memo, useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 
-const CODE_THEME = themes.oneDark;
+const CODE_THEME_DARK = themes.oneDark;
+const CODE_THEME_LIGHT = themes.oneLight;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface DiffViewerProps {
   hunks: DiffHunk[];
@@ -49,27 +51,30 @@ interface DiffLineProps {
   language: string;
 }
 
-const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumber, language }: DiffLineProps) {
+const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumber, language, codeTheme }: DiffLineProps & { codeTheme: typeof CODE_THEME_DARK }) {
+  const { resolvedMode } = useTheme();
+  const isDark = resolvedMode === 'dark';
+
   const tintClass = cn(
     'flex font-mono text-xs',
-    type === 'added' && 'bg-green-500/20',
-    type === 'removed' && 'bg-red-500/20',
+    type === 'added' && (isDark ? 'bg-green-500/20' : 'bg-green-500/15'),
+    type === 'removed' && (isDark ? 'bg-red-500/20' : 'bg-red-500/15'),
     type === 'context' && 'bg-muted/30',
   );
 
   const prefixColor = cn(
     'font-bold w-4 select-none',
-    type === 'added' && 'text-green-400',
-    type === 'removed' && 'text-red-400',
+    type === 'added' && (isDark ? 'text-green-400' : 'text-green-600'),
+    type === 'removed' && (isDark ? 'text-red-400' : 'text-red-600'),
     type === 'context' && 'text-muted-foreground/50',
   );
 
   return (
     <div className={tintClass}>
-      <span className="w-10 text-right pr-2 text-muted-foreground select-none border-r border-white/10">
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r', isDark ? 'border-white/10' : 'border-border')}>
         {lineNumber ?? ''}
       </span>
-      <span className="w-10 text-right pr-2 text-muted-foreground select-none border-r border-white/10">
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r', isDark ? 'border-white/10' : 'border-border')}>
         {newLineNumber ?? ''}
       </span>
       <span className="pl-2 flex-1 whitespace-pre flex">
@@ -78,7 +83,7 @@ const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumb
           {type === 'removed' && '-'}
           {type === 'context' && ' '}
         </span>
-        <Highlight theme={CODE_THEME} code={content} language={language}>
+        <Highlight theme={codeTheme} code={content} language={language}>
           {({ tokens, getTokenProps }) => (
             <>
               {tokens.map((line, lineKey) => (
@@ -103,6 +108,10 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const openFilePreview = useUIStore((s) => s.openFilePreview);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
+  const { resolvedMode } = useTheme();
+  const isDark = resolvedMode === 'dark';
+  const codeTheme = isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT;
+
   const handlePathClick = () => {
     if (!activeWorkspace) return;
     openFilePreview({
@@ -113,7 +122,7 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   };
 
   return (
-    <div className="visualization-container overflow-x-auto border border-white/10 rounded-md">
+    <div className="visualization-container overflow-x-auto border border-border rounded-md">
       <div>
         <div className="group/path flex items-center gap-2 px-1 bg-muted/50 text-xs text-muted-foreground">
           <button
@@ -142,11 +151,11 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
         </div>
 
         {expanded && (
-          <div style={{ backgroundColor: '#282c34' }}>
+          <div style={{ backgroundColor: codeTheme.plain.backgroundColor || (isDark ? '#282c34' : '#fafafa') }}>
             {hunks.map((hunk, hunkIndex) => (
-              <div key={hunkIndex} className="divide-y divide-white/5">
+              <div key={hunkIndex} className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-border')}>
                 {hunk.changes.map((change, i) => (
-                  <DiffLine key={i} {...change} language={language} />
+                  <DiffLine key={i} {...change} language={language} codeTheme={codeTheme} />
                 ))}
               </div>
             ))}
