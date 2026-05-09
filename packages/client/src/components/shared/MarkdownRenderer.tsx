@@ -70,7 +70,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className={cn('underline underline-offset-2 transition-colors', inverted ? 'text-primary-foreground/80 hover:text-primary-foreground' : 'text-primary hover:text-primary/80')}
+          className={cn('underline underline-offset-2 transition-colors', inverted ? 'text-primary-foreground hover:text-primary-foreground/85' : 'text-primary hover:text-primary/80')}
           {...props}
         >
           {children}
@@ -101,13 +101,13 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ children, class
     },
     blockquote({ children }: ComponentProps<'blockquote'>) {
       return (
-        <blockquote className={cn('border-l-2 pl-3 my-1.5 italic', inverted ? 'border-primary-foreground/40 text-primary-foreground/70' : 'border-muted-foreground/40 text-muted-foreground')}>
+        <blockquote className={cn('border-l-2 pl-3 my-1.5 italic', inverted ? 'border-primary-foreground/40 text-primary-foreground' : 'border-foreground/20 text-foreground/70')}>
           {children}
         </blockquote>
       );
     },
     strong({ children }: ComponentProps<'strong'>) {
-      return <strong className={cn('font-semibold', inverted && 'text-primary-foreground')}>{children}</strong>;
+      return <strong className="font-semibold">{children}</strong>;
     },
     em({ children }: ComponentProps<'em'>) {
       return <em className="italic">{children}</em>;
