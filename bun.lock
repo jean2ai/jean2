@@ -30,7 +30,7 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "0.8.4",
+      "version": "1.0.0",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
@@ -86,7 +86,7 @@
     },
     "packages/client-electron": {
       "name": "@jean2/client-electron",
-      "version": "0.8.4",
+      "version": "1.0.0",
       "dependencies": {
         "electron-log": "^5.4.3",
         "electron-store": "^10.0.0",
@@ -120,11 +120,11 @@
     },
     "packages/sdk": {
       "name": "@jean2/sdk",
-      "version": "0.9.0",
+      "version": "1.0.0",
     },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "0.9.3",
+      "version": "1.0.0",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -144,6 +144,7 @@
         "fast-glob": "^3.3.3",
         "gray-matter": "^4.0.3",
         "hono": "^4.12.8",
+        "ignore": "^7.0.5",
         "tar": "^7.5.13",
         "vercel-minimax-ai-provider": "^0.0.2",
         "zhipu-ai-provider": "^0.2.2",
