@@ -3,21 +3,37 @@ import { File, Folder, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface FileAutocompleteProps {
   workspaceId: string;
   searchQuery: string;
   selectedIndex: number;
+  tooltipIndex: number | null;
+  onTooltipIndexChange: (index: number | null) => void;
   onSelect: (file: FileEntry) => void;
   onFilesChange: (files: FileEntry[]) => void;
   showHidden?: boolean;
   sdkClient?: Jean2Client | null;
 }
 
+function splitPath(filePath: string): { fileName: string; dirPath: string } {
+  const lastSlash = filePath.lastIndexOf('/');
+  if (lastSlash === -1) {
+    return { fileName: filePath, dirPath: '' };
+  }
+  return {
+    fileName: filePath.slice(lastSlash + 1),
+    dirPath: filePath.slice(0, lastSlash + 1),
+  };
+}
+
 export function FileAutocomplete({
   workspaceId,
   searchQuery,
   selectedIndex,
+  tooltipIndex,
+  onTooltipIndexChange,
   onSelect,
   onFilesChange,
   showHidden = true,
@@ -91,39 +107,61 @@ export function FileAutocomplete({
   if (files.length === 0) {
     return (
       <div className="p-2 text-xs text-muted-foreground">
-        No files found matching "{searchQuery}"
+        No files found matching &quot;{searchQuery}&quot;
       </div>
     );
   }
 
   return (
     <div className="p-1">
-      {files.map((file, index) => (
-        <button
-          key={file.path}
-          onClick={() => onSelect(file)}
-          className={cn(
-            'flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-left',
-            'hover:bg-muted',
-            index === selectedIndex && 'bg-primary/20 text-primary font-medium ring-1 ring-primary/50'
-          )}
-        >
-          {file.type === 'directory' ? (
-            <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          ) : (
-            <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          )}
-          <span className="truncate flex-1">{file.path}</span>
-          {file.extension && (
-            <span className="text-xs text-muted-foreground">{file.extension}</span>
-          )}
-        </button>
-      ))}
+      {files.map((file, index) => {
+        const { fileName, dirPath } = splitPath(file.path);
+
+        return (
+          <Tooltip
+            key={file.path}
+            open={tooltipIndex === index ? true : undefined}
+            onOpenChange={(open) => {
+              if (!open) onTooltipIndexChange(null);
+            }}
+          >
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onSelect(file)}
+                className={cn(
+                  'flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-left',
+                  'hover:bg-muted',
+                  index === selectedIndex && 'bg-primary/20 text-primary font-medium ring-1 ring-primary/50'
+                )}
+              >
+                {file.type === 'directory' ? (
+                  <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                ) : (
+                  <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                )}
+                <span className="truncate flex-1 min-w-0">
+                  {dirPath && (
+                    <span className="text-muted-foreground">{dirPath}</span>
+                  )}
+                  <span>{fileName}</span>
+                </span>
+                {file.extension && (
+                  <span className="text-xs text-muted-foreground flex-shrink-0">{file.extension}</span>
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8} showArrow={false} className="max-w-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10">
+              <span className="font-mono text-xs break-all">{file.path}</span>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
       <div className="mt-1 pt-1 border-t text-xs text-muted-foreground px-2">
         {files.length} result{files.length !== 1 ? 's' : ''} &bull;
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">↑↓</kbd> navigate
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">↵</kbd> select
         <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">esc</kbd> close
+        <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-[10px]">→</kbd> preview path
       </div>
     </div>
   );

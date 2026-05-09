@@ -13,6 +13,7 @@ import { FileMentionChip } from './FileMentionChip';
 import { useFileSearch } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 
@@ -83,6 +84,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [autocompleteFiles, setAutocompleteFiles] = useState<FileEntry[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [acMode, setAcMode] = useState<AutocompleteMode>('none');
+  const [tooltipIndex, setTooltipIndex] = useState<number | null>(null);
   const [promptQuery, setPromptQuery] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachmentData[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -131,6 +133,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   useEffect(() => {
     setSelectedIndex(0);
+    setTooltipIndex(null);
   }, [autocompleteFiles, promptQuery, prompts]);
 
   useEffect(() => {
@@ -419,16 +422,26 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             handleFileSelectWrapper(autocompleteFiles[selectedIndex]);
           }
           return;
+        case 'ArrowRight':
+          e.preventDefault();
+          setTooltipIndex(selectedIndex);
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setTooltipIndex(null);
+          return;
         case 'Escape':
           e.preventDefault();
           setShowAutocomplete(false);
           setAcMode('none');
+          setTooltipIndex(null);
           return;
         case 'Tab':
           e.preventDefault();
           if (autocompleteFiles[selectedIndex]) {
             handleFileSelectWrapper(autocompleteFiles[selectedIndex]);
           }
+          setTooltipIndex(null);
           return;
       }
     }
@@ -521,6 +534,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             if (!open) {
               setAcMode('none');
               setShowAutocomplete(false);
+              setTooltipIndex(null);
             }
           }}>
             <PopoverAnchor asChild>
@@ -542,7 +556,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </PopoverAnchor>
 
             <PopoverContent
-              className="w-72 p-0"
+              className={cn('p-0', showFileAc ? 'w-96' : 'w-72')}
               align="start"
               side="top"
               sideOffset={8}
@@ -550,14 +564,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {showFileAc ? (
+                <TooltipProvider>
                 <FileAutocomplete
                   workspaceId={workspaceId || ''}
                   searchQuery={query}
                   selectedIndex={selectedIndex}
+                  tooltipIndex={tooltipIndex}
+                  onTooltipIndexChange={setTooltipIndex}
                   onSelect={handleFileSelectWrapper}
                   onFilesChange={handleFilesChange}
                   sdkClient={sdkClient}
                 />
+                </TooltipProvider>
               ) : (
                 <PromptAutocomplete
                   prompts={prompts}
