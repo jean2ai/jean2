@@ -100,6 +100,7 @@ export interface SessionHandlersContext {
   clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   runAskHandlers: (target: import('@jean2/sdk').AskTarget, request: import('@/stores/askStore').PendingAskRequest) => Promise<AskResponse | undefined> | undefined;
   sendAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
+  resumeSessionAfterCreate: (sessionId: string) => void;
 }
 
 export type SessionHandlers = {

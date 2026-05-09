@@ -688,6 +688,12 @@ export function useServerSessionManager({
           });
         }
       },
+      resumeSessionAfterCreate: (sessionId: string) => {
+        const client = sdkClientRef.current;
+        if (client && client.connected) {
+          client.sessions.resume(sessionId);
+        }
+      },
     };
   });
 

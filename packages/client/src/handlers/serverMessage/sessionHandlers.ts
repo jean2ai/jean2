@@ -33,6 +33,7 @@ export function handleSessionCreated(
     setSelectedVariant(session.selectedVariant ?? null);
     pendingSessionCreateRef.current = false;
     ctx.navigateToSession(session.id);
+    ctx.resumeSessionAfterCreate(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
 }
@@ -328,6 +329,7 @@ export function handleSessionForked(
   }
   setCurrentSession(forkedSession);
   ctx.navigateToSession(forkedSession.id);
+  ctx.resumeSessionAfterCreate(forkedSession.id);
   setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
   // Clear completion state when session is forked (creates new context)
