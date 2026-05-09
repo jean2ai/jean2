@@ -19,6 +19,7 @@ interface Jean2ElectronAPI {
   getServerStatus(): Promise<{ running: boolean; port: number }>;
   startServer(): Promise<number>;
   stopServer(): Promise<void>;
+  syncTheme(mode: 'dark' | 'light'): void;
 }
 
 declare global {

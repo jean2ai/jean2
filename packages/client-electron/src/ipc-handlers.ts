@@ -131,4 +131,14 @@ export function registerIpcHandlers(
   ipcMain.handle('updater:check', () => {
     triggerUpdateCheck();
   });
+
+  ipcMain.on('theme:sync', (event, mode: 'dark' | 'light') => {
+    if (process.platform !== 'win32') return;
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    window.setTitleBarOverlay({
+      color: mode === 'dark' ? '#1a1a1a' : '#fafafa',
+      symbolColor: mode === 'dark' ? '#a0a0a0' : '#3a3a3a',
+    });
+  });
 }

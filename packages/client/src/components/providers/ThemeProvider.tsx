@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type ThemeScheme = 'neutral' | 'ocean' | 'forest' | 'sunset' | 'amethyst';
@@ -148,6 +148,14 @@ export function ThemeProvider({
     },
     [settings, storageKey]
   );
+
+  const prevResolvedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (prevResolvedRef.current === resolvedMode) return;
+    prevResolvedRef.current = resolvedMode;
+    window.__JEAN2_ELECTRON__?.syncTheme(resolvedMode);
+  }, [resolvedMode]);
 
   const value: ThemeProviderState = {
     mode: settings.mode,

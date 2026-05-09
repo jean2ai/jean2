@@ -30,6 +30,7 @@ export interface Jean2ElectronAPI {
   getServerStatus(): Promise<{ running: boolean; port: number }>;
   startServer(): Promise<{ port: number }>;
   stopServer(): Promise<void>;
+  syncTheme(mode: 'dark' | 'light'): void;
 }
 
 const electronAPI: Jean2ElectronAPI = {
@@ -81,6 +82,7 @@ const electronAPI: Jean2ElectronAPI = {
   getServerStatus: () => ipcRenderer.invoke('server:status'),
   startServer: () => ipcRenderer.invoke('server:start'),
   stopServer: () => ipcRenderer.invoke('server:stop'),
+  syncTheme: (mode: 'dark' | 'light') => ipcRenderer.send('theme:sync', mode),
 };
 
 // Expose the API to the renderer process
