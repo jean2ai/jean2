@@ -500,6 +500,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           'rounded-xl bg-input/30 overflow-hidden',
           'focus-within:ring-1 focus-within:ring-ring/40',
           'transition-shadow',
+          'border border-border',
           isDragOver && 'ring-2 ring-primary border-primary'
         )}
       >

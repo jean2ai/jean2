@@ -105,7 +105,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
         className="w-0 shrink-0"
         style={{ '--sidebar-width': `${filesPanelWidth}px` } as React.CSSProperties}
       >
-        <Sidebar side="right" isOpen={showFilesPanel}>
+        <Sidebar side="right" isOpen={showFilesPanel} variant="floating">
           <PanelResizeHandle side="right" panelId="files" />
           <SidebarHeader>
             <SidebarMenu>

@@ -45,7 +45,7 @@ export const ResizablePanel = forwardRef<ResizablePanelHandle, ResizablePanelPro
     }), [focusContent]);
 
     return (
-      <Sidebar collapsible="offcanvas">
+      <Sidebar collapsible="offcanvas" variant="floating">
         {resizable && <SessionsResizeHandle />}
         {header}
         <SidebarContent

@@ -26,7 +26,7 @@ export function WorkspaceHeader() {
   const { toggleSidebar, state: sidebarState } = useSidebar();
 
   return (
-    <div className="h-9 border-b border-border bg-background px-3 flex items-center shrink-0">
+    <div className="h-9 px-3 flex items-center shrink-0">
       <TooltipProvider>
         <div className="flex items-center gap-1 md:gap-2 w-full justify-between">
           <Tooltip>
