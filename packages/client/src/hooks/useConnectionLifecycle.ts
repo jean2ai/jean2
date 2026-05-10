@@ -226,30 +226,10 @@ export function useConnectionLifecycle({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
-      if (!apiToken || !serverUrl) return;
 
       const client = clientRef.current;
-
-      // When the tab becomes visible after a sleep/wake cycle, the browser may
-      // report the WebSocket as OPEN even though the underlying TCP connection
-      // is dead. We proactively reconnect to avoid a zombie state where the UI
-      // appears connected but messages are silently dropped.
-      //
-      // If the WS looks open, dispose the old client first so the reconnect
-      // effect creates a fresh connection. If it's not open, the normal retry
-      // logic applies.
-      console.log('[reconnect] Visibility change: tab visible, disposing zombie client');
-      if (client && client.ws?.readyState === WebSocket.OPEN) {
-        // Dispose the potentially-zombie client. The reconnectAttempt increment
-        // below triggers the connection effect which creates a new client.
-        client.dispose();
-        if (clientRef.current === client) {
-          clientRef.current = null;
-        }
-        // Mark disconnected immediately since dispose() removes listeners
-        // so the normal 'disconnected' event won't fire.
-        useConnectionStore.getState().setConnected(false);
-      }
+      if (client && client.ws?.readyState === WebSocket.OPEN) return;
+      if (!apiToken || !serverUrl) return;
 
       useConnectionStore.getState().setRetryCount(0);
       useConnectionStore.getState().setConnectionTimedOut(false);
