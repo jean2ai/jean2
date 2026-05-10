@@ -439,7 +439,7 @@ export function useServerSessionManager({
 
   const sdkClient = sdkClientRef.current;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     currentSessionIdRef.current = currentSession?.id ?? null;
   }, [currentSession]);
 

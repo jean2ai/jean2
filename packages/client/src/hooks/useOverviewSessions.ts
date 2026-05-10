@@ -26,8 +26,25 @@ export function useOverviewSessions({
   const allSessions = useSessionStore(s => s.sessions);
 
   useEffect(() => {
-    if (!sdkClient || !connected || workspaceIds.length === 0) {
+    if (workspaceIds.length === 0) {
       setSessions([]);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!sdkClient) {
+      // During reconnection, sdkClient becomes null temporarily (dispose sets
+      // clientRef.current = null).  Keep stale session data so that
+      // currentSession / currentSessionIdRef remain valid for the reconnect
+      // flow.  Sessions will be re-fetched once a new client is connected.
+      setIsLoading(false);
+      return;
+    }
+
+    if (!connected) {
+      // Keep stale session data during temporary disconnects so that
+      // currentSession / currentSessionIdRef remain valid for the
+      // reconnection flow.  Sessions will be re-fetched once connected.
       setIsLoading(false);
       return;
     }

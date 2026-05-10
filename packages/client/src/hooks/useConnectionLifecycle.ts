@@ -3,6 +3,7 @@ import { Jean2Client, HttpClient } from '@jean2/sdk';
 import type { ClientDescriptor } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useAskStore } from '@/stores/askStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import { subscribeToServerEvents } from './subscribeToServerEvents';
@@ -88,8 +89,24 @@ export function useConnectionLifecycle({
         // Clear pending ask requests on reconnection (including permission asks)
         useAskStore.getState().clearPendingRequests();
 
-        if (currentSessionIdRef.current) {
-          client.sessions.resume(currentSessionIdRef.current);
+        // During reconnection, React state cascades may clear currentSessionIdRef:
+        // dispose() → clientRef=null → sdkClient=null → useWorkspaceSessions clears
+        // sessions → currentSession=null → currentSessionIdRef=null.  The ref may be
+        // stale by the time this handler fires.  Fall back to the session store which
+        // still holds the last active session from before the disconnect.
+        const sessionId = currentSessionIdRef.current
+          ?? useSessionStore.getState().currentSession?.id;
+
+        if (sessionId) {
+          // Patch the ref so subsequent event handlers (message.created, part.append,
+          // etc.) see the correct session ID even if the useLayoutEffect that normally
+          // sets it hasn't fired yet.
+          const wasNull = currentSessionIdRef.current === null;
+          currentSessionIdRef.current = sessionId;
+          console.log('[reconnect] Resuming session:', sessionId, wasNull ? '(restored from store)' : '(from ref)');
+          client.sessions.resume(sessionId);
+        } else {
+          console.log('[reconnect] No session to resume (ref:', currentSessionIdRef.current, ', store:', useSessionStore.getState().currentSession?.id, ')');
         }
       });
 
@@ -209,10 +226,30 @@ export function useConnectionLifecycle({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return;
+      if (!apiToken || !serverUrl) return;
 
       const client = clientRef.current;
-      if (client && client.ws?.readyState === WebSocket.OPEN) return;
-      if (!apiToken || !serverUrl) return;
+
+      // When the tab becomes visible after a sleep/wake cycle, the browser may
+      // report the WebSocket as OPEN even though the underlying TCP connection
+      // is dead. We proactively reconnect to avoid a zombie state where the UI
+      // appears connected but messages are silently dropped.
+      //
+      // If the WS looks open, dispose the old client first so the reconnect
+      // effect creates a fresh connection. If it's not open, the normal retry
+      // logic applies.
+      console.log('[reconnect] Visibility change: tab visible, disposing zombie client');
+      if (client && client.ws?.readyState === WebSocket.OPEN) {
+        // Dispose the potentially-zombie client. The reconnectAttempt increment
+        // below triggers the connection effect which creates a new client.
+        client.dispose();
+        if (clientRef.current === client) {
+          clientRef.current = null;
+        }
+        // Mark disconnected immediately since dispose() removes listeners
+        // so the normal 'disconnected' event won't fire.
+        useConnectionStore.getState().setConnected(false);
+      }
 
       useConnectionStore.getState().setRetryCount(0);
       useConnectionStore.getState().setConnectionTimedOut(false);
