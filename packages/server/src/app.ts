@@ -11,6 +11,7 @@ import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 
 import { requireAuth, isPublicRoute } from '@/auth/middleware';
+import { isAuthEnabled } from '@/auth/token';
 import { initializeToken } from '@/auth/token';
 import { ensurePromptsDir } from '@/prompts/registry';
 import { VERSION } from '@/version';
@@ -77,7 +78,7 @@ export function createApp() {
         sessions: true,
         preconfigs: true,
         tools: true,
-        authentication: true,
+        authentication: isAuthEnabled(),
       },
       timestamp: new Date().toISOString()
     });
