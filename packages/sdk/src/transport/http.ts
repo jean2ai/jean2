@@ -1,4 +1,4 @@
-import { AuthError, RateLimitError, ServerError, ValidationError } from '../errors';
+import { AuthError, ConnectionError, RateLimitError, ServerError, ValidationError } from '../errors';
 
 export interface HttpClientConfig {
   url: string;
@@ -113,5 +113,27 @@ export class HttpClient {
 
   delete<T>(path: string, options?: { signal?: AbortSignal }): Promise<T> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
+  }
+
+  /**
+   * Verify that a token is valid against a server.
+   * Makes a lightweight GET /api/auth/verify request.
+   * Useful as a pre-flight check before opening a WebSocket connection.
+   *
+   * @returns true if token is valid (200), false if invalid (401)
+   * @throws ConnectionError if the server is unreachable
+   */
+  static async verifyToken(url: string, token: string): Promise<boolean> {
+    const proto = url.startsWith('https') ? 'https' : 'http';
+    const clean = url.replace(/^https?:\/\//, '');
+    try {
+      const response = await fetch(`${proto}://${clean}/api/auth/verify`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.status === 200;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new ConnectionError(`Failed to reach server for auth verification: ${message}`);
+    }
   }
 }

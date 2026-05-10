@@ -91,6 +91,13 @@ export function createApp() {
     });
   });
 
+  // GET /api/auth/verify - Token verification
+  // Protected by requireAuth middleware (not in PUBLIC_ROUTES)
+  // Returns 200 if token is valid, 401 if invalid (handled by middleware)
+  app.get('/api/auth/verify', (c) => {
+    return c.json({ valid: true, timestamp: new Date().toISOString() });
+  });
+
   // ============================================================================
   // Route Modules
   // ============================================================================

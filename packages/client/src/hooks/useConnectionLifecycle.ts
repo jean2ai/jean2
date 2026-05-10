@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { Jean2Client } from '@jean2/sdk';
+import { Jean2Client, HttpClient } from '@jean2/sdk';
 import type { ClientDescriptor } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -43,6 +43,7 @@ export function useConnectionLifecycle({
     useConnectionStore.getState().setRetryCount(0);
     useConnectionStore.getState().setConnectionTimedOut(false);
     useConnectionStore.getState().setNextRetryIn(0);
+    useConnectionStore.getState().setAuthError(null);
     setReconnectAttempt(n => n + 1);
   }, []);
 
@@ -61,60 +62,89 @@ export function useConnectionLifecycle({
     return () => { cancelled = true; };
   }, [apiToken, serverUrl]);
 
-  // eslint-disable-next-line react-hooks/immutability
   useEffect(() => {
     if (!apiToken || !serverUrl || !clientDescriptor) {
       return;
     }
 
-    const client = new Jean2Client({
-      url: serverUrl,
-      token: apiToken,
-      autoSyncPermissions: false,
-      clientDescriptor,
-    });
+    let cancelled = false;
 
-    clientRef.current = client;
+    const createAndConnectClient = () => {
+      const client = new Jean2Client({
+        url: serverUrl,
+        token: apiToken,
+        autoSyncPermissions: false,
+        clientDescriptor,
+      });
 
-    client.on('connected', () => {
-      useConnectionStore.getState().setConnected(true);
-      useConnectionStore.getState().setAuthError(null);
-      useConnectionStore.getState().setRetryCount(0);
-      useConnectionStore.getState().setConnectionTimedOut(false);
+      clientRef.current = client;
 
-      // Clear pending ask requests on reconnection (including permission asks)
-      useAskStore.getState().clearPendingRequests();
+      client.on('connected', () => {
+        useConnectionStore.getState().setConnected(true);
+        useConnectionStore.getState().setAuthError(null);
+        useConnectionStore.getState().setRetryCount(0);
+        useConnectionStore.getState().setConnectionTimedOut(false);
 
-      if (currentSessionIdRef.current) {
-        client.sessions.resume(currentSessionIdRef.current);
+        // Clear pending ask requests on reconnection (including permission asks)
+        useAskStore.getState().clearPendingRequests();
+
+        if (currentSessionIdRef.current) {
+          client.sessions.resume(currentSessionIdRef.current);
+        }
+      });
+
+      client.on('disconnected', (payload) => {
+        useConnectionStore.getState().setConnected(false);
+
+        if (payload.code === 1008 || payload.code === 401) {
+          handleLogout();
+        } else {
+          useConnectionStore.getState().setConnectionTimedOut(true);
+        }
+      });
+
+      client.on('error.connection', (error) => {
+        console.error('WebSocket error:', error);
+      });
+
+      subscribeToServerEvents(client, handlerContextRef);
+
+      client.connect().catch((err) => {
+        console.error('Connection failed:', err);
+      });
+    };
+
+    // Pre-flight auth verification: check token validity via HTTP before
+    // opening a WebSocket. This lets us surface "invalid token" immediately
+    // instead of entering the retry loop with a bad token.
+    HttpClient.verifyToken(serverUrl, apiToken).then((isValid) => {
+      if (cancelled) return;
+
+      if (!isValid) {
+        useConnectionStore.getState().setAuthError(
+          'Authentication failed. Your token may be invalid or expired.',
+        );
+        return;
       }
-    });
 
-    client.on('disconnected', (payload) => {
-      useConnectionStore.getState().setConnected(false);
-
-      if (payload.code === 1008 || payload.code === 401) {
-        handleLogout();
-      } else {
-        useConnectionStore.getState().setConnectionTimedOut(true);
-      }
-    });
-
-    client.on('error.connection', (error) => {
-      console.error('WebSocket error:', error);
-    });
-
-    const unsubscribe = subscribeToServerEvents(client, handlerContextRef);
-
-    client.connect().catch((err) => {
-      console.error('Connection failed:', err);
+      createAndConnectClient();
+    }).catch(() => {
+      // Network error during pre-flight — fall through to WebSocket attempt.
+      // The server may be reachable via WS but not HTTP (e.g., proxy issues),
+      // or this could be a temporary network hiccup. Let the existing retry
+      // logic handle it.
+      if (cancelled) return;
+      createAndConnectClient();
     });
 
     return () => {
-      unsubscribe();
-      client.dispose();
-      if (clientRef.current === client) {
-        clientRef.current = null;
+      cancelled = true;
+      const client = clientRef.current;
+      if (client) {
+        client.dispose();
+        if (clientRef.current === client) {
+          clientRef.current = null;
+        }
       }
     };
   }, [apiToken, serverUrl, clientDescriptor, reconnectAttempt]);
