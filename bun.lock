@@ -30,13 +30,14 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "1.0.0",
+      "version": "1.0.3",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
       "dependencies": {
         "@fontsource-variable/geist": "^5.2.8",
         "@jean2/sdk": "workspace:*",
+        "@tanstack/react-query": "^5.100.10",
         "@tanstack/react-router": "^1.114.0",
         "@tanstack/react-virtual": "^3.13.2",
         "@tauri-apps/api": "^2.10.1",
@@ -86,7 +87,7 @@
     },
     "packages/client-electron": {
       "name": "@jean2/client-electron",
-      "version": "1.0.0",
+      "version": "1.0.3",
       "dependencies": {
         "electron-log": "^5.4.3",
         "electron-store": "^10.0.0",
@@ -120,11 +121,11 @@
     },
     "packages/sdk": {
       "name": "@jean2/sdk",
-      "version": "1.0.0",
+      "version": "1.0.1",
     },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -805,6 +806,10 @@
     "@tailwindcss/vite": ["@tailwindcss/vite@4.2.1", "", { "dependencies": { "@tailwindcss/node": "4.2.1", "@tailwindcss/oxide": "4.2.1", "tailwindcss": "4.2.1" }, "peerDependencies": { "vite": "^5.2.0 || ^6 || ^7" } }, "sha512-TBf2sJjYeb28jD2U/OhwdW0bbOsxkWPwQ7SrqGf9sVcoYwZj7rkXljroBO9wKBut9XnmQLXanuDUeqQK0lGg/w=="],
 
     "@tanstack/history": ["@tanstack/history@1.161.6", "", {}, "sha512-NaOGLRrddszbQj9upGat6HG/4TKvXLvu+osAIgfxPYA+eIvYKv8GKDJOrY2D3/U9MRnKfMWD7bU4jeD4xmqyIg=="],
+
+    "@tanstack/query-core": ["@tanstack/query-core@5.100.10", "", {}, "sha512-8UR0yJR+GiQ40m3lPhUr0xbfAupe6GSQiksSBSa9SM2NjezFyxXCIA69/lz8cSoNKZLrw1/PktIyQBJcVeMi3w=="],
+
+    "@tanstack/react-query": ["@tanstack/react-query@5.100.10", "", { "dependencies": { "@tanstack/query-core": "5.100.10" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-FLaZf2RCrA/Zgp4aiu5tG3TyasTRO7aZ99skxQpr3Hg/zXOhu6yq5FZCYQ/tRaJtM9ylnoK8tFK7PolXQadv6Q=="],
 
     "@tanstack/react-router": ["@tanstack/react-router@1.168.13", "", { "dependencies": { "@tanstack/history": "1.161.6", "@tanstack/react-store": "^0.9.3", "@tanstack/router-core": "1.168.9", "isbot": "^5.1.22" }, "peerDependencies": { "react": ">=18.0.0 || >=19.0.0", "react-dom": ">=18.0.0 || >=19.0.0" } }, "sha512-rvrL1bK/bOjjfDyAKKFvkVXeo8IZZmwfy9DwJaMlj7lCmpWl4Qban2/d+EirlHPcwHDNq5OkS5jhcBiZ+24RJw=="],
 

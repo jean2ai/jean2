@@ -27,6 +27,8 @@ import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 
+import { queryClient } from '@/components/providers/QueryProvider';
+import { queryKeys } from '@/lib/queryKeys';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
 import { useSessionCommands } from '@/hooks/useSessionCommands';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
@@ -518,6 +520,7 @@ export function useServerSessionManager({
     useServerDataStore.getState().setActiveWorkspace(workspace);
     localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
     navigate({ to: '/server/$serverId/workspace', params: { serverId: _serverId } });
     return workspace;
   };
@@ -583,6 +586,8 @@ export function useServerSessionManager({
         localStorage.removeItem('activeWorkspaceId');
       }
     }
+
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
   };
 
   const renameWorkspace = async (id: string, name: string) => {
@@ -601,10 +606,11 @@ export function useServerSessionManager({
       if (useServerDataStore.getState().activeWorkspace?.id === id) {
         useServerDataStore.getState().setActiveWorkspace(updatedWorkspace);
       }
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to rename workspace:', message);
-      return;
     }
   };
 

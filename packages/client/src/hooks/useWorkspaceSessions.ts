@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Jean2Client } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseWorkspaceSessionsParams {
   sdkClient: Jean2Client | null;
@@ -18,58 +20,30 @@ export function useWorkspaceSessions({
   workspaceId,
   connected,
 }: UseWorkspaceSessionsParams): UseWorkspaceSessionsReturn {
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const setSessions = useSessionStore(s => s.setSessions);
+
+  const { isLoading, error, data } = useQuery({
+    queryKey: queryKeys.sessions.byWorkspace(workspaceId ?? ''),
+    queryFn: () =>
+      sdkClient!.http.sessions.listByWorkspace({ workspaceId: workspaceId! }),
+    enabled: !!sdkClient && connected && !!workspaceId,
+    staleTime: 10_000,
+  });
 
   useEffect(() => {
     if (!workspaceId) {
       setSessions([]);
-      setIsLoading(false);
-      return;
     }
+  }, [workspaceId, setSessions]);
 
-    if (!sdkClient) {
-      // During reconnection, sdkClient becomes null temporarily (dispose sets
-      // clientRef.current = null).  Keep stale session data so that
-      // currentSession / currentSessionIdRef remain valid for the reconnect
-      // flow.  Sessions will be re-fetched once a new client is connected.
-      setIsLoading(false);
-      return;
+  useEffect(() => {
+    if (data?.sessions) {
+      setSessions(data.sessions);
     }
+  }, [data, setSessions]);
 
-    if (!connected) {
-      // Keep stale session data during temporary disconnects so that
-      // currentSession / currentSessionIdRef remain valid for the
-      // reconnection flow.  Sessions will be re-fetched once connected.
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-
-    sdkClient.http.sessions.listByWorkspace({
-      workspaceId,
-    })
-      .then((result) => {
-        if (cancelled) return;
-        setSessions(result.sessions);
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('Failed to load workspace sessions:', message);
-        setError(message);
-        setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sdkClient, connected, workspaceId, setSessions]);
-
-  return { isLoading, error };
+  return {
+    isLoading,
+    error: error?.message ?? null,
+  };
 }

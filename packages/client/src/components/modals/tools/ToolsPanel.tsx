@@ -1,58 +1,42 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { Jean2Client, ToolDefinition, ToolEnvVarStatus } from '@jean2/sdk';
 import { Wrench, Check, X, Trash2, Eye, EyeOff, Loader2, ShieldCheck, ShieldAlert, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useToolsQuery, useToolEnvVarsQuery, useToolSetEnvVar, useToolClearEnvVar } from '@/hooks/queries';
 
 interface PanelProps {
   sdkClient: Jean2Client | null;
 }
 
 export function ToolsPanel({ sdkClient }: PanelProps) {
-  const [tools, setTools] = useState<ToolDefinition[]>([]);
-  const [envVars, setEnvVars] = useState<ToolEnvVarStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: toolsData, isLoading: toolsLoading, error: toolsError } = useToolsQuery(sdkClient);
+  const { data: envData, isLoading: envLoading } = useToolEnvVarsQuery(sdkClient);
+  const setEnvVar = useToolSetEnvVar(sdkClient);
+  const clearEnvVar = useToolClearEnvVar(sdkClient);
+
+  const tools: ToolDefinition[] = toolsData?.tools ?? [];
+  const envVars: ToolEnvVarStatus[] = envData?.envVars ?? [];
+  const loading = toolsLoading || envLoading;
+  const error = toolsError?.message ?? setEnvVar.error?.message ?? clearEnvVar.error?.message ?? null;
+
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [showSensitive, setShowSensitive] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [toolsData, envData] = await Promise.all([
-        sdkClient.http.tools.list(),
-        sdkClient.http.tools.listEnvVars(),
-      ]);
-      setTools(toolsData.tools);
-      setEnvVars(envData.envVars);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load tools');
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const handleSetValue = async (key: string) => {
     if (!sdkClient || !editValue.trim()) return;
     setActionLoading(key);
     try {
-      await sdkClient.http.tools.setEnvVar(key, { value: editValue.trim() });
+      await setEnvVar.mutateAsync({ key, value: editValue.trim() });
       setEditingKey(null);
       setEditValue('');
       setShowSensitive(false);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to set value');
+    } catch {
+      // Error handled by mutation
     } finally {
       setActionLoading(null);
     }
@@ -62,10 +46,9 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
     if (!sdkClient) return;
     setActionLoading(key);
     try {
-      await sdkClient.http.tools.clearEnvVar(key);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clear value');
+      await clearEnvVar.mutateAsync(key);
+    } catch {
+      // Error handled by mutation
     } finally {
       setActionLoading(null);
     }

@@ -1,6 +1,12 @@
 import type { Session, MessageWithParts, SessionControlState } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
+import { queryClient } from '@/components/providers/QueryProvider';
+import { queryKeys } from '@/lib/queryKeys';
+
+function invalidateSessionQueries() {
+  queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+}
 
 export function handleSessionCreated(
   msg: { type: 'session.created'; session: Session },
@@ -36,6 +42,7 @@ export function handleSessionCreated(
     ctx.resumeSessionAfterCreate(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
+  invalidateSessionQueries();
 }
 
 export function handleSessionResumed(
@@ -169,6 +176,7 @@ export function handleSessionClosed(
     setCurrentSession(null);
     ctx.navigateToParent();
   }
+  invalidateSessionQueries();
 }
 
 export function handleSessionReopened(
@@ -184,6 +192,7 @@ export function handleSessionReopened(
   if (currentSessionIdRef.current === session.id) {
     setCurrentSession(session);
   }
+  invalidateSessionQueries();
 }
 
 export function handleSessionDeleted(
@@ -229,6 +238,7 @@ export function handleSessionDeleted(
     setCurrentSession(null);
     ctx.navigateToParent();
   }
+  invalidateSessionQueries();
 }
 
 export function handleSessionUpdated(
@@ -250,6 +260,7 @@ export function handleSessionUpdated(
       setCurrentModel(session.selectedModel);
     }
   }
+  invalidateSessionQueries();
 }
 
 export function handleSessionRenamed(
@@ -265,6 +276,7 @@ export function handleSessionRenamed(
   if (currentSessionIdRef.current === session.id) {
     setCurrentSession(session);
   }
+  invalidateSessionQueries();
 }
 
 export function handleSessionInterrupted(
@@ -337,6 +349,7 @@ export function handleSessionForked(
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
   // Clear completion state when session is forked (creates new context)
   clearCompletion(forkedSession.id);
+  invalidateSessionQueries();
 }
 
 export function handleSessionState(

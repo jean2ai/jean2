@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
+import { useProvidersQuery, useConnectProvider, useDisconnectProvider } from '@/hooks/queries';
 import { Loader2, Unplug, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/sdk';
@@ -9,40 +10,23 @@ interface PanelProps {
 }
 
 export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
-  const [providers, setProviders] = useState<ProviderStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: providersData, isLoading: loading } = useProvidersQuery(sdkClient);
+  const connectMut = useConnectProvider(sdkClient);
+  const disconnectMut = useDisconnectProvider(sdkClient);
+  const providers: ProviderStatus[] = providersData?.providers ?? [];
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [authUrls, setAuthUrls] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const loadProviders = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.providers.list();
-      setProviders(data.providers || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load providers');
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadProviders();
-  }, [loadProviders]);
 
   const handleConnect = async (providerId: string) => {
     setConnectingId(providerId);
     setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
     setError(null);
     try {
-      const data = await sdkClient!.http.providers.connect(providerId);
+      const data = await connectMut.mutateAsync(providerId);
       if (data.authorizationUrl) {
-        const url = data.authorizationUrl;
-        setAuthUrls((prev) => ({ ...prev, [providerId]: url }));
+        setAuthUrls((prev) => ({ ...prev, [providerId]: data.authorizationUrl! }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect provider');
@@ -55,8 +39,7 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
   const handleDisconnect = async (providerId: string) => {
     setError(null);
     try {
-      await sdkClient!.http.providers.disconnect(providerId);
-      await loadProviders();
+      await disconnectMut.mutateAsync(providerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect provider');
     }

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
+import { useProviderCredentialsQuery, useSetProviderCredential, useClearProviderCredential } from '@/hooks/queries';
 import { Key, Check, X, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,41 +16,24 @@ interface ProviderCredentialStatus {
 }
 
 export function ProviderCredentialsPanel({ sdkClient }: PanelProps) {
-  const [providers, setProviders] = useState<ProviderCredentialStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: credentialsData, isLoading: loading } = useProviderCredentialsQuery(sdkClient);
+  const setCredentialMut = useSetProviderCredential(sdkClient);
+  const clearCredentialMut = useClearProviderCredential(sdkClient);
+  const providers: ProviderCredentialStatus[] = credentialsData?.providers ?? [];
   const [error, setError] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const loadProviders = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.providers.listCredentials();
-      setProviders(data.providers);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load providers');
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadProviders();
-  }, [loadProviders]);
-
   const handleSetKey = async (provider: string) => {
     if (!apiKeyInput.trim()) return;
     setActionLoading(provider);
     try {
-      await sdkClient!.http.providers.setCredential(provider, { apiKey: apiKeyInput.trim() });
+      await setCredentialMut.mutateAsync({ provider, body: { apiKey: apiKeyInput.trim() } });
       setEditingProvider(null);
       setApiKeyInput('');
       setShowKey(false);
-      await loadProviders();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set key');
     } finally {
@@ -60,8 +44,7 @@ export function ProviderCredentialsPanel({ sdkClient }: PanelProps) {
   const handleClearKey = async (provider: string) => {
     setActionLoading(provider);
     try {
-      await sdkClient!.http.providers.clearCredential(provider);
-      await loadProviders();
+      await clearCredentialMut.mutateAsync(provider);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clear key');
     } finally {

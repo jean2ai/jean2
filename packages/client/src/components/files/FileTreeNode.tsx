@@ -4,6 +4,7 @@ import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { useFileBrowseQuery } from '@/hooks/queries';
 
 interface FileTreeNodeProps {
   entry: FileEntry;
@@ -36,35 +37,23 @@ export function FileTreeNode({
   sdkClient,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [children, setChildren] = useState<FileEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
 
   const fullPath = parentPath ? `${parentPath}/${entry.path}` : entry.path;
   const isDirectory = entry.type === 'directory';
 
-  const loadChildren = async () => {
-    if (hasLoaded || isLoading || !sdkClient) return;
+  const { data, isLoading, isFetched } = useFileBrowseQuery(
+    sdkClient ?? null,
+    workspaceId,
+    fullPath,
+    { showHidden },
+    isDirectory && isOpen,
+  );
 
-    setIsLoading(true);
-
-    try {
-      const data = await sdkClient.http.files.browse(workspaceId, fullPath, { showHidden });
-      setChildren(data.files || []);
-      setHasLoaded(true);
-    } catch (err) {
-      console.error('Failed to load children:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const children = data?.files ?? [];
 
   const handleToggle = (open: boolean) => {
     (document.activeElement as HTMLElement)?.focus();
     setIsOpen(open);
-    if (open && isDirectory) {
-      loadChildren();
-    }
   };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -121,7 +110,7 @@ export function FileTreeNode({
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
-          {isLoading ? (
+          {isOpen && isLoading && !isFetched ? (
             <Loader2 className="w-3 h-3 animate-spin shrink-0" />
           ) : (
             <ChevronRight
@@ -137,7 +126,7 @@ export function FileTreeNode({
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        {children.map(child => (
+        {isOpen && children.map(child => (
           <FileTreeNode
             key={`${fullPath}/${child.path}`}
             entry={child}

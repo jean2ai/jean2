@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import type { Jean2Client, ModelWithStatus } from '@jean2/sdk';
+import { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePreconfig, useToolsQuery } from '@/hooks/queries';
 import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X, Cpu, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,8 +84,12 @@ const emptyForm: PreconfigForm = {
 };
 
 export function PreconfigsPanel({ sdkClient }: PanelProps) {
-  const [preconfigs, setPreconfigs] = useState<Preconfig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: preconfigsData, isLoading: loading } = usePreconfigsQuery(sdkClient);
+  const { data: toolsData } = useToolsQuery(sdkClient);
+  const createPreconfigMut = useCreatePreconfig(sdkClient);
+  const updatePreconfigMut = useUpdatePreconfig(sdkClient);
+  const deletePreconfigMut = useDeletePreconfig(sdkClient);
+  const preconfigs: Preconfig[] = (preconfigsData?.preconfigs ?? []) as Preconfig[];
   const [error, setError] = useState<string | null>(null);
 
   const [editingPreconfig, setEditingPreconfig] = useState<Preconfig | null>(null);
@@ -93,7 +98,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [_deleting, setDeleting] = useState(false);
+  const [, setDeleting] = useState(false);
   const [availableTools, setAvailableTools] = useState<{ name: string; description: string }[]>([]);
   const [customToolInput, setCustomToolInput] = useState('');
   const [subagentInput, setSubagentInput] = useState('');
@@ -120,30 +125,11 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
     return isSubagent && isNotSelf;
   });
 
-  const loadPreconfigs = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.preconfigs.list();
-      setPreconfigs(data.preconfigs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load preconfigs');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (toolsData?.tools) {
+      setAvailableTools(toolsData.tools);
     }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadPreconfigs();
-  }, [loadPreconfigs]);
-
-  useEffect(() => {
-    if (!sdkClient) return;
-    sdkClient.http.tools.list()
-      .then(data => setAvailableTools(data.tools || []))
-      .catch(() => {});
-  }, [sdkClient]);
+  }, [toolsData]);
 
   const handleCreate = () => {
     setIsCreating(true);
@@ -225,13 +211,12 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
       };
 
       if (isCreating) {
-        await sdkClient!.http.preconfigs.create(body);
+        await createPreconfigMut.mutateAsync(body);
       } else if (editingPreconfig) {
-        await sdkClient!.http.preconfigs.update(editingPreconfig.id, body);
+        await updatePreconfigMut.mutateAsync({ id: editingPreconfig.id, body });
       }
       setIsCreating(false);
       setEditingPreconfig(null);
-      await loadPreconfigs();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save preconfig');
     } finally {
@@ -243,9 +228,8 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await sdkClient!.http.preconfigs.delete(deleteTarget);
+      await deletePreconfigMut.mutateAsync(deleteTarget);
       setDeleteTarget(null);
-      await loadPreconfigs();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete preconfig');
     } finally {

@@ -1,6 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/sdk';
+import {
+  useModelsConfigQuery,
+  useCreateProvider,
+  useUpdateProvider,
+  useDeleteProvider,
+  useCreateModel,
+  useUpdateModel,
+  useDeleteModel,
+  useSetModelDefaults,
+} from '@/hooks/queries';
 import {
   Plus,
   Pencil,
@@ -34,12 +44,6 @@ interface ProviderConfig {
   id: string;
   name: string;
   models: ModelWithStatus[];
-}
-
-interface ModelsConfigResponse {
-  providers: ProviderConfig[];
-  defaultModel: string;
-  defaultProvider: string;
 }
 
 type Tier = 'budget' | 'standard' | 'premium';
@@ -103,8 +107,13 @@ const emptyProviderForm: ProviderFormData = { id: '', name: '' };
 const emptyModelForm: ModelFormData = { id: '', name: '', contextWindow: 128000, maxOutputTokens: undefined, tier: 'standard' as Tier };
 
 export function ModelsPanel({ sdkClient }: PanelProps) {
-  const [config, setConfig] = useState<ModelsConfigResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+    const { data: config, isLoading: loading } = useModelsConfigQuery(sdkClient); const createProviderMut = useCreateProvider(sdkClient);
+  const updateProviderMut = useUpdateProvider(sdkClient);
+  const deleteProviderMut = useDeleteProvider(sdkClient);
+  const createModelMut = useCreateModel(sdkClient);
+  const updateModelMut = useUpdateModel(sdkClient);
+  const deleteModelMut = useDeleteModel(sdkClient);
+  const setDefaultsMut = useSetModelDefaults(sdkClient);
   const [error, setError] = useState<string | null>(null);
 
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
@@ -112,14 +121,14 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   const [providerForm, setProviderForm] = useState<ProviderFormData>(emptyProviderForm);
   const [savingProvider, setSavingProvider] = useState(false);
   const [deleteProviderTarget, setDeleteProviderTarget] = useState<string | null>(null);
-  const [_deletingProvider, setDeletingProvider] = useState(false);
+  const [, setDeletingProvider] = useState(false);
 
   const [editingModel, setEditingModel] = useState<{ providerId: string; modelId: string } | null>(null);
   const [isCreatingModel, setIsCreatingModel] = useState<string | null>(null);
   const [modelForm, setModelForm] = useState<ModelFormData>(emptyModelForm);
   const [savingModel, setSavingModel] = useState(false);
   const [deleteModelTarget, setDeleteModelTarget] = useState<{ providerId: string; modelId: string } | null>(null);
-  const [_deletingModel, setDeletingModel] = useState(false);
+  const [, setDeletingModel] = useState(false);
   const [variantJsonErrors, setVariantJsonErrors] = useState<Record<string, boolean>>({});
 
   const [isEditingDefaults, setIsEditingDefaults] = useState(false);
@@ -198,24 +207,10 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   };
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
 
-  const loadConfig = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.config.models.get();
-      setConfig(data);
-      setDefaultsForm({ defaultProvider: data.defaultProvider, defaultModel: data.defaultModel });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load models config');
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
+  // Sync defaultsForm from query data
+  if (config && defaultsForm.defaultProvider === '' && defaultsForm.defaultModel === '') {
+    setDefaultsForm({ defaultProvider: config.defaultProvider, defaultModel: config.defaultModel });
+  }
 
   const handleCreateProvider = () => {
     setIsCreatingProvider(true);
@@ -235,15 +230,12 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
     setError(null);
     try {
       if (isCreatingProvider) {
-        const body = { id: providerForm.id.trim(), name: providerForm.name.trim() };
-        await sdkClient!.http.config.models.createProvider(body);
+        await createProviderMut.mutateAsync({ id: providerForm.id.trim(), name: providerForm.name.trim() });
       } else {
-        const body = { name: providerForm.name.trim() };
-        await sdkClient!.http.config.models.updateProvider(editingProvider!, body);
+        await updateProviderMut.mutateAsync({ providerId: editingProvider!, body: { name: providerForm.name.trim() } });
       }
       setIsCreatingProvider(false);
       setEditingProvider(null);
-      await loadConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save provider');
     } finally {
@@ -256,9 +248,8 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
     setDeletingProvider(true);
     setError(null);
     try {
-      await sdkClient!.http.config.models.deleteProvider(deleteProviderTarget);
+      await deleteProviderMut.mutateAsync(deleteProviderTarget);
       setDeleteProviderTarget(null);
-      await loadConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete provider');
     } finally {
@@ -303,7 +294,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
           variants: modelForm.variants,
           capabilities: modelForm.capabilities,
         };
-        await sdkClient!.http.config.models.createModel(providerId, body);
+        await createModelMut.mutateAsync({ providerId, body });
       } else {
         const body = {
           name: modelForm.name.trim(),
@@ -313,11 +304,10 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
           variants: modelForm.variants,
           capabilities: modelForm.capabilities,
         };
-        await sdkClient!.http.config.models.updateModel(providerId, editingModel!.modelId, body);
+        await updateModelMut.mutateAsync({ providerId, modelId: editingModel!.modelId, body });
       }
       setIsCreatingModel(null);
       setEditingModel(null);
-      await loadConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save model');
     } finally {
@@ -330,9 +320,8 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
     setDeletingModel(true);
     setError(null);
     try {
-      await sdkClient!.http.config.models.deleteModel(deleteModelTarget.providerId, deleteModelTarget.modelId);
+      await deleteModelMut.mutateAsync({ providerId: deleteModelTarget.providerId, modelId: deleteModelTarget.modelId });
       setDeleteModelTarget(null);
-      await loadConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete model');
     } finally {
@@ -344,12 +333,11 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
     setSavingDefaults(true);
     setError(null);
     try {
-      await sdkClient!.http.config.models.setDefaults({
+      await setDefaultsMut.mutateAsync({
         defaultProvider: defaultsForm.defaultProvider,
         defaultModel: defaultsForm.defaultModel,
       });
       setIsEditingDefaults(false);
-      await loadConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save defaults');
     } finally {

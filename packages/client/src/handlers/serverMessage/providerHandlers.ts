@@ -1,4 +1,6 @@
 import type { SessionHandlersContext } from './types';
+import { queryClient } from '@/components/providers/QueryProvider';
+import { queryKeys } from '@/lib/queryKeys';
 
 export function handleProviderStatus(
   msg: { type: 'provider.status'; provider: string; connected: boolean; authorizationUrl?: string; error?: string },
@@ -17,6 +19,8 @@ export function handleProviderStatus(
     }
     return [...prev, { provider, connected, authorizationUrl, error }];
   });
+  queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.credentials });
 }
 
 export function handleProviderConnected(
@@ -32,6 +36,8 @@ export function handleProviderConnected(
       : s
     )
   );
+  queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.all });
+  queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.credentials });
 }
 
 export const providerHandlers = {

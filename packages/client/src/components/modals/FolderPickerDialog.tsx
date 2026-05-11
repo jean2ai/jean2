@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery } from '@/hooks/queries';
 
 interface FolderPickerDialogProps {
   open: boolean;
@@ -33,113 +34,79 @@ export function FolderPickerDialog({
   sdkClient,
 }: FolderPickerDialogProps) {
   const [currentPath, setCurrentPath] = useState(initialPath || '');
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [navigatingPath, setNavigatingPath] = useState(initialPath || '');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRoot, setIsRoot] = useState(false);
-  const [drives, setDrives] = useState<string[]>([]);
   const [showDrives, setShowDrives] = useState(false);
+  const [navigatingUp, setNavigatingUp] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const loadDirectory = useCallback(async (path: string) => {
-    if (!sdkClient) return;
+  const { data: directoryData, isLoading: directoryLoading, error: directoryError, refetch: refetchDirectory } = useFileBrowseFsQuery(
+    sdkClient,
+    navigatingPath,
+    open,
+  );
 
-    setLoading(true);
-    setError(null);
-    setSelectedIndex(0);
-    setSearchQuery('');
-    setShowDrives(false);
+  const { data: drivesData } = useFileDrivesQuery(sdkClient);
 
-    try {
-      const data = await sdkClient.http.files.browseFs(path);
+  const { error: parentError, refetch: refetchParent } = useFileParentQuery(
+    sdkClient,
+    currentPath,
+    false,
+  );
 
-      const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
-      setFiles(directories);
-      setCurrentPath(data.currentPath);
-      setIsRoot(data.isRoot ?? false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load directory');
-      setFiles([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
+  const drives = drivesData?.drives ?? [];
 
-  const loadDrives = useCallback(async () => {
-    if (!sdkClient) return;
+  const directories = directoryData?.files?.filter((f: FileEntry) => f.type === 'directory') ?? [];
+  const isRoot = directoryData?.isRoot ?? false;
 
-    try {
-      const data = await sdkClient.http.files.drives();
-      setDrives(data.drives || []);
-    } catch {
-      // Silently fail — drives are optional UI
-    }
-  }, [sdkClient]);
+  const loading = directoryLoading || navigatingUp;
+  const error = directoryError || parentError;
 
-  useEffect(() => {
-    if (open) {
-      loadDirectory(initialPath || '');
-      loadDrives();
-    }
-  }, [open, initialPath, loadDirectory, loadDrives]);
-
-  // Reset selection when search changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [searchQuery]);
-
-  // Filter files based on search query
-  const filteredFiles = files.filter(file => 
+  const filteredFiles = directories.filter(file => 
     file.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Derive selected folder from index
   const selectedFolder = filteredFiles[selectedIndex] ?? null;
 
-  // Helper: compute full path for a folder entry
-  // file.path from browse API is just the entry name, not a full path
   const getFullPath = useCallback((folder: FileEntry): string => {
     return join(currentPath, folder.name);
   }, [currentPath]);
 
-  // Compute the path to display/use for selection and navigation
   const targetPath = selectedFolder ? getFullPath(selectedFolder) : currentPath;
-
   const isUsingCurrentFolder = !selectedFolder;
 
-  const handleNavigateUp = async () => {
-    if (!sdkClient) return;
+  const handleNavigateUp = useCallback(() => {
+    if (!sdkClient || isRoot) return;
+    setNavigatingUp(true);
+    refetchParent().then((result) => {
+      if (result.data) {
+        setCurrentPath(result.data.currentPath);
+        setNavigatingPath(result.data.currentPath);
+        setSelectedIndex(0);
+        setSearchQuery('');
+      }
+      setNavigatingUp(false);
+    }).catch(() => {
+      setNavigatingUp(false);
+    });
+  }, [sdkClient, isRoot, refetchParent]);
 
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.files.parent(currentPath);
-      const directories = data.files.filter((f: FileEntry) => f.type === 'directory');
-      setFiles(directories);
-      setCurrentPath(data.currentPath);
-      setIsRoot(data.isRoot ?? false);
-      setSelectedIndex(0);
-      setSearchQuery('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to navigate up');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleNavigateInto = useCallback((folder: FileEntry) => {
+    const newPath = getFullPath(folder);
+    setCurrentPath(newPath);
+    setNavigatingPath(newPath);
+    setSelectedIndex(0);
+    setSearchQuery('');
+    setShowDrives(false);
+  }, [getFullPath]);
 
   const handleSelectCurrent = () => {
     if (targetPath) {
       onSelect(targetPath);
       onOpenChange(false);
     }
-  };
-
-  const handleNavigateInto = (folder: FileEntry) => {
-    const newPath = getFullPath(folder);
-    loadDirectory(newPath);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -173,7 +140,20 @@ export function FolderPickerDialog({
     }
   };
 
-  // Scroll selected item into view
+  useEffect(() => {
+    if (open) {
+      const startPath = initialPath || '';
+      setCurrentPath(startPath);
+      setNavigatingPath(startPath);
+      setSelectedIndex(0);
+      setSearchQuery('');
+    }
+  }, [open, initialPath]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
+
   useEffect(() => {
     if (listRef.current && filteredFiles.length > 0) {
       const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
@@ -183,7 +163,6 @@ export function FolderPickerDialog({
     }
   }, [selectedIndex, filteredFiles.length]);
 
-  // Focus search input on open
   useEffect(() => {
     if (open) {
       setTimeout(() => searchInputRef.current?.focus(), 100);
@@ -194,7 +173,6 @@ export function FolderPickerDialog({
     setShowDrives(false);
   }, [currentPath]);
 
-  // Truncate path for display
   const truncatePath = (path: string, maxLength: number = 50) => {
     if (path.length <= maxLength) return path;
     const parts = path.split(/[/\\]/);
@@ -210,7 +188,6 @@ export function FolderPickerDialog({
         </DialogHeader>
         
         <div className="space-y-3">
-          {/* Path breadcrumb / navigation */}
           <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
             <Button
               variant="ghost"
@@ -238,8 +215,11 @@ export function FolderPickerDialog({
                       <button
                         key={drive}
                         onClick={() => {
-                          loadDirectory(drive);
+                          setCurrentPath(drive);
+                          setNavigatingPath(drive);
                           setShowDrives(false);
+                          setSelectedIndex(0);
+                          setSearchQuery('');
                         }}
                         className={cn(
                           'flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-muted',
@@ -265,7 +245,6 @@ export function FolderPickerDialog({
             </span>
           </div>
           
-          {/* Search input */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -277,7 +256,6 @@ export function FolderPickerDialog({
             />
           </div>
           
-          {/* Directory listing */}
           <ScrollArea className="h-64 border rounded-md">
             {loading ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -286,11 +264,11 @@ export function FolderPickerDialog({
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <span className="text-destructive">{error}</span>
+                <span className="text-destructive">{error.message}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => loadDirectory(currentPath)}
+                  onClick={() => { setNavigatingPath(currentPath); refetchDirectory(); }}
                   className="mt-2"
                 >
                   Retry
@@ -326,7 +304,7 @@ export function FolderPickerDialog({
           </ScrollArea>
           
           {error && (
-            <p className="text-xs text-destructive">{error}</p>
+            <p className="text-xs text-destructive">{error.message}</p>
           )}
         </div>
         

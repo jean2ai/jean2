@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
+import { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from '@/hooks/queries';
 import { FileText, Plus, Pencil, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,8 +17,11 @@ interface PromptInfo {
 }
 
 export function PromptsPanel({ sdkClient }: PanelProps) {
-  const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: promptsData, isLoading: loading } = usePromptsQuery(sdkClient);
+  const createPromptMut = useCreatePrompt(sdkClient);
+  const updatePromptMut = useUpdatePrompt(sdkClient);
+  const deletePromptMut = useDeletePrompt(sdkClient);
+  const prompts: PromptInfo[] = promptsData?.prompts ?? [];
   const [error, setError] = useState<string | null>(null);
 
   const [editingPrompt, setEditingPrompt] = useState<PromptInfo | null>(null);
@@ -27,24 +31,6 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-
-  const loadPrompts = useCallback(async () => {
-    if (!sdkClient) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await sdkClient.http.config.prompts.list();
-      setPrompts(data.prompts);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load prompts');
-    } finally {
-      setLoading(false);
-    }
-  }, [sdkClient]);
-
-  useEffect(() => {
-    loadPrompts();
-  }, [loadPrompts]);
 
   const handleCreate = () => {
     setIsCreating(true);
@@ -66,13 +52,12 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
     setError(null);
     try {
       if (isCreating) {
-        await sdkClient!.http.config.prompts.create({ name: editName.trim(), content: editContent });
+        await createPromptMut.mutateAsync({ name: editName.trim(), content: editContent });
       } else if (editingPrompt) {
-        await sdkClient!.http.config.prompts.update(editingPrompt.name, { content: editContent });
+        await updatePromptMut.mutateAsync({ name: editingPrompt.name, body: { content: editContent } });
       }
       setIsCreating(false);
       setEditingPrompt(null);
-      await loadPrompts();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save prompt');
     } finally {
@@ -83,9 +68,8 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await sdkClient!.http.config.prompts.delete(deleteTarget);
+      await deletePromptMut.mutateAsync(deleteTarget);
       setDeleteTarget(null);
-      await loadPrompts();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete prompt');
     }

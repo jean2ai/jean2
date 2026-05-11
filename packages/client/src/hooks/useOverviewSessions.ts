@@ -1,7 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
-import type { Session } from '@jean2/sdk';
-import type { Jean2Client } from '@jean2/sdk';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import type { Jean2Client, Session } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface UseOverviewSessionsParams {
   sdkClient: Jean2Client | null;
@@ -20,61 +21,32 @@ export function useOverviewSessions({
   workspaceIds,
   connected,
 }: UseOverviewSessionsParams): UseOverviewSessionsReturn {
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const setSessions = useSessionStore(s => s.setSessions);
   const allSessions = useSessionStore(s => s.sessions);
+
+  const { isLoading, error, data } = useQuery({
+    queryKey: queryKeys.sessions.grouped(workspaceIds, 'active'),
+    queryFn: () =>
+      sdkClient!.http.sessions.listGrouped({
+        workspaceIds,
+        status: 'active',
+      }),
+    enabled: !!sdkClient && connected && workspaceIds.length > 0,
+    staleTime: 10_000,
+  });
 
   useEffect(() => {
     if (workspaceIds.length === 0) {
       setSessions([]);
-      setIsLoading(false);
-      return;
     }
+  }, [workspaceIds.length, setSessions]);
 
-    if (!sdkClient) {
-      // During reconnection, sdkClient becomes null temporarily (dispose sets
-      // clientRef.current = null).  Keep stale session data so that
-      // currentSession / currentSessionIdRef remain valid for the reconnect
-      // flow.  Sessions will be re-fetched once a new client is connected.
-      setIsLoading(false);
-      return;
+  useEffect(() => {
+    if (data?.sessions) {
+      const flatSessions = Object.values(data.sessions).flat();
+      setSessions(flatSessions);
     }
-
-    if (!connected) {
-      // Keep stale session data during temporary disconnects so that
-      // currentSession / currentSessionIdRef remain valid for the
-      // reconnection flow.  Sessions will be re-fetched once connected.
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-
-    sdkClient.http.sessions.listGrouped({
-      workspaceIds,
-      status: 'active',
-    })
-      .then((result) => {
-        if (cancelled) return;
-        const flatSessions = Object.values(result.sessions).flat();
-        setSessions(flatSessions);
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : String(err);
-        console.error('Failed to load overview sessions:', message);
-        setError(message);
-        setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sdkClient, connected, workspaceIds, setSessions]);
+  }, [data, setSessions]);
 
   const sessionsByWorkspace = useMemo(() => {
     const grouped: Record<string, Session[]> = {};
@@ -90,5 +62,5 @@ export function useOverviewSessions({
     return grouped;
   }, [allSessions, workspaceIds]);
 
-  return { sessionsByWorkspace, isLoading, error };
+  return { sessionsByWorkspace, isLoading, error: error?.message ?? null };
 }

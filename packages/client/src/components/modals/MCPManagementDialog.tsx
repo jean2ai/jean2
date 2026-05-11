@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { McpStatus, McpServerConfig } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } from '@/hooks/queries';
 import {
   Dialog,
   DialogContent,
@@ -52,41 +53,27 @@ export function MCPManagementDialog({
   sdkClient,
 }: MCPManagementDialogProps) {
   void workspacePath;
-  const [servers, setServers] = useState<Record<string, ServerStatus>>({});
-  const [loading, setLoading] = useState(false);
+  const { data: mcpData, isLoading: loading, refetch } = useMcpStatusQuery(sdkClient, workspaceId);
+  const connectMut = useMcpConnect(sdkClient);
+  const disconnectMut = useMcpDisconnect(sdkClient);
+  const startAuthMut = useMcpStartAuth(sdkClient);
+  const servers: Record<string, ServerStatus> = (mcpData?.status as Record<string, ServerStatus>) ?? {};
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStatus = useCallback(async () => {
-    if (!workspaceId || !sdkClient) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await sdkClient.http.mcp.getStatus(workspaceId);
-      setServers(data.status || {});
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [workspaceId, sdkClient]);
-
   useEffect(() => {
     if (open && workspaceId) {
-      loadStatus();
+      refetch();
     }
-  }, [open, workspaceId, loadStatus]);
+  }, [open, workspaceId, refetch]);
 
   const handleConnect = async (name: string) => {
     if (!workspaceId || !sdkClient) return;
 
     setActionLoading(name);
     try {
-      await sdkClient.http.mcp.connect(workspaceId, name);
-      await loadStatus();
+      await connectMut.mutateAsync({ workspaceId, name });
+      refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -100,8 +87,8 @@ export function MCPManagementDialog({
 
     setActionLoading(name);
     try {
-      await sdkClient.http.mcp.disconnect(workspaceId, name);
-      await loadStatus();
+      await disconnectMut.mutateAsync({ workspaceId, name });
+      refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -115,12 +102,12 @@ export function MCPManagementDialog({
 
     setActionLoading(name);
     try {
-      const data = await sdkClient.http.mcp.startAuth(workspaceId, name);
+      const data = await startAuthMut.mutateAsync({ workspaceId, name });
 
       if (data.authorizationUrl) {
         window.open(data.authorizationUrl, '_blank');
       }
-      await loadStatus();
+      refetch();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -159,7 +146,7 @@ export function MCPManagementDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={loadStatus}
+              onClick={() => refetch()}
               disabled={loading}
             >
               <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
