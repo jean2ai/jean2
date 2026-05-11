@@ -278,6 +278,10 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       case 'tool-result':
         handlers.handleToolResult(delta);
         break;
+      case 'error': {
+        const error = (delta as { type: 'error'; error: unknown }).error;
+        throw error;
+      }
       }
 
       while (eventQueue.length > 0) {
@@ -310,11 +314,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       return;
     }
 
-    // Handle non-retryable errors - yield error event and return
+    // Handle non-retryable errors - update message status then yield error event
     if (!classified.retryable) {
-      yield createErrorEvent(classified);
-
-      // Update message status to error
+      // Update message status to error FIRST so client receives it before the error event
       const errorMessage: AssistantMessage = {
         ...assistantMessage,
         status: 'error',
@@ -322,6 +324,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       };
       yield { type: 'message.updated', message: errorMessage };
       updateMessage(messageId, errorMessage);
+
+      yield createErrorEvent(classified);
       return;
     }
 

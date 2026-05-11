@@ -1,6 +1,8 @@
 import type { ChatOptions } from './agent';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_CHAT_FAILED } from '@/utils/errors';
-import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage } from '@jean2/sdk';
+import type { ClassifiedError } from '@/utils/errors';
+import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage, AssistantMessage } from '@jean2/sdk';
+import { updateMessage } from '@/store';
 
 /** The union of all events that streamChat can yield (or retry wraps). */
 export type StreamChatEvent =
@@ -25,16 +27,23 @@ export async function* streamChatWithRetry(
   let retries = 0;
   const maxRetries = 3;
   let _lastError: ReturnType<typeof classifyApiError> | null = null;
+  let lastAssistantMessage: AssistantMessage | null = null;
 
   while (retries <= maxRetries) {
     try {
       const stream = streamChatFn ?? (await import('./agent')).streamChat;
       for await (const event of stream(options)) {
+        if (event.type === 'message.created' || event.type === 'message.updated') {
+          const msg = event.message;
+          if (msg.role === 'assistant') {
+            lastAssistantMessage = msg as AssistantMessage;
+          }
+        }
         yield event;
       }
       return;
     } catch (err) {
-      const classifiedError = classifyApiError(err);
+      const classifiedError = isClassifiedError(err) ? err : classifyApiError(err);
       _lastError = classifiedError;
 
       console.error('[streamChatWithRetry] AI SDK error', {
@@ -50,6 +59,16 @@ export async function* streamChatWithRetry(
       });
 
       if (!classifiedError.retryable || retries === maxRetries) {
+        if (lastAssistantMessage) {
+          const errorMessage: AssistantMessage = {
+            ...lastAssistantMessage,
+            status: 'error',
+            error: classifiedError.message,
+          };
+          yield { type: 'message.updated', message: errorMessage };
+          updateMessage(lastAssistantMessage.id, errorMessage);
+        }
+
         if (classifiedError.type === ApiErrorType.RateLimit) {
           yield {
             type: 'error.rate_limit',
@@ -84,6 +103,7 @@ export async function* streamChatWithRetry(
             message: classifiedError.message,
           } as ErrorMessage;
         }
+
         return;
       }
 
@@ -93,4 +113,15 @@ export async function* streamChatWithRetry(
       await new Promise(resolve => setTimeout(resolve, classifiedError.retryAfterMs || 1000 * retries));
     }
   }
+}
+
+function isClassifiedError(err: unknown): err is ClassifiedError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'type' in err &&
+    'retryable' in err &&
+    'message' in err &&
+    'originalError' in err
+  );
 }

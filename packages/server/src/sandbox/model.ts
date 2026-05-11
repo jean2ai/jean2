@@ -3,10 +3,19 @@ import { simulateReadableStream } from 'ai';
 import { getSession } from '@/store';
 import { sandboxController } from '@/sandbox/controller';
 import type {
+  ErrorResponse,
   LlmCallContext,
   SandboxResponse,
   SandboxToolDefinition,
 } from '@/sandbox/types';
+
+const ERROR_TYPE_TO_STATUS: Record<NonNullable<ErrorResponse['errorType']>, number> = {
+  rate_limit: 429,
+  server: 500,
+  timeout: 408,
+  auth: 401,
+  invalid_request: 400,
+};
 
 interface SandboxPromptMessage {
   role: string;
@@ -170,7 +179,7 @@ export class SandboxLanguageModel {
 
   private responseToStream(response: SandboxResponse): ReadableStream<unknown> {
     if (response.type === 'error') {
-      throw new Error(response.error);
+      throw createClassifiedError(response);
     }
 
     const chunks: unknown[] = [];
@@ -240,7 +249,7 @@ export class SandboxLanguageModel {
     warnings: [];
   } {
     if (response.type === 'error') {
-      throw new Error(response.error);
+      throw createClassifiedError(response);
     }
 
     const text = response.type === 'text'
@@ -268,4 +277,25 @@ export class SandboxLanguageModel {
 
     return depth;
   }
+}
+
+function createClassifiedError(response: ErrorResponse): Error & { status?: number; isRateLimitError?: boolean; isRetryableError?: boolean; isTimeoutError?: boolean } {
+  const err = new Error(response.error) as Error & { status?: number; isRateLimitError?: boolean; isRetryableError?: boolean; isTimeoutError?: boolean };
+
+  if (response.errorType) {
+    const status = ERROR_TYPE_TO_STATUS[response.errorType];
+    err.status = status;
+
+    if (response.errorType === 'rate_limit') {
+      err.isRateLimitError = true;
+      err.isRetryableError = true;
+    } else if (response.errorType === 'server') {
+      err.isRetryableError = true;
+    } else if (response.errorType === 'timeout') {
+      err.isTimeoutError = true;
+      err.isRetryableError = true;
+    }
+  }
+
+  return err;
 }

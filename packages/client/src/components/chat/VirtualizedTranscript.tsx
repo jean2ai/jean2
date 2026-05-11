@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './MessageBubble';
+import { ErrorMessageContent } from './ErrorMessageContent';
 import { ToolCall } from './ToolCall';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -343,6 +344,16 @@ const MessageRow = memo(function MessageRow({
     );
   }
 
+  const isError = isAssistantMessage(item.message) && item.message.status === 'error';
+
+  if (isError) {
+    return (
+      <ErrorMessageContent
+        message={item.message as AssistantMessage}
+      />
+    );
+  }
+
   if (compactionPart) {
     return <CompactionDivider part={compactionPart} />;
   }
@@ -466,6 +477,11 @@ export function VirtualizedTranscript({
 
       // Account for compaction failed state
       if ((item.message as AssistantMessage).mode === 'compact_failed') {
+        height = 100;
+      }
+
+      // Account for error messages
+      if ((item.message as AssistantMessage).status === 'error') {
         height = 100;
       }
 

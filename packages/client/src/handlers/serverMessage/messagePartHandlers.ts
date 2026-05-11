@@ -83,9 +83,10 @@ export function handleMessageUpdated(
     const isTopLevel = session && session.parentId === null;
 
     if (isTopLevel) {
+      const isError = 'error' in message && message.status === 'error';
       const flashStartedAt = Date.now();
       setCompletion(message.sessionId, { type: 'flash-only', flashStartedAt });
-      if (chatFinishSoundEnabledRef.current) {
+      if (!isError && chatFinishSoundEnabledRef.current) {
         playChatFinishSound();
       }
     }
@@ -261,8 +262,7 @@ export function handleError(
   msg: { type: 'error'; code: string; message: string },
   _ctx: SessionHandlersContext,
 ): void {
-  const { code, message } = msg;
-  console.error('Server error:', code, message);
+  console.error('Server error:', msg.code, msg.message);
 }
 
 export const messagePartHandlers = {
