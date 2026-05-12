@@ -102,6 +102,7 @@ export default function ServerShell() {
 
       <ServerDialogs
         apiToken={sessionManager.apiToken}
+        isConnected={sessionManager.connected}
         sdkClient={sessionManager.sdkClient}
         permissions={sessionManager.permissions}
         onLogout={sessionManager.handleLogout}

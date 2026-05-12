@@ -27,7 +27,7 @@ interface ServerContextValue {
   isHydrated: boolean;
 
   // Server CRUD actions
-  addServer: (name: string, url: string, token: string) => SavedServer;
+  addServer: (name: string, url: string, token?: string) => SavedServer;
   editServer: (
     id: string,
     updates: { name?: string; url?: string; token?: string },
@@ -68,14 +68,14 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setIsHydrated(true);
   }, []);
 
-  const addServer = useCallback((name: string, url: string, token: string): SavedServer => {
+  const addServer = useCallback((name: string, url: string, token?: string): SavedServer => {
     const normalizedUrl = normalizeServerUrl(url);
 
     const newServer: SavedServer = {
       id: crypto.randomUUID(),
       name,
       url: normalizedUrl,
-      token,
+      ...(token ? { token } : {}),
       createdAt: new Date().toISOString(),
     };
 

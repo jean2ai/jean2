@@ -395,7 +395,7 @@ export interface TerminalConnectOptions {
 
 export interface TerminalConfig {
   url: string;
-  token: string;
+  token?: string;
   wsConstructor?: typeof WebSocket;
   connectTimeout?: number;
 }
@@ -421,11 +421,11 @@ export class TerminalNamespace {
     const clean = this.config.url.replace(/^https?:\/\//, '');
 
     const params = new URLSearchParams({
-      token: this.config.token,
       cwd: options.cwd,
       workspaceId: options.workspaceId,
     });
 
+    if (this.config.token) params.set('token', this.config.token);
     if (options.shell) params.set('shell', options.shell);
     if (options.sessionId) params.set('sessionId', options.sessionId);
 
@@ -530,9 +530,10 @@ export class TerminalNamespace {
     const clean = this.config.url.replace(/^https?:\/\//, '');
 
     const params = new URLSearchParams({
-      token: this.config.token,
       workspaceId,
     });
+
+    if (this.config.token) params.set('token', this.config.token);
 
     const wsUrl = `${proto}://${clean}/ws/terminal/events?${params.toString()}`;
 

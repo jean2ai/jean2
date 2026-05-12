@@ -2,7 +2,7 @@ export interface SavedServer {
   id: string;
   name: string;
   url: string;
-  token: string;
+  token?: string;
   createdAt: string;
 }
 

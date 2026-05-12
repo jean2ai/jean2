@@ -67,6 +67,7 @@ interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   apiToken: string | null;
+  isConnected: boolean;
   onLogout: () => void;
   sdkClient: Jean2Client | null;
 }
@@ -75,6 +76,7 @@ export function SettingsDialog({
   open,
   onOpenChange,
   apiToken,
+  isConnected,
   onLogout,
   sdkClient,
 }: SettingsDialogProps) {
@@ -142,7 +144,7 @@ export function SettingsDialog({
                 <p className="text-sm text-muted-foreground mb-3">
                   Manage your current session
                 </p>
-                {apiToken ? (
+                {isConnected ? (
                   <LogoutButton token={apiToken} onLogout={onLogout} />
                 ) : (
                   <p className="text-sm text-muted-foreground">

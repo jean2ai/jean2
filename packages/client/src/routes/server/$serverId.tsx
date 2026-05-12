@@ -82,15 +82,6 @@ export const Route = createFileRoute('/server/$serverId')({
   beforeLoad: ({ params, context }) => {
     const server = context.serverRegistry.getServer(params.serverId);
     if (!server) {
-      const servers = context.serverRegistry.getServers();
-      if (servers.length > 0) {
-        throw redirect({
-          to: '/server/$serverId',
-          params: { serverId: servers[0].id },
-          replace: true,
-          throw: true,
-        });
-      }
       throw redirect({ to: '/', replace: true, throw: true });
     }
     return { server };

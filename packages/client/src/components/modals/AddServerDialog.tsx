@@ -34,6 +34,7 @@ export function AddServerDialog({
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
+  const [useAuthToken, setUseAuthToken] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = editServer !== null && editServer !== undefined;
@@ -42,11 +43,13 @@ export function AddServerDialog({
     if (editServer) {
       setName(editServer.name);
       setUrl(editServer.url);
-      setToken(editServer.token);
+      setToken(editServer.token ?? '');
+      setUseAuthToken(!!editServer.token);
     } else {
       setName('');
       setUrl('localhost:8742');
       setToken('');
+      setUseAuthToken(false);
     }
     setError(null);
     setShowToken(false);
@@ -58,7 +61,7 @@ export function AddServerDialog({
 
     const trimmedName = name.trim();
     const trimmedUrl = url.trim();
-    const trimmedToken = token.trim();
+    const trimmedToken = useAuthToken ? token.trim() : '';
 
     if (!trimmedName) {
       setError('Name is required');
@@ -70,12 +73,7 @@ export function AddServerDialog({
       return;
     }
 
-    if (!trimmedToken) {
-      setError('API token is required');
-      return;
-    }
-
-    if (!isValidTokenFormat(trimmedToken)) {
+    if (trimmedToken && !isValidTokenFormat(trimmedToken)) {
       setError('Token must be 64 hexadecimal characters');
       return;
     }
@@ -86,11 +84,11 @@ export function AddServerDialog({
       updateServer(editServer.id, {
         name: trimmedName,
         url: normalizedUrl,
-        token: trimmedToken,
+        ...(trimmedToken ? { token: trimmedToken } : {}),
       });
       onOpenChange(false);
     } else {
-      const newServer = addServer(trimmedName, normalizedUrl, trimmedToken);
+      const newServer = addServer(trimmedName, normalizedUrl, trimmedToken || undefined);
       // Navigate to the new server
       navigate({ to: '/server/$serverId', params: { serverId: newServer.id } });
       onOpenChange(false);
@@ -134,28 +132,39 @@ export function AddServerDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="server-token">API Token</Label>
-              <div className="relative">
-                <Input
-                  id="server-token"
-                  type={showToken ? 'text' : 'password'}
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="64-character hex string"
-                  className="pr-10"
-                />
+              <div className="flex items-center justify-between">
+                <Label>API Token</Label>
                 <button
                   type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-transparent"
+                  onClick={() => setUseAuthToken(!useAuthToken)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useAuthToken ? 'bg-primary' : 'bg-muted'}`}
                 >
-                  {showToken ? (
-                    <EyeOff className="size-4 text-muted-foreground" />
-                  ) : (
-                    <Eye className="size-4 text-muted-foreground" />
-                  )}
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${useAuthToken ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
                 </button>
               </div>
+              {useAuthToken && (
+                <div className="relative">
+                  <Input
+                    id="server-token"
+                    type={showToken ? 'text' : 'password'}
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Required if auth is enabled"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-transparent"
+                  >
+                    {showToken ? (
+                      <EyeOff className="size-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="size-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && (

@@ -12,6 +12,7 @@ import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 
 interface ServerDialogsProps {
   apiToken: string | null;
+  isConnected: boolean;
   sdkClient: Jean2Client | null;
   permissions: PermissionGrant[];
   onLogout: () => void;
@@ -23,6 +24,7 @@ interface ServerDialogsProps {
 
 export function ServerDialogs({
   apiToken,
+  isConnected,
   sdkClient,
   permissions,
   onLogout,
@@ -79,6 +81,7 @@ export function ServerDialogs({
         open={showSettings}
         onOpenChange={setShowSettings}
         apiToken={apiToken}
+        isConnected={isConnected}
         onLogout={onLogout}
         sdkClient={sdkClient}
       />

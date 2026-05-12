@@ -2,7 +2,7 @@ import { AuthError, ConnectionError, RateLimitError, ServerError, ValidationErro
 
 export interface HttpClientConfig {
   url: string;
-  token: string;
+  token?: string;
   apiBase?: string;
 }
 
@@ -18,7 +18,7 @@ interface RequestOptions {
 
 export class HttpClient {
   private baseUrl: string;
-  private token: string;
+  private token: string | undefined;
 
   constructor(config: HttpClientConfig) {
     const apiBase = config.apiBase || '/api';
@@ -53,7 +53,9 @@ export class HttpClient {
       requestHeaders['Content-Type'] = 'application/json';
     }
 
-    requestHeaders['Authorization'] = `Bearer ${this.token}`;
+    if (this.token) {
+      requestHeaders['Authorization'] = `Bearer ${this.token}`;
+    }
 
     const response = await fetch(url, {
       method,
@@ -123,13 +125,15 @@ export class HttpClient {
    * @returns true if token is valid (200), false if invalid (401)
    * @throws ConnectionError if the server is unreachable
    */
-  static async verifyToken(url: string, token: string): Promise<boolean> {
+  static async verifyToken(url: string, token?: string): Promise<boolean> {
     const proto = url.startsWith('https') ? 'https' : 'http';
     const clean = url.replace(/^https?:\/\//, '');
     try {
-      const response = await fetch(`${proto}://${clean}/api/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${proto}://${clean}/api/auth/verify`, { headers });
       return response.status === 200;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

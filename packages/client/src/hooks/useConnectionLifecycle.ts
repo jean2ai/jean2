@@ -52,7 +52,7 @@ export function useConnectionLifecycle({
   const connectionTimedOut = useConnectionStore((s) => s.connectionTimedOut);
 
   useEffect(() => {
-    if (!apiToken || !serverUrl) return;
+    if (!serverUrl) return;
     let cancelled = false;
     resolveClientDescriptor().then((descriptor) => {
       if (!cancelled) {
@@ -61,10 +61,10 @@ export function useConnectionLifecycle({
       }
     });
     return () => { cancelled = true; };
-  }, [apiToken, serverUrl]);
+  }, [serverUrl]);
 
   useEffect(() => {
-    if (!apiToken || !serverUrl || !clientDescriptor) {
+    if (!serverUrl || !clientDescriptor) {
       return;
     }
 
@@ -73,7 +73,7 @@ export function useConnectionLifecycle({
     const createAndConnectClient = () => {
       const client = new Jean2Client({
         url: serverUrl,
-        token: apiToken,
+        ...(apiToken ? { token: apiToken } : {}),
         autoSyncPermissions: false,
         clientDescriptor,
       });
@@ -134,7 +134,7 @@ export function useConnectionLifecycle({
     // Pre-flight auth verification: check token validity via HTTP before
     // opening a WebSocket. This lets us surface "invalid token" immediately
     // instead of entering the retry loop with a bad token.
-    HttpClient.verifyToken(serverUrl, apiToken).then((isValid) => {
+    HttpClient.verifyToken(serverUrl, apiToken ?? undefined).then((isValid) => {
       if (cancelled) return;
 
       if (!isValid) {
@@ -164,10 +164,10 @@ export function useConnectionLifecycle({
         }
       }
     };
-  }, [apiToken, serverUrl, clientDescriptor, reconnectAttempt]);
+  }, [serverUrl, apiToken, clientDescriptor, reconnectAttempt]);
 
   useEffect(() => {
-    if (apiToken && serverUrl && clientDescriptor && !connected && !connectionTimedOut) {
+    if (serverUrl && clientDescriptor && !connected && !connectionTimedOut) {
       const timeoutId = setTimeout(() => {
         if (!useConnectionStore.getState().connected) {
           useConnectionStore.getState().setConnectionTimedOut(true);
@@ -176,10 +176,10 @@ export function useConnectionLifecycle({
 
       return () => clearTimeout(timeoutId);
     }
-  }, [apiToken, serverUrl, clientDescriptor, reconnectAttempt, connected, connectionTimedOut]);
+  }, [serverUrl, apiToken, clientDescriptor, reconnectAttempt, connected, connectionTimedOut]);
 
   useEffect(() => {
-    if (!connectionTimedOut || connected || !apiToken || !serverUrl) return;
+    if (!connectionTimedOut || connected || !serverUrl) return;
 
     const retryCount = useConnectionStore.getState().retryCount;
     const delay = Math.min(
@@ -204,11 +204,11 @@ export function useConnectionLifecycle({
       clearInterval(countdownInterval);
       clearTimeout(retryTimeout);
     };
-  }, [apiToken, serverUrl, reconnectAttempt, connected, connectionTimedOut]);
+  }, [serverUrl, apiToken, reconnectAttempt, connected, connectionTimedOut]);
 
   useEffect(() => {
     const handleOnline = () => {
-      if (!apiToken || !serverUrl) return;
+      if (!serverUrl) return;
 
       const client = clientRef.current;
       if (client && client.connected) return;
@@ -221,7 +221,7 @@ export function useConnectionLifecycle({
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [apiToken, serverUrl]);
+  }, [serverUrl]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -229,7 +229,7 @@ export function useConnectionLifecycle({
 
       const client = clientRef.current;
       if (client && client.ws?.readyState === WebSocket.OPEN) return;
-      if (!apiToken || !serverUrl) return;
+      if (!serverUrl) return;
 
       useConnectionStore.getState().setRetryCount(0);
       useConnectionStore.getState().setConnectionTimedOut(false);
@@ -238,7 +238,7 @@ export function useConnectionLifecycle({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [apiToken, serverUrl]);
+  }, [serverUrl]);
 
   return { clientRef, retry };
 }

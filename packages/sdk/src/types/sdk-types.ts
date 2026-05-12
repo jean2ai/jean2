@@ -2,7 +2,7 @@ import type { ServerMessage } from '../shared';
 
 export interface ClientConfig {
   url: string;
-  token: string;
+  token?: string;
   wsConstructor?: typeof WebSocket;
   apiBase?: string;
   autoSyncPermissions?: boolean;

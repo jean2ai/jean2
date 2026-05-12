@@ -5,10 +5,10 @@ export type ServerData = LoadAllResult;
 
 export async function fetchServerData(
   serverUrl: string,
-  apiToken: string,
+  apiToken?: string,
   signal?: AbortSignal,
 ): Promise<ServerData> {
-  const httpClient = new HttpClient({ url: serverUrl, token: apiToken });
+  const httpClient = new HttpClient({ url: serverUrl, ...(apiToken ? { token: apiToken } : {}) });
   const http = new HttpNamespace(httpClient);
   return http.loadAll({ signal });
 }

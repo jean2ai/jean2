@@ -3,7 +3,7 @@ import { ConnectionError } from '../errors';
 
 export interface WebSocketTransportConfig {
   url: string;
-  token: string;
+  token?: string;
   wsConstructor?: typeof WebSocket;
   connectionTimeout?: number;
 }
@@ -168,6 +168,9 @@ export class WebSocketTransport {
   private buildWsUrl(): string {
     const proto = this.config.url.startsWith('https') ? 'wss' : 'ws';
     const clean = this.config.url.replace(/^https?:\/\//, '');
-    return `${proto}://${clean}/ws?token=${encodeURIComponent(this.config.token)}`;
+    if (this.config.token) {
+      return `${proto}://${clean}/ws?token=${encodeURIComponent(this.config.token)}`;
+    }
+    return `${proto}://${clean}/ws`;
   }
 }
