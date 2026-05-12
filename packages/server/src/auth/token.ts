@@ -3,7 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 
 import {
-  getDisableAuth,
+  getAuthEnabled,
   getLLMOpenAIApiKey,
   getLLMAnthropicApiKey,
   getLLMOpenRouterApiKey,
@@ -218,10 +218,10 @@ export function showTokenPath(): void {
 
 /**
  * Check if authentication is enabled
- * Can be disabled with JEAN2_DISABLE_AUTH=true env var
+ * Enable with JEAN2_AUTH_ENABLED=true env var (default: false)
  */
 export function isAuthEnabled(): boolean {
-  return !getDisableAuth();
+  return getAuthEnabled();
 }
 
 /**

@@ -14,7 +14,7 @@ describe('API Routes', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
-    process.env.JEAN2_DISABLE_AUTH = 'true';
+    delete process.env.JEAN2_AUTH_ENABLED;
     setupTestDataDir();
     setupTestDatabase();
     app = createApp();
@@ -23,7 +23,7 @@ describe('API Routes', () => {
   afterEach(() => {
     resetTestDatabase();
     resetTestDataDir();
-    delete process.env.JEAN2_DISABLE_AUTH;
+    delete process.env.JEAN2_AUTH_ENABLED;
   });
 
   // ── Health & Info ──────────────────────────────────────────────
