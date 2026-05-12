@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronsUpDown, Server, Plus } from 'lucide-react';
+import { Check, ChevronsUpDown, Server, Plus, Home } from 'lucide-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,15 +21,13 @@ import { useServerContext } from '@/contexts/ServerContext';
 
 interface ServerSwitcherProps {
   compact?: boolean;
-  onOpenAddServer: () => void;
 }
 
-export function ServerSwitcher({ compact, onOpenAddServer }: ServerSwitcherProps) {
+export function ServerSwitcher({ compact }: ServerSwitcherProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { servers } = useServerContext();
 
-  // Get current serverId from TanStack Router params
   const params = useParams({ from: '/server/$serverId' });
   const currentServerId = params.serverId ?? null;
 
@@ -37,6 +35,54 @@ export function ServerSwitcher({ compact, onOpenAddServer }: ServerSwitcherProps
     navigate({ to: '/server/$serverId', params: { serverId } });
     setOpen(false);
   };
+
+  const handleAddServer = () => {
+    navigate({ to: '/add-server' });
+    setOpen(false);
+  };
+
+  const handleGoHome = () => {
+    navigate({ to: '/' });
+    setOpen(false);
+  };
+
+  const serverList = (
+    <>
+      <CommandGroup heading="Servers">
+        {servers.map((server) => (
+          <CommandItem
+            key={server.id}
+            onSelect={() => handleSelectServer(server.id)}
+            className="justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <Server className="size-4 text-muted-foreground" />
+              <span>{server.name}</span>
+            </div>
+            <Check
+              className={cn(
+                'size-4',
+                currentServerId === server.id
+                  ? 'opacity-100'
+                  : 'opacity-0'
+              )}
+            />
+          </CommandItem>
+        ))}
+      </CommandGroup>
+      <CommandSeparator />
+      <CommandGroup>
+        <CommandItem onSelect={handleGoHome}>
+          <Home className="size-4" data-icon="inline-start" />
+          Server Selection
+        </CommandItem>
+        <CommandItem onSelect={handleAddServer}>
+          <Plus className="size-4" data-icon="inline-start" />
+          Add Server...
+        </CommandItem>
+      </CommandGroup>
+    </>
+  );
 
   if (compact) {
     return (
@@ -62,40 +108,7 @@ export function ServerSwitcher({ compact, onOpenAddServer }: ServerSwitcherProps
             <CommandInput placeholder="Search server..." />
             <CommandList className="max-h-[50vh] overflow-y-auto">
               <CommandEmpty>No server found.</CommandEmpty>
-              <CommandGroup heading="Servers">
-                {servers.map((server) => (
-                  <CommandItem
-                    key={server.id}
-                    onSelect={() => handleSelectServer(server.id)}
-                    className="justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Server className="size-4 text-muted-foreground" />
-                      <span>{server.name}</span>
-                    </div>
-                    <Check
-                      className={cn(
-                        'size-4',
-                        currentServerId === server.id
-                          ? 'opacity-100'
-                          : 'opacity-0'
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup>
-                <CommandItem
-                  onSelect={() => {
-                    onOpenAddServer();
-                    setOpen(false);
-                  }}
-                >
-                  <Plus className="size-4" data-icon="inline-start" />
-                  Add Server...
-                </CommandItem>
-              </CommandGroup>
+              {serverList}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -127,40 +140,7 @@ export function ServerSwitcher({ compact, onOpenAddServer }: ServerSwitcherProps
           <CommandInput placeholder="Search server..." />
           <CommandList className="max-h-[50vh] overflow-y-auto">
             <CommandEmpty>No server found.</CommandEmpty>
-            <CommandGroup heading="Servers">
-              {servers.map((server) => (
-                <CommandItem
-                  key={server.id}
-                  onSelect={() => handleSelectServer(server.id)}
-                  className="justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Server className="size-4 text-muted-foreground" />
-                    <span>{server.name}</span>
-                  </div>
-                  <Check
-                    className={cn(
-                      'size-4',
-                      currentServerId === server.id
-                        ? 'opacity-100'
-                        : 'opacity-0'
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandSeparator />
-            <CommandGroup>
-              <CommandItem
-                onSelect={() => {
-                  onOpenAddServer();
-                  setOpen(false);
-                }}
-              >
-                <Plus className="size-4" data-icon="inline-start" />
-                Add Server...
-              </CommandItem>
-            </CommandGroup>
+            {serverList}
           </CommandList>
         </Command>
       </PopoverContent>

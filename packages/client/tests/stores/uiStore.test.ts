@@ -1,15 +1,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { mockLocalStorage } from '../helpers';
 import { useUIStore } from '@/stores/uiStore';
-import type { SavedServer } from '@jean2/sdk';
 
-const mockServer: SavedServer = {
-  id: 'server-1',
-  name: 'Test Server',
-  url: 'http://localhost:3000',
-  token: 'test-token',
-  createdAt: new Date().toISOString(),
-};
 
 describe('uiStore', () => {
   let storage: Storage;
@@ -22,8 +14,6 @@ describe('uiStore', () => {
       showTools: false,
       showMCPDialog: false,
       showWorkspacePermissions: false,
-      showAddServer: false,
-      editServerData: null,
       chatFinishSoundEnabled: true,
       permissionSoundEnabled: true,
       filePreviewTarget: null,
@@ -90,34 +80,6 @@ describe('uiStore', () => {
       test('setShowWorkspacePermissions toggles', () => {
         useUIStore.getState().setShowWorkspacePermissions(true);
         expect(useUIStore.getState().showWorkspacePermissions).toBe(true);
-      });
-    });
-
-    describe('showAddServer', () => {
-      test('starts false', () => {
-        expect(useUIStore.getState().showAddServer).toBe(false);
-      });
-
-      test('setShowAddServer toggles', () => {
-        useUIStore.getState().setShowAddServer(true);
-        expect(useUIStore.getState().showAddServer).toBe(true);
-      });
-    });
-
-    describe('editServerData', () => {
-      test('starts null', () => {
-        expect(useUIStore.getState().editServerData).toBeNull();
-      });
-
-      test('setEditServerData sets server data', () => {
-        useUIStore.getState().setEditServerData(mockServer);
-        expect(useUIStore.getState().editServerData).toEqual(mockServer);
-      });
-
-      test('setEditServerData clears with null', () => {
-        useUIStore.getState().setEditServerData(mockServer);
-        useUIStore.getState().setEditServerData(null);
-        expect(useUIStore.getState().editServerData).toBeNull();
       });
     });
   });

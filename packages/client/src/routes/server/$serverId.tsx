@@ -1,6 +1,5 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { fetchServerData, type ServerData } from '@/lib/fetchServerData';
-import { deleteServer, getSavedServers } from '@/config/servers';
 import { StoreHydrator } from '@/components/providers/StoreHydrator';
 import ServerShell from '@/components/shell/ServerShell';
 
@@ -12,29 +11,8 @@ function ServerErrorComponent({
   reset: () => void;
 }) {
   const router = useRouter();
-  const params = Route.useParams();
-  const serverId = params.serverId;
 
-  const savedServers = getSavedServers();
-  const otherServers = savedServers.filter((s) => s.id !== serverId);
-  const hasOtherServers = otherServers.length > 0;
-
-  const handleRemoveServer = () => {
-    if (serverId) {
-      deleteServer(serverId);
-    }
-    router.navigate({ to: '/', replace: true });
-  };
-
-  const handleSwitchServer = () => {
-    if (otherServers.length > 0) {
-      router.navigate({ to: '/server/$serverId', params: { serverId: otherServers[0].id }, replace: true });
-    } else {
-      router.navigate({ to: '/', replace: true });
-    }
-  };
-
-  const handleGoHome = () => {
+  const handleGoToServerSelection = () => {
     router.navigate({ to: '/', replace: true });
   };
 
@@ -52,25 +30,11 @@ function ServerErrorComponent({
           >
             Retry
           </button>
-          {hasOtherServers && (
-            <button
-              onClick={handleSwitchServer}
-              className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground text-sm font-medium hover:bg-accent"
-            >
-              Switch Server
-            </button>
-          )}
           <button
-            onClick={handleRemoveServer}
-            className="w-full px-4 py-2 rounded-md border border-destructive/50 text-destructive text-sm font-medium hover:bg-destructive/10"
+            onClick={handleGoToServerSelection}
+            className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground text-sm font-medium hover:bg-accent"
           >
-            Remove This Server
-          </button>
-          <button
-            onClick={handleGoHome}
-            className="w-full px-4 py-2 rounded-md text-muted-foreground text-sm font-medium hover:text-foreground hover:bg-accent"
-          >
-            Go to Home
+            Back to Server Selection
           </button>
         </div>
       </div>

@@ -7,7 +7,6 @@ import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
 import { ToolsDialog } from '@/components/modals/ToolsDialog';
 import { WorkspacePermissionsDialog } from '@/components/modals/WorkspacePermissionsDialog';
-import { AddServerDialog } from '@/components/modals/AddServerDialog';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 
 interface ServerDialogsProps {
@@ -40,15 +39,11 @@ export function ServerDialogs({
     showConfiguration,
     showTools,
     showWorkspacePermissions,
-    showAddServer,
-    editServerData,
     setShowSettings,
     setShowMCPDialog,
     setShowConfiguration,
     setShowTools,
     setShowWorkspacePermissions,
-    setShowAddServer,
-    setEditServerData,
   } = useUIStore(
     useShallow((s) => ({
       showSettings: s.showSettings,
@@ -56,15 +51,11 @@ export function ServerDialogs({
       showConfiguration: s.showConfiguration,
       showTools: s.showTools,
       showWorkspacePermissions: s.showWorkspacePermissions,
-      showAddServer: s.showAddServer,
-      editServerData: s.editServerData,
       setShowSettings: s.setShowSettings,
       setShowMCPDialog: s.setShowMCPDialog,
       setShowConfiguration: s.setShowConfiguration,
       setShowTools: s.setShowTools,
       setShowWorkspacePermissions: s.setShowWorkspacePermissions,
-      setShowAddServer: s.setShowAddServer,
-      setEditServerData: s.setEditServerData,
     })),
   );
 
@@ -123,15 +114,6 @@ export function ServerDialogs({
         open={showTools}
         onOpenChange={setShowTools}
         sdkClient={sdkClient}
-      />
-
-      <AddServerDialog
-        open={showAddServer}
-        onOpenChange={(open) => {
-          setShowAddServer(open);
-          if (!open) setEditServerData(null);
-        }}
-        editServer={editServerData}
       />
 
       <FilePreviewOverlay

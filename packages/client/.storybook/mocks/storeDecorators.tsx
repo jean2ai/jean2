@@ -124,8 +124,6 @@ interface UIStoreDefaults {
   showTools?: boolean;
   showMCPDialog?: boolean;
   showWorkspacePermissions?: boolean;
-  showAddServer?: boolean;
-  editServerData?: UIStoreState['editServerData'];
   chatFinishSoundEnabled?: boolean;
   permissionSoundEnabled?: boolean;
   filePreviewTarget?: UIStoreState['filePreviewTarget'];
@@ -137,8 +135,6 @@ const defaultUIState = (): UIStoreDefaults => ({
   showTools: false,
   showMCPDialog: false,
   showWorkspacePermissions: false,
-  showAddServer: false,
-  editServerData: null,
   chatFinishSoundEnabled: true,
   permissionSoundEnabled: true,
   filePreviewTarget: null,

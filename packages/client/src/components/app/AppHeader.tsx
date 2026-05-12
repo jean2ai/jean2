@@ -21,9 +21,7 @@ export function AppHeader() {
   const setShowSettings = useUIStore((s) => s.setShowSettings);
   const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
   const setShowTools = useUIStore((s) => s.setShowTools);
-  const setShowAddServer = useUIStore((s) => s.setShowAddServer);
-
-  const location = useLocation();
+   const location = useLocation();
   const isOverview = location.pathname.includes('/overview');
 
   return (
@@ -34,13 +32,9 @@ export function AppHeader() {
       )}
       <header className="md:hidden flex items-center justify-between pl-3 pr-5 pt-2 sticky top-0 z-[60] shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">              <ServerSwitcher
-                compact
-                onOpenAddServer={() => setShowAddServer(true)}
-              />              <button
-                className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
-                title={connected ? 'Connected' : 'Disconnected'}
-              >
+          <div className="flex items-center gap-1">
+            <ServerSwitcher compact />
+            <button className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors" title={connected ? 'Connected' : 'Disconnected'}>
                 <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
               </button>
             </div>
@@ -110,7 +104,6 @@ export function AppHeader() {
           <div className="flex items-center gap-1">
             <ServerSwitcher
               compact
-              onOpenAddServer={() => setShowAddServer(true)}
             />
             <button
               className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"

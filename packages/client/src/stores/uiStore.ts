@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SavedServer, PermissionRiskLevel } from '@jean2/sdk';
+import type { PermissionRiskLevel } from '@jean2/sdk';
 import type { UseBoundStore, StoreApi } from 'zustand';
 
 // --- Dialogs ---
@@ -9,8 +9,6 @@ interface DialogState {
   showTools: boolean;
   showMCPDialog: boolean;
   showWorkspacePermissions: boolean;
-  showAddServer: boolean;
-  editServerData: SavedServer | null;
 }
 
 interface DialogActions {
@@ -19,8 +17,6 @@ interface DialogActions {
   setShowTools: (show: boolean) => void;
   setShowMCPDialog: (show: boolean) => void;
   setShowWorkspacePermissions: (show: boolean) => void;
-  setShowAddServer: (show: boolean) => void;
-  setEditServerData: (data: SavedServer | null) => void;
 }
 
 // --- File Preview ---
@@ -97,16 +93,12 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   showTools: false,
   showMCPDialog: false,
   showWorkspacePermissions: false,
-  showAddServer: false,
-  editServerData: null,
 
   setShowSettings: (show) => set({ showSettings: show }),
   setShowConfiguration: (show) => set({ showConfiguration: show }),
   setShowTools: (show) => set({ showTools: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowWorkspacePermissions: (show) => set({ showWorkspacePermissions: show }),
-  setShowAddServer: (show) => set({ showAddServer: show }),
-  setEditServerData: (data) => set({ editServerData: data }),
 
   // --- Settings ---
   chatFinishSoundEnabled: getStoredBoolean(CHAT_FINISH_SOUND_KEY, true),

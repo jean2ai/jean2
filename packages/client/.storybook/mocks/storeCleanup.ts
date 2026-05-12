@@ -51,8 +51,6 @@ export function resetAllStores(): void {
     showTools: false,
     showMCPDialog: false,
     showWorkspacePermissions: false,
-    showAddServer: false,
-    editServerData: null,
     chatFinishSoundEnabled: true,
     permissionSoundEnabled: true,
     filePreviewTarget: null,

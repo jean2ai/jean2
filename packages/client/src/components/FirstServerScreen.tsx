@@ -4,6 +4,7 @@ import { useNavigate, useRouter } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 import { isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
 import { useServerContext } from '@/contexts/ServerContext';
+import { validateServerAuth } from '@/lib/validateServerAuth';
 
 interface FirstServerScreenProps {
   error?: string;
@@ -12,15 +13,16 @@ interface FirstServerScreenProps {
 export default function FirstServerScreen({ error }: FirstServerScreenProps) {
   const navigate = useNavigate();
   const router = useRouter();
-  const { addServer } = useServerContext();
+  const { addServer, servers } = useServerContext();
   const [name, setName] = useState('');
   const [url, setUrl] = useState('localhost:8742');
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [useAuthToken, setUseAuthToken] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedName = name.trim();
@@ -29,6 +31,11 @@ export default function FirstServerScreen({ error }: FirstServerScreenProps) {
 
     if (!trimmedName) {
       setLocalError('Please enter a server name');
+      return;
+    }
+
+    if (servers.some((s) => s.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setLocalError(`A server named "${trimmedName}" already exists`);
       return;
     }
 
@@ -42,8 +49,22 @@ export default function FirstServerScreen({ error }: FirstServerScreenProps) {
       return;
     }
 
-    const normalizedUrl = normalizeServerUrl(trimmedUrl);
+    setLocalError(null);
+    setIsValidating(true);
 
+    const result = await validateServerAuth(trimmedUrl, trimmedToken || undefined);
+
+    setIsValidating(false);
+
+    if (!result.success) {
+      setLocalError(result.error ?? 'Connection failed');
+      if (result.authEnabled && !useAuthToken) {
+        setUseAuthToken(true);
+      }
+      return;
+    }
+
+    const normalizedUrl = normalizeServerUrl(trimmedUrl);
     const newServer = addServer(trimmedName, normalizedUrl, trimmedToken || undefined);
     navigate({ to: '/server/$serverId', params: { serverId: newServer.id } });
   };
@@ -170,9 +191,10 @@ export default function FirstServerScreen({ error }: FirstServerScreenProps) {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors"
+              disabled={isValidating}
+              className="w-full py-2.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Server
+              {isValidating ? 'Connecting...' : 'Add Server'}
             </button>
           </form>
         </div>
