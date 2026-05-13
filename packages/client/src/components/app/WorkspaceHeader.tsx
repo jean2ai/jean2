@@ -1,4 +1,5 @@
 import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis } from 'lucide-react';
+import { isWindows } from '@/lib/platform';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
@@ -71,11 +72,16 @@ export function WorkspaceHeader() {
                 <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
               </Tooltip>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm">
-                    <Ellipsis className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm">
+                        <Ellipsis className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
                     <Server className="w-4 h-4" />

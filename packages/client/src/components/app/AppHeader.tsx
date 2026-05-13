@@ -1,6 +1,6 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
-import { isElectron } from '@/lib/platform';
+import { isElectron, isWindows } from '@/lib/platform';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -127,7 +127,7 @@ export function AppHeader() {
                     <LayoutList className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Single workspace</TooltipContent>
+                <TooltipContent side={isWindows() ? 'bottom' : undefined}>Single workspace</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -140,7 +140,7 @@ export function AppHeader() {
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Overview</TooltipContent>
+                <TooltipContent side={isWindows() ? 'bottom' : undefined}>Overview</TooltipContent>
               </Tooltip>
             </>
             <DropdownMenu>
@@ -152,7 +152,7 @@ export function AppHeader() {
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
-                <TooltipContent>More</TooltipContent>
+                <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
                 <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
