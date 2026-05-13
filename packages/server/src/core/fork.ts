@@ -22,13 +22,20 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-function copyMessage(message: Message, newSessionId: string, newMessageId: string): Message {
+function copyMessage(
+  message: Message,
+  newSessionId: string,
+  newMessageId: string,
+  idMap: Map<string, string>,
+): Message {
   if (message.role === 'assistant') {
+    const parentId = (message as { parentId?: string }).parentId;
     return {
       ...message,
       id: newMessageId,
       sessionId: newSessionId,
       status: 'completed' as const,
+      ...(parentId ? { parentId: idMap.get(parentId) ?? parentId } : {}),
     };
   }
   return {
@@ -87,9 +94,19 @@ export async function forkSession(options: ForkOptions): Promise<ForkResult> {
 
   const forkedMessages: MessageWithParts[] = [];
 
-  for (const { message, parts } of messagesToFork) {
+  // Build old→new ID mapping so we can remap parentId on compaction summaries
+  const idMap = new Map<string, string>();
+
+  // First pass: generate all new IDs
+  for (const { message } of messagesToFork) {
     const newMessageId = generateId();
-    const newMessage = copyMessage(message, forkedSession.id, newMessageId);
+    idMap.set(message.id, newMessageId);
+  }
+
+  // Second pass: create messages and parts with remapped IDs
+  for (const { message, parts } of messagesToFork) {
+    const newMessageId = idMap.get(message.id)!;
+    const newMessage = copyMessage(message, forkedSession.id, newMessageId, idMap);
     createMessage(newMessage);
 
     const newParts: Part[] = [];

@@ -154,40 +154,6 @@ New messages since that summary:
 {CONVERSATION}`;
 
 /**
- * Find the previous summary text from the latest compaction summary message.
- * Returns null if no previous summary exists.
- */
-function getPreviousSummary(sessionId: string): string | null {
-  const allMessages = listMessagesWithParts(sessionId);
-
-  // Find the MOST RECENT assistant message with summary=true and mode='compaction'
-  // (use reduceRight instead of find to get the latest, not the oldest)
-  const latestSummaryMsg = allMessages.reduceRight<typeof allMessages[0] | null>(
-    (found, m) =>
-      found
-        ? found
-        : m.message.role === 'assistant' &&
-          (m.message as AssistantMessage).summary === true &&
-          (m.message as AssistantMessage).mode === 'compaction'
-          ? m
-          : null,
-    null,
-  );
-
-  if (!latestSummaryMsg) {
-    return null;
-  }
-
-  // Extract text from text parts
-  const textParts = latestSummaryMsg.parts.filter((p) => p.type === 'text');
-  if (textParts.length === 0) {
-    return null;
-  }
-
-  return textParts.map((p) => (p as { text: string }).text).join('\n');
-}
-
-/**
  * Creates a compaction trigger message and returns it.
  * The trigger is persisted to the database as a user message with a standard CompactionPart.
  */
@@ -513,9 +479,32 @@ export async function processCompactionTask(
   // Find the index of the trigger in the full session history
   const triggerIdx = allMessages.findIndex((m) => m.message.id === triggerMessageId);
 
-  // Get messages to compact (everything before the trigger, excluding system)
+  // Check for a previous compaction summary BEFORE the trigger to avoid re-summarizing
+  // already-compactored content. When a previous summary exists, only compact messages
+  // AFTER the summary. This prevents re-sending the entire pre-compaction history to the
+  // LLM, which is especially important for forked sessions that inherit compaction artifacts.
+  let previousSummaryText: string | null = null;
+  let compactStartIdx = 0;
+
+  for (let i = triggerIdx - 1; i >= 0; i--) {
+    const m = allMessages[i];
+    if (
+      m.message.role === 'assistant' &&
+      (m.message as AssistantMessage).summary === true &&
+      (m.message as AssistantMessage).mode === 'compaction'
+    ) {
+      // Extract text from the summary
+      const textParts = m.parts.filter((p) => p.type === 'text');
+      if (textParts.length > 0) {
+        previousSummaryText = textParts.map((p) => (p as { text: string }).text).join('\n');
+        compactStartIdx = i + 1;
+      }
+      break;
+    }
+  }
+
   const messagesToCompact = allMessages
-    .slice(0, triggerIdx)
+    .slice(compactStartIdx, triggerIdx)
     .filter((m) => m.message.role !== 'system');
 
   if (messagesToCompact.length === 0) {
@@ -533,11 +522,10 @@ export async function processCompactionTask(
 
   // Build the prompt
   const conversationText = buildConversationText(messagesToCompact);
-  const previousSummary = getPreviousSummary(sessionId);
 
-  const prompt = previousSummary
+  const prompt = previousSummaryText
     ? COMPACTION_PROMPT_INCREMENTAL
-        .replace('{PREVIOUS_SUMMARY}', previousSummary)
+        .replace('{PREVIOUS_SUMMARY}', previousSummaryText)
         .replace('{CONVERSATION}', conversationText)
     : COMPACTION_PROMPT_FIRST.replace('{CONVERSATION}', conversationText);
 
