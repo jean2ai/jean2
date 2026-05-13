@@ -62,16 +62,21 @@ export default function OverviewView() {
         {sidebarContent}
       </AppSidebar>
 
-      <main className="flex-1 flex flex-col overflow-hidden min-h-0" style={{
-        paddingTop: 'env(safe-area-inset-top, 0)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-      }}>
-        <WorkspaceHeader />
-        <Outlet />
-        <AppPanels
-          sdkClient={sessionManager.sdkClient}
-          terminalPanelRef={terminalPanelRef}
-        />
+      <main
+        className="flex-1 flex flex-col overflow-hidden min-h-0 p-2"
+        style={{
+          paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
+        <div className="flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border">
+          <WorkspaceHeader />
+          <Outlet />
+          <AppPanels
+            sdkClient={sessionManager.sdkClient}
+            terminalPanelRef={terminalPanelRef}
+          />
+        </div>
       </main>
     </>
   );
