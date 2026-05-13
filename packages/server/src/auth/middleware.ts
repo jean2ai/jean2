@@ -1,11 +1,11 @@
 // packages/server/src/auth/middleware.ts
 import type { Context, Next } from 'hono';
-import { validateToken, updateLastUsed, isAuthEnabled } from './token';
+import { validateToken, isAuthEnabled } from './token';
 
 /**
  * Middleware to require API key authentication
  * Use on protected routes
- * 
+ *
  * Token can be provided via:
  * - Authorization: Bearer <token> header
  * - ?token=<token> query parameter
@@ -14,19 +14,18 @@ export async function requireAuth(c: Context, next: Next) {
   if (!isAuthEnabled()) {
     return await next();
   }
-  
+
   const authHeader = c.req.header('Authorization');
   const queryToken = c.req.query('token');
-  
+
   let token: string | null = null;
-  
-  // Extract token from "Bearer <token>" format
+
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
   } else if (queryToken) {
     token = queryToken;
   }
-  
+
   if (!validateToken(token)) {
     return c.json({
       error: 'Unauthorized',
@@ -34,8 +33,7 @@ export async function requireAuth(c: Context, next: Next) {
       hint: 'Include token in Authorization header: "Bearer <token>" or query param: ?token=<token>'
     }, 401);
   }
-  
-  updateLastUsed();
+
   await next();
 }
 
@@ -49,25 +47,24 @@ export async function optionalAuth(c: Context, next: Next) {
     c.set('authenticated', true);
     return await next();
   }
-  
+
   const authHeader = c.req.header('Authorization');
   const queryToken = c.req.query('token');
-  
+
   let token: string | null = null;
-  
+
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
   } else if (queryToken) {
     token = queryToken;
   }
-  
+
   if (validateToken(token)) {
     c.set('authenticated', true);
-    updateLastUsed();
   } else {
     c.set('authenticated', false);
   }
-  
+
   await next();
 }
 

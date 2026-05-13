@@ -101,7 +101,7 @@ All settings can be placed in `~/.jean2/.env`. Process environment variables tak
 |---|---|---|
 | `JEAN2_PORT` | `8742` | Server listen port |
 | `JEAN2_HOST` | `0.0.0.0` | Server bind host |
-| `JEAN2_AUTH_ENABLED` | `false` | Enable authentication |
+| `JEAN2_AUTH_TOKEN` | — | API token for authentication (not set = auth disabled) |
 | `JEAN2_DATABASE_PATH` | — | SQLite database path (defaults to `~/.jean2/data/agent.db`) |
 | `JEAN2_TOOLS_PATH` | `~/.jean2/tools` | Tools directory path |
 | `JEAN2_PRECONFIGS_PATH` | `~/.jean2/preconfigs` | Preconfigs directory path |

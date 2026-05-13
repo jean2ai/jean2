@@ -14,7 +14,7 @@ import {
   tailLogs,
   type DaemonOptions,
 } from '@/daemon';
-import { showToken, regenerateToken } from '@/auth/token';
+
 import { initJean2, type InitOptions } from '@/init';
 import { runMigrations } from '@/store';
 import { runToolsCommand, type ToolsCommandArgs } from '@/tools/tools-cli';
@@ -98,9 +98,7 @@ Commands:
 
   logs                 Tail server logs
 
-  auth                 Auth token management
-    show               Show current API token
-    regenerate         Generate a new token
+  auth                 Show authentication configuration
 
   init                 Initialize Jean2 (required before first use)
     --db-path <path>   Custom database path
@@ -148,8 +146,7 @@ Examples:
   jean2 restart                   Restart the daemon
   jean2 server                    Run in foreground (for systemd)
   jean2 logs                      Follow server logs
-  jean2 auth show                 Show API token
-  jean2 auth regenerate           Generate new API token
+  jean2 auth                       Show auth configuration
   jean2 init                      Initialize Jean2
   jean2 tools install             Interactive tool install
   jean2 tools list                List available tools
@@ -169,7 +166,6 @@ Configuration:
   Config dir: ~/.jean2/
   PID file:   ~/.jean2/server.pid
   Log file:   ~/.jean2/server.log
-  Token file: ~/.jean2/auth-token.json
 `);
 }
 
@@ -258,32 +254,18 @@ async function main(): Promise<void> {
     }
 
     case 'auth': {
-      const subCommand = args[1];
-
-      switch (subCommand) {
-        case 'show':
-        case 'token':
-          showToken();
-          break;
-
-        case 'regenerate':
-        case 'regen':
-          regenerateToken();
-          break;
-
-        case 'help':
-        case undefined:
-          console.log(`
-Auth commands:
-  show        Show current API token
-  regenerate  Generate a new token (invalidates old one)
-`);
-          break;
-
-        default:
-          console.error(`Unknown auth subcommand: ${subCommand}`);
-          console.log(`Run 'jean2 auth' for usage.`);
-          process.exit(1);
+      const token = process.env.JEAN2_AUTH_TOKEN;
+      if (token) {
+        const masked = token.length > 8
+          ? `${token.slice(0, 4)}...${token.slice(-4)}`
+          : '****';
+        console.log(`\nAuthentication: enabled`);
+        console.log(`Token:          ${masked}`);
+        console.log(`\nSet via JEAN2_AUTH_TOKEN environment variable.`);
+        console.log(`Change it in ~/.jean2/.env or your shell environment.\n`);
+      } else {
+        console.log(`\nAuthentication: disabled`);
+        console.log(`\nSet JEAN2_AUTH_TOKEN in ~/.jean2/.env or your shell environment to enable.\n`);
       }
       break;
     }

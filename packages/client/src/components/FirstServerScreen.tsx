@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate, useRouter } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
-import { isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
+import { normalizeServerUrl } from '@/config/auth';
 import { useServerContext } from '@/contexts/ServerContext';
 import { validateServerAuth } from '@/lib/validateServerAuth';
 
@@ -44,8 +44,8 @@ export default function FirstServerScreen({ error }: FirstServerScreenProps) {
       return;
     }
 
-    if (trimmedToken && !isValidTokenFormat(trimmedToken)) {
-      setLocalError('Invalid token format. Token should be 64 hex characters (0-9, a-f).');
+    if (useAuthToken && !trimmedToken) {
+      setLocalError('Please enter an API token.');
       return;
     }
 

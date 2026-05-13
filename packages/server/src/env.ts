@@ -54,10 +54,6 @@ export function getHost(): string {
   return process.env.JEAN2_HOST || '0.0.0.0';
 }
 
-export function getAuthEnabled(): boolean {
-  return process.env.JEAN2_AUTH_ENABLED === 'true';
-}
-
 export function getToolsPath(): string {
   return process.env.JEAN2_TOOLS_PATH || getToolsDir();
 }

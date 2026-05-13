@@ -1,6 +1,6 @@
 // packages/client/src/components/TokenPrompt.tsx
 import { useState } from 'react';
-import { setStoredToken, setStoredServerUrl, isValidTokenFormat, normalizeServerUrl } from '@/config/auth';
+import { setStoredToken, setStoredServerUrl, normalizeServerUrl } from '@/config/auth';
 
 interface TokenPromptProps {
   onSubmit: (token: string, serverUrl: string) => void;
@@ -26,8 +26,8 @@ export default function TokenPrompt({ onSubmit, error, defaultServerUrl = 'local
       return;
     }
     
-    if (trimmedToken && !isValidTokenFormat(trimmedToken)) {
-      setLocalError('Invalid token format. Token should be 64 hex characters (0-9, a-f).');
+    if (useAuthToken && !trimmedToken) {
+      setLocalError('Please enter an API token.');
       return;
     }
     

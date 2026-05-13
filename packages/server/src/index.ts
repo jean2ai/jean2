@@ -23,7 +23,7 @@ import {
 } from '@/store';
 import { getPort, getHost } from '@/config';
 import type { ServerWebSocket } from 'bun';
-import { validateToken, updateLastUsed, isAuthEnabled } from '@/auth/token';
+import { validateToken, isAuthEnabled } from '@/auth/token';
 import {
   getLLMOpenAIApiKey,
   getLLMAnthropicApiKey,
@@ -175,7 +175,6 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
               { status: 401, headers: { 'Content-Type': 'application/json' } }
             );
           }
-          updateLastUsed();
         }
 
         const workspaceId = url.searchParams.get('workspaceId') || '';
@@ -210,7 +209,6 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
               }
             );
           }
-          updateLastUsed();
         }
 
         const cwd = url.searchParams.get('cwd');
@@ -253,8 +251,6 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
               }
             );
           }
-
-          updateLastUsed();
         }
 
         const upgraded = server.upgrade(req, {

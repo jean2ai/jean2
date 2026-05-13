@@ -14,7 +14,7 @@ describe('API Routes', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
-    delete process.env.JEAN2_AUTH_ENABLED;
+    delete process.env.JEAN2_AUTH_TOKEN;
     setupTestDataDir();
     setupTestDatabase();
     app = createApp();
@@ -23,7 +23,7 @@ describe('API Routes', () => {
   afterEach(() => {
     resetTestDatabase();
     resetTestDataDir();
-    delete process.env.JEAN2_AUTH_ENABLED;
+    delete process.env.JEAN2_AUTH_TOKEN;
   });
 
   // ── Health & Info ──────────────────────────────────────────────

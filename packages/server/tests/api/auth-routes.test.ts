@@ -1,30 +1,16 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { createHash } from 'crypto';
-import { writeFileSync, existsSync, mkdirSync, unlinkSync, readFileSync } from 'fs';
 
 import { createApp } from '@/app';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace, seedSession } from '#tests/seed';
-import { getAuthTokenPath, getDataDir } from '@/paths';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function json(res: Response): Promise<any> {
   return res.json();
 }
 
-function writeTestTokenFile(token: string): void {
-  const tokenDir = getDataDir();
-  if (!existsSync(tokenDir)) {
-    mkdirSync(tokenDir, { recursive: true });
-  }
-  const hash = createHash('sha256').update(token).digest('hex');
-  writeFileSync(getAuthTokenPath(), JSON.stringify({
-    token,
-    hash,
-    createdAt: new Date().toISOString(),
-  }, null, 2), { mode: 0o600 });
-}
+const VALID_TOKEN = 'test-secret-token-for-api-tests-12345';
 
 describe('API Auth Middleware', () => {
   let app: ReturnType<typeof createApp>;
@@ -37,14 +23,14 @@ describe('API Auth Middleware', () => {
   afterEach(() => {
     resetTestDatabase();
     resetTestDataDir();
-    delete process.env.JEAN2_AUTH_ENABLED;
+    delete process.env.JEAN2_AUTH_TOKEN;
   });
 
   // ── Public Routes (always accessible) ──────────────────────────
 
   describe('Public routes (no auth required in either state)', () => {
     test('GET / returns 200 without token when auth disabled', async () => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
 
       const res = await app.request('/');
@@ -52,7 +38,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('GET / returns 200 without token when auth enabled', async () => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
 
       const res = await app.request('/');
@@ -60,7 +46,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('GET /api/health returns 200 without token when auth disabled', async () => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
 
       const res = await app.request('/api/health');
@@ -68,7 +54,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('GET /api/health returns 200 without token when auth enabled', async () => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
 
       const res = await app.request('/api/health');
@@ -76,7 +62,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('GET /api/info returns 200 without token when auth disabled', async () => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
 
       const res = await app.request('/api/info');
@@ -84,7 +70,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('GET /api/info returns 200 without token when auth enabled', async () => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
 
       const res = await app.request('/api/info');
@@ -96,7 +82,7 @@ describe('API Auth Middleware', () => {
 
   describe('Protected routes — auth disabled', () => {
     beforeEach(() => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
     });
 
@@ -130,9 +116,7 @@ describe('API Auth Middleware', () => {
 
   describe('Protected routes — auth enabled, no token', () => {
     beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      // Write a token file so validateToken doesn't fail with "file not found"
-      writeTestTokenFile('test-secret-token-for-api-tests-12345');
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
     });
 
@@ -219,8 +203,7 @@ describe('API Auth Middleware', () => {
 
   describe('Protected routes — auth enabled, invalid token', () => {
     beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile('test-secret-token-for-api-tests-12345');
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
     });
 
@@ -257,11 +240,8 @@ describe('API Auth Middleware', () => {
   // ── Protected Routes with Auth Enabled — Valid Token via Header ─
 
   describe('Protected routes — auth enabled, valid Bearer token', () => {
-    const VALID_TOKEN = 'test-secret-token-for-api-tests-12345';
-
     beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile(VALID_TOKEN);
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
     });
 
@@ -363,11 +343,8 @@ describe('API Auth Middleware', () => {
   // ── Protected Routes with Auth Enabled — Valid Token via Query ──
 
   describe('Protected routes — auth enabled, valid token via query param', () => {
-    const VALID_TOKEN = 'test-secret-token-for-api-tests-12345';
-
     beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile(VALID_TOKEN);
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
     });
 
@@ -390,11 +367,8 @@ describe('API Auth Middleware', () => {
   // ── Attachment Content — Public Route Pattern ──────────────────
 
   describe('Attachment content URL — public route pattern', () => {
-    const VALID_TOKEN = 'test-secret-token-for-api-tests-12345';
-
     test('attachment content path bypasses auth when auth enabled', async () => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile(VALID_TOKEN);
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
 
       // The attachment content route is public — it uses its own access key
@@ -404,7 +378,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('attachment content path works when auth disabled', async () => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
 
       seedWorkspace({ id: 'ws1' });
@@ -419,10 +393,8 @@ describe('API Auth Middleware', () => {
   // ── WebSocket Endpoint Auth ────────────────────────────────────
 
   describe('WebSocket endpoint auth', () => {
-    const VALID_TOKEN = 'test-secret-token-for-api-tests-12345';
-
     test('/ws returns 400 when auth disabled (no upgrade header)', async () => {
-      delete process.env.JEAN2_AUTH_ENABLED;
+      delete process.env.JEAN2_AUTH_TOKEN;
       app = createApp();
 
       const res = await app.request('/ws');
@@ -431,8 +403,7 @@ describe('API Auth Middleware', () => {
     });
 
     test('/ws returns 400 when auth enabled (no upgrade header)', async () => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile(VALID_TOKEN);
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
 
       const res = await app.request('/ws');
@@ -441,48 +412,11 @@ describe('API Auth Middleware', () => {
     });
   });
 
-  // ── Token File Absent — Auth Enabled ───────────────────────────
-
-  describe('Token file absent — auth enabled', () => {
-    beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      // Remove the token file to simulate first run
-      try {
-        unlinkSync(getAuthTokenPath());
-      } catch {
-        // May not exist
-      }
-      // createApp() will call initializeToken() which creates a new one
-      app = createApp();
-    });
-
-    test('initializeToken creates token file on app creation', () => {
-      expect(existsSync(getAuthTokenPath())).toBe(true);
-    });
-
-    test('requests with the generated token succeed', async () => {
-      // Read the token that initializeToken just created
-      const data = JSON.parse(readFileSync(getAuthTokenPath(), 'utf-8'));
-      const generatedToken = data.token;
-
-      const res = await app.request('/api/sessions', {
-        headers: { Authorization: `Bearer ${generatedToken}` },
-      });
-      expect(res.status).toBe(200);
-    });
-
-    test('requests without token still fail', async () => {
-      const res = await app.request('/api/sessions');
-      expect(res.status).toBe(401);
-    });
-  });
-
   // ── Response Shape Consistency ─────────────────────────────────
 
   describe('401 response shape', () => {
     beforeEach(() => {
-      process.env.JEAN2_AUTH_ENABLED = 'true';
-      writeTestTokenFile('test-secret-token-for-api-tests-12345');
+      process.env.JEAN2_AUTH_TOKEN = VALID_TOKEN;
       app = createApp();
     });
 

@@ -12,7 +12,6 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { requireAuth, isPublicRoute } from '@/auth/middleware';
 import { isAuthEnabled } from '@/auth/token';
-import { initializeToken } from '@/auth/token';
 import { ensurePromptsDir } from '@/prompts/registry';
 import { VERSION } from '@/version';
 
@@ -26,9 +25,6 @@ import { registerConfigRoutes } from '@/routes/config';
 import { registerSandboxRoutes } from '@/sandbox/routes';
 
 export function createApp() {
-  // Initialize authentication token
-  initializeToken();
-
   // Ensure prompts directory exists
   ensurePromptsDir();
 

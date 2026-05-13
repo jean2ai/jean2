@@ -103,11 +103,11 @@ export function hasStoredToken(): boolean {
 }
 
 /**
- * Validate token format (basic check)
- * Token should be 64-character hex string
+ * Check if a token value is non-empty
+ * The server accepts any non-empty string via JEAN2_AUTH_TOKEN
  */
 export function isValidTokenFormat(token: string): boolean {
-  return /^[a-f0-9]{64}$/.test(token);
+  return token.trim().length > 0;
 }
 
 /**

@@ -14,31 +14,20 @@ import {
 
 describe('auth — pure functions', () => {
   describe('isValidTokenFormat', () => {
-    test('accepts valid 64-char hex string', () => {
-      const token = 'a'.repeat(64);
-      expect(isValidTokenFormat(token)).toBe(true);
+    test('accepts any non-empty string', () => {
+      expect(isValidTokenFormat('my-secret-password-123')).toBe(true);
     });
 
-    test('accepts mixed hex chars', () => {
-      const token = '0123456789abcdef'.repeat(4);
-      expect(isValidTokenFormat(token)).toBe(true);
-    });
-
-    test('rejects uppercase hex', () => {
-      const token = 'A'.repeat(64);
-      expect(isValidTokenFormat(token)).toBe(false);
-    });
-
-    test('rejects short string', () => {
-      expect(isValidTokenFormat('abc123')).toBe(false);
+    test('accepts 64-char hex string', () => {
+      expect(isValidTokenFormat('a'.repeat(64))).toBe(true);
     });
 
     test('rejects empty string', () => {
       expect(isValidTokenFormat('')).toBe(false);
     });
 
-    test('rejects 64-char non-hex string', () => {
-      expect(isValidTokenFormat('g'.repeat(64))).toBe(false);
+    test('rejects whitespace-only string', () => {
+      expect(isValidTokenFormat('   ')).toBe(false);
     });
   });
 

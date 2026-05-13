@@ -19,7 +19,6 @@ import {
 } from '@/config';
 import { runMigrations } from '@/store';
 import { initializePreconfigs } from '@/core/preconfig';
-import { initializeToken } from '@/auth/token';
 import defaultModelsJson from '@/config/models.json';
 import { installRecommendedTools } from '@/tools';
 
@@ -199,10 +198,6 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
     host: '0.0.0.0',
     initializedAt: new Date().toISOString(),
   });
-
-  // Initialize auth token
-  const token = initializeToken();
-  console.log(`Auth token generated: ${token}`);
 
   // Run migrations if requested
   if (shouldRunMigrations) {
