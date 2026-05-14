@@ -6,7 +6,6 @@ import { VERSION } from '@/version';
 import { getStatus, stopDaemon, getLogFilePath } from '@/daemon';
 import { getToolEnv } from '@/env';
 import { isInitialized } from '@/config';
-import { getBinaryPath } from '@/paths';
 
 export interface UpdateOptions {
   version?: string;
@@ -42,10 +41,6 @@ export function detectPlatform(): 'darwin' | 'linux' | 'windows' {
     default:
       throw new Error(`Unsupported platform: ${process.platform}`);
   }
-}
-
-export function getBinaryInstallPath(): string {
-  return getBinaryPath();
 }
 
 export function getDownloadUrl(version: string, platform: string): string {
@@ -136,9 +131,9 @@ export function spawnReplacer(
       throw new Error('PowerShell not found');
     }
 
-    let command = `Start-Sleep -Seconds 2; Move-Item -Force '${tempPath}' '${binaryPath}'`;
+    let command = `Start-Sleep -Seconds 2; $moved = $false; for ($i = 0; $i -lt 10; $i++) { try { Move-Item -Force '${tempPath}' '${binaryPath}' -ErrorAction Stop; $moved = $true; break } catch { Start-Sleep -Seconds 1 } }; if (-not $moved) { throw 'Failed to replace binary after 10 retries' }`;
     if (options.needsMigration || options.wasDaemonRunning) {
-      command += '; if ($LASTEXITCODE -eq 0) { ';
+      command += '; if ($moved) { ';
       const actions: string[] = [];
       if (options.needsMigration) {
         actions.push(`& '${binaryPath}' migrate`);
@@ -252,7 +247,9 @@ export async function performUpdate(options: UpdateOptions): Promise<UpdateResul
     console.log('info: Installing update... (daemon will restart automatically)');
   }
 
-  spawnReplacer(tempPath, getBinaryInstallPath(), {
+  const binaryPath = process.execPath;
+
+  spawnReplacer(tempPath, binaryPath, {
     needsMigration,
     wasDaemonRunning,
   });
