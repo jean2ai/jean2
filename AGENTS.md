@@ -13,7 +13,7 @@ Jean2 is an AI Agent monorepo built with TypeScript, Bun, React, and Hono.
 - **SDK**: Shared types, protocols, transport layer, and REST clients (packages/sdk)
 - **Client Electron**: Electron desktop wrapper around the client (packages/client-electron)
 - **Client Tauri**: Tauri (Rust) native app for mobile and desktop (packages/client-tauri)
-- **External Tools**: Language-agnostic tool modules (TypeScript/any language), separately versioned and distributed (tools/). No external runtime needed — npm is shipped in the server binary.
+- **External Tools**: TypeScript tool modules, separately versioned and distributed (tools/). Each tool is a directory with `tool.ts`, `package.json`, and `VERSION`.
 - **Sandbox CLI**: Interactive CLI for intercepting and simulating LLM responses in a running server, enabling end-to-end testing without real API calls (packages/sandbox-cli).
 
 ## Build Commands
@@ -385,7 +385,7 @@ tools/                   # External tool modules (independent from main project)
   # Tavily tools: tavily-crawl, tavily-extract, tavily-map, tavily-search
   # Each tool directory contains:
   #   tool.ts              # Tool implementation (TypeScript, compiled at install)
-  #   package.json         # Dependencies (npm installed via shipped npm)
+  #   package.json         # Dependencies
   #   tool.md              # Tool description/markdown
   #   VERSION              # Semantic version
   # Tools are separately versioned and distributed via GitHub Releases

@@ -1,6 +1,6 @@
 # Tools
 
-Install tools into `~/.jean2/tools/`. Tools are language-agnostic — no external runtime is needed, npm is built into the server binary.
+Install tools into `~/.jean2/tools/`. Each tool is a TypeScript module (`tool.ts` + `package.json` + `VERSION`).
 
 The recommended way to install tools is via the CLI:
 

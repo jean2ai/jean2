@@ -56,7 +56,7 @@ xattr -cr /Applications/jean2.app
 
 ## Tools
 
-Tools are language-agnostic — the server binary ships with npm built in for dependency installation. No external runtime is required.
+Tools are TypeScript modules (`tool.ts` + `package.json` + `VERSION`).
 
 Install tools via the CLI:
 

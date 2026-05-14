@@ -20,10 +20,16 @@
 
 ## Quick Start
 
-### Install (macOS / Linux)
+### Install
 
+**macOS / Linux:**
 ```bash
 curl -fsSL https://jean2.ai/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://jean2.ai/install.ps1 | iex
 ```
 
 ### Run
@@ -51,9 +57,9 @@ npx @jean2/client
 
 Connect any combination of LLM providers — OpenAI, Anthropic, Google, OpenRouter, or any OpenAI-compatible endpoint. Switch providers and models per-session. Budget models for routine tasks, premium for hard problems. No vendor lock-in.
 
-### 🔧 Tools in Any Language
+### 🔧 Extensible Tools
 
-Write tools in any language — TypeScript, Python, Bash, Go, Rust, anything. A tool is just a directory with a manifest and a script. No external runtime required — the server binary ships with npm built in for dependency installation. Drop it in, the agent picks it up. No build step, no registration.
+Write tools in TypeScript — a tool is just a directory with a `tool.ts` entry point and a `package.json`. Export a `definition` and an `execute` function, and the agent picks it up. No build step, no registration. Tools get a full `ToolContext` with `ctx.ask()` for permissions and user interaction.
 
 ### 🛡️ Ask Protocol
 
@@ -90,7 +96,7 @@ System prompts, tools, and skills are all files on disk. Edit them, add them, re
 
 ## Tools
 
-A set of built-in tools to get started with `jean2 init` — or pick what you need and write your own in any language.
+A set of built-in tools to get started with `jean2 init` — or pick what you need and write your own in TypeScript.
 
 | Tool | Description |
 |------|-------------|
@@ -104,7 +110,7 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 
 [+7 more tools available](https://jean2.ai/docs/tools/registry) · [Explore all tools](https://jean2.ai/docs/tools/registry)
 
-> Tools are language-agnostic — write them in any language. The server binary includes npm for dependency installation, so no external runtime is needed. Tools can use the Ask protocol (`ctx.ask()`) for permissions and user interaction.
+> Tools are TypeScript modules (`tool.ts` + `package.json`) that implement the `ToolModule` interface from `@jean2/sdk`. They can use the Ask protocol (`ctx.ask()`) for permissions and user interaction.
 
 ---
 
@@ -133,8 +139,7 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 │         └──────────────┼─────────────────┘                     │
 │               ┌────────┴───────────┐                           │
 │               │   ~/.jean2/tools/  │                           │
-│               │   (any language)   │                           │
-│               │   + shipped npm    │                           │
+│               │   (TypeScript)     │                           │
 │               └────────────────────┘                           │
 │         ┌──────────────────────────────────────┐               │
 │         │         Ask Protocol                  │               │
