@@ -13,7 +13,8 @@ Jean2 is an AI Agent monorepo built with TypeScript, Bun, React, and Hono.
 - **SDK**: Shared types, protocols, transport layer, and REST clients (packages/sdk)
 - **Client Electron**: Electron desktop wrapper around the client (packages/client-electron)
 - **Client Tauri**: Tauri (Rust) native app for mobile and desktop (packages/client-tauri)
-- **External Tools**: Independent executable tool scripts, separately versioned and distributed (tools/)
+- **External Tools**: Language-agnostic tool modules (TypeScript/any language), separately versioned and distributed (tools/). No external runtime needed — npm is shipped in the server binary.
+- **Sandbox CLI**: Interactive CLI for intercepting and simulating LLM responses in a running server, enabling end-to-end testing without real API calls (packages/sandbox-cli).
 
 ## Build Commands
 
@@ -200,13 +201,103 @@ const JEAN2_LLM_MAX_TOKENS = parseInt(process.env.JEAN2_LLM_MAX_TOKENS || '4096'
 - Supported providers: Anthropic (`@ai-sdk/anthropic`), OpenAI (`@ai-sdk/openai`), Google (`@ai-sdk/google`), OpenRouter (`@openrouter/ai-sdk-provider`), MiniMax (`vercel-minimax-ai-provider`), Zhipu (`zhipu-ai-provider`)
 - Provider registry pattern in `packages/server/src/providers/`
 
+### Testing with the Sandbox CLI
+
+The sandbox CLI (`packages/sandbox-cli`) is an interactive tool that intercepts all LLM calls in a running server and lets you manually or automatically respond — enabling full end-to-end testing of agent flows, tool execution, permissions, subagents, compaction, and error handling **without real API calls**.
+
+**How it works:**
+
+1. Server registers a `SandboxProvider` that intercepts all LLM calls
+2. Each call creates an `LlmCallContext` (callId, sessionId, depth, mode, messages, tools)
+3. The sandbox either auto-matches a rule or queues the call for manual response
+4. The CLI connects via WebSocket for real-time notifications and REST for responding
+
+**Running the sandbox:**
+
+```bash
+# Terminal 1: start the server with sandbox active
+bun run dev:server
+
+# Terminal 2: start the sandbox CLI
+bun packages/sandbox-cli/src/cli.ts [--host localhost] [--port 3000] [--token <token>]
+```
+
+**CLI commands (interactive prompt: `sandbox> `):**
+
+```
+respond [callId|index] <type> [args...]   # Respond to a pending call (alias: r)
+pending                                    # List pending calls (alias: p)
+history                                    # Show response history (alias: h)
+call <callId|index>                        # Show full call context
+auto-respond [match...] <response>         # Add auto-responder rule
+auto-respond list                          # List rules
+auto-respond clear                         # Clear all rules
+status                                     # Show sandbox status (alias: s)
+clear                                      # Clear history
+exit / quit                                # Exit
+```
+
+**Response types:**
+
+```
+text|t <message>                           # Plain text response
+tool-call|tc <toolName> <jsonArgs>          # Tool call response
+error|e <message> [--type rate_limit|server|timeout|auth|invalid_request]  # Error response
+reasoning <reasoning> --text <message>     # Reasoning + text response
+```
+
+**Auto-responder match tokens:**
+
+```
+mode:stream|generate                       # Match by call mode
+depth:N                                    # Match by sub-agent depth (0 = main, 1 = subagent)
+session:<id>                               # Match by session ID
+hasToolResults:true|false                  # Match if tool results in messages
+maxUses:N                                  # Auto-disable after N uses
+label:<name>                               # Descriptive label
+```
+
+**Examples:**
+
+```
+# Manually respond to the first pending call with text
+respond 1 text "I'll help you with that."
+
+# Respond with a tool call
+respond tool-call read-file "{\"path\":\"/project/src/index.ts\"}"
+
+# Auto-respond all stream-mode calls with text
+auto-respond mode:stream text "Done!" label:"Always say done"
+
+# Auto-respond subagent (depth:1) calls differently
+auto-respond mode:generate depth:1 text "Sub-agent result" maxUses:10
+
+# Simulate a tool call loop
+auto-respond mode:stream hasToolResults:true tc read-file "{\"path\":\"/foo\"}" maxUses:3
+```
+
+**Server-side sandbox files** (`packages/server/src/sandbox/`):
+- `provider.ts` — `SandboxProvider` (registers as AI SDK provider, intercepts `createModel()`)
+- `model.ts` — `SandboxLanguageModel` (implements `doStream`/`doGenerate`, computes call depth via parent chain)
+- `controller.ts` — `SandboxController` (pending queue, auto-responder rule matching, history)
+- `routes.ts` — REST endpoints (`/api/sandbox/*`) + WebSocket broadcast
+- `types.ts` — Shared types (`LlmCallContext`, `SandboxResponse`, `AutoResponderRule`)
+- `index.ts` — `activateSandbox()` entry point
+
+**When to use it:**
+- Testing tool execution flows and permission ask/response cycles
+- Testing subagent orchestration (use `depth:` matchers to control responses per depth)
+- Testing error recovery (rate limits, timeouts, auth errors)
+- Testing compaction triggers and behavior
+- Verifying message queue, interrupt cascade, and session state transitions
+
 ## Project Structure
 
 ```
 packages/
   server/                # Hono backend (@jean2/server)
     src/
-      auth/              # Authentication middleware and token management
+      auth/              # Authentication middleware (env-var based, off by default)
       config/            # Model configurations (models.json)
       configuration/     # Runtime configuration (models, preconfigs, prompts, credentials)
       core/              # Agent logic, streaming, subagents, compaction, retry
@@ -214,10 +305,11 @@ packages/
       mcp/               # Model Context Protocol integration (OAuth, stdio transport)
       providers/         # AI provider registry and storage
       prompts/           # Prompt registry
+      sandbox/           # Sandbox provider, model, controller, routes (simulated LLM)
       services/          # Terminal sessions, file preview, file operations
       skills/            # Skill registry and tool integration
       store/             # SQLite data layer (sessions, messages, workspaces, permissions)
-      tools/             # Tool execution, registry, security, installer
+      tools/             # Tool execution, registry, installer, Ask protocol
       utils/             # Binary detection, error handling, truncation utilities
       app.ts             # Hono app setup
       cli.ts             # CLI entry point
@@ -277,17 +369,27 @@ packages/
     tauri.conf.json      # Tauri configuration
     Cargo.toml           # Rust dependencies
 
-tools/                   # External tool scripts (independent from main project)
-  # Each tool has bun/ and node/ variants:
+  sandbox-cli/           # Sandbox CLI for simulating LLM responses (@jean2/sandbox-cli)
+    src/
+      cli.ts             # CLI entry point, readline interactive loop
+      commands.ts        # Command parsing and dispatch (respond, auto-respond, pending, etc.)
+      api-client.ts      # HTTP + WebSocket client for /api/sandbox/* endpoints
+      display.ts         # Terminal display formatting (colors, tables, call details)
+      types.ts           # CLI-specific type definitions
+
+tools/                   # External tool modules (independent from main project)
+  # Each tool is a single directory (no bun/node variants):
   #   apply-patch, edit, glob, grep, ls, multiedit, read-file,
-  #   webfetch, write-file, todoread, todowrite
-  # Tavily tools (bun only): tavily-crawl, tavily-extract, tavily-map, tavily-search
+  #   write-file, webfetch, todoread, todowrite, question,
+  #   file-to-markdown, browser-read-active-tab
+  # Tavily tools: tavily-crawl, tavily-extract, tavily-map, tavily-search
   # Each tool directory contains:
-  #   script.ts/.mjs      # Tool implementation
-  #   security.ts/.mjs    # Security validation (optional)
-  #   tool.md             # Tool description/markdown
-  #   VERSION             # Semantic version
+  #   tool.ts              # Tool implementation (TypeScript, compiled at install)
+  #   package.json         # Dependencies (npm installed via shipped npm)
+  #   tool.md              # Tool description/markdown
+  #   VERSION              # Semantic version
   # Tools are separately versioned and distributed via GitHub Releases
+  # Tools use @jean2/sdk ToolModule interface with ctx.ask() for the Ask protocol
 
 changelogs/              # Version changelogs
   client/                # Client release notes

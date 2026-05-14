@@ -53,7 +53,11 @@ Connect any combination of LLM providers — OpenAI, Anthropic, Google, OpenRout
 
 ### 🔧 Tools in Any Language
 
-Write tools in any runtime — Bun, Node, Python, Bash, Go, Rust, anything. A tool is just a directory with a manifest and a script. Drop it in, the agent picks it up. No build step, no registration.
+Write tools in any language — TypeScript, Python, Bash, Go, Rust, anything. A tool is just a directory with a manifest and a script. No external runtime required — the server binary ships with npm built in for dependency installation. Drop it in, the agent picks it up. No build step, no registration.
+
+### 🛡️ Ask Protocol
+
+Every tool interaction flows through a unified Ask protocol. Permissions, user questions, confirmations, forms — all routed through the same typed channel. Tools use `ctx.ask()` to request approval, ask questions, or query client capabilities. The client handles the UI, the tool gets a typed response.
 
 ### 🔌 MCP & Skills
 
@@ -96,10 +100,11 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | **read-file** | Read files and directory listings |
 | **write-file** | Write content to files |
 | **grep** | Search files with regex patterns |
+| **question** | Ask users structured questions (forms, selects, confirmations) |
 
-[+9 more tools available](https://jean2.ai/docs/tools/registry) · [Explore all tools](https://jean2.ai/docs/tools/registry)
+[+7 more tools available](https://jean2.ai/docs/tools/registry) · [Explore all tools](https://jean2.ai/docs/tools/registry)
 
-> Tools execute in sandboxed child processes. Define optional security checks for dangerous operations.
+> Tools are language-agnostic — write them in any language. The server binary includes npm for dependency installation, so no external runtime is needed. Tools can use the Ask protocol (`ctx.ask()`) for permissions and user interaction.
 
 ---
 
@@ -128,8 +133,14 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 │         └──────────────┼─────────────────┘                     │
 │               ┌────────┴───────────┐                           │
 │               │   ~/.jean2/tools/  │                           │
-│               │   (any runtime)    │                           │
+│               │   (any language)   │                           │
+│               │   + shipped npm    │                           │
 │               └────────────────────┘                           │
+│         ┌──────────────────────────────────────┐               │
+│         │         Ask Protocol                  │               │
+│         │  Permissions · Questions · Forms      │               │
+│         │  User interaction · Client capabilities│              │
+│         └──────────────────────────────────────┘               │
 │                     ┌──────────────┐                           │
 │                     │ Subagent     │                           │
 │                     │ Orchestrator │                           │
@@ -176,6 +187,19 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 - **Interrupt** — Cancel generation with automatic cascade to subagents
 - **Queue** — Queue messages while the agent is busy
 - **Remote Terminal** — Full PTY terminal with multi-tab support
+
+---
+
+## Security & Auth
+
+Authentication is **off by default**. No tokens are generated automatically. To enable auth, set a single environment variable:
+
+```bash
+# In ~/.jean2/.env or your shell environment
+JEAN2_AUTH_TOKEN=your-secret-token
+```
+
+When set, all API and WebSocket endpoints require the token via `Authorization: Bearer <token>` header or `?token=<token>` query parameter. When not set, all requests pass through without authentication.
 
 ---
 

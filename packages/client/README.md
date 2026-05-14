@@ -176,9 +176,9 @@ packages/client/
 
 ## Architecture
 
-The client connects to a Jean2 server via WebSocket (`ws://host:port/ws?token=...`) for real-time events and REST (`http://host:port/api`) for initial data loading. All communication is authenticated with a bearer token.
+The client connects to a Jean2 server via WebSocket (`ws://host:port/ws?token=...`) for real-time events and REST (`http://host:port/api`) for initial data loading. Authentication is optional — when the server has `JEAN2_AUTH_TOKEN` set, all requests require the bearer token. When not set, all requests pass through without authentication.
 
-**WebSocket protocol** handles session CRUD, message streaming (including delta-based text append), part creation/updates, permission requests, queue management, usage tracking, and compaction events. The `App.tsx` handler dispatches all `ServerMessage` types into React state.
+**WebSocket protocol** handles session CRUD, message streaming (including delta-based text append), part creation/updates, ask requests (permissions, questions, forms, client capabilities), permission responses, queue management, usage tracking, and compaction events. The `App.tsx` handler dispatches all `ServerMessage` types into React state.
 
 **Multi-server support** allows connecting to multiple Jean2 server instances. Servers are persisted in localStorage. Switching servers clears all session state and reconnects.
 

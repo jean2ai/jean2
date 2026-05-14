@@ -8,13 +8,14 @@ Provides multi-provider LLM streaming, tool execution with security policies, su
 
 - **Multi-provider LLM** — Anthropic, OpenAI, Google, OpenRouter, MiniMax, Zhipu, Codex (ChatGPT subscription via OAuth), and any OpenAI-compatible endpoint
 - **Streaming agent loop** — multi-step tool execution with real-time WebSocket streaming
-- **Tool system** — file-based tools with Bun/Node/Python/Bash/Go/Binary runtimes, security checks, and permission caching
+- **Language-agnostic tool system** — tools written in any language, no external runtime needed. The server binary ships with npm for dependency installation. Tools use the SDK's `ToolModule` interface with a rich context API.
+- **Ask Protocol** — unified interactive channel for permissions, user questions, confirmations, forms, and client capabilities. Tools call `ctx.ask()` with typed requests and get typed responses.
 - **Subagent orchestration** — hierarchical task delegation with configurable depth limits (max 2 levels)
 - **MCP integration** — local (stdio) and remote (StreamableHTTP/SSE + OAuth) MCP server connectivity
 - **Skills** — discoverable `SKILL.md` files in `.agents/skills/` directories
 - **Preconfigs** — agent personality presets (Reader, Coder, Writer, Explore, General)
 - **Session management** — compaction, revert, fork, message queueing, and interrupt with cascade
-- **Token-based auth** — SHA-256 hashed API tokens with timing-safe comparison
+- **Auth off by default** — no tokens are generated. Set `JEAN2_AUTH_TOKEN` env var to enable authentication.
 - **SQLite storage** — sessions, messages, parts, permissions, queued messages, tool approvals
 - **Daemon mode** — background server with PID file management and log tailing
 - **Instructions** — global (`~/.jean2/AGENTS.md`) and project-level instructions injected into system prompts
@@ -55,14 +56,20 @@ Commands:
   server [options]      Start server in foreground (for systemd)
   logs                  Tail server logs
 
-  auth                  Token management
-    show                Show current API token
-    regenerate          Generate a new token (invalidates old one)
+  auth                  Show authentication status
+                        Displays whether auth is enabled and the masked token (if set).
 
   init                  Initialize Jean2 (required before first use)
     --db-path <path>    Custom database path
     --tools-path <path> Custom tools path
+    --install-tools     Install recommended tools non-interactively
+    --no-tools          Skip tool installation
     --force             Force re-initialization
+
+  tools                 Tool management
+    install             Install tools from the registry
+      --all             Install all available tools
+      --name <tool>     Install a specific tool
 
   migrate               Run database migrations
   version               Show version
@@ -78,7 +85,6 @@ Commands:
   config.json           # Server configuration (created by `jean2 init`)
   models.json           # LLM model definitions and defaults
   .env                  # Environment variables (API keys, settings)
-  auth-token.json       # API token (SHA-256 hashed)
   AGENTS.md             # Global instructions (applied to all sessions)
   data/
     agent.db            # SQLite database (sessions, messages, etc.)
@@ -101,7 +107,7 @@ All settings can be placed in `~/.jean2/.env`. Process environment variables tak
 |---|---|---|
 | `JEAN2_PORT` | `8742` | Server listen port |
 | `JEAN2_HOST` | `0.0.0.0` | Server bind host |
-| `JEAN2_AUTH_TOKEN` | — | API token for authentication (not set = auth disabled) |
+| `JEAN2_AUTH_TOKEN` | — | API token for authentication. Not set = auth disabled. |
 | `JEAN2_DATABASE_PATH` | — | SQLite database path (defaults to `~/.jean2/data/agent.db`) |
 | `JEAN2_TOOLS_PATH` | `~/.jean2/tools` | Tools directory path |
 | `JEAN2_PRECONFIGS_PATH` | `~/.jean2/preconfigs` | Preconfigs directory path |
@@ -193,14 +199,27 @@ Models are defined in `~/.jean2/models.json`. The file declares providers, their
 
 Model tiers: `budget`, `standard`, `premium`.
 
+## Authentication
+
+Authentication is **disabled by default**. No tokens are generated or stored on disk.
+
+To enable authentication, set the `JEAN2_AUTH_TOKEN` environment variable:
+
+```bash
+# In ~/.jean2/.env or your shell environment
+JEAN2_AUTH_TOKEN=your-secret-token
+```
+
+When set:
+- All `/api/*` endpoints (except `/api/health` and `/api/info`) require authentication
+- Provide the token via `Authorization: Bearer <token>` header or `?token=<token>` query parameter
+- Token validation uses constant-time comparison
+
+When not set, all requests pass through without authentication.
+
+Check auth status with `jean2 auth` — it shows whether auth is enabled and displays the masked token if set.
+
 ## API
-
-### Authentication
-
-All `/api/*` endpoints (except `/api/health` and `/api/info`) require authentication. Provide the token via:
-
-- `Authorization: Bearer <token>` header
-- `?token=<token>` query parameter
 
 ### REST Endpoints
 
@@ -292,6 +311,7 @@ Connect to `ws://<host>:<port>/ws?token=<token>&sessionId=<id>`.
 | `session.fork` | Fork session at a message |
 | `session.interrupt` | Cancel running generation (cascades to subagents) |
 | `chat.message` | Send a chat message |
+| `ask.response` | Respond to an ask request (permissions, questions, forms) |
 | `permission.response` | Approve or deny a tool permission request |
 | `permission.list` | List workspace permissions |
 | `permission.revoke` | Revoke a permission |
@@ -321,7 +341,11 @@ Connect to `ws://<host>:<port>/ws?token=<token>&sessionId=<id>`.
 | `part.append` | Streaming text/reasoning delta |
 | `chat.usage` | Token usage for a generation step |
 | `compaction.complete` | Message compaction finished |
-| `permission.request` | Tool needs user approval |
+| `ask.request` | Tool needs user interaction (permission, question, form, capability check) |
+| `ask.timeout` | An ask request timed out (5 min default) |
+| `ask.response_rejected` | An ask response was rejected (wrong authority, already resolved) |
+| `ask.pending_sync` | Sync pending ask requests (for reconnecting clients) |
+| `permission.request` | Tool needs user approval (legacy, use `ask.request`) |
 | `queue.list` | Queued messages for a session |
 | `queue.added` | Message was queued |
 | `queue.removed` | Message was dequeued |
@@ -364,10 +388,16 @@ src/
   
   tools/
     registry.ts         # File-system tool scanning and caching
-    executor.ts         # Tool execution via child process (stdin JSON)
-    security-executor.ts # Security check script runner
-    enhanced-executor.ts # Security + permission flow orchestration
-    types.ts            # DiscoveredTool, ToolResult types
+    repository.ts       # Remote tool catalog and artifact download
+    tool-installer.ts   # Tool download, npm install, bundle, atomic swap
+    tool-bundler.ts     # Bun.build() bundling of tool.ts → tool.js
+    tool-npm-installer.ts # npm dependency installation via @npmcli/arborist
+    tool-install-manifest.ts # Installation metadata tracking
+    executor.ts         # Tool execution with ToolContext assembly
+    enhanced-executor.ts # Security + permission + ask flow orchestration
+    ask-user-api.ts     # Ask protocol implementation (permissions + questions)
+    permission-request-manager.ts # DB-backed permission request lifecycle
+    build-tools.ts      # AI SDK tool binding with ask/llm context injection
   
   mcp/
     manager.ts          # MCP client lifecycle (connect/disconnect/list tools)
@@ -386,8 +416,8 @@ src/
     skill-tool.ts       # AI SDK tool for loading skills at runtime
   
   auth/
-    token.ts            # Token generation, hashing, validation
-    middleware.ts       # Hono auth middleware (Bearer + query param)
+    token.ts            # Env-var based token validation (constant-time comparison)
+    middleware.ts       # Hono auth middleware (Bearer + query param), skips when disabled
   
   services/
     files.ts            # Directory listing and file search
@@ -411,73 +441,170 @@ src/
 
 ## Tools
 
-Tools are file-system based. Each tool is a directory under `~/.jean2/tools/` (or custom path) containing:
+Tools are language-agnostic modules installed under `~/.jean2/tools/`. Each tool is a directory containing:
 
 ```
 tools/
   my-tool/
-    tool.json           # Tool definition (name, description, inputSchema, runtime)
-    index.ts            # Tool implementation script
-    security.ts         # (optional) Security check script
+    tool.ts              # Tool implementation (TypeScript, compiled at install)
+    package.json         # Dependencies (npm, installed at install time)
+    tool.md              # Tool description markdown
+    VERSION              # Semantic version
 ```
 
-### tool.json Schema
+### How Tool Installation Works
 
-```json
-{
-  "name": "my-tool",
-  "description": "Does something useful",
-  "script": "index.ts",
-  "runtime": "bun",
-  "timeout": 30000,
-  "hasSecurityCheck": false,
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "path": { "type": "string", "description": "File path" }
+1. **Download** — Tool artifacts are downloaded from GitHub Releases as `.tar.gz` archives
+2. **npm install** — The server binary ships with npm (via `@npmcli/arborist`), so tool dependencies are installed automatically without requiring Node.js or Bun on the host machine
+3. **Bundle** — TypeScript source is bundled via `Bun.build()` into a single `tool.js` file
+4. **Atomic swap** — The tool directory is staged and renamed atomically for safe concurrent access
+
+Install tools via CLI:
+
+```bash
+# Install all tools
+jean2 tools install --all
+
+# Install a specific tool
+jean2 tools install --name read-file
+
+# During init
+jean2 init --install-tools
+```
+
+### Tool Module Interface
+
+Tools implement the `ToolModule` interface from `@jean2/sdk`:
+
+```typescript
+import type { ToolModule, ToolContext, ToolResult } from '@jean2/sdk';
+
+const tool: ToolModule = {
+  definition: {
+    name: 'my-tool',
+    description: 'Does something useful',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path' }
+      },
+      required: ['path']
     },
-    "required": ["path"]
   },
-  "outputSchema": {
-    "type": "object",
-    "properties": {
-      "content": { "type": "string" }
-    }
-  }
-}
+  execute: async (input, ctx) => {
+    // Use ctx.ask() for permissions and user interaction
+    const approved = await ctx.ask({
+      type: 'permission',
+      target: 'permission',
+      question: 'Allow access to this file?',
+      risk: 'medium',
+    });
+    if (!approved) return { success: false, error: 'USER_REJECTION' };
+
+    const content = await ctx.fs.readFile(input.path);
+    return { success: true, result: { content } };
+  },
+};
+
+export default tool;
 ```
 
-Supported runtimes: `bun`, `node`, `python`, `bash`, `go`, `binary`, `powershell`.
+### ToolContext API
 
-### Tool Execution
+Every tool receives a rich context object:
 
-Tools receive input via **stdin** as JSON:
+| Property | Type | Description |
+|---|---|---|
+| `ctx.ask` | `AskApi` | Ask protocol — permissions, questions, forms, capabilities |
+| `ctx.fs` | `FileSystemApi` | File system operations within workspace |
+| `ctx.llm` | `LlmApi` | LLM access for sub-queries |
+| `ctx.env` | `EnvApi` | Environment variable access |
+| `ctx.fetch` | `typeof fetch` | HTTP fetch (bound to globalThis) |
+| `ctx.logger` | `ToolLogger` | Structured logging |
+| `ctx.sessionId` | `string` | Current session ID |
+| `ctx.workspacePath` | `string` | Workspace root path |
+| `ctx.workspaceId` | `string` | Workspace ID |
+| `ctx.abortSignal` | `AbortSignal` | Cancellation signal |
+| `ctx.allowedPaths` | `string[]` | Paths the tool may access |
+| `ctx.resolvePath()` | `(path: string) => string` | Resolve relative to workspace |
+| `ctx.isWithinWorkspace()` | `(path: string) => boolean` | Check path containment |
+| `ctx.isSensitivePath()` | `(path: string) => boolean` | Check for sensitive files |
+| `ctx.isBlockedPath()` | `(path: string) => boolean` | Check for blocked paths |
 
-```json
-{
-  "path": "src/index.ts",
-  "workspacePath": "/home/user/project",
-  "sessionId": "abc-123"
-}
+## Ask Protocol
+
+The Ask protocol is the **sole interactive channel** between server-side tools and clients. All permission requests, user questions, confirmations, forms, and client capability checks flow through `ctx.ask()`.
+
+### Ask Types
+
+| Target | Type | Description | Response |
+|---|---|---|---|
+| `human` | `single_select` | Pick one option from a list | `{ value: string }` |
+| `human` | `multi_select` | Pick multiple options | `{ values: string[] }` |
+| `human` | `text` | Free text input | `{ value: string }` |
+| `human` | `confirm` | Yes/no confirmation | `{ confirmed: boolean }` |
+| `human` | `form` | Multiple questions in one form | `{ answers: [...] }` |
+| `client` | `client_capability` | Query client capabilities | `{ result: unknown }` |
+| `permission` | `permission` | Request tool permission | `boolean` |
+
+### Permission Asks
+
+Permission asks are DB-backed and support auto-approval through grants:
+
+```typescript
+const approved = await ctx.ask({
+  type: 'permission',
+  target: 'permission',
+  question: 'Allow writing to src/index.ts?',
+  risk: 'medium',
+  resource: 'file',
+  scope: { type: 'file', path: '/project/src/index.ts' },
+  duration: 'session',
+});
 ```
 
-Tools must print a JSON result to **stdout** and exit with code 0. Non-zero exits or invalid JSON are treated as errors.
+If a matching grant exists (from a previous approval with appropriate scope), the permission is auto-approved without client interaction.
 
-### Security Checks
+### Question Tool
 
-Tools with `"hasSecurityCheck": true` run a `security.ts` script before execution. The script receives the same stdin format and must output:
+The `question` tool provides structured user interaction through the Ask protocol:
 
-```json
-{
-  "allowed": true,
-  "requiresApproval": true,
-  "permissionType": "file_write",
-  "permissionKey": "/home/user/project/src/index.ts",
-  "message": "This tool wants to write to src/index.ts"
-}
+```typescript
+// Ask a confirmation
+const confirmed = await ctx.ask({
+  target: 'human',
+  type: 'confirm',
+  question: 'Deploy to production?',
+  defaultValue: false,
+});
+
+// Ask a form with multiple questions
+const response = await ctx.ask({
+  target: 'human',
+  type: 'form',
+  question: 'Configuration',
+  questions: [
+    { type: 'text', question: 'Project name?', placeholder: 'my-app' },
+    { type: 'single_select', question: 'Framework?', options: [...] },
+    { type: 'confirm', question: 'Use TypeScript?', defaultValue: true },
+  ],
+});
 ```
 
-If `requiresApproval` is true, the permission request is sent to the client via WebSocket. Approved permission grants are stored per workspace according to their selected scope.
+### Ask Authority
+
+Each ask request carries authority metadata that controls visibility and resolution:
+
+| Field | Options | Description |
+|---|---|---|
+| `visibilityScope` | `controller_only`, `session_participants`, `global` | Who can see the ask |
+| `resolutionMode` | `controller_only`, `designated_clients`, `first_eligible` | Who can respond |
+| `allowedResponderClientIds` | `string[]` | Specific clients allowed to respond |
+| `requiredCapabilities` | `ClientCapability[]` | Capabilities required to respond |
+
+### Timeout
+
+Ask requests time out after **5 minutes** by default. Timed-out asks are automatically cleaned up and the tool receives a rejection.
 
 ## MCP (Model Context Protocol)
 
@@ -628,4 +755,4 @@ bun run build:bin:macos      # macOS ARM64
 bun run build:bin:linux      # Linux x64
 ```
 
-The resulting binary is self-contained and includes the Bun runtime. The CLI (`jean2 init`, `jean2 server`, etc.) works without a separate Bun installation.
+The resulting binary is self-contained and includes the Bun runtime. The CLI (`jean2 init`, `jean2 server`, etc.) works without a separate Bun installation. npm dependency installation for tools is handled by `@npmcli/arborist` bundled within the binary — no external Node.js or npm required.
