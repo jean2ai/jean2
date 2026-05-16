@@ -1,21 +1,16 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 
-interface ActiveTabResult {
-  title: string;
-  url: string;
-  text: string;
-}
-
 export const definition: ToolDefinition = {
-  name: 'browser_read_active_tab',
+  name: 'browser_screenshot',
   description:
-    'Read the active Chrome browser tab. Returns the page title, URL, and visible text content. ' +
+    'Capture a screenshot of the active Chrome browser tab. Returns a base64-encoded PNG image. ' +
+    'Use this to visually verify the current state of a page after performing actions. ' +
     'Requires a connected Jean2 Autochrome extension.',
   inputSchema: {
     type: 'object',
     properties: {},
   },
-  timeout: 120000,
+  timeout: 15000,
 };
 
 export async function execute(
@@ -26,9 +21,9 @@ export async function execute(
     const executionResult = await ctx.ask({
       type: 'client_capability',
       target: 'client',
-      capability: 'active_tab_read',
+      capability: 'browser_screenshot',
       metadata: {
-        task: 'browser.read_active_tab',
+        task: 'browser.screenshot',
       },
     });
 
@@ -39,21 +34,19 @@ export async function execute(
       };
     }
 
-    const result = executionResult as ActiveTabResult;
+    const result = executionResult as Record<string, unknown>;
 
-    if (!result.title && !result.url && !result.text) {
+    if (!result.success) {
       return {
         success: false,
-        error: 'Extension returned empty result.',
+        error: `Screenshot failed: ${result.error ?? 'unknown error'}`,
       };
     }
 
     return {
       success: true,
       result: {
-        title: result.title || '',
-        url: result.url || '',
-        text: result.text || '',
+        dataUrl: result.dataUrl ?? '',
       },
     };
   } catch (err: unknown) {
@@ -63,13 +56,13 @@ export async function execute(
       return {
         success: false,
         error:
-          'Browser read timed out. Ensure the Jean2 Autochrome extension is installed, connected, and the active tab is accessible.',
+          'Screenshot timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
       };
     }
 
     return {
       success: false,
-      error: `Browser read failed: ${message}`,
+      error: `Screenshot failed: ${message}`,
     };
   }
 }

@@ -10,7 +10,7 @@
 // =============================================================================
 
 import { existsSync } from 'fs';
-import { cpSync, mkdirSync, rmSync } from 'fs';
+import { mkdirSync, rmSync, copyFileSync } from 'fs';
 
 const isProd = process.argv.includes('--production');
 const outDir = 'dist';
@@ -22,7 +22,7 @@ if (existsSync(outDir)) {
 mkdirSync(outDir, { exists: false });
 
 // Bundle entry points
-const entryPoints = ['src/background.ts', 'src/content.ts'];
+const entryPoints = ['src/background.ts', 'src/content.ts', 'src/popup.ts'];
 
 const result = await Bun.build({
   entrypoints: entryPoints,
@@ -53,6 +53,9 @@ await Bun.write(
   `${outDir}/manifest.json`,
   JSON.stringify(manifest, null, 2),
 );
+
+// Copy popup HTML
+copyFileSync('popup.html', `${outDir}/popup.html`);
 
 // Summary
 for (const artifact of result.outputs) {

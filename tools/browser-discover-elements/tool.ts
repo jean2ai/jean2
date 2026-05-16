@@ -1,21 +1,17 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 
-interface ActiveTabResult {
-  title: string;
-  url: string;
-  text: string;
-}
-
 export const definition: ToolDefinition = {
-  name: 'browser_read_active_tab',
+  name: 'browser_discover_elements',
   description:
-    'Read the active Chrome browser tab. Returns the page title, URL, and visible text content. ' +
+    'Discover all interactive elements (buttons, links, inputs, selects, etc.) on the active Chrome browser tab. ' +
+    'Returns a list of elements with their CSS selectors, text content, and attributes. ' +
+    'Use this before browser_dom_action to find the correct selectors for interacting with the page. ' +
     'Requires a connected Jean2 Autochrome extension.',
   inputSchema: {
     type: 'object',
     properties: {},
   },
-  timeout: 120000,
+  timeout: 15000,
 };
 
 export async function execute(
@@ -26,9 +22,9 @@ export async function execute(
     const executionResult = await ctx.ask({
       type: 'client_capability',
       target: 'client',
-      capability: 'active_tab_read',
+      capability: 'browser_discover_elements',
       metadata: {
-        task: 'browser.read_active_tab',
+        task: 'browser.discover_elements',
       },
     });
 
@@ -39,21 +35,21 @@ export async function execute(
       };
     }
 
-    const result = executionResult as ActiveTabResult;
+    const result = executionResult as Record<string, unknown>;
+    const elements = result.elements as Record<string, unknown>[] | undefined;
 
-    if (!result.title && !result.url && !result.text) {
+    if (!elements || !Array.isArray(elements)) {
       return {
         success: false,
-        error: 'Extension returned empty result.',
+        error: 'Extension returned invalid element list.',
       };
     }
 
     return {
       success: true,
       result: {
-        title: result.title || '',
-        url: result.url || '',
-        text: result.text || '',
+        elementCount: elements.length,
+        elements,
       },
     };
   } catch (err: unknown) {
@@ -63,13 +59,13 @@ export async function execute(
       return {
         success: false,
         error:
-          'Browser read timed out. Ensure the Jean2 Autochrome extension is installed, connected, and the active tab is accessible.',
+          'Element discovery timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
       };
     }
 
     return {
       success: false,
-      error: `Browser read failed: ${message}`,
+      error: `Element discovery failed: ${message}`,
     };
   }
 }

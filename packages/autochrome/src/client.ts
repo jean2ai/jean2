@@ -24,6 +24,16 @@ export type AskRequestHandler = (
   authority?: any,
 ) => void;
 
+const EXTENSION_CAPABILITIES = [
+  'browser_automation',
+  'active_tab_read',
+  'browser_dom_action',
+  'browser_navigate',
+  'browser_screenshot',
+  'browser_discover_elements',
+  'browser_tab_manage',
+] as const;
+
 export class AutochromeClient {
   private client: Jean2Client | null = null;
   private askHandler: AskRequestHandler | null = null;
@@ -43,7 +53,7 @@ export class AutochromeClient {
       clientType: 'extension',
       displayName: 'Jean2 Autochrome',
       interactionMode: 'headless',
-      capabilities: ['browser_automation', 'active_tab_read'],
+      capabilities: [...EXTENSION_CAPABILITIES],
     };
 
     this.client = new Jean2Client({
