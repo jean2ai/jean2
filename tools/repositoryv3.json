@@ -12,6 +12,30 @@
       "description": "Apply unified diff patches to files atomically."
     },
     {
+      "name": "browser-discover-elements",
+      "description": "Discover all interactive elements (buttons, links, inputs, selects, etc.) on the active browser tab. Returns a list of elements with their CSS selectors, text content, and attributes."
+    },
+    {
+      "name": "browser-dom-action",
+      "description": "Perform a DOM interaction on the active browser tab. Supports: click, type, select, clear, scroll, hover, press Enter, check/uncheck."
+    },
+    {
+      "name": "browser-navigate",
+      "description": "Navigate the active browser tab to a URL. Waits for the page to finish loading before returning."
+    },
+    {
+      "name": "browser-read-active-tab",
+      "description": "Read the active browser tab. Returns the page title, URL, and visible text content."
+    },
+    {
+      "name": "browser-screenshot",
+      "description": "Capture a screenshot of the active browser tab as a base64-encoded PNG image."
+    },
+    {
+      "name": "browser-tab-manage",
+      "description": "Manage browser tabs: list all tabs, create a new tab, close a tab, or switch to a tab."
+    },
+    {
       "name": "edit",
       "description": "Performs string replacements in files with fuzzy matching support."
     },
