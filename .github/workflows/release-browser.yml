@@ -1,0 +1,114 @@
+name: Release Browser Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_browser:
+        description: 'Release browser extension'
+        required: false
+        default: true
+        type: boolean
+      force:
+        description: 'Force release (recreate existing)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  prepare-browser-release:
+    runs-on: ubuntu-latest
+    if: inputs.release_browser
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+      should_skip: ${{ steps.info.outputs.should_skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: info
+        run: |
+          V=$(cat packages/browser/VERSION)
+          TAG="browser/v${V}"
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if gh release view "$TAG" 2>/dev/null; then
+            if [ "${{ inputs.force }}" != "true" ]; then
+              echo "should_skip=true" >> $GITHUB_OUTPUT
+              echo "Release $TAG already exists, skipping..."
+              exit 0
+            else
+              echo "Deleting existing release $TAG for force recreation..."
+              gh release delete "$TAG" --yes || true
+            fi
+          fi
+
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG"
+          git push origin "$TAG" --force
+
+          if [[ "$V" == *"-"* ]]; then
+            PRE="--prerelease"
+          else
+            PRE=""
+          fi
+
+          NOTES_FLAG=""
+          if [ -s "changelogs/browser/v${V}.md" ]; then
+            NOTES_FLAG="--notes-file changelogs/browser/v${V}.md"
+          fi
+
+          gh release create "$TAG" --title "Browser Extension $V" $PRE $NOTES_FLAG
+          echo "Release $TAG created successfully"
+
+  build-and-upload:
+    needs: prepare-browser-release
+    runs-on: ubuntu-latest
+    if: needs.prepare-browser-release.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install
+
+      - name: Build extension
+        run: bun run build:prod
+        working-directory: packages/browser
+
+      - name: Package extension
+        working-directory: packages/browser
+        run: |
+          V="${{ needs.prepare-browser-release.outputs.version }}"
+          cd dist
+          zip -r "../jean2-browser-v${V}.zip" .
+          cd ..
+          SHA256=$(shasum -a 256 "jean2-browser-v${V}.zip" | cut -d' ' -f1)
+          echo "$SHA256" > "jean2-browser-v${V}.zip.sha256"
+          echo "SHA-256: $SHA256"
+
+      - name: Upload artifacts
+        env:
+          TAG: ${{ needs.prepare-browser-release.outputs.tag }}
+          V: ${{ needs.prepare-browser-release.outputs.version }}
+        run: |
+          cd packages/browser
+          gh release upload "$TAG" \
+            "jean2-browser-v${V}.zip" \
+            "jean2-browser-v${V}.zip.sha256" \
+            --clobber

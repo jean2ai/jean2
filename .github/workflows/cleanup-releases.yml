@@ -58,6 +58,13 @@ jobs:
           keep_and_count 5 $client_releases
 
           echo ""
+          echo "=== Browser releases (keep last 5) ==="
+          browser_releases=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.tag_name | startswith("browser/")) | "\(.tag_name)|\(.id)"' \
+            | sort -t'/' -k2 -r)
+          keep_and_count 5 $browser_releases
+
+          echo ""
           echo "=== Tool releases (keep last 2 per tool) ==="
           tool_names=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
             --jq '.[] | select(.tag_name | startswith("tool-")) | .tag_name' \
