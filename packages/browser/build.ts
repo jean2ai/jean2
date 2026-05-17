@@ -1,7 +1,7 @@
 // =============================================================================
-// Autochrome Build Script
+// Jean2Browser Build Script
 //
-// Bundles the Chrome extension for loading in Chrome.
+// Bundles the browser extension for loading in Chrome.
 // Output: dist/ directory containing manifest.json + bundled JS files.
 //
 // Usage:
@@ -10,7 +10,7 @@
 // =============================================================================
 
 import { existsSync } from 'fs';
-import { mkdirSync, rmSync, copyFileSync } from 'fs';
+import { mkdirSync, rmSync, copyFileSync, cpSync } from 'fs';
 
 const isProd = process.argv.includes('--production');
 const outDir = 'dist';
@@ -57,10 +57,13 @@ await Bun.write(
 // Copy popup HTML
 copyFileSync('popup.html', `${outDir}/popup.html`);
 
+// Copy icons directory
+cpSync('icons', `${outDir}/icons`, { recursive: true });
+
 // Summary
 for (const artifact of result.outputs) {
   const kb = (artifact.size / 1024).toFixed(1);
   console.log(`  ${artifact.path} (${kb} KB)`);
 }
 console.log(`\n✓ Extension built to ${outDir}/`);
-console.log('  Load in Chrome: chrome://extensions → Developer mode → Load unpacked → select dist/');
+console.log('  Load as unpacked extension: chrome://extensions → Developer mode → Load unpacked → select dist/');

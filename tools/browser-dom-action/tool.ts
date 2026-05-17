@@ -13,8 +13,8 @@ interface DomActionParams {
 export const definition: ToolDefinition = {
   name: 'browser_dom_action',
   description:
-    'Perform a DOM interaction on the active Chrome browser tab. Supports: click (by selector or text), type into inputs, select dropdown options, clear inputs, scroll, hover, press Enter, check/uncheck checkboxes. ' +
-    'Requires a connected Jean2 Autochrome extension. ' +
+    'Perform a DOM interaction on the active browser tab. Supports: click (by selector or text), type into inputs, select dropdown options, clear inputs, scroll, hover, press Enter, check/uncheck checkboxes. ' +
+    'Requires a connected Jean2Browser extension. ' +
     'Use browser_read_active_tab first to understand the page, then use browser_dom_action to interact with it.',
   inputSchema: {
     type: 'object',
@@ -81,6 +81,21 @@ export async function execute(
     return { success: false, error: 'Missing required parameter: action' };
   }
 
+  const approved = await ctx.ask({
+    type: 'permission',
+    question: `Perform "${params.action}" action in browser?`,
+    description: `Execute a "${params.action}" DOM action on the active browser tab.` +
+      (params.selector ? ` Target: ${params.selector}.` : '') +
+      (params.text ? ` Text: "${params.text}".` : '') +
+      (params.value ? ` Value: "${params.value}".` : ''),
+    risk: 'medium',
+    resource: 'browser',
+    action: 'interact',
+    scope: { type: 'custom', value: params.action, label: `${params.action} action` },
+    allowedScopes: ['once', 'session'],
+  });
+  if (!approved) return { success: false, error: 'USER_REJECTION' };
+
   try {
     const executionResult = await ctx.ask({
       type: 'client_capability',
@@ -133,7 +148,7 @@ export async function execute(
       return {
         success: false,
         error:
-          'Browser action timed out. Ensure the Jean2 Autochrome extension is installed, connected, and the active tab is accessible.',
+          'Browser action timed out. Ensure the Jean2Browser extension is installed, connected, and the active tab is accessible.',
       };
     }
 

@@ -1,5 +1,5 @@
 // =============================================================================
-// Autochrome Background Service Worker
+// Jean2Browser Background Service Worker
 //
 // Main extension runtime:
 // - Connects to Jean2 server on startup
@@ -8,7 +8,7 @@
 //             browser_screenshot, browser_discover_elements
 // =============================================================================
 
-import { AutochromeClient } from './client';
+import { BrowserClient } from './client';
 import { getOrCreateClientId } from './storage';
 import { getConfig } from './config';
 import type {
@@ -27,7 +27,7 @@ import type {
 
 const MAX_TEXT_LENGTH = 50_000;
 
-let autochromeClient: AutochromeClient | null = null;
+let browserClient: BrowserClient | null = null;
 let connectionState: ConnectionState = 'disconnected';
 let connectionError: string | null = null;
 
@@ -257,29 +257,29 @@ async function connectToServer(): Promise<void> {
       getConfig(),
     ]);
 
-    console.log('[autochrome] Connecting to:', config.serverUrl, 'clientId:', clientId);
+    console.log('[browser] Connecting to:', config.serverUrl, 'clientId:', clientId);
 
     connectionState = 'connecting';
     connectionError = null;
 
-    autochromeClient = new AutochromeClient();
+    browserClient = new BrowserClient();
 
-    autochromeClient.onAskRequest(
+    browserClient.onAskRequest(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       async (sessionId: string, toolCallId: string, toolName: string, ask: any, requestId?: string) => {
         await handleAskRequest(sessionId, toolCallId, toolName, ask, requestId);
       },
     );
 
-    await autochromeClient.connect(config, clientId);
+    await browserClient.connect(config, clientId);
     connectionState = 'connected';
-    console.log('[autochrome] Connected and registered successfully');
+    console.log('[browser] Connected and registered successfully');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[autochrome] Failed to connect:', message);
+    console.error('[browser] Failed to connect:', message);
     connectionState = 'error';
     connectionError = message;
-    autochromeClient = null;
+    browserClient = null;
   }
 }
 
@@ -293,7 +293,7 @@ async function handleAskRequest(
   ask: AskPayload,
   requestId?: string,
 ): Promise<void> {
-  if (!autochromeClient) return;
+  if (!browserClient) return;
 
   if (ask?.type !== 'client_capability') return;
 
@@ -303,7 +303,7 @@ async function handleAskRequest(
     switch (capability) {
       case 'active_tab_read': {
         const tabData = await readActiveTab();
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result: tabData,
@@ -314,7 +314,7 @@ async function handleAskRequest(
       case 'browser_dom_action': {
         const params = (ask?.params ?? ask?.metadata?.params) as DomActionParams;
         if (!params?.action) {
-          autochromeClient.sendAskResponse(toolCallId, {
+          browserClient.sendAskResponse(toolCallId, {
             type: 'client_capability',
             capability,
             result: { success: false, error: 'Missing action parameter' },
@@ -322,7 +322,7 @@ async function handleAskRequest(
           break;
         }
         const result = await executeDomAction(params);
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result,
@@ -333,7 +333,7 @@ async function handleAskRequest(
       case 'browser_navigate': {
         const params = (ask?.params ?? ask?.metadata?.params) as NavigateParams;
         if (!params?.url) {
-          autochromeClient.sendAskResponse(toolCallId, {
+          browserClient.sendAskResponse(toolCallId, {
             type: 'client_capability',
             capability,
             result: { success: false, url: '', title: '', error: 'Missing URL parameter' },
@@ -341,7 +341,7 @@ async function handleAskRequest(
           break;
         }
         const result = await navigateToUrl(params);
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result,
@@ -351,7 +351,7 @@ async function handleAskRequest(
 
       case 'browser_screenshot': {
         const result = await captureScreenshot();
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result,
@@ -361,7 +361,7 @@ async function handleAskRequest(
 
       case 'browser_discover_elements': {
         const result = await discoverElements();
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result,
@@ -372,7 +372,7 @@ async function handleAskRequest(
       case 'browser_tab_manage': {
         const params = (ask?.params ?? ask?.metadata?.params) as TabManageParams;
         if (!params?.action) {
-          autochromeClient.sendAskResponse(toolCallId, {
+          browserClient.sendAskResponse(toolCallId, {
             type: 'client_capability',
             capability,
             result: { success: false, error: 'Missing action parameter' },
@@ -380,7 +380,7 @@ async function handleAskRequest(
           break;
         }
         const result = await manageTab(params);
-        autochromeClient.sendAskResponse(toolCallId, {
+        browserClient.sendAskResponse(toolCallId, {
           type: 'client_capability',
           capability,
           result,
@@ -389,13 +389,13 @@ async function handleAskRequest(
       }
 
       default:
-        console.warn('[autochrome] Unknown capability:', capability);
+        console.warn('[browser] Unknown capability:', capability);
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[autochrome] Ask handling failed:', message);
+    console.error('[browser] Ask handling failed:', message);
 
-    autochromeClient.sendAskResponse(toolCallId, {
+    browserClient.sendAskResponse(toolCallId, {
       type: 'client_capability',
       capability,
       result: { error: message },
@@ -426,11 +426,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const { serverUrl, token } = message as { serverUrl: string; token?: string };
     // Save config first, then connect
     chrome.storage.local.set(
-      { autochrome_config: { serverUrl, token: token || undefined } },
+      { jean2_browser_config: { serverUrl, token: token || undefined } },
       () => {
-        if (autochromeClient) {
-          autochromeClient.disconnect().then(() => {
-            autochromeClient = null;
+        if (browserClient) {
+          browserClient.disconnect().then(() => {
+            browserClient = null;
             connectToServer().then(() => {
               sendResponse({ state: connectionState, error: connectionState === 'error' ? connectionError : undefined });
             });
@@ -448,9 +448,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'disconnect') {
     connectionState = 'disconnected';
     connectionError = null;
-    if (autochromeClient) {
-      autochromeClient.disconnect().then(() => {
-        autochromeClient = null;
+    if (browserClient) {
+      browserClient.disconnect().then(() => {
+        browserClient = null;
         sendResponse({ state: 'disconnected' });
       });
     } else {
@@ -463,11 +463,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // ── Extension Lifecycle ─────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[autochrome] Extension installed');
+  console.log('[browser] Extension installed');
   connectToServer();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  console.log('[autochrome] Browser startup');
+  console.log('[browser] Browser startup');
   connectToServer();
 });

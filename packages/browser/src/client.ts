@@ -1,5 +1,5 @@
 // =============================================================================
-// Autochrome Jean2 Client
+// Jean2Browser Client
 //
 // Wraps the SDK client for the Chrome extension environment.
 // Uses a custom WebSocket constructor backed by Chrome's WebSocket API.
@@ -34,7 +34,7 @@ const EXTENSION_CAPABILITIES = [
   'browser_tab_manage',
 ] as const;
 
-export class AutochromeClient {
+export class BrowserClient {
   private client: Jean2Client | null = null;
   private askHandler: AskRequestHandler | null = null;
   private _connected = false;
@@ -51,7 +51,7 @@ export class AutochromeClient {
     const descriptor: ClientDescriptor = {
       clientId,
       clientType: 'extension',
-      displayName: 'Jean2 Autochrome',
+      displayName: 'Jean2Browser',
       interactionMode: 'headless',
       capabilities: [...EXTENSION_CAPABILITIES],
     };
@@ -65,16 +65,16 @@ export class AutochromeClient {
 
     this.client.on('connected', () => {
       this._connected = true;
-      console.log('[autochrome] Connected to Jean2 server');
+      console.log('[browser] Connected to Jean2 server');
     });
 
     this.client.on('disconnected', () => {
       this._connected = false;
-      console.log('[autochrome] Disconnected from Jean2 server');
+      console.log('[browser] Disconnected from Jean2 server');
     });
 
     this.client.on('error.connection', (error) => {
-      console.error('[autochrome] Connection error:', error);
+      console.error('[browser] Connection error:', error);
     });
 
     this.client.on('ask.request', (sessionId, toolCallId, toolName, ask, requestId, authority) => {

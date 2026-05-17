@@ -1,12 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Jean2 Autochrome",
+  "name": "Jean2Browser",
   "description": "Jean2 browser automation extension - enables AI to read, navigate, and interact with web pages",
   "version": "0.2.0",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting",
     "tabs"
   ],
   "background": {
@@ -20,9 +18,14 @@
       "run_at": "document_idle"
     }
   ],
-  "icons": {},
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "action": {
-    "default_title": "Jean2 Autochrome",
+    "default_title": "Jean2Browser",
     "default_popup": "popup.html"
   }
 }

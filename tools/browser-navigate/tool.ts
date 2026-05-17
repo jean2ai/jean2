@@ -3,8 +3,8 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 export const definition: ToolDefinition = {
   name: 'browser_navigate',
   description:
-    'Navigate the active Chrome browser tab to a URL. Waits for the page to finish loading before returning the new URL and title. ' +
-    'Requires a connected Jean2 Autochrome extension.',
+    'Navigate the active browser tab to a URL. Waits for the page to finish loading before returning the new URL and title. ' +
+    'Requires a connected Jean2Browser extension.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -41,6 +41,18 @@ export async function execute(
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return { success: false, error: 'URL must start with http:// or https://' };
   }
+
+  const approved = await ctx.ask({
+    type: 'permission',
+    question: `Navigate browser to ${url}?`,
+    description: 'Navigate the active browser tab to a new URL. This will leave the current page.',
+    risk: 'medium',
+    resource: 'browser',
+    action: 'navigate',
+    scope: { type: 'custom', value: url, label: url },
+    allowedScopes: ['once', 'session'],
+  });
+  if (!approved) return { success: false, error: 'USER_REJECTION' };
 
   try {
     const executionResult = await ctx.ask({
@@ -87,7 +99,7 @@ export async function execute(
       return {
         success: false,
         error:
-          'Navigation timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
+          'Navigation timed out. Ensure the Jean2Browser extension is installed and connected.',
       };
     }
 

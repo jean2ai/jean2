@@ -17,8 +17,8 @@
         "typescript-eslint": "^8.56.1",
       },
     },
-    "packages/autochrome": {
-      "name": "@jean2/autochrome",
+    "packages/browser": {
+      "name": "@jean2/browser",
       "version": "0.1.0",
       "dependencies": {
         "@jean2/sdk": "workspace:*",
@@ -30,7 +30,7 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
@@ -87,7 +87,7 @@
     },
     "packages/client-electron": {
       "name": "@jean2/client-electron",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "dependencies": {
         "electron-log": "^5.4.3",
         "electron-store": "^10.0.0",
@@ -121,11 +121,11 @@
     },
     "packages/sdk": {
       "name": "@jean2/sdk",
-      "version": "1.0.1",
+      "version": "1.0.2",
     },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -411,7 +411,7 @@
 
     "@isaacs/string-locale-compare": ["@isaacs/string-locale-compare@1.1.0", "", {}, "sha512-SQ7Kzhh9+D+ZW9MA0zkYv3VXhIDNx+LzM6EJ+/65I3QY+enU6Itte7E5XX7EWrqLW2FN4n06GWzBnPoC3th2aQ=="],
 
-    "@jean2/autochrome": ["@jean2/autochrome@workspace:packages/autochrome"],
+    "@jean2/browser": ["@jean2/browser@workspace:packages/browser"],
 
     "@jean2/client": ["@jean2/client@workspace:packages/client"],
 

@@ -1,9 +1,9 @@
 {
-  "name": "@jean2/autochrome",
+  "name": "@jean2/browser",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Jean2 Autochrome - Chrome extension for browser automation",
+  "description": "Jean2Browser - Browser extension for browser automation",
   "scripts": {
     "build": "bun run build.ts",
     "build:prod": "bun run build.ts --production",

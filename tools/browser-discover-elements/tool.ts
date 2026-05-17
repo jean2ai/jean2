@@ -3,10 +3,10 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 export const definition: ToolDefinition = {
   name: 'browser_discover_elements',
   description:
-    'Discover all interactive elements (buttons, links, inputs, selects, etc.) on the active Chrome browser tab. ' +
+    'Discover all interactive elements (buttons, links, inputs, selects, etc.) on the active browser tab. ' +
     'Returns a list of elements with their CSS selectors, text content, and attributes. ' +
     'Use this before browser_dom_action to find the correct selectors for interacting with the page. ' +
-    'Requires a connected Jean2 Autochrome extension.',
+    'Requires a connected Jean2Browser extension.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -18,6 +18,17 @@ export async function execute(
   _input: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<ToolResult> {
+  const approved = await ctx.ask({
+    type: 'permission',
+    question: 'Discover interactive browser elements?',
+    description: 'List all interactive elements (buttons, links, inputs, etc.) on the active browser tab.',
+    risk: 'low',
+    resource: 'browser',
+    action: 'read',
+    allowedScopes: ['once', 'session'],
+  });
+  if (!approved) return { success: false, error: 'USER_REJECTION' };
+
   try {
     const executionResult = await ctx.ask({
       type: 'client_capability',
@@ -59,7 +70,7 @@ export async function execute(
       return {
         success: false,
         error:
-          'Element discovery timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
+          'Element discovery timed out. Ensure the Jean2Browser extension is installed and connected.',
       };
     }
 

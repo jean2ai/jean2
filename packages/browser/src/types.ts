@@ -1,5 +1,5 @@
 // =============================================================================
-// Autochrome Types
+// Jean2Browser Types
 // =============================================================================
 
 export interface ActiveTabData {
@@ -101,8 +101,8 @@ export interface ExtensionConfig {
 }
 
 export const STORAGE_KEYS = {
-  CLIENT_ID: 'autochrome_client_id',
-  CONFIG: 'autochrome_config',
+  CLIENT_ID: 'jean2_browser_client_id',
+  CONFIG: 'jean2_browser_config',
 } as const;
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';

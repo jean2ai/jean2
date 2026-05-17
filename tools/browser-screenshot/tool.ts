@@ -3,9 +3,9 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 export const definition: ToolDefinition = {
   name: 'browser_screenshot',
   description:
-    'Capture a screenshot of the active Chrome browser tab. Returns a base64-encoded PNG image. ' +
+    'Capture a screenshot of the active browser tab. Returns a base64-encoded PNG image. ' +
     'Use this to visually verify the current state of a page after performing actions. ' +
-    'Requires a connected Jean2 Autochrome extension.',
+    'Requires a connected Jean2Browser extension.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -17,6 +17,17 @@ export async function execute(
   _input: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<ToolResult> {
+  const approved = await ctx.ask({
+    type: 'permission',
+    question: 'Take browser screenshot?',
+    description: 'Capture a screenshot of the active browser tab as a PNG image.',
+    risk: 'low',
+    resource: 'browser',
+    action: 'read',
+    allowedScopes: ['once', 'session'],
+  });
+  if (!approved) return { success: false, error: 'USER_REJECTION' };
+
   try {
     const executionResult = await ctx.ask({
       type: 'client_capability',
@@ -56,7 +67,7 @@ export async function execute(
       return {
         success: false,
         error:
-          'Screenshot timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
+          'Screenshot timed out. Ensure the Jean2Browser extension is installed and connected.',
       };
     }
 

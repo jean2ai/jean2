@@ -1,6 +1,12 @@
 {
   "tools": [
     "apply-patch",
+    "browser-discover-elements",
+    "browser-dom-action",
+    "browser-navigate",
+    "browser-read-active-tab",
+    "browser-screenshot",
+    "browser-tab-manage",
     "edit",
     "file-to-markdown",
     "glob",

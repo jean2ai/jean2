@@ -3,9 +3,9 @@ import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 export const definition: ToolDefinition = {
   name: 'browser_tab_manage',
   description:
-    'Manage Chrome browser tabs: list all tabs, create a new tab, close a tab, or switch to a tab. ' +
+    'Manage browser tabs: list all tabs, create a new tab, close a tab, or switch to a tab. ' +
     'Use this alongside browser_navigate and browser_dom_action to work across multiple tabs. ' +
-    'Requires a connected Jean2 Autochrome extension.',
+    'Requires a connected Jean2Browser extension.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -49,6 +49,25 @@ export async function execute(
   if (!action) {
     return { success: false, error: 'Missing required parameter: action' };
   }
+
+  const isReadAction = action === 'list';
+  const risk: 'low' | 'medium' = isReadAction ? 'low' : 'medium';
+  const actionLabel = action === 'create' ? `Open new tab${input.url ? ` (${input.url})` : ''}`
+    : action === 'close' ? `Close tab (tabId: ${input.tabId ?? input.tabIndex ?? 'active'})`
+    : action === 'switch' ? `Switch to tab (tabId: ${input.tabId ?? input.tabIndex})`
+    : 'List browser tabs';
+
+  const approved = await ctx.ask({
+    type: 'permission',
+    question: `${actionLabel}?`,
+    description: `${isReadAction ? 'List' : 'Manage'} browser tabs in the current window.`,
+    risk,
+    resource: 'browser',
+    action: isReadAction ? 'read' : 'write',
+    scope: { type: 'custom', value: `tab:${action}`, label: actionLabel },
+    allowedScopes: ['once', 'session'],
+  });
+  if (!approved) return { success: false, error: 'USER_REJECTION' };
 
   try {
     const executionResult = await ctx.ask({
@@ -94,7 +113,7 @@ export async function execute(
       return {
         success: false,
         error:
-          'Tab action timed out. Ensure the Jean2 Autochrome extension is installed and connected.',
+          'Tab action timed out. Ensure the Jean2Browser extension is installed and connected.',
       };
     }
 
