@@ -262,6 +262,18 @@ export type DeleteModelResponse = ModelsConfig;
  */
 export type SetDefaultsResponse = ModelsConfig;
 
+/**
+ * POST /api/config/models/sync
+ * Returns the sync result with details about what was added.
+ */
+export interface SyncModelsResponse {
+  mode: 'merge' | 'override';
+  addedProviders: string[];
+  addedModels: string[];
+  totalProviders: number;
+  totalModels: number;
+}
+
 // =============================================================================
 // Config: Prompts Responses
 // =============================================================================

@@ -1,6 +1,7 @@
 import type { Hono } from 'hono';
 import * as providerCredentials from '@/configuration/provider-credentials';
 import * as modelsConfig from '@/configuration/models';
+import * as modelsSync from '@/configuration/models-sync';
 import * as promptsConfig from '@/configuration/prompts';
 import * as preconfigsConfig from '@/configuration/preconfigs';
 import * as providers from '@/providers';
@@ -381,6 +382,18 @@ export function registerConfigRoutes(app: Hono): void {
       }
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: 'Failed to delete model', message }, 500);
+    }
+  });
+
+  app.post('/api/config/models/sync', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const mode = body.mode === 'override' ? 'override' as const : 'merge' as const;
+    try {
+      const result = await modelsSync.syncModels(mode);
+      return c.json(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'Failed to sync models', message }, 500);
     }
   });
 

@@ -108,3 +108,14 @@ export function useSetModelDefaults(sdkClient: Jean2Client | null) {
     },
   });
 }
+
+export function useSyncModels(sdkClient: Jean2Client | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mode: 'merge' | 'override') =>
+      sdkClient!.http.config.models.sync(mode),
+    onSuccess: () => {
+      if (sdkClient) syncModelsToStoreAndCache(sdkClient, queryClient);
+    },
+  });
+}

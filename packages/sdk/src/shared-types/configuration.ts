@@ -96,6 +96,14 @@ export interface SetDefaultsRequest {
   defaultProvider: string;
 }
 
+export interface SyncResult {
+  mode: 'merge' | 'override';
+  addedProviders: string[];
+  addedModels: string[];
+  totalProviders: number;
+  totalModels: number;
+}
+
 export interface CreatePromptRequest {
   name: string;
   content: string;

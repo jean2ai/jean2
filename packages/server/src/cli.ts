@@ -19,6 +19,7 @@ import { initJean2, type InitOptions } from '@/init';
 import { runMigrations } from '@/store';
 import { runToolsCommand, type ToolsCommandArgs } from '@/tools/tools-cli';
 import { performUpdate, type UpdateOptions } from '@/update';
+import { syncModels, type SyncResult } from '@/configuration/models-sync';
 import { VERSION } from '@/version';
 
 import '@/tools/clack-utils';
@@ -130,6 +131,10 @@ Commands:
 
   migrate              Run database migrations
 
+  models               Model registry management
+    sync                Sync models from upstream registry
+      --override         Replace local models.json with upstream
+
   update               Update jean2 to latest version
     --version <ver>    Update to a specific version
     --force            Reinstall even if already on latest
@@ -154,6 +159,8 @@ Examples:
   jean2 tools update              Update installed tools
   jean2 tools outdated            Check for updates
   jean2 migrate                   Run database migrations
+  jean2 models sync               Sync models from upstream registry
+  jean2 models sync --override    Replace local models with upstream
   jean2 update                     Update to latest version
   jean2 update --dry-run           Check for updates only
   jean2 update --version 0.9.0     Update to specific version
@@ -315,6 +322,11 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'models': {
+      await runModelsCommand(args.slice(1));
+      break;
+    }
+
     case 'tools': {
       await runToolsCommandFromCLI(args.slice(1));
       break;
@@ -467,6 +479,92 @@ async function runToolsCommandFromCLI(args: string[]): Promise<void> {
   } else if (!result.success) {
     process.exit(1);
   }
+}
+
+async function runModelsCommand(modelsArgs: string[]): Promise<void> {
+  const subCommand = modelsArgs[0];
+
+  if (subCommand === 'sync') {
+    let override = false;
+    for (const arg of modelsArgs.slice(1)) {
+      if (arg === '--override') {
+        override = true;
+      } else if (arg === '--help' || arg === '-h') {
+        console.log(`
+jean2 models sync - Sync models from upstream registry
+
+Usage: jean2 models sync [options]
+
+Options:
+  --override    Replace local models.json with upstream (default: merge)
+  --help        Show this help message
+
+Examples:
+  jean2 models sync              Add new models, keep existing
+  jean2 models sync --override   Replace with upstream models
+`);
+        process.exit(0);
+      } else {
+        console.error(`Unknown option: ${arg}`);
+        process.exit(1);
+      }
+    }
+
+    const mode = override ? 'override' as const : 'merge' as const;
+
+    try {
+      console.log(`info: Syncing models from upstream (${mode})...`);
+      const result = await syncModels(mode);
+      printSyncResult(result);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Error:', message);
+      process.exit(1);
+    }
+
+    return;
+  }
+
+  if (subCommand === '--help' || subCommand === '-h') {
+    console.log(`
+jean2 models - Model registry management
+
+Usage: jean2 models <command> [options]
+
+Commands:
+  sync            Sync models from upstream registry
+    --override     Replace local models.json with upstream
+
+Examples:
+  jean2 models sync              Add new models, keep existing
+  jean2 models sync --override   Replace with upstream models
+`);
+    return;
+  }
+
+  console.error(`Unknown models command: ${subCommand || '(none)'}`);
+  console.error('Run "jean2 models --help" for usage information');
+  process.exit(1);
+}
+
+function printSyncResult(result: SyncResult): void {
+  if (result.mode === 'override') {
+    console.log(`info: Models replaced with upstream (${result.totalProviders} providers, ${result.totalModels} models)`);
+    return;
+  }
+
+  if (result.addedProviders.length === 0 && result.addedModels.length === 0) {
+    console.log('info: Models already up to date');
+    return;
+  }
+
+  if (result.addedProviders.length > 0) {
+    console.log(`info: Added ${result.addedProviders.length} provider(s): ${result.addedProviders.join(', ')}`);
+  }
+  if (result.addedModels.length > 0) {
+    console.log(`info: Added ${result.addedModels.length} model(s): ${result.addedModels.join(', ')}`);
+  }
+  console.log(`info: Total: ${result.totalProviders} providers, ${result.totalModels} models`);
 }
 
 main().catch((err: unknown) => {

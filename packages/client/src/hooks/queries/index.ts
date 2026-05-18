@@ -1,5 +1,5 @@
 export { useToolsQuery, useToolEnvVarsQuery, useToolSetEnvVar, useToolClearEnvVar } from './useToolsQueries';
-export { useModelsConfigQuery, useCreateProvider, useUpdateProvider, useDeleteProvider, useCreateModel, useUpdateModel, useDeleteModel, useSetModelDefaults } from './useModelsQueries';
+export { useModelsConfigQuery, useCreateProvider, useUpdateProvider, useDeleteProvider, useCreateModel, useUpdateModel, useDeleteModel, useSetModelDefaults, useSyncModels } from './useModelsQueries';
 export { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePreconfig } from './usePreconfigsQueries';
 export { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from './usePromptsQueries';
 export { useProvidersQuery, useProviderCredentialsQuery, useConnectProvider, useDisconnectProvider, useSetProviderCredential, useClearProviderCredential } from './useProvidersQueries';

@@ -10,6 +10,7 @@ import {
   useUpdateModel,
   useDeleteModel,
   useSetModelDefaults,
+  useSyncModels,
 } from '@/hooks/queries';
 import {
   Plus,
@@ -22,6 +23,7 @@ import {
   Boxes,
   Star,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,6 +116,9 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   const updateModelMut = useUpdateModel(sdkClient);
   const deleteModelMut = useDeleteModel(sdkClient);
   const setDefaultsMut = useSetModelDefaults(sdkClient);
+  const syncModelsMut = useSyncModels(sdkClient);
+  const [syncMode, setSyncMode] = useState<'merge' | 'override'>('merge');
+  const [syncResult, setSyncResult] = useState<{ mode: string; addedProviders: string[]; addedModels: string[]; totalProviders: number; totalModels: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
@@ -696,6 +701,61 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
               </span>
             ) : (
               <span className="italic">Not configured</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium flex items-center gap-2">
+            <RefreshCw className="size-4" />
+            Sync Models
+          </h3>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <Switch
+                checked={syncMode === 'override'}
+                onCheckedChange={(checked) => setSyncMode(checked ? 'override' : 'merge')}
+              />
+              Override
+            </label>
+            <Button
+              size="sm"
+              disabled={syncModelsMut.isPending}
+              onClick={() => {
+                setSyncResult(null);
+                syncModelsMut.mutate(syncMode, {
+                  onSuccess: (data) => setSyncResult(data),
+                  onError: (err) => setError(err instanceof Error ? err.message : 'Sync failed'),
+                });
+              }}
+            >
+              {syncModelsMut.isPending ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              Sync
+            </Button>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {syncMode === 'merge'
+            ? 'Add new models from the upstream registry. Existing models are kept.'
+            : 'Replace local models with the upstream registry. Custom models will be lost.'}
+        </p>
+        {syncResult && (
+          <div className="p-2 rounded bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400 space-y-0.5">
+            {syncResult.mode === 'override' ? (
+              <span>Replaced with upstream ({syncResult.totalProviders} providers, {syncResult.totalModels} models)</span>
+            ) : syncResult.addedProviders.length === 0 && syncResult.addedModels.length === 0 ? (
+              <span>Models already up to date</span>
+            ) : (
+              <>
+                {syncResult.addedProviders.length > 0 && (
+                  <div>Added {syncResult.addedProviders.length} provider(s): {syncResult.addedProviders.join(', ')}</div>
+                )}
+                {syncResult.addedModels.length > 0 && (
+                  <div>Added {syncResult.addedModels.length} model(s): {syncResult.addedModels.join(', ')}</div>
+                )}
+              </>
             )}
           </div>
         )}

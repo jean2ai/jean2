@@ -8,6 +8,7 @@ import type {
   UpdateModelResponse,
   DeleteModelResponse,
   SetDefaultsResponse,
+  SyncModelsResponse,
   ListPromptConfigsResponse,
   GetPromptConfigResponse,
   CreatePromptConfigResponse,
@@ -57,6 +58,10 @@ interface DeleteModelOptions {
 }
 
 interface SetDefaultsOptions {
+  signal?: AbortSignal;
+}
+
+interface SyncModelsOptions {
   signal?: AbortSignal;
 }
 
@@ -131,6 +136,10 @@ export class ConfigModelsNamespace {
 
   async setDefaults(data: SetDefaultsRequest, options?: SetDefaultsOptions): Promise<SetDefaultsResponse> {
     return this.http.put('/config/models/defaults', data, { signal: options?.signal });
+  }
+
+  async sync(mode: 'merge' | 'override' = 'merge', options?: SyncModelsOptions): Promise<SyncModelsResponse> {
+    return this.http.post('/config/models/sync', { mode }, { signal: options?.signal });
   }
 }
 
