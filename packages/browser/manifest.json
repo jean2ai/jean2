@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "Jean2Browser",
   "description": "Jean2 browser automation extension - enables AI to read, navigate, and interact with web pages",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "activeTab"
   ],
   "background": {
     "service_worker": "src/background.ts",
