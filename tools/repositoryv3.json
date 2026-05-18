@@ -28,10 +28,6 @@
       "description": "Read the active browser tab. Returns the page title, URL, and visible text content."
     },
     {
-      "name": "browser-screenshot",
-      "description": "Capture a screenshot of the active browser tab as a base64-encoded PNG image."
-    },
-    {
       "name": "browser-tab-manage",
       "description": "Manage browser tabs: list all tabs, create a new tab, close a tab, or switch to a tab."
     },
