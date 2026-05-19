@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { existsSync, statSync, openSync, writeFileSync } from 'fs';
+import { existsSync, statSync, openSync, renameSync } from 'fs';
 
 import { VERSION } from '@/version';
 import { getStatus, stopDaemon, getLogFilePath } from '@/daemon';
@@ -117,91 +117,55 @@ export async function downloadBinary(url: string, destPath: string): Promise<voi
   console.log('info: Download complete');
 }
 
-function encodePowerShellCommand(script: string): string {
-  const utf16leBuffer = Buffer.from(script, 'utf16le');
-  const bom = Buffer.from([0xff, 0xfe]);
-  return Buffer.concat([bom, utf16leBuffer]).toString('base64');
-}
-
-export function spawnReplacer(
-  tempPath: string,
+function spawnPostUpdateTasks(
   binaryPath: string,
+  oldPath: string,
   options: { needsMigration: boolean; wasDaemonRunning: boolean },
 ): void {
   const logFd = openSync(getLogFilePath(), 'a');
   const platform = detectPlatform();
 
   if (platform === 'windows') {
-    const ps = Bun.which('pwsh') || Bun.which('powershell');
-    if (!ps) {
-      throw new Error('PowerShell not found');
+    const actions: string[] = [];
+
+    actions.push(`ping -n 4 127.0.0.1 >nul`);
+    actions.push(`del /f /q "${oldPath}" 2>nul`);
+
+    if (options.needsMigration) {
+      actions.push(`"${binaryPath}" migrate`);
+    }
+    if (options.wasDaemonRunning) {
+      actions.push(`"${binaryPath}" start`);
     }
 
-    const logFile = getLogFilePath();
-    const lines: string[] = [
-      `Start-Sleep -Seconds 3`,
-      `$ErrorActionPreference = 'Stop'`,
-      `$moved = $false`,
-      `for ($i = 0; $i -lt 10; $i++) {`,
-      `  try {`,
-      `    Move-Item -Force '${tempPath}' '${binaryPath}'`,
-      `    $moved = $true`,
-      `    break`,
-      `  } catch {`,
-      `    Add-Content -Path '${logFile}' -Value "[$(Get-Date)] Update retry $($i+1)/10: $_"`,
-      `    Start-Sleep -Seconds 1`,
-      `  }`,
-      `}`,
-      `if (-not $moved) {`,
-      `  Add-Content -Path '${logFile}' -Value "[$(Get-Date)] FAILED: Could not replace binary after 10 retries"`,
-      `  exit 1`,
-      `}`,
-    ];
-
-    if (options.needsMigration || options.wasDaemonRunning) {
-      if (options.needsMigration) {
-        lines.push(`& '${binaryPath}' migrate`);
-      }
-      if (options.wasDaemonRunning) {
-        lines.push(`& '${binaryPath}' start`);
-      }
-    }
-
-    lines.push(
-      `Add-Content -Path '${logFile}' -Value "[$(Get-Date)] Update completed successfully"`,
-    );
-
-    const scriptPath = join(tmpdir(), `jean2-update-${Date.now()}.ps1`);
-    writeFileSync(scriptPath, lines.join('\r\n'));
-
-    const encodedCmd = encodePowerShellCommand(
-      `Set-ExecutionPolicy Bypass -Scope Process -Force; & '${scriptPath}'; Remove-Item -Force '${scriptPath}' -ErrorAction SilentlyContinue`,
-    );
+    const command = actions.join(' && ');
 
     const child = Bun.spawn(
-      [ps, '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCmd],
+      ['cmd.exe', '/c', command],
       {
         detached: true,
         stdio: ['ignore', logFd, logFd],
         env: {
           ...getToolEnv(),
         },
+        windowsHide: true,
       },
     );
     child.unref();
   } else {
-    let command = `sleep 2 && mv -f '${tempPath}' '${binaryPath}' && chmod +x '${binaryPath}'`;
+    const actions: string[] = [];
 
-    if (options.needsMigration || options.wasDaemonRunning) {
-      const actions: string[] = [];
-      if (options.needsMigration) {
-        actions.push(`'${binaryPath}' migrate`);
-      }
-      if (options.wasDaemonRunning) {
-        actions.push(`'${binaryPath}' start`);
-      }
-      command += ` && ${actions.join(' && ')}`;
+    actions.push(`sleep 2`);
+    actions.push(`rm -f '${oldPath}'`);
+
+    if (options.needsMigration) {
+      actions.push(`'${binaryPath}' migrate`);
     }
+    if (options.wasDaemonRunning) {
+      actions.push(`'${binaryPath}' start`);
+    }
+
+    const command = actions.join(' && ');
 
     const child = Bun.spawn(['sh', '-c', command], {
       detached: true,
@@ -288,10 +252,59 @@ export async function performUpdate(options: UpdateOptions): Promise<UpdateResul
 
   const binaryPath = process.execPath;
 
-  spawnReplacer(tempPath, binaryPath, {
-    needsMigration,
-    wasDaemonRunning,
-  });
+  if (platform === 'windows') {
+    // Windows: rename the running binary (allowed even while running),
+    // then move the new one into the original path — no need to wait for exit.
+    const oldPath = binaryPath + '.old';
+
+    try {
+      // Clean up any leftover .old from a previous update
+      try { renameSync(oldPath, oldPath + '.tmp'); } catch { /* ignore */ }
+
+      // Step 1: rename running exe to .old (Windows allows this)
+      renameSync(binaryPath, oldPath);
+
+      // Step 2: move new binary into the original path (path is now free)
+      renameSync(tempPath, binaryPath);
+
+      // Step 3: spawn background process for cleanup + restart
+      spawnPostUpdateTasks(binaryPath, oldPath, {
+        needsMigration,
+        wasDaemonRunning,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        error: `Failed to replace binary: ${message}`,
+      };
+    }
+  } else {
+    // Unix: spawn background replacer that waits for exit then moves
+    const oldPath = binaryPath + '.old';
+    let command = `sleep 1 && mv -f '${tempPath}' '${binaryPath}' && chmod +x '${binaryPath}' && rm -f '${oldPath}'`;
+
+    if (needsMigration || wasDaemonRunning) {
+      const actions: string[] = [];
+      if (needsMigration) {
+        actions.push(`'${binaryPath}' migrate`);
+      }
+      if (wasDaemonRunning) {
+        actions.push(`'${binaryPath}' start`);
+      }
+      command += ` && ${actions.join(' && ')}`;
+    }
+
+    const logFd = openSync(getLogFilePath(), 'a');
+    const child = Bun.spawn(['sh', '-c', command], {
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      env: {
+        ...getToolEnv(),
+      },
+    });
+    child.unref();
+  }
 
   return {
     success: true,
