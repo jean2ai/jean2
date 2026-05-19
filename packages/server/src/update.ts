@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { existsSync, statSync, openSync } from 'fs';
+import { existsSync, statSync, openSync, writeFileSync } from 'fs';
 
 import { VERSION } from '@/version';
 import { getStatus, stopDaemon, getLogFilePath } from '@/daemon';
@@ -117,6 +117,12 @@ export async function downloadBinary(url: string, destPath: string): Promise<voi
   console.log('info: Download complete');
 }
 
+function encodePowerShellCommand(script: string): string {
+  const utf16leBuffer = Buffer.from(script, 'utf16le');
+  const bom = Buffer.from([0xff, 0xfe]);
+  return Buffer.concat([bom, utf16leBuffer]).toString('base64');
+}
+
 export function spawnReplacer(
   tempPath: string,
   binaryPath: string,
@@ -131,26 +137,58 @@ export function spawnReplacer(
       throw new Error('PowerShell not found');
     }
 
-    let command = `Start-Sleep -Seconds 2; $moved = $false; for ($i = 0; $i -lt 10; $i++) { try { Move-Item -Force '${tempPath}' '${binaryPath}' -ErrorAction Stop; $moved = $true; break } catch { Start-Sleep -Seconds 1 } }; if (-not $moved) { throw 'Failed to replace binary after 10 retries' }`;
+    const logFile = getLogFilePath();
+    const lines: string[] = [
+      `Start-Sleep -Seconds 3`,
+      `$ErrorActionPreference = 'Stop'`,
+      `$moved = $false`,
+      `for ($i = 0; $i -lt 10; $i++) {`,
+      `  try {`,
+      `    Move-Item -Force '${tempPath}' '${binaryPath}'`,
+      `    $moved = $true`,
+      `    break`,
+      `  } catch {`,
+      `    Add-Content -Path '${logFile}' -Value "[$(Get-Date)] Update retry $($i+1)/10: $_"`,
+      `    Start-Sleep -Seconds 1`,
+      `  }`,
+      `}`,
+      `if (-not $moved) {`,
+      `  Add-Content -Path '${logFile}' -Value "[$(Get-Date)] FAILED: Could not replace binary after 10 retries"`,
+      `  exit 1`,
+      `}`,
+    ];
+
     if (options.needsMigration || options.wasDaemonRunning) {
-      command += '; if ($moved) { ';
-      const actions: string[] = [];
       if (options.needsMigration) {
-        actions.push(`& '${binaryPath}' migrate`);
+        lines.push(`& '${binaryPath}' migrate`);
       }
       if (options.wasDaemonRunning) {
-        actions.push(`& '${binaryPath}' start`);
+        lines.push(`& '${binaryPath}' start`);
       }
-      command += actions.join('; ') + ' }';
     }
 
-    Bun.spawn([ps, '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], {
-      detached: true,
-      stdio: ['ignore', logFd, logFd],
-      env: {
-        ...getToolEnv(),
+    lines.push(
+      `Add-Content -Path '${logFile}' -Value "[$(Get-Date)] Update completed successfully"`,
+    );
+
+    const scriptPath = join(tmpdir(), `jean2-update-${Date.now()}.ps1`);
+    writeFileSync(scriptPath, lines.join('\r\n'));
+
+    const encodedCmd = encodePowerShellCommand(
+      `Set-ExecutionPolicy Bypass -Scope Process -Force; & '${scriptPath}'; Remove-Item -Force '${scriptPath}' -ErrorAction SilentlyContinue`,
+    );
+
+    const child = Bun.spawn(
+      [ps, '-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCmd],
+      {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: {
+          ...getToolEnv(),
+        },
       },
-    });
+    );
+    child.unref();
   } else {
     let command = `sleep 2 && mv -f '${tempPath}' '${binaryPath}' && chmod +x '${binaryPath}'`;
 
@@ -165,13 +203,14 @@ export function spawnReplacer(
       command += ` && ${actions.join(' && ')}`;
     }
 
-    Bun.spawn(['sh', '-c', command], {
+    const child = Bun.spawn(['sh', '-c', command], {
       detached: true,
       stdio: ['ignore', logFd, logFd],
       env: {
         ...getToolEnv(),
       },
     });
+    child.unref();
   }
 }
 
