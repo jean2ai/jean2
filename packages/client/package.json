@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsr generate && tsc && vite build",
-    "build:npx": "bun run build && esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.mjs --external:open --banner:js='#!/usr/bin/env node'",
+    "build:npx": "bun run build && esbuild src/cli.ts --bundle --platform=node --format=esm --outfile=dist/cli.mjs --banner:js='#!/usr/bin/env node'",
     "prepublishOnly": "bun run build:npx",
     "routes:generate": "tsr generate",
     "typecheck": "tsr generate && tsc --noEmit",
@@ -37,7 +37,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "lucide-react": "^0.577.0",
-    "open": "^10.1.0",
     "prism-react-renderer": "^2.4.1",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",

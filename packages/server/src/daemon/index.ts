@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSyn
 import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '@/paths';
 
 import { getPort, getHost } from '@/config';
-import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile } from '@/env';
+import { getToolEnv, getTlsEnabled, getTlsCertFile, getTlsKeyFile, getClientEnabled, getClientPort } from '@/env';
 
 export interface DaemonStatus {
   running: boolean;
@@ -169,6 +169,9 @@ export async function startDaemon(options?: DaemonOptions): Promise<DaemonResult
 
   console.log(`Daemon started with PID ${pid}`);
   console.log(`Server running at ${protocol}://${host}:${port}`);
+  if (getClientEnabled()) {
+    console.log(`Client running at http://localhost:${getClientPort()}`);
+  }
   console.log(`Logs: ${logFilePath}`);
 
   return { success: true, pid };

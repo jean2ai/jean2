@@ -227,6 +227,15 @@ export function reloadJean2Env(): void {
   loadEnvFile();
 }
 
+export function getClientEnabled(): boolean {
+  return process.env.JEAN2_CLIENT_ENABLED !== 'false';
+}
+
+export function getClientPort(): number {
+  const parsed = parseInt(process.env.JEAN2_CLIENT_PORT || '3774', 10);
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 65535 ? parsed : 3774;
+}
+
 export function getTlsEnabled(): boolean {
   return process.env.JEAN2_TLS_ENABLED === 'true';
 }

@@ -33,7 +33,8 @@ describe('browser_dom_action tool definition', () => {
   });
 
   test('supports all action types', () => {
-    const actionProp = definition.inputSchema.properties!.action as { enum: string[] };
+    const properties = definition.inputSchema.properties as Record<string, { enum: string[] }> | undefined;
+    const actionProp = properties!.action;
     expect(actionProp.enum).toEqual([
       'click', 'type', 'select', 'clear', 'scroll', 'hover', 'press_enter', 'check', 'uncheck',
     ]);
@@ -142,7 +143,7 @@ describe('browser_dom_action execution', () => {
   test('sends client_capability ask with correct params', async () => {
     await execute({ action: 'scroll', x: 0, y: 100 }, ctx);
     const calls = getAllAskCalls(ctx);
-    const capCall = calls[1] as Record<string, unknown>;
+    const capCall = calls[1] as unknown as Record<string, unknown>;
     expect(capCall.type).toBe('client_capability');
     expect(capCall.capability).toBe('browser_dom_action');
     const metadata = capCall.metadata as Record<string, unknown>;

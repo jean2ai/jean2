@@ -95,8 +95,8 @@ describe('browser_read_active_tab execution', () => {
     await execute({}, ctx);
     const calls = getAllAskCalls(ctx);
     expect(calls.length).toBe(2);
-    expect(calls[0].type).toBe('permission');
-    expect(calls[1].type).toBe('client_capability');
+    expect((calls[0] as unknown as Record<string, unknown>).type).toBe('permission');
+    expect((calls[1] as unknown as Record<string, unknown>).type).toBe('client_capability');
   });
 
   test('returns error for invalid extension response', async () => {

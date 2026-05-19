@@ -35,8 +35,11 @@ import {
   getTlsEnabled,
   getTlsCertFile,
   getTlsKeyFile,
+  getClientEnabled,
+  getClientPort,
 } from '@/env';
 import { activateSandbox } from '@/sandbox';
+import { createClientLauncher, type ClientLauncher } from '@/services/client-launcher';
 
 interface WsData {
   path: string;
@@ -408,6 +411,42 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     }
   }, GRACE_SWEEP_INTERVAL_MS);
 
+  let clientLauncher: ClientLauncher | undefined;
+
+  if (getClientEnabled()) {
+    clientLauncher = createClientLauncher();
+    const clientVersion = await clientLauncher.ensureInstalled();
+    const clientPort = getClientPort();
+
+    if (clientVersion) {
+      // Launch immediately with whatever is installed
+      let result = await clientLauncher.launch(clientPort, port, host);
+      if (result.success) {
+        console.log(`[client] @jean2/client@${clientVersion} running at ${result.url}`);
+      } else {
+        console.warn(`[client] Failed to launch: ${result.error}`);
+      }
+
+      // Check for update in the background — if newer version found,
+      // stop the current client, reinstall, and relaunch
+      const launcher = clientLauncher;
+      const updateCheck = launcher.checkForUpdate().catch(() => null);
+      updateCheck.then(async (latestVersion) => {
+        if (latestVersion) {
+          console.log(`[client] Updating from ${clientVersion} to ${latestVersion}...`);
+          result = await launcher.relaunch(clientPort, port, host);
+          if (result.success) {
+            console.log(`[client] Updated to @jean2/client@${latestVersion} running at ${result.url}`);
+          } else {
+            console.warn(`[client] Update failed: ${result.error}`);
+          }
+        }
+      });
+    }
+  } else {
+    console.log('[client] Built-in client disabled (JEAN2_CLIENT_ENABLED=false)');
+  }
+
   console.log(`AI Agent Server running at ${protocol}://${host}:${port}`);
 
   const onShutdown = (signal: string) => {
@@ -424,6 +463,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   const cleanup = () => {
     clearInterval(heartbeatInterval);
     clearInterval(graceSweepInterval);
+    clientLauncher?.stop();
     server.stop();
     getTerminalManager().destroyAllSessions();
     closeDatabase();

@@ -149,7 +149,7 @@ describe('browser_navigate execution', () => {
   test('sends client_capability with correct metadata', async () => {
     await execute({ url: 'https://example.com', waitForLoad: false, timeout: 5000 }, ctx);
     const calls = getAllAskCalls(ctx);
-    const capCall = calls[1] as Record<string, unknown>;
+    const capCall = calls[1] as unknown as Record<string, unknown>;
     expect(capCall.capability).toBe('browser_navigate');
     const metadata = capCall.metadata as Record<string, unknown>;
     const params = metadata.params as Record<string, unknown>;
@@ -161,7 +161,7 @@ describe('browser_navigate execution', () => {
   test('defaults waitForLoad to true and timeout to 10000', async () => {
     await execute({ url: 'https://example.com' }, ctx);
     const calls = getAllAskCalls(ctx);
-    const capCall = calls[1] as Record<string, unknown>;
+    const capCall = calls[1] as unknown as Record<string, unknown>;
     const metadata = capCall.metadata as Record<string, unknown>;
     const params = metadata.params as Record<string, unknown>;
     expect(params.waitForLoad).toBe(true);

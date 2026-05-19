@@ -126,6 +126,10 @@ class PathsSingleton {
     return join(this.getDataDir(), 'workspaces');
   }
 
+  getClientDir(): string {
+    return join(this.getDataDir(), 'client');
+  }
+
   getBinDir(): string {
     return join(this.getDataDir(), 'bin');
   }
@@ -163,5 +167,6 @@ export function getPromptsDir(): string { return Paths.getPromptsDir(); }
 export function getProvidersDir(): string { return Paths.getProvidersDir(); }
 export function getProviderPath(provider: string): string { return Paths.getProviderPath(provider); }
 export function getWorkspacesDir(): string { return Paths.getWorkspacesDir(); }
+export function getClientDir(): string { return Paths.getClientDir(); }
 export function getBinDir(): string { return Paths.getBinDir(); }
 export function getBinaryPath(): string { return Paths.getBinaryPath(); }

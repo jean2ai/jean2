@@ -12,6 +12,7 @@ import { prettyJSON } from 'hono/pretty-json';
 
 import { requireAuth, isPublicRoute } from '@/auth/middleware';
 import { isAuthEnabled } from '@/auth/token';
+import { getClientEnabled } from '@/env';
 import { ensurePromptsDir } from '@/prompts/registry';
 import { VERSION } from '@/version';
 
@@ -75,6 +76,7 @@ export function createApp() {
         preconfigs: true,
         tools: true,
         authentication: isAuthEnabled(),
+        client: getClientEnabled(),
       },
       timestamp: new Date().toISOString()
     });

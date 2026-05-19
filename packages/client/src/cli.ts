@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import open from 'open';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,17 +59,38 @@ const server = http.createServer((req, res) => {
     urlPath = '/index.html';
   }
 
+  // Try to serve the exact file first
   const filePath = path.join(distPath, urlPath);
 
   fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      const indexPath = path.join(distPath, 'index.html');
-      serveFile(res, indexPath, 'text/html');
+    if (!err && stats.isFile()) {
+      const contentType = getContentType(filePath);
+      serveFile(res, filePath, contentType);
       return;
     }
 
-    const contentType = getContentType(filePath);
-    serveFile(res, filePath, contentType);
+    // With base='./', asset paths resolve relative to current URL.
+    // On /sessions/abc, the browser requests /sessions/assets/foo.js.
+    // Detect these missed asset requests and try /assets/<filename>.
+    const ext = path.extname(urlPath).toLowerCase();
+    if (ext && ext !== '.html') {
+      const filename = path.basename(urlPath);
+      const assetPath = path.join(distPath, 'assets', filename);
+      fs.stat(assetPath, (err2, stats2) => {
+        if (!err2 && stats2.isFile()) {
+          const contentType = getContentType(assetPath);
+          serveFile(res, assetPath, contentType);
+          return;
+        }
+        const indexPath = path.join(distPath, 'index.html');
+        serveFile(res, indexPath, 'text/html');
+      });
+      return;
+    }
+
+    // No extension or .html — SPA fallback
+    const indexPath = path.join(distPath, 'index.html');
+    serveFile(res, indexPath, 'text/html');
   });
 });
 
@@ -80,10 +100,7 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
-  const url = `http://localhost:${PORT}`;
-  console.log(`Jean2 client running at ${url}`);
-
-  open(url);
+  console.log(`Jean2 client running at http://localhost:${PORT}`);
 });
 
 function shutdown() {

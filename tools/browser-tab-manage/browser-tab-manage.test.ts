@@ -39,7 +39,8 @@ describe('browser_tab_manage tool definition', () => {
   });
 
   test('supports list, create, close, switch actions', () => {
-    const actionProp = definition.inputSchema.properties!.action as { enum: string[] };
+    const properties = definition.inputSchema.properties as Record<string, { enum: string[] }> | undefined;
+    const actionProp = properties!.action;
     expect(actionProp.enum).toEqual(['list', 'create', 'close', 'switch']);
   });
 

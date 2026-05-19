@@ -4,6 +4,7 @@
 import '@/env';  // This loads .env automatically
 
 import { startServer, type ServerOptions } from '@/index';
+import { runClientCommand } from '@/services/client-launcher';
 import { isInitialized } from '@/config';
 import { getDatabasePath } from '@/env';
 import {
@@ -96,6 +97,8 @@ Commands:
   server [options]    Start server in foreground (for systemd)
     -p, --port <port>  Port to listen on (default: 8742)
     -h, --host <host>  Host to bind to (default: 0.0.0.0)
+
+  open                 Open the built-in client in browser
 
   logs                 Tail server logs
 
@@ -399,6 +402,24 @@ Examples:
       break;
     }
 
+    case 'open': {
+      const openPort = parseInt(process.env.JEAN2_CLIENT_PORT || '3774', 10);
+      const clientUrl = `http://localhost:${openPort}`;
+      console.log(`Opening ${clientUrl} ...`);
+      try {
+        const cmd = process.platform === 'darwin' ? 'open'
+          : process.platform === 'win32' ? 'cmd'
+          : 'xdg-open';
+        const cmdArgs = process.platform === 'win32'
+          ? ['/c', 'start', clientUrl]
+          : [clientUrl];
+        Bun.spawn([cmd, ...cmdArgs], { detached: true });
+      } catch {
+        console.log(`Could not open browser. Open manually: ${clientUrl}`);
+      }
+      break;
+    }
+
     case 'version':
     case '-v':
     case '--version': {
@@ -411,6 +432,25 @@ Examples:
     case '--help':
     case undefined: {
       printHelp();
+      break;
+    }
+
+    case '_client': {
+      const clientArgs = args.slice(1);
+      let cliPath = '';
+      let clientPort = 3774;
+      for (let i = 0; i < clientArgs.length; i++) {
+        if (clientArgs[i] === '--cli-path' && clientArgs[i + 1]) {
+          cliPath = clientArgs[++i];
+        } else if ((clientArgs[i] === '--port' || clientArgs[i] === '-p') && clientArgs[i + 1]) {
+          clientPort = parseInt(clientArgs[++i], 10);
+        }
+      }
+      if (!cliPath) {
+        console.error('[client] --cli-path is required');
+        process.exit(1);
+      }
+      await runClientCommand(cliPath, clientPort);
       break;
     }
 
