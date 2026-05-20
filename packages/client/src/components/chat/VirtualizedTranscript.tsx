@@ -200,12 +200,16 @@ const MessageParts = memo(function MessageParts({
     <>
       {sortedParts.map((part) => {
         switch (part.type) {
-          case 'text':
+          case 'text': {
+            const text = inverted && part.text
+              ? part.text.replace(/\n(?!\n)/g, '\n\n')
+              : (part.text || '...');
             return (
               <div key={part.id} className="min-w-0">
-                <MarkdownRenderer inverted={inverted}>{part.text || '...'}</MarkdownRenderer>
+                <MarkdownRenderer inverted={inverted}>{text}</MarkdownRenderer>
               </div>
             );
+          }
 
           case 'reasoning':
             return (
