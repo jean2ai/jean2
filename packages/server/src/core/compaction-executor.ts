@@ -39,17 +39,34 @@ export interface CompactionExecutorError {
 }
 
 /**
+ * In-memory set of session IDs currently running a compaction.
+ * This is the authoritative source of truth for "is compaction actually in-flight?"
+ * and is used to prevent:
+ *  - Double compaction (manual trigger while auto/overflow is running)
+ *  - False reconciliation (session resume clearing a genuinely running compaction)
+ */
+const activeCompactionSessions = new Set<string>();
+
+/**
+ * Returns true if a compaction is currently in-flight for the given session.
+ */
+export function isCompactionActive(sessionId: string): boolean {
+  return activeCompactionSessions.has(sessionId);
+}
+
+/**
  * Executes a compaction cycle for a session.
  *
  * Encapsulates:
+ * - double-compaction guard (in-memory set)
  * - main-session guard
  * - session.compacting true/false transitions
  * - policy resolution (using existing resolveCompactionPolicy)
  * - trigger creation and broadcasting
  * - processing via processCompactionTask
  * - failure persistence via persistCompactionFailure
-   * - session token update from compaction result
-   * - standard trigger/summary broadcasting
+ * - session token update from compaction result
+ * - standard trigger/summary broadcasting
  */
 export async function executeCompaction(
   sessionId: string,
@@ -57,6 +74,17 @@ export async function executeCompaction(
   broadcast: BroadcastFn = broadcastEvent,
   broadcastSessUpdate: BroadcastSessionFn = broadcastSessionUpdated,
 ): Promise<CompactionExecutorResult | CompactionExecutorError> {
+  // Guard: prevent double compaction
+  if (activeCompactionSessions.has(sessionId)) {
+    return {
+      ok: false,
+      error: 'Compaction is already in progress for this session',
+      triggerMessageId: null,
+      reason,
+      skipped: true,
+    };
+  }
+
   let triggerMessageId: string | null = null;
 
   const session = getSession(sessionId);
@@ -76,6 +104,7 @@ export async function executeCompaction(
 
   const policy = resolveCompactionPolicy(sessionModelId, sessionProviderId);
 
+  activeCompactionSessions.add(sessionId);
   updateSession(sessionId, { compacting: true });
   broadcastSessUpdate(getSession(sessionId)!);
 
@@ -137,5 +166,7 @@ export async function executeCompaction(
       reason,
       skipped: false,
     };
+  } finally {
+    activeCompactionSessions.delete(sessionId);
   }
 }

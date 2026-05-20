@@ -10,6 +10,7 @@ import { updateSession, getSession } from './sessions';
 import { findOrphanedCompactionTriggers } from './messages';
 import { persistCompactionFailure } from '@/core/compaction';
 import { broadcastEvent, broadcastSessionUpdated, type BroadcastSessionFn, type BroadcastFn } from '@/core/broadcast';
+import { isCompactionActive } from '@/core/compaction-executor';
 
 export interface ReconcileOptions {
   /**
@@ -40,6 +41,13 @@ export function reconcileSessionCompaction(sessionId: string, options: Reconcile
   const broadcastSessUpdate: BroadcastSessionFn = broadcast
     ? broadcastSessionUpdated
     : () => {};
+
+  // If compaction is genuinely in-flight (tracked in-memory), skip reconciliation entirely.
+  // This prevents false "Compaction interrupted" failures when the user switches sessions
+  // while compaction is still running on the server.
+  if (isCompactionActive(sessionId)) {
+    return 0;
+  }
 
   // Always clear the compacting flag - it's stuck if we're recovering
   const sessionRow = db
