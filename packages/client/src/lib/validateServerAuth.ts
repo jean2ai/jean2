@@ -7,6 +7,50 @@ export interface ServerAuthResult {
   authEnabled?: boolean;
 }
 
+export interface LocalhostDiscoverResult {
+  available: boolean;
+  url: string;
+}
+
+const LOCALHOST_CHECK_URL = 'localhost:8742';
+const LOCALHOST_CHECK_TIMEOUT_MS = 2000;
+
+/**
+ * Silently check if a localhost server is running without auth.
+ * Used for first-time auto-discovery to improve onboarding UX.
+ */
+export async function checkLocalhostNoAuth(
+  signal?: AbortSignal,
+): Promise<LocalhostDiscoverResult> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LOCALHOST_CHECK_TIMEOUT_MS);
+
+    const res = await fetch(`http://${LOCALHOST_CHECK_URL}/api/info`, {
+      signal: signal ?? controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return { available: false, url: LOCALHOST_CHECK_URL };
+    }
+
+    interface ServerInfo {
+      features?: { authentication?: boolean };
+    }
+    const info = (await res.json()) as ServerInfo;
+    const authEnabled = info.features?.authentication ?? false;
+
+    if (authEnabled) {
+      return { available: false, url: LOCALHOST_CHECK_URL };
+    }
+
+    return { available: true, url: LOCALHOST_CHECK_URL };
+  } catch {
+    return { available: false, url: LOCALHOST_CHECK_URL };
+  }
+}
+
 /**
  * Pre-validate server authentication before saving and navigating.
  *

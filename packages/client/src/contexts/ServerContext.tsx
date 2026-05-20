@@ -4,6 +4,7 @@ import {
   useEffect,
   useContext,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 
@@ -20,6 +21,7 @@ import {
 } from '@/config/servers';
 import type { SavedServer, QuickConnection } from '@jean2/sdk';
 import { normalizeServerUrl } from '@/config/auth';
+import { checkLocalhostNoAuth } from '@/lib/validateServerAuth';
 
 interface ServerContextValue {
   servers: SavedServer[];
@@ -59,6 +61,8 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
   );
   const [isHydrated, setIsHydrated] = useState(false);
 
+  const discoveryAttempted = useRef(false);
+
   useEffect(() => {
     const loadedServers = getSavedServers();
     const loadedQuickConnections = getQuickConnections();
@@ -67,6 +71,32 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setQuickConnections(loadedQuickConnections);
     setIsHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!isHydrated || discoveryAttempted.current) return;
+    if (servers.length > 0) {
+      discoveryAttempted.current = true;
+      return;
+    }
+
+    discoveryAttempted.current = true;
+    const controller = new AbortController();
+
+    checkLocalhostNoAuth(controller.signal).then((result) => {
+      if (result.available) {
+        const newServer: SavedServer = {
+          id: crypto.randomUUID(),
+          name: 'Home',
+          url: normalizeServerUrl(result.url),
+          createdAt: new Date().toISOString(),
+        };
+        saveServer(newServer);
+        setServers(getSavedServers());
+      }
+    });
+
+    return () => controller.abort();
+  }, [isHydrated, servers.length]);
 
   const addServer = useCallback((name: string, url: string, token?: string): SavedServer => {
     const normalizedUrl = normalizeServerUrl(url);
