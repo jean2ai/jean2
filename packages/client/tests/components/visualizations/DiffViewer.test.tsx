@@ -131,8 +131,9 @@ describe('DiffViewer', () => {
     expect(lineNumCols.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('has "Open file preview" button', () => {
+  it('has file path button with title', () => {
     render(<DiffViewer hunks={sampleHunks} path="src/app.tsx" />);
-    expect(screen.getByTitle('Open file preview')).toBeInTheDocument();
+    const pathButton = screen.getByTitle('src/app.tsx');
+    expect(pathButton).toBeInTheDocument();
   });
 });

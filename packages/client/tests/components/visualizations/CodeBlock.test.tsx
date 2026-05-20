@@ -52,9 +52,10 @@ describe('CodeBlock', () => {
     expect(lineNums.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('has "Open file preview" button', () => {
+  it('has file path button with title', () => {
     render(<CodeBlock content="hello" path="src/main.ts" />);
-    expect(screen.getByTitle('Open file preview')).toBeInTheDocument();
+    const pathButton = screen.getByTitle('src/main.ts');
+    expect(pathButton).toBeInTheDocument();
   });
 
   it('expands to show all lines when button clicked', async () => {
