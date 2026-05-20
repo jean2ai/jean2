@@ -280,8 +280,13 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
 
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
+    const commandInput = input.command.trim();
+    if (!commandInput) {
+      return { success: false, error: 'EMPTY_COMMAND: shell tool requires a non-empty command' };
+    }
+
     const resolvedCwd = input.cwd ? ctx.resolvePath(input.cwd) : ctx.workspacePath;
-    const effectiveCommand = stripRedundantCd(input.command, resolvedCwd, ctx.resolvePath);
+    const effectiveCommand = stripRedundantCd(commandInput, resolvedCwd, ctx.resolvePath);
     const risk = analyzeRisk(effectiveCommand, ctx);
 
     const outsideWorkspaceCwd = input.cwd && !ctx.isWithinWorkspace(resolvedCwd);
@@ -339,7 +344,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     const platform = await detectPlatform();
 
     if (platform === 'windows') {
-      shell = await detectWindowsShell();
+      shell = await detectWindowsShell(effectiveCommand);
     } else {
       shell = ['sh', '-c', effectiveCommand];
     }
@@ -379,14 +384,14 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
   return 'unix';
 }
 
-async function detectWindowsShell(): Promise<string[]> {
+async function detectWindowsShell(command: string): Promise<string[]> {
   if (typeof Bun !== 'undefined' && Bun.which) {
     if (Bun.which('pwsh')) {
-      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command'];
+      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
     }
     if (Bun.which('powershell')) {
-      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command'];
+      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
     }
   }
-  return ['cmd.exe', '/c'];
+  return ['cmd.exe', '/d', '/s', '/c', command];
 }
