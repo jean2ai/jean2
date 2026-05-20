@@ -5,6 +5,14 @@ import {
   createUserMessage,
   createAssistantMessage,
 } from '../../../.storybook/mocks/mockMessage';
+import {
+  simpleMarkdown,
+  richMarkdown,
+  inlineFormattingMarkdown,
+  codeBlocksMarkdown,
+  shortMarkdown,
+  generateLongMarkdown,
+} from '../../../.storybook/mocks/mockMarkdown';
 
 const userMessage = createUserMessage({ role: 'user' });
 const assistantMessage = createAssistantMessage({ role: 'assistant' });
@@ -141,6 +149,83 @@ export const ClearAll: Story = {
   },
 };
 
+// =============================================================================
+// Markdown Content Stories — Assistant messages with various markdown types
+// =============================================================================
+
+export const AssistantSimpleMarkdown: Story = {
+  name: 'Assistant — Simple Markdown',
+  args: {
+    message: assistantMessage,
+    textContent: simpleMarkdown,
+    children: <MarkdownRenderer>{simpleMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const AssistantRichMarkdown: Story = {
+  name: 'Assistant — Rich Markdown',
+  args: {
+    message: assistantMessage,
+    textContent: richMarkdown,
+    children: <MarkdownRenderer>{richMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const AssistantInlineFormatting: Story = {
+  name: 'Assistant — Inline Formatting',
+  args: {
+    message: assistantMessage,
+    textContent: inlineFormattingMarkdown,
+    children: <MarkdownRenderer>{inlineFormattingMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const AssistantCodeBlocks: Story = {
+  name: 'Assistant — Code Blocks',
+  args: {
+    message: assistantMessage,
+    textContent: codeBlocksMarkdown,
+    children: <MarkdownRenderer>{codeBlocksMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const AssistantLongContent: Story = {
+  name: 'Assistant — Long Content',
+  args: {
+    message: assistantMessage,
+    textContent: generateLongMarkdown(10),
+    children: <MarkdownRenderer>{generateLongMarkdown(10)}</MarkdownRenderer>,
+  },
+};
+
+// =============================================================================
+// Queued Messages with Markdown Content
+// =============================================================================
+
+export const QueuedWithMarkdown: Story = {
+  name: 'Queued — With Markdown Content',
+  args: {
+    message: userMessage,
+    isQueued: true,
+    onRemove: () => {},
+    children: <MarkdownRenderer>{shortMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const QueuedWithRichMarkdown: Story = {
+  name: 'Queued — With Rich Markdown',
+  args: {
+    message: userMessage,
+    isQueued: true,
+    onRemove: () => {},
+    children: <MarkdownRenderer>{simpleMarkdown}</MarkdownRenderer>,
+  },
+};
+
+// =============================================================================
+// Conversation Thread — full markdown rendering across turns
+// =============================================================================
+
 export const ConversationThread: Story = {
   render: () => (
     <div className="max-w-2xl space-y-4">
@@ -172,6 +257,70 @@ counter(); // 2
 
 The inner function "closes over" the \`count\` variable.`}
         </MarkdownRenderer>
+      </MessageBubble>
+    </div>
+  ),
+};
+
+export const ConversationWithRichMarkdown: Story = {
+  name: 'Conversation — Rich Markdown Thread',
+  render: () => (
+    <div className="max-w-2xl space-y-4">
+      <MessageBubble message={createUserMessage()} textContent="Show me the API reference">
+        <p className="text-sm">Can you show me the API reference with all the details?</p>
+      </MessageBubble>
+      <MessageBubble
+        message={createAssistantMessage()}
+        textContent={richMarkdown}
+      >
+        <MarkdownRenderer>{richMarkdown}</MarkdownRenderer>
+      </MessageBubble>
+      <MessageBubble message={createUserMessage()} textContent="What about code examples?">
+        <p className="text-sm">Give me code examples in multiple languages.</p>
+      </MessageBubble>
+      <MessageBubble
+        message={createAssistantMessage()}
+        textContent={codeBlocksMarkdown}
+      >
+        <MarkdownRenderer>{codeBlocksMarkdown}</MarkdownRenderer>
+      </MessageBubble>
+      <MessageBubble
+        message={createUserMessage()}
+        isQueued
+        onRemove={() => {}}
+        textContent="Thanks, now show me inline formatting"
+      >
+        <MarkdownRenderer>{inlineFormattingMarkdown}</MarkdownRenderer>
+      </MessageBubble>
+    </div>
+  ),
+};
+
+export const ConversationWithQueuedMessages: Story = {
+  name: 'Conversation — With Queued Messages',
+  render: () => (
+    <div className="max-w-2xl space-y-4">
+      <MessageBubble message={createUserMessage()} textContent="Hello!">
+        <p className="text-sm">Hello!</p>
+      </MessageBubble>
+      <MessageBubble message={createAssistantMessage()} textContent="Hi there!">
+        <MarkdownRenderer>Hi there! How can I help you today?</MarkdownRenderer>
+      </MessageBubble>
+      <MessageBubble
+        message={createUserMessage()}
+        isQueued
+        onRemove={() => {}}
+        textContent="This is a queued message with some **markdown**"
+      >
+        <MarkdownRenderer>{shortMarkdown}</MarkdownRenderer>
+      </MessageBubble>
+      <MessageBubble
+        message={createUserMessage()}
+        isQueued
+        onRemove={() => {}}
+        textContent="Another queued message with longer content"
+      >
+        <MarkdownRenderer>{simpleMarkdown}</MarkdownRenderer>
       </MessageBubble>
     </div>
   ),

@@ -121,8 +121,11 @@ export function MessageBubble({
       <div
         className={cn(
           'relative group min-w-0 overflow-hidden',
-          isUser ? 'rounded-2xl px-4 py-3 max-w-[90%] bg-primary text-primary-foreground rounded-br-md' : 'w-full overflow-visible',
-          isQueued && 'rounded-2xl px-4 py-3 bg-muted border-2 border-dashed border-muted-foreground/30 opacity-80'
+          isUser
+            ? isQueued
+              ? 'rounded-2xl px-4 py-3 max-w-[90%] bg-muted text-foreground border-2 border-dashed border-muted-foreground/30 opacity-80 rounded-br-md'
+              : 'rounded-2xl px-4 py-3 max-w-[90%] bg-primary text-primary-foreground rounded-br-md'
+            : 'w-full overflow-visible'
         )}
       >
         {isQueued && (
