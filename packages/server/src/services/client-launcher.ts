@@ -306,6 +306,7 @@ export function createClientLauncher(): ClientLauncher {
           ],
           {
             detached: false,
+            windowsHide: true,
             stdout: 'inherit',
             stderr: 'inherit',
             env: {
