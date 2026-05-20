@@ -15,20 +15,13 @@ interface FileMention {
 export function useFileSearch({ workspaceId: _workspaceId, debounceMs: _debounceMs = 150 }: UseFileSearchOptions) {
   const [query, setQuery] = useState('');
   const [showAutocomplete, setShowAutocomplete] = useState(false);
-  const [mentions, setMentions] = useState<FileMention[]>([]);
 
-  const handleFileSelect = useCallback((file: FileEntry) => {
-    const mention: FileMention = {
+  const handleFileSelect = useCallback((file: FileEntry): FileMention => {
+    return {
       type: 'file',
       path: file.path,
       display: file.name,
     };
-
-    setMentions(prev => [...prev, mention]);
-    setShowAutocomplete(false);
-    setQuery('');
-
-    return mention;
   }, []);
 
   const insertMention = useCallback((text: string, cursorPos: number, mention: FileMention) => {
@@ -45,35 +38,31 @@ export function useFileSearch({ workspaceId: _workspaceId, debounceMs: _debounce
     return { text: newText, cursorPos: newCursorPos };
   }, []);
 
-  const extractMentions = useCallback((text: string): FileMention[] => {
-    const mentionRegex = /@([^\s@]+)/g;
-    const extracted: FileMention[] = [];
-    let match;
-
-    while ((match = mentionRegex.exec(text)) !== null) {
-      const path = match[1];
-      if (mentions.some(m => m.path === path) && !extracted.some(m => m.path === path)) {
-        extracted.push({ type: 'file', path, display: path.split('/').pop() || path });
-      }
-    }
-
-    return extracted;
-  }, [mentions]);
-
   return {
     query,
     setQuery,
     showAutocomplete,
     setShowAutocomplete,
-    mentions,
     handleFileSelect,
     insertMention,
-    extractMentions,
-    clearMentions: useCallback(() => setMentions([]), []),
-    removeMention: useCallback((path: string) => {
-      setMentions(prev => prev.filter(m => m.path !== path));
-    }, []),
   };
+}
+
+export function extractMentionsFromText(text: string): FileMention[] {
+  const mentionRegex = /@([^\s@]+)/g;
+  const seen = new Set<string>();
+  const mentions: FileMention[] = [];
+  let match;
+
+  while ((match = mentionRegex.exec(text)) !== null) {
+    const path = match[1];
+    if (!seen.has(path)) {
+      seen.add(path);
+      mentions.push({ type: 'file', path, display: path.split('/').pop() || path });
+    }
+  }
+
+  return mentions;
 }
 
 export type { FileMention };

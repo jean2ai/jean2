@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import { ArrowUp, Square, Paperclip, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { PendingAttachment } from './PendingAttachment';
 import { FileMentionChip } from './FileMentionChip';
 import { AutoApproveSelector } from './AutoApproveSelector';
 // import { useHighlightBackground } from '@/hooks/useHighlightBackground';
-import { useFileSearch } from '@/hooks/useFileSearch';
+import { useFileSearch, extractMentionsFromText } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -101,36 +101,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setQuery,
     showAutocomplete,
     setShowAutocomplete,
-    mentions,
     handleFileSelect,
     insertMention,
-    clearMentions,
-    removeMention,
   } = useFileSearch({ workspaceId: workspaceId || '' });
+
+  const mentions = useMemo(() => extractMentionsFromText(input), [input]);
 
   const openFilePreview = useUIStore((s) => s.openFilePreview);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   // Disabled: canvas background highlight overlay was not working well
   // const mentionPaths = useMemo(() => mentions.map(m => m.path), [mentions]);
   // useHighlightBackground(textareaRef, input, mentionPaths);
-
-  useEffect(() => {
-    if (mentions.length === 0) return;
-    const mentionPathSet = new Set(mentions.map(m => m.path));
-    const regex = /@([^\s@]+)/g;
-    let match;
-    const activePaths = new Set<string>();
-    while ((match = regex.exec(input)) !== null) {
-      if (mentionPathSet.has(match[1])) {
-        activePaths.add(match[1]);
-      }
-    }
-    for (const m of mentions) {
-      if (!activePaths.has(m.path)) {
-        removeMention(m.path);
-      }
-    }
-  }, [input, mentions, removeMention]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -229,8 +210,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }
     setPendingAttachments([]);
     clearInput();
-    clearMentions();
-  }, [pendingAttachments, clearInput, clearMentions]);
+  }, [pendingAttachments, clearInput]);
 
   const uploadAttachment = useCallback(async (file: File): Promise<PendingAttachmentData | null> => {
     if (!sdkClient || !sessionId) return null;
@@ -266,8 +246,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     const mentionRegex = new RegExp(`@${escapedPath}`, 'g');
     const newInput = input.replace(mentionRegex, '').replace(/\s+/g, ' ').trim();
     setInput(newInput);
-    removeMention(path);
-  }, [input, setInput, removeMention]);
+  }, [input, setInput]);
 
   const handleMentionPreview = useCallback((path: string) => {
     if (activeWorkspace?.id) {
