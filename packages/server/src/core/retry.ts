@@ -116,12 +116,15 @@ export async function* streamChatWithRetry(
 }
 
 function isClassifiedError(err: unknown): err is ClassifiedError {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+
+  const candidate = err as Record<string, unknown>;
   return (
-    typeof err === 'object' &&
-    err !== null &&
-    'type' in err &&
-    'retryable' in err &&
-    'message' in err &&
-    'originalError' in err
+    typeof candidate.type === 'string' &&
+    typeof candidate.retryable === 'boolean' &&
+    typeof candidate.message === 'string' &&
+    'originalError' in candidate
   );
 }

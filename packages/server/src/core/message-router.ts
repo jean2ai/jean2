@@ -38,6 +38,7 @@ import {
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
+  getLLMDeepseekApiKey,
 } from '@/env';
 import * as providerManager from '@/providers';
 import { isSandboxActive, sandboxController } from '@/sandbox';
@@ -514,10 +515,11 @@ async function handleChat(
     if (m.includes('/')) return 'openrouter';
     if (m.startsWith('claude-')) return 'anthropic';
     if (m.startsWith('gemini-')) return 'google';
+    if (m.startsWith('deepseek-')) return 'deepseek';
     return 'openai';
   }
 
-  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding';
+  type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'deepseek';
   const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
     'openai': getLLMOpenAIApiKey,
     'anthropic': getLLMAnthropicApiKey,
@@ -526,6 +528,7 @@ async function handleChat(
     'minimax': getLLMMinimaxApiKey,
     'zhipu': getLLMZhipuApiKey,
     'zhipu-coding': getLLMZhipuCodingApiKey,
+    'deepseek': getLLMDeepseekApiKey,
   };
   const apiKeyGetter = apiKeyGetterMap[provider as Provider];
   const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;

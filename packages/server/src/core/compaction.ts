@@ -385,7 +385,8 @@ async function defaultGenerateSummary(
     effectiveProviderId = modelInfo?.providerId ||
       (effectiveModelId.includes('/') ? 'openrouter' :
        effectiveModelId.startsWith('claude-') ? 'anthropic' :
-       effectiveModelId.startsWith('gemini-') ? 'google' : 'openai');
+       effectiveModelId.startsWith('gemini-') ? 'google' :
+       effectiveModelId.startsWith('deepseek-') ? 'deepseek' : 'openai');
   }
 
   const isCodex = effectiveProviderId === 'codex';

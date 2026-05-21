@@ -20,6 +20,7 @@ const PROVIDER_CREDENTIALS: Array<{ provider: string; envKey: string }> = [
   { provider: 'openrouter', envKey: 'JEAN2_LLM_OPENROUTER_API_KEY' },
   { provider: 'zhipu', envKey: 'JEAN2_LLM_ZHIPU_API_KEY' },
   { provider: 'zhipu-coding', envKey: 'JEAN2_LLM_ZHIPU_CODING_API_KEY' },
+  { provider: 'deepseek', envKey: 'JEAN2_LLM_DEEPSEEK_API_KEY' },
 ];
 
 export function getSupportedProvider(provider: string): { provider: string; envKey: string } | undefined {

@@ -1,6 +1,40 @@
 {
   "providers": [
     {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "models": [
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 384000,
+          "tier": "premium",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low" } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium" } },
+            "high": { "providerOptions": { "reasoningEffort": "high" } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh" } },
+            "max": { "providerOptions": { "reasoningEffort": "max" } }
+          }
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 384000,
+          "tier": "budget",
+          "variants": {
+            "low": { "providerOptions": { "reasoningEffort": "low" } },
+            "medium": { "providerOptions": { "reasoningEffort": "medium" } },
+            "high": { "providerOptions": { "reasoningEffort": "high" } },
+            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh" } },
+            "max": { "providerOptions": { "reasoningEffort": "max" } }
+          }
+        }
+      ]
+    },
+    {
       "id": "minimax",
       "name": "MiniMax",
       "models": [

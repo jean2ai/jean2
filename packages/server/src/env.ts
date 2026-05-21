@@ -94,6 +94,10 @@ export function getLLMZhipuCodingApiKey(): string | undefined {
   return envOverlay.get('JEAN2_LLM_ZHIPU_CODING_API_KEY') ?? process.env.JEAN2_LLM_ZHIPU_CODING_API_KEY;
 }
 
+export function getLLMDeepseekApiKey(): string | undefined {
+  return envOverlay.get('JEAN2_LLM_DEEPSEEK_API_KEY') ?? process.env.JEAN2_LLM_DEEPSEEK_API_KEY;
+}
+
 export function getLLMBaseUrl(): string | undefined {
   return process.env.JEAN2_LLM_BASE_URL;
 }
@@ -127,6 +131,7 @@ export function getLLMApiKeys(): Record<string, string | undefined> {
     minimax: getLLMMinimaxApiKey(),
     zhipu: getLLMZhipuApiKey(),
     'zhipu-coding': getLLMZhipuCodingApiKey(),
+    'deepseek': getLLMDeepseekApiKey(),
   };
 }
 

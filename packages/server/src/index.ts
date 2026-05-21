@@ -37,6 +37,7 @@ import {
   getTlsKeyFile,
   getClientEnabled,
   getClientPort,
+  getLLMDeepseekApiKey,
 } from '@/env';
 import { activateSandbox } from '@/sandbox';
 import { createClientLauncher, type ClientLauncher } from '@/services/client-launcher';
@@ -121,12 +122,13 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   if (getLLMMinimaxApiKey()) availableProviders.push('minimax');
   if (getLLMZhipuApiKey()) availableProviders.push('zhipu');
   if (getLLMZhipuCodingApiKey()) availableProviders.push('zhipu-coding');
+  if (getLLMDeepseekApiKey()) availableProviders.push('deepseek');
 
   if (availableProviders.length > 0) {
     console.log(`Available providers: ${availableProviders.join(', ')}`);
   } else {
     console.warn('WARNING: No LLM API keys configured. Chat will not work.');
-    console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_ANTHROPIC_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_GOOGLE_API_KEY, JEAN2_LLM_MINIMAX_API_KEY');
+    console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_ANTHROPIC_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_GOOGLE_API_KEY, JEAN2_LLM_MINIMAX_API_KEY, JEAN2_LLM_DEEPSEEK_API_KEY');
   }
 
   console.log('Scanning for tools...');

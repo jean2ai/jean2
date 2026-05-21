@@ -10,6 +10,7 @@ import {
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
+  getLLMDeepseekApiKey,
   getLLMBaseUrl,
 } from '@/env';
 import { getProvider, createModelForProvider } from '@/providers';
@@ -77,6 +78,8 @@ export async function getModelWithMetadata(
         provider = 'anthropic';
       } else if (resolvedModelId.startsWith('gemini-')) {
         provider = 'google';
+      } else if (resolvedModelId.startsWith('deepseek-')) {
+        provider = 'deepseek';
       } else {
         provider = 'openai';
       }
@@ -115,6 +118,8 @@ export async function getModelWithMetadata(
         return getLLMZhipuApiKey();
       case 'zhipu-coding':
         return getLLMZhipuCodingApiKey();
+      case 'deepseek':
+        return getLLMDeepseekApiKey();
       default:
         return getLLMOpenAIApiKey();
     }
@@ -166,6 +171,12 @@ export async function getModelWithMetadata(
         baseURL: 'https://api.z.ai/api/coding/paas/v4',
       });
       return { model: zhipu.chat(model) as unknown as LanguageModel };
+    }
+
+    case 'deepseek': {
+      const { createDeepSeek } = await import('@ai-sdk/deepseek');
+      const deepseek = createDeepSeek({ apiKey });
+      return { model: deepseek.chat(model) as unknown as LanguageModel };
     }
 
     case 'openai':

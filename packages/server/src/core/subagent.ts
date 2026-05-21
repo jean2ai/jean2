@@ -17,6 +17,7 @@ function findProviderFromModel(m: string): string {
   if (m.startsWith('claude-')) return 'anthropic';
   if (m.startsWith('gemini-')) return 'google';
   if (m.startsWith('MiniMax-') || m.toLowerCase().includes('minimax')) return 'minimax';
+  if (m.startsWith('deepseek-')) return 'deepseek';
   return 'openai';
 }
 

@@ -17,7 +17,7 @@ import type {
 
 const KNOWN_PROVIDERS = new Set([
   'openai', 'anthropic', 'openrouter', 'google', 'minimax', 'zhipu', 'zhipu-coding',
-  'codex',
+  'codex', 'deepseek',
 ]);
 
 const PROVIDER_ENV_KEYS: Record<string, string> = {
@@ -28,6 +28,7 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   minimax: 'JEAN2_LLM_MINIMAX_API_KEY',
   zhipu: 'JEAN2_LLM_ZHIPU_API_KEY',
   'zhipu-coding': 'JEAN2_LLM_ZHIPU_CODING_API_KEY',
+  'deepseek': 'JEAN2_LLM_DEEPSEEK_API_KEY',
 };
 
 export function getModelsDocument(): ModelsConfig {

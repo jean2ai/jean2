@@ -184,15 +184,19 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Resolve variant providerOptions if applicable
   const variantOpts = variant ? findModelVariant(resolvedModelId || '', variant) : undefined;
 
+  // Determine the provider-specific providerOptions key based on the provider
+  const resolvedProvider = providerId || 'openai';
+  const providerOptionsKey = resolvedProvider === 'codex' ? 'openai' : resolvedProvider;
+
   // Build providerOptions from model factory result and variant
   let providerOptions: Record<string, Record<string, unknown>> | undefined;
   if (baseProviderOptions) {
     providerOptions = {
       ...baseProviderOptions,
-      ...(variantOpts ? { openai: { ...(baseProviderOptions.openai || {}), ...variantOpts } } : {}),
+      ...(variantOpts ? { [providerOptionsKey]: { ...(baseProviderOptions[providerOptionsKey] || {}), ...variantOpts } } : {}),
     };
   } else if (variantOpts) {
-    providerOptions = { openai: variantOpts };
+    providerOptions = { [providerOptionsKey]: variantOpts };
   }
 
   const result = streamText({

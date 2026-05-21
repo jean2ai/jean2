@@ -37,36 +37,112 @@ export const ERROR_AUTH = 'authentication';
 export const ERROR_INVALID_REQUEST = 'invalid_request';
 export const ERROR_CHAT_FAILED = 'chat_error';
 
+interface HeaderGetter {
+  get(name: string): string | null;
+}
+
 interface AiSdkError {
   status?: number;
+  statusCode?: number;
   isRateLimitError?: boolean;
   isRetryableError?: boolean;
   isTimeoutError?: boolean;
   message?: string;
   name?: string;
   code?: string;
+  cause?: unknown;
+  originalError?: unknown;
   response?: {
-    headers?: {
-      get(name: string): string | null;
+    headers?: HeaderGetter;
+  };
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
+  data?: {
+    error?: {
+      type?: string;
+      message?: string;
+      resets_in_seconds?: number;
     };
   };
 }
 
-function getRetryAfterMsFromError(error: AiSdkError): number | undefined {
-  if (error.response?.headers) {
-    const retryAfter = error.response.headers.get('retry-after');
-    if (retryAfter) {
-      const retryAfterSeconds = parseInt(retryAfter, 10);
-      if (!isNaN(retryAfterSeconds)) {
-        return retryAfterSeconds * 1000;
-      }
-    }
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
+
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function getStatusCode(error: AiSdkError): number | undefined {
+  return error.status ?? error.statusCode;
+}
+
+function getRetryAfterMsFromHeaders(headers: HeaderGetter | Record<string, string> | undefined): number | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  let retryAfter: string | null | undefined;
+
+  if (typeof (headers as HeaderGetter).get === 'function') {
+    retryAfter = (headers as HeaderGetter).get('retry-after');
+  } else {
+    const recordHeaders = headers as Record<string, string>;
+    retryAfter = recordHeaders['retry-after'] ?? recordHeaders['Retry-After'];
+  }
+
+  if (!retryAfter) {
+    return undefined;
+  }
+
+  const retryAfterSeconds = parseInt(retryAfter, 10);
+  if (isNaN(retryAfterSeconds)) {
+    return undefined;
+  }
+
+  return retryAfterSeconds * 1000;
+}
+
+function getRetryAfterMsFromError(error: AiSdkError): number | undefined {
+  const headerRetryAfter = getRetryAfterMsFromHeaders(error.response?.headers)
+    ?? getRetryAfterMsFromHeaders(error.responseHeaders);
+  if (headerRetryAfter !== undefined) {
+    return headerRetryAfter;
+  }
+
+  const resetSeconds = error.data?.error?.resets_in_seconds;
+  if (typeof resetSeconds === 'number' && Number.isFinite(resetSeconds) && resetSeconds >= 0) {
+    return resetSeconds * 1000;
+  }
+
   return undefined;
 }
 
+function getNestedErrors(error: AiSdkError): unknown[] {
+  return [error.cause, error.originalError].filter(value => value !== undefined);
+}
+
+function isUsageLimitError(error: AiSdkError, message: string): boolean {
+  if (error.data?.error?.type === 'usage_limit_reached') {
+    return true;
+  }
+
+  const responseBody = error.responseBody;
+  if (typeof responseBody === 'string' && responseBody.toLowerCase().includes('usage_limit_reached')) {
+    return true;
+  }
+
+  const lower = message.toLowerCase();
+  return lower.includes('usage limit has been reached') || lower.includes('usage_limit_reached');
+}
+
 export function classifyApiError(error: unknown): ClassifiedError {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getErrorMessage(error);
 
   if (error && typeof error === 'object') {
     const aiError = error as AiSdkError;
@@ -80,9 +156,9 @@ export function classifyApiError(error: unknown): ClassifiedError {
       };
     }
 
-    const status = aiError.status;
+    const status = getStatusCode(aiError);
 
-    if (aiError.isRateLimitError || status === 429) {
+    if (aiError.isRateLimitError || status === 429 || isUsageLimitError(aiError, message)) {
       const retryAfterMs = getRetryAfterMsFromError(aiError) ?? 60000;
       return {
         type: ApiErrorType.RateLimit,
@@ -132,6 +208,17 @@ export function classifyApiError(error: unknown): ClassifiedError {
         message,
         originalError: error,
       };
+    }
+
+    for (const nestedError of getNestedErrors(aiError)) {
+      const nestedClassified = classifyApiError(nestedError);
+      if (nestedClassified.type !== ApiErrorType.Unknown) {
+        return {
+          ...nestedClassified,
+          message: nestedClassified.message || message,
+          originalError: error,
+        };
+      }
     }
 
     if (aiError.isRetryableError) {

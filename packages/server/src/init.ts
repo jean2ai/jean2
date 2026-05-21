@@ -162,6 +162,7 @@ async function initJean2Internal(options: InitOptions = {}): Promise<InitResult>
 # LLM API Keys
 # JEAN2_LLM_OPENAI_API_KEY=your-key-here
 # JEAN2_LLM_ANTHROPIC_API_KEY=your-key-here
+# JEAN2_LLM_DEEPSEEK_API_KEY=your-key-here
 
 # Agent Configuration
 JEAN2_LLM_MAX_STEPS=500
