@@ -605,12 +605,12 @@ describe('permission flow: rejection', () => {
 // ══════════════════════════════════════════════════════════════════
 
 describe('command execution: mocked spawn', () => {
-  test('successful spawn returns success with result', async () => {
+  test('successful spawn returns success true without error field', async () => {
     spawnSyncBehavior = 'success';
     const ctx = createMockContext();
     const result = await execute({ command: 'echo hello' }, ctx);
     expect(result.success).toBe(true);
-    expect(result.result).toBeDefined();
+    expect(result.error).toBeUndefined();
     const output = result.result as { stdout: string; stderr: string; exitCode: number };
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toBe('mock-output');
@@ -621,6 +621,8 @@ describe('command execution: mocked spawn', () => {
     const ctx = createMockContext();
     const result = await execute({ command: 'ls missing' }, ctx);
     expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.error).toContain('exited with code 1');
     const output = result.result as { stdout: string; stderr: string; exitCode: number };
     expect(output.exitCode).toBe(1);
     expect(output.stderr).toBe('mock-error');
@@ -667,11 +669,12 @@ describe('command execution: mocked spawn', () => {
     expect(spawnSyncCalls[0].cwd).toBe(WORKSPACE);
   });
 
-  test('empty command still spawns', async () => {
+  test('empty command returns EMPTY_COMMAND error', async () => {
     const ctx = createMockContext();
     const result = await execute({ command: '' }, ctx);
-    expect(spawnSyncCalls.length).toBe(1);
-    expect(result).toBeDefined();
+    expect(spawnSyncCalls.length).toBe(0);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('EMPTY_COMMAND');
   });
 });
 

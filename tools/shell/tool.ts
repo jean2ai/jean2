@@ -366,10 +366,12 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       exitCode,
     };
 
+    const success = exitCode === 0;
     return {
-      success: exitCode === 0,
+      success,
       result: { stdout, stderr, exitCode },
       visualization,
+      ...(!success && { error: `Command exited with code ${exitCode}${stderr ? ': ' + stderr.split('\n')[0] : ''}` }),
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
