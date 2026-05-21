@@ -351,8 +351,8 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
 
     const result = Bun.spawnSync(shell, {
       cwd,
-      maxSize: 10 * 1024 * 1024,
-    } as Parameters<typeof Bun.spawnSync>[1]);
+      ...(platform === 'windows' ? { windowsHide: true } : {}),
+    } as Record<string, unknown>);
 
     const stdout = result.stdout?.toString() ?? '';
     const stderr = result.stderr?.toString() ?? '';
@@ -387,10 +387,10 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
 async function detectWindowsShell(command: string): Promise<string[]> {
   if (typeof Bun !== 'undefined' && Bun.which) {
     if (Bun.which('pwsh')) {
-      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
+      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command];
     }
     if (Bun.which('powershell')) {
-      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command];
+      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command];
     }
   }
   return ['cmd.exe', '/d', '/s', '/c', command];
