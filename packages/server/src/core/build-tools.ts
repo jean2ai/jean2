@@ -133,7 +133,7 @@ export async function buildAiSdkTools(
           });
 
           if (!result.success) {
-            return { error: result.error };
+            return { error: result.error ?? 'Tool execution failed' };
           }
 
           const toolOutput = truncateToolResult(result.result, sessionId, name);
