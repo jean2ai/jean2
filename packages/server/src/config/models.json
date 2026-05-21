@@ -25,6 +25,13 @@
       "name": "Z.AI (Coding Plan)",
       "models": [
         {
+          "id": "glm-5.1",
+          "name": "GLM-5.1",
+          "contextWindow": 200000,
+          "maxOutputTokens": 128000,
+          "tier": "premium"
+        },
+        {
           "id": "glm-5-turbo",
           "name": "GLM-5 (Turbo)",
           "contextWindow": 200000,
