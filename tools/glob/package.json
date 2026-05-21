@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@jean2/sdk": "^0.9.0"
+    "@jean2/sdk": "^0.9.0",
+    "picomatch": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.1"
   }
 }

@@ -1,9 +1,12 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
+import picomatch from 'picomatch';
+import { scan as scanGlob } from 'picomatch';
 
 interface Input {
   pattern: string;
   path?: string;
+  ignore?: string[];
 }
 
 const SKIP_DIRS = new Set([
@@ -39,17 +42,22 @@ const SKIP_DIRS = new Set([
 
 export const definition: ToolDefinition = {
   name: 'glob',
-  description: 'Find files matching a glob pattern. Returns matching file paths sorted by modification time.\n\nWhen to use:\n- Finding files by name patterns (e.g., all TypeScript files)\n- Locating specific file types in a project\n- When you know the directory structure pattern\n\nWhen NOT to use:\n- Searching file contents: Use grep tool instead\n- Exploring unknown structure: Use ls tool instead\n\nPattern examples:\n- `**/*.ts` - All TypeScript files recursively\n- `src/**/*.tsx` - All TSX files in src directory\n- `*.{js,ts}` - All JS and TS files in current directory\n- `package.json` - Specific file',
+  description: 'Find files matching a glob pattern. Returns matching file paths sorted by modification time.\n\nWhen to use:\n- Finding files by name patterns (e.g., all TypeScript files)\n- Locating specific file types in a project\n- When you know the directory structure pattern\n\nWhen NOT to use:\n- Searching file contents: Use grep tool instead\n- Exploring unknown structure: Use ls tool instead\n\nPattern examples:\n- `**/*.ts` - All TypeScript files recursively\n- `src/**/*.tsx` - All TSX files in src directory\n- `*.{js,ts}` - All JS and TS files in current directory (brace expansion)\n- `[abc]*.ts` - TS files starting with a, b, or c (character class)\n- `package.json` - Specific file\n- `!(README)*` - Files NOT matching README (extglob)\n\nSupports full Bash-compliant glob features via picomatch:\n- Brace expansion: `*.{js,ts}`, `src/{lib,test}/**`\n- Character classes: `[a-z]`, `[!.]`\n- Extglob: `!(pattern)`, `+(pattern)`, `?(pattern)`, `@(pattern)`\n- Globstar: `**` for recursive directory matching\n- Ignore patterns: exclude matched files from results',
   inputSchema: {
     type: 'object',
     properties: {
       pattern: {
         type: 'string',
-        description: 'The glob pattern to match',
+        description: 'The glob pattern to match. Supports *, **, ?, brace expansion {a,b}, character classes [a-z], and extglob !(pattern).',
       },
       path: {
         type: 'string',
         description: 'The directory to search in. Supports relative paths from workspace, absolute paths, or home paths. Defaults to workspace root.',
+      },
+      ignore: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Glob patterns to exclude from results. For example, ["*.test.ts", "**/fixtures/**"].',
       },
     },
     required: ['pattern'],
@@ -57,52 +65,23 @@ export const definition: ToolDefinition = {
   timeout: 30000,
 };
 
-function globToRegex(pattern: string): RegExp {
-  const parts = pattern.split('/');
-  const hasLeadingRecursive = parts[0] === '**';
-
-  const regexParts = parts.map((part) => {
-    if (part === '**') {
-      return '(?:.+/)?';
-    }
-    if (part === '*') {
-      return '[^/]*';
-    }
-    return part
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
-  });
-
-  let regexStr: string;
-
-  if (hasLeadingRecursive) {
-    const remainingParts = regexParts.slice(1);
-    regexStr = '^(?:' + remainingParts.join('/') + '|[^/]*/' + remainingParts.join('/') + ')$';
-  } else {
-    regexStr = '^' + regexParts.join('/') + '$';
-  }
-
-  return new RegExp(regexStr);
-}
-
-function matchesGlob(filePath: string, pattern: string): boolean {
-  const normalizedPath = filePath.replace(/\\/g, '/');
-  const regex = globToRegex(pattern);
-  return regex.test(normalizedPath);
-}
-
 function isRecursivePattern(pattern: string): boolean {
   return pattern.includes('**');
+}
+
+interface FileResult {
+  relativePath: string;
+  fullPath: string;
+  modifiedAt: Date;
 }
 
 async function walkDirectory(
   ctx: ToolContext,
   dirPath: string,
-  pattern: string,
   basePath: string,
-  results: string[],
+  results: FileResult[],
   recursive: boolean,
+  ignoreMatcher: ((path: string) => boolean) | null,
 ): Promise<void> {
   const dirName = dirPath.split(/[/\\]/).pop() || '';
   if (SKIP_DIRS.has(dirName)) {
@@ -114,16 +93,24 @@ async function walkDirectory(
 
     for (const entry of entries) {
       const fullPath = `${dirPath}/${entry.name}`;
-      const relativePath = fullPath.replace(basePath, '').replace(/^[/\\]/, '').replace(/\\/g, '/');
+      const relativePath = fullPath.slice(basePath.length + 1).replace(/\\/g, '/');
 
       if (entry.isDirectory) {
         if (recursive) {
-          await walkDirectory(ctx, fullPath, pattern, basePath, results, recursive);
+          await walkDirectory(ctx, fullPath, basePath, results, recursive, ignoreMatcher);
         }
       } else if (entry.isFile) {
-        if (matchesGlob(relativePath, pattern)) {
-          results.push(relativePath);
+        if (ignoreMatcher && ignoreMatcher(relativePath)) {
+          continue;
         }
+        let modifiedAt = new Date();
+        try {
+          const stat = await ctx.fs.stat(fullPath);
+          modifiedAt = stat.modifiedAt ?? new Date();
+        } catch {
+          // use default date if stat fails
+        }
+        results.push({ relativePath, fullPath, modifiedAt });
       }
     }
   } catch (error) {
@@ -160,34 +147,51 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
 
     const cwd = input.path ? ctx.fs.resolve(input.path) : ctx.workspacePath;
 
-    const hasWildcard = input.pattern.includes('*') || input.pattern.includes('?');
+    const scanned = scanGlob(input.pattern);
+    const hasWildcard = scanned.isGlob;
+
     const recursive = isRecursivePattern(input.pattern);
-    const results: string[] = [];
+
+    const ignoreMatcher = input.ignore?.length
+      ? picomatch(input.ignore, { dot: true })
+      : null;
 
     if (!hasWildcard) {
       try {
         const exists = await ctx.fs.exists(cwd + '/' + input.pattern);
         if (exists) {
-          results.push(input.pattern);
+          return {
+            success: true,
+            result: { files: [input.pattern] },
+            visualization: { type: 'none', message: `Glob: "${input.pattern}" (1 file)` } as NoneVisualization,
+          };
         }
       } catch { /* empty */ }
       return {
         success: true,
-        result: { files: results },
-        visualization: { type: 'none', message: `Glob: "${input.pattern}" (${results.length} files)` } as NoneVisualization,
+        result: { files: [] },
+        visualization: { type: 'none', message: `Glob: "${input.pattern}" (0 files)` } as NoneVisualization,
       };
     }
 
-    await walkDirectory(ctx, cwd, input.pattern, cwd, results, recursive);
+    const fileResults: FileResult[] = [];
+    await walkDirectory(ctx, cwd, cwd, fileResults, recursive, ignoreMatcher);
+
+    const isMatch = picomatch(input.pattern, { dot: true });
+    const matched = fileResults.filter(f => isMatch(f.relativePath));
+
+    matched.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
+
+    const files = matched.map(f => f.relativePath);
 
     const visualization: NoneVisualization = {
       type: 'none',
-      message: `Glob: "${input.pattern}" (${results.length} files)`,
+      message: `Glob: "${input.pattern}" (${files.length} files)`,
     };
 
     return {
       success: true,
-      result: { files: results },
+      result: { files },
       visualization,
     };
   } catch (err: unknown) {
