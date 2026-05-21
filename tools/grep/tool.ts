@@ -1,22 +1,44 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 import ignore from 'ignore';
+import picomatch from 'picomatch';
 
 interface Input {
   pattern: string;
   path?: string;
   include?: string;
+  ignore?: string[];
 }
 
 const SKIP_DIRS = new Set([
   'node_modules',
   '.git',
+  '__pycache__',
   'dist',
   'build',
-  '.next',
-  '.cache',
+  'target',
+  'vendor',
+  'bin',
+  'obj',
+  '.idea',
+  '.vscode',
+  '.zig-cache',
+  'zig-out',
+  '.coverage',
   'coverage',
-  'bower_components',
+  'tmp',
+  'temp',
+  '.cache',
+  'cache',
+  'logs',
+  '.venv',
+  'venv',
+  'env',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.svelte-kit',
+  '.turbo',
 ]);
 
 const BINARY_EXTENSIONS = new Set([
@@ -31,7 +53,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export const definition: ToolDefinition = {
   name: 'grep',
-  description: 'Search for text patterns in files using regular expressions.\n\nWhen to use:\n- Finding code containing specific patterns\n- Searching for function/class definitions\n- Locating usage of variables or imports\n\nWhen NOT to use:\n- Finding files by name: Use glob tool instead\n- Simple file reading: Use read-file tool instead\n\nPattern examples:\n- `function\\s+\\w+` - Function declarations\n- `import.*from` - Import statements\n- `TODO|FIXME` - Todo comments\n- `class \\w+` - Class declarations\n\nUsage:\n- pattern (required): Regex pattern to search for\n- path (required): File or directory to search in\n- include (optional): File pattern to filter (e.g., `*.ts`, `*.{ts,tsx}`)\n\nReturns file paths and line numbers with matching content.',
+  description: 'Search for text patterns in files using regular expressions.\n\nWhen to use:\n- Finding code containing specific patterns\n- Searching for function/class definitions\n- Locating usage of variables or imports\n\nWhen NOT to use:\n- Finding files by name: Use glob tool instead\n- Simple file reading: Use read-file tool instead\n\nPattern examples:\n- `function\\s+\\w+` - Function declarations\n- `import.*from` - Import statements\n- `TODO|FIXME` - Todo comments\n- `class \\w+` - Class declarations\n\nUsage:\n- pattern (required): Regex pattern to search for\n- path (required): File or directory to search in. Supports relative paths from workspace, absolute paths, or home paths.\n- include (optional): File pattern to filter (e.g., `*.ts`, `*.{ts,tsx}`). Supports brace expansion, character classes, and extglob via picomatch.\n- ignore (optional): Glob patterns to exclude from results (e.g., `[\"*.test.ts\", \"**/fixtures/**\"]`).\n\nReturns file paths and line numbers with matching content.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -45,7 +67,12 @@ export const definition: ToolDefinition = {
       },
       include: {
         type: 'string',
-        description: 'File pattern to include',
+        description: 'File pattern to include. Supports brace expansion {a,b}, character classes [a-z], and extglob !(pattern).',
+      },
+      ignore: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Glob patterns to exclude from results. For example, ["*.test.ts", "**/fixtures/**"].',
       },
     },
     required: ['pattern', 'path'],
@@ -56,51 +83,6 @@ export const definition: ToolDefinition = {
 function isBinaryFile(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
   return BINARY_EXTENSIONS.has(ext);
-}
-
-function globToRegex(pattern: string): RegExp | null {
-  if (!pattern) return null;
-
-  let patterns = [pattern];
-
-  if (pattern.includes('{')) {
-    const braceMatch = pattern.match(/^(.*?)\{([^}]+)\}(.*)$/);
-    if (braceMatch) {
-      const [, prefix, expansions, suffix] = braceMatch;
-      patterns = expansions.split(',').map((e) => `${prefix}${e.trim()}${suffix}`);
-    }
-  }
-
-  const regexParts = patterns.map((p) => {
-    p = p.replace(/^\.\//, '');
-
-    const segments = p.split(/[\\/]/);
-    const regexSegments = segments.map((seg) => {
-      if (seg === '**') return '**';
-      if (seg === '*') return '[^/]*';
-      return seg
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '[^/]');
-    });
-
-    let result = '';
-    for (let i = 0; i < regexSegments.length; i++) {
-      const seg = regexSegments[i];
-      if (seg === '**') {
-        result += '(?:.+/)?';
-      } else {
-        if (i > 0 && regexSegments[i - 1] !== '**') {
-          result += '/';
-        }
-        result += seg;
-      }
-    }
-
-    return `^${result}$`;
-  });
-
-  return new RegExp(regexParts.join('|'));
 }
 
 async function searchInFile(ctx: ToolContext, filePath: string, regex: RegExp): Promise<Array<{ line: number; content: string }>> {
@@ -141,7 +123,8 @@ async function walkDirectory(
   dirPath: string,
   basePath: string,
   ig: ReturnType<typeof ignore>,
-  includeRegex: RegExp | null,
+  includeMatcher: ((path: string) => boolean) | null,
+  ignoreMatcher: ((path: string) => boolean) | null,
   regex: RegExp,
   matches: Array<{ file: string; line: number; content: string }>,
 ): Promise<void> {
@@ -154,16 +137,20 @@ async function walkDirectory(
     const entries = await ctx.fs.readDir(dirPath);
     for (const entry of entries) {
       const fullPath = `${dirPath}/${entry.name}`;
-      const relativePath = fullPath.replace(basePath, '').replace(/^[/\\]/, '').replace(/\\/g, '/');
+      const relativePath = fullPath.slice(basePath.length + 1).replace(/\\/g, '/');
 
       if (ig.ignores(relativePath)) {
         continue;
       }
 
       if (entry.isDirectory) {
-        await walkDirectory(ctx, fullPath, basePath, ig, includeRegex, regex, matches);
+        await walkDirectory(ctx, fullPath, basePath, ig, includeMatcher, ignoreMatcher, regex, matches);
       } else if (entry.isFile) {
-        if (includeRegex && !includeRegex.test(relativePath)) {
+        if (includeMatcher && !includeMatcher(relativePath)) {
+          continue;
+        }
+
+        if (ignoreMatcher && ignoreMatcher(relativePath)) {
           continue;
         }
 
@@ -259,7 +246,9 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       };
     }
 
-    const includeRegex = input.include ? globToRegex(input.include) : null;
+    const includeMatcher = input.include ? picomatch(input.include, { dot: true }) : null;
+    const ignoreMatcher = input.ignore?.length ? picomatch(input.ignore, { dot: true }) : null;
+
     const matches: Array<{ file: string; line: number; content: string }> = [];
 
     if (!isDirectory) {
@@ -276,7 +265,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
         }
       }
     } else {
-      await walkDirectory(ctx, searchPath, searchPath, ig, includeRegex, regex, matches);
+      await walkDirectory(ctx, searchPath, searchPath, ig, includeMatcher, ignoreMatcher, regex, matches);
     }
 
     const truncated = matches.length >= MAX_MATCHES;

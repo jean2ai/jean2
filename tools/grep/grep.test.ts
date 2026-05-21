@@ -24,6 +24,12 @@ describe('grep tool definition', () => {
     expect(schema.required).toContain('pattern');
     expect(schema.required).toContain('path');
   });
+
+  test('has optional include and ignore properties', () => {
+    const schema = definition.inputSchema as { properties: Record<string, unknown> };
+    expect(schema.properties).toHaveProperty('include');
+    expect(schema.properties).toHaveProperty('ignore');
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════
@@ -80,8 +86,14 @@ describe('grep: pattern search', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('Invalid regex');
   });
+});
 
-  test('include filter restricts file types', async () => {
+// ══════════════════════════════════════════════════════════════════
+// Include Filter (picomatch)
+// ══════════════════════════════════════════════════════════════════
+
+describe('grep: include filter', () => {
+  test('basic wildcard *.ts filters by extension', async () => {
     vfs.writeFile(`${WORKSPACE}/src/a.ts`, 'import foo');
     vfs.writeFile(`${WORKSPACE}/src/b.js`, 'import bar');
     vfs.writeFile(`${WORKSPACE}/src/c.css`, '.import {}');
@@ -92,6 +104,169 @@ describe('grep: pattern search', () => {
     const matches = (result.result as { matches: Array<{ file: string }> }).matches;
     expect(matches.length).toBe(1);
     expect(matches[0].file).toContain('a.ts');
+  });
+
+  test('brace expansion *.{ts,tsx} matches multiple extensions', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/a.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/b.tsx`, 'import bar');
+    vfs.writeFile(`${WORKSPACE}/src/c.css`, '.import {}');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}/src`, include: '*.{ts,tsx}' }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(2);
+  });
+
+  test('character class [abc]*.ts matches files starting with a, b, or c', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/cli.ts`, 'import bar');
+    vfs.writeFile(`${WORKSPACE}/src/util.ts`, 'import baz');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}/src`, include: '[abc]*.ts' }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(2);
+    const files = matches.map(m => m.file);
+    expect(files.some(f => f.includes('app.ts'))).toBe(true);
+    expect(files.some(f => f.includes('cli.ts'))).toBe(true);
+  });
+
+  test('extglob !(vite-env)* excludes vite-env files', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/vite-env.d.ts`, 'export default {}');
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'export default app');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'export default', path: `${WORKSPACE}/src`, include: '!(vite-env)*' }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+
+  test('globstar **/*.tsx matches in subdirectories', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/components/Header.tsx`, 'export default');
+    vfs.writeFile(`${WORKSPACE}/src/util.ts`, 'export default');
+    vfs.addDir(`${WORKSPACE}/src`);
+    vfs.addDir(`${WORKSPACE}/src/components`);
+
+    const result = await execute({ pattern: 'export default', path: `${WORKSPACE}/src`, include: '**/*.tsx' }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('Header.tsx');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Ignore Filter (picomatch)
+// ══════════════════════════════════════════════════════════════════
+
+describe('grep: ignore filter', () => {
+  test('ignore excludes matching files', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/app.test.ts`, 'import bar');
+    vfs.writeFile(`${WORKSPACE}/src/util.ts`, 'import baz');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}/src`, ignore: ['*.test.ts'] }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(2);
+    const files = matches.map(m => m.file);
+    expect(files.some(f => f.includes('app.test.ts'))).toBe(false);
+  });
+
+  test('ignore with globstar excludes subdirectories', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/fixtures/mock.ts`, 'import bar');
+    vfs.addDir(`${WORKSPACE}/src`);
+    vfs.addDir(`${WORKSPACE}/src/fixtures`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}/src`, ignore: ['**/fixtures/**'] }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+
+  test('ignore with brace expansion excludes multiple patterns', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/app.test.ts`, 'import bar');
+    vfs.writeFile(`${WORKSPACE}/src/app.spec.ts`, 'import baz');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}/src`, ignore: ['*.test.ts', '*.spec.ts'] }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+
+  test('include and ignore work together', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/app.test.ts`, 'import bar');
+    vfs.writeFile(`${WORKSPACE}/src/util.js`, 'import baz');
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({
+      pattern: 'import',
+      path: `${WORKSPACE}/src`,
+      include: '*.ts',
+      ignore: ['*.test.ts'],
+    }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// SKIP_DIRS
+// ══════════════════════════════════════════════════════════════════
+
+describe('grep: skip directories', () => {
+  test('skips node_modules', async () => {
+    vfs.writeFile(`${WORKSPACE}/node_modules/pkg/index.js`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import bar');
+    vfs.addDir(`${WORKSPACE}/node_modules`);
+    vfs.addDir(`${WORKSPACE}/node_modules/pkg`);
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}` }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+
+  test('skips dist directory', async () => {
+    vfs.writeFile(`${WORKSPACE}/dist/bundle.js`, 'import foo');
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import bar');
+    vfs.addDir(`${WORKSPACE}/dist`);
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}` }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
+  });
+
+  test('skips .venv directory', async () => {
+    vfs.writeFile(`${WORKSPACE}/.venv/lib/site.py`, 'import os');
+    vfs.writeFile(`${WORKSPACE}/src/app.ts`, 'import bar');
+    vfs.addDir(`${WORKSPACE}/.venv`);
+    vfs.addDir(`${WORKSPACE}/.venv/lib`);
+    vfs.addDir(`${WORKSPACE}/src`);
+
+    const result = await execute({ pattern: 'import', path: `${WORKSPACE}` }, ctx);
+    expect(result.success).toBe(true);
+    const matches = (result.result as { matches: Array<{ file: string }> }).matches;
+    expect(matches.length).toBe(1);
+    expect(matches[0].file).toContain('app.ts');
   });
 });
 

@@ -1,10 +1,14 @@
 {
   "name": "@jean2/tool-grep",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "dependencies": {
     "@jean2/sdk": "^0.9.0",
-    "ignore": "^7.0.3"
+    "ignore": "^7.0.3",
+    "picomatch": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.1"
   }
 }
