@@ -65,8 +65,9 @@ export default function OverviewView() {
       <main
         className="flex-1 flex flex-col overflow-hidden min-h-0 p-2"
         style={{
-          paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
-          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+          // AppHeader already handles safe-area-inset-top — don't double-count it
+          paddingTop: '0.5rem',
+          paddingBottom: '0.5rem',
         }}
       >
         <div className="flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border">

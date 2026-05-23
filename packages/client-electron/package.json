@@ -10,11 +10,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "electron:dev": "vite build && electron .",
-    "electron:build": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --mac --win",
-    "electron:build:mac:local": "cd ../client && bun run build && cd ../client-electron && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
-    "electron:build:mac:release": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --mac",
-    "electron:build:win": "cd ../client && bun run build && cd ../client-electron && vite build && electron-builder --win",
+    "electron:dev": "cd ../client && VITE_BASE='./' bun run build && vite build && electron .",
+    "electron:build": "cd ../client && VITE_BASE='./' bun run build && cd ../client-electron && vite build && electron-builder --mac --win",
+    "electron:build:mac:local": "cd ../client && VITE_BASE='./' bun run build && cd ../client-electron && vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "electron:build:mac:release": "cd ../client && VITE_BASE='./' bun run build && cd ../client-electron && vite build && electron-builder --mac",
+    "electron:build:win": "cd ../client && VITE_BASE='./' bun run build && cd ../client-electron && vite build && electron-builder --win",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

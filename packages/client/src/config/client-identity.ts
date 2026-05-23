@@ -20,8 +20,6 @@ function clientTypeForPlatform(): ClientDescriptor['clientType'] {
   switch (platform) {
     case 'electron':
       return 'desktop';
-    case 'tauri-mobile':
-      return 'mobile';
     case 'web':
     case 'unknown':
     default:
@@ -34,8 +32,6 @@ export function getDisplayName(): string {
   switch (platform) {
     case 'electron':
       return 'Jean2 Desktop';
-    case 'tauri-mobile':
-      return 'Jean2 Mobile';
     case 'web':
     default:
       return 'Jean2 Web';

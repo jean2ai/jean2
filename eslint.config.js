@@ -10,7 +10,6 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/data/**',
-      '**/src-tauri/target/**',
       '**/storybook-static/**',
     ],
   },

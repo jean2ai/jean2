@@ -4,7 +4,12 @@ const MOBILE_BREAKPOINT = 640
 const COMPACT_BREAKPOINT = 1280
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < MOBILE_BREAKPOINT
+    }
+    return false
+  })
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
@@ -16,11 +21,16 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return !!isMobile
+  return isMobile
 }
 
 export function useIsCompact() {
-  const [isCompact, setIsCompact] = React.useState<boolean | undefined>(undefined)
+  const [isCompact, setIsCompact] = React.useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < COMPACT_BREAKPOINT
+    }
+    return false
+  })
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT - 1}px)`)
@@ -32,5 +42,5 @@ export function useIsCompact() {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return !!isCompact
+  return isCompact
 }

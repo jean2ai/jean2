@@ -581,24 +581,47 @@ export function VirtualizedTranscript({
     initialScrollDoneRef.current = true;
   }, [sessionId]); // Only depend on sessionId - rowVirtualizer is stable reference
 
-  // Wheel handler: when in follow mode and user scrolls up, disable follow and notify parent
-  // Uses passive: false to allow preventDefault for the scroll direction change
+  // Scroll direction detection: when in follow mode and user scrolls up, disable follow
+  //
+  // Desktop: wheel event with deltaY < 0
+  // Mobile: touchmove — track initial touch Y, compare to detect upward swipe
+  // Both fire BEFORE the onScroll handler, so auto-follow is already disabled when
+  // the scroll position check runs (avoiding the snap-back that traps mobile users)
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
 
+    let touchStartY = 0;
+
     const onWheel = (e: WheelEvent) => {
-      // Only trigger on upward scroll (deltaY < 0) while in follow mode
       if (autoScrollRef.current && e.deltaY < 0) {
-        // Disable follow mode and notify parent
         autoScrollRef.current = false;
         onAutoScrollChange?.(false);
-        // Do NOT preventDefault - allow the scroll to proceed naturally
+      }
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0]?.clientY ?? 0;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!autoScrollRef.current) return;
+      const currentY = e.touches[0]?.clientY ?? 0;
+      // Finger moving down = content scrolling up = user wants to break out of follow
+      if (currentY > touchStartY + 5) {
+        autoScrollRef.current = false;
+        onAutoScrollChange?.(false);
       }
     };
 
     scrollEl.addEventListener('wheel', onWheel, { passive: false });
-    return () => scrollEl.removeEventListener('wheel', onWheel);
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    scrollEl.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('wheel', onWheel);
+      scrollEl.removeEventListener('touchstart', onTouchStart);
+      scrollEl.removeEventListener('touchmove', onTouchMove);
+    };
   }, [onAutoScrollChange]);
 
   // Scroll handler for auto-follow state management

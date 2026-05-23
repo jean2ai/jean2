@@ -119,7 +119,7 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            className="w-full h-64 p-3 rounded-lg border bg-background font-mono text-sm resize-y"
+            className="w-full h-48 sm:h-64 p-3 rounded-lg border bg-background font-mono text-sm resize-y"
             placeholder="# Prompt Title\n\nPrompt content here..."
           />
         </div>
@@ -160,38 +160,32 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
           {prompts.map((prompt) => (
             <div
               key={prompt.name}
-              className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+              className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg border hover:bg-muted/50 cursor-pointer min-w-0 overflow-hidden"
               onClick={() => handleEdit(prompt)}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <FileText className="size-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <FileText className="size-4 text-muted-foreground shrink-0 hidden sm:block" />
+                <div className="flex flex-col flex-1 min-w-0 gap-0.5 sm:gap-1 overflow-hidden">
                   <div className="text-sm font-medium truncate">{prompt.name}</div>
                   {prompt.description && (
-                    <div className="text-xs text-muted-foreground truncate">{prompt.description}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">{prompt.description}</div>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <Button
-                  size="icon"
+                  size="icon-xs"
                   variant="ghost"
-                  className="size-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEdit(prompt);
-                  }}
+                  onClick={() => handleEdit(prompt)}
+                  title="Edit prompt"
                 >
                   <Pencil className="size-3" />
                 </Button>
                 <Button
-                  size="icon"
+                  size="icon-xs"
                   variant="ghost"
-                  className="size-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteTarget(prompt.name);
-                  }}
+                  onClick={() => setDeleteTarget(prompt.name)}
+                  title="Delete prompt"
                 >
                   <Trash2 className="size-3" />
                 </Button>

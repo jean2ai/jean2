@@ -4,8 +4,8 @@ Cross-platform frontend for the Jean2 AI Agent. Connects to a Jean2 server over 
 
 Three deployment targets:
 
-- **Tauri Desktop** — Native macOS and Windows application with multi-window support
-- **Tauri iOS** — Native iPhone application
+- **Web / PWA** — Browser-based with offline support and installable as a PWA
+- **Electron Desktop** — Native macOS and Windows application with multi-window support
 - **Web CLI** — Run locally via `npx @jean2/client`
 
 ## Features
@@ -23,12 +23,11 @@ Three deployment targets:
 - Dark and light themes (persists per platform)
 - Responsive layout — works on desktop and mobile viewports
 - Two view modes — Default (session list) and Overview (multi-workspace dashboard with Quick Switcher)
+- PWA support — install to home screen on mobile and desktop
 
 ## Prerequisites
 
 - [Bun](https://bun.sh/)
-- For Tauri desktop builds: [Rust](https://www.rust-lang.org/tools/install) and Xcode Command Line Tools (`xcode-select --install`) (macOS) or Visual Studio Build Tools (Windows)
-- For iOS builds: Xcode, Apple Developer account — see [README-ios.md](README-ios.md)
 
 ## Development
 
@@ -42,56 +41,14 @@ bun run dev
 
 The Vite dev server proxies `/api` and `/ws` to `http://localhost:3000`.
 
-### Tauri Desktop (Live Reload)
-
-```bash
-# Opens native window with hot module replacement
-bun run tauri:dev
-```
-
-### Tauri iOS (Live Reload)
-
-```bash
-bun run tauri:ios:dev
-```
-
 ## Building
 
-### Web
+### Web / PWA
 
 ```bash
 bun run build
 # Output: dist/
 ```
-
-### Tauri Desktop
-
-```bash
-# macOS (Apple Silicon)
-bun run tauri:build:macos
-
-# Generic (all targets)
-bun run tauri:build
-```
-
-### macOS Gatekeeper (Unsigned Builds)
-
-Apps downloaded from GitHub releases are not code-signed. macOS will block opening them by default. Remove the quarantine attribute:
-
-```bash
-xattr -cr /Applications/Jean2.app
-```
-
-### Tauri Windows
-
-```bash
-# Windows (x64)
-bun run tauri:build:windows
-```
-
-### Tauri iOS
-
-See [README-ios.md](README-ios.md) for full build and deployment instructions.
 
 ### CLI / npx
 
@@ -142,18 +99,17 @@ packages/client/
       servers.ts         Server CRUD in localStorage
     lib/
       utils.ts           cn() and Tailwind merge
-      storage.ts         Platform-agnostic storage (Tauri Store / localStorage)
+      storage.ts         Platform-agnostic storage (Electron store / localStorage)
       path.ts            Path utilities
     utils/
       diff.ts            Diff parsing utilities
-  src-tauri/
-    tauri.conf.json      Tauri configuration
-    src/
-      lib.rs             Platform gate (desktop vs mobile)
-      desktop.rs         Desktop entry — multi-window, plugins
-      mobile.rs          iOS entry — plugins only
+  public/
+    favicon.ico          Favicon
+    icon-192.png         PWA icon (small)
+    icon-512.png         PWA icon (large)
+    apple-touch-icon.png iOS home screen icon
   components.json        shadcn/ui configuration (radix-nova style)
-  vite.config.ts         Vite — React, Tailwind, path aliases, dev proxy
+  vite.config.ts         Vite — React, Tailwind, path aliases, dev proxy, PWA
   package.npm.json       Minimal manifest for npm publish (CLI mode)
   VERSION                Client version
 ```
@@ -167,11 +123,11 @@ packages/client/
 | Styling      | Tailwind CSS v4, shadcn/ui, Radix UI        |
 | Fonts        | Geist Variable                              |
 | Icons        | Lucide React                                |
-| Desktop      | Tauri 2 (Rust) — macOS, Windows              |
-| Mobile       | Tauri 2 iOS                                 |
+| Desktop      | Electron — macOS, Windows                   |
+| Mobile       | Web / PWA                                   |
 | Markdown     | react-markdown + remark-gfm                 |
 | Code blocks  | prism-react-renderer                        |
-| Storage      | @tauri-apps/plugin-store / localStorage     |
+| Storage      | localStorage (web) / Electron store (desktop) |
 | CLI          | esbuild bundle, Node.js http module         |
 
 ## Architecture
@@ -184,4 +140,4 @@ The client connects to a Jean2 server via WebSocket (`ws://host:port/ws?token=..
 
 **Multi-workspace support** isolates sessions by workspace. The active workspace is persisted and restored on reload.
 
-**Platform abstraction** — the `storage` module (`lib/storage.ts`) transparently uses Tauri Store on native platforms and falls back to localStorage on web. The Tauri Rust layer adds native-only features like multi-window (`Cmd+N`).
+**Platform abstraction** — the `storage` module (`lib/storage.ts`) transparently uses the Electron IPC store on desktop and falls back to localStorage on web/PWA. The Electron layer adds native-only features like multi-window (`Cmd+N`).

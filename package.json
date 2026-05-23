@@ -10,9 +10,13 @@
   ],
   "scripts": {
     "dev": "bun run dev:server & bun run dev:client",
+    "dev:https": "bun run dev:server & bun run dev:client:https",
     "dev:be": "bun run dev:server",
     "dev:server": "cd packages/server && bun --watch --env-file=../../.env src/index.ts",
     "dev:client": "cd packages/client && bun run dev",
+    "dev:client:https": "cd packages/client && bun --env-file=../../.env run dev",
+    "preview": "cd packages/client && bun run build && bun run preview",
+    "preview:https": "cd packages/client && bun run build && bun --env-file=../../.env run preview",
     "build": "bun run --filter '*' build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",
@@ -23,7 +27,7 @@
     "build:bin:windows": "cd packages/server && bun run build:bin:windows",
     "build:all": "cd packages/server && bun run build:all",
     "build:tools": "bun run tools/build.ts",
-    "tauri:build:windows": "cd packages/client && bun run tauri:build:windows",
+
     "dev:electron": "cd packages/client-electron && bun run electron:dev",
     "electron:build": "cd packages/client-electron && bun run electron:build",
     "electron:build:mac:local": "cd packages/client-electron && bun run electron:build:mac:local",
@@ -43,7 +47,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.56.1",
+    "vite-plugin-pwa": "^1.3.0"
   },
   "dependencies": {
     "diff": "^8.0.3"

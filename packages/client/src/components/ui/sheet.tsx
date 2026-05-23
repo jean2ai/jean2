@@ -70,8 +70,7 @@ function SheetContent({
           const safeAreaStyle = side === "left" || side === "right"
             ? {
                 top: `calc(env(safe-area-inset-top, 0px) + ${electronTop})`,
-                bottom: "env(safe-area-inset-bottom, 0px)",
-                height: `calc(100vh - env(safe-area-inset-top, 0px) - ${electronTop} - env(safe-area-inset-bottom, 0px))`,
+                height: `calc(100dvh - env(safe-area-inset-top, 0px) - ${electronTop})`,
               }
             : side === "top"
               ? { top: `calc(env(safe-area-inset-top, 0px) + ${electronTop})` }

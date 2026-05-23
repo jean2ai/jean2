@@ -196,7 +196,7 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col p-2">{children}</div>
         </SheetContent>
       </Sheet>
     )
@@ -239,8 +239,9 @@ function Sidebar({
         )}
         style={{
           top: 'calc(var(--header-height, 0px) + env(safe-area-inset-top, 0px))',
-          bottom: 'env(safe-area-inset-bottom, 0px)',
-          height: 'calc(100vh - var(--header-height, 0px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+          // Extend sidebar visual background to screen bottom
+          // Safe area handled via padding-bottom on sidebar-inner
+          height: 'calc(100dvh - var(--header-height, 0px) - env(safe-area-inset-top, 0px))',
         }}
         {...props}
       >
@@ -248,6 +249,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
           className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           {children}
         </div>

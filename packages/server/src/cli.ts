@@ -404,7 +404,8 @@ Examples:
 
     case 'open': {
       const openPort = parseInt(process.env.JEAN2_CLIENT_PORT || '3774', 10);
-      const clientUrl = `http://localhost:${openPort}`;
+      const openProtocol = process.env.JEAN2_TLS_ENABLED === 'true' ? 'https' : 'http';
+      const clientUrl = `${openProtocol}://localhost:${openPort}`;
       console.log(`Opening ${clientUrl} ...`);
       try {
         const cmd = process.platform === 'darwin' ? 'open'

@@ -94,12 +94,13 @@
     @apply font-sans;
     overscroll-behavior: none;
     overflow: hidden;
-    height: 100%;
+    height: 100dvh;
     width: 100%;
+    touch-action: manipulation;
   }
 
   body {
-    height: 100%;
+    height: 100dvh;
     width: 100%;
     margin: 0;
     overflow: hidden;
@@ -108,7 +109,7 @@
   }
 
   #root {
-    height: 100%;
+    height: 100dvh;
     @apply flex overflow-hidden;
   }
 }
@@ -645,9 +646,7 @@ pre {
 /* iOS-specific scrolling fixes */
 @supports (-webkit-touch-callout: none) {
   /* Only applies on iOS devices */
-  html, body, #root {
-    height: 100vh;
-  }
+  /* Not needed anymore — 100dvh is already set above in the base rules */
 
   .flex-col.overflow-hidden {
     /* Fix flex container height on iOS */

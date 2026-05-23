@@ -6,7 +6,7 @@ import {useChatLayoutStore} from '@/stores/chatLayoutStore';
 import {useServerDataStore} from '@/stores/serverDataStore';
 import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
 import type {Preconfig, Workspace} from '@jean2/sdk';
-import {isElectron, isTauriMobile} from '@/lib/platform';
+import { isElectron } from '@/lib/platform';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -88,12 +88,9 @@ export function useAppKeyboardHandlers({
     }
   }, [activeWorkspace, primaryPreconfigs, createSession]);
 
-  const handleNewWindow = useCallback(async () => {
+  const handleNewWindow = useCallback(() => {
     if (isElectron()) {
       window.__JEAN2_ELECTRON__?.createWindow();
-    } else if (isTauriMobile()) {
-      const { invoke } = await import('@tauri-apps/api/core');
-      invoke('create_new_window').catch(() => {});
     }
   }, []);
 
@@ -147,47 +144,6 @@ export function useAppKeyboardHandlers({
       });
     }
 
-    if (!isTauriMobile()) return;
-
-    let disposed = false;
-    const unlistenFns: Array<() => void> = [];
-
-    const registerListeners = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-
-      try {
-        const unlistenSidebar = await listen('jean2://accelerator/open-sidebar', () => {
-          focusSidebarSessionPanelRef.current();
-        });
-        if (disposed) {
-          unlistenSidebar();
-          return;
-        }
-        unlistenFns.push(unlistenSidebar);
-      } catch (err) {
-        console.error('Failed to register open-sidebar accelerator listener:', err);
-      }
-
-      try {
-        const unlistenTerminal = await listen('jean2://accelerator/open-terminal', () => {
-          focusTerminalPanelRef.current();
-        });
-        if (disposed) {
-          unlistenTerminal();
-          return;
-        }
-        unlistenFns.push(unlistenTerminal);
-      } catch (err) {
-        console.error('Failed to register open-terminal accelerator listener:', err);
-      }
-    };
-
-    registerListeners();
-
-    return () => {
-      disposed = true;
-      unlistenFns.forEach((fn) => fn());
-    };
   }, []);
 }
 

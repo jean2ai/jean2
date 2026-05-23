@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import Arborist from '@npmcli/arborist';
 
 import { getClientDir } from '@/paths';
@@ -128,8 +128,32 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
   process.argv = [process.argv[0], cliPath, '--port', String(port)];
 
   const http = await import('node:http');
+  const https = await import('node:https');
   const fs = await import('node:fs');
   const path = await import('node:path');
+
+  const tlsEnabled = process.env.JEAN2_TLS_ENABLED === 'true';
+  let tlsOptions: { cert: string; key: string } | undefined;
+
+  if (tlsEnabled) {
+    const certPath = process.env.JEAN2_TLS_CERT_FILE;
+    const keyPath = process.env.JEAN2_TLS_KEY_FILE;
+    if (certPath && keyPath) {
+      try {
+        tlsOptions = {
+          cert: fs.readFileSync(certPath, 'utf-8'),
+          key: fs.readFileSync(keyPath, 'utf-8'),
+        };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[client] Failed to read TLS certificate/key: ${message}`);
+        process.exit(1);
+      }
+    } else {
+      console.error('[client] JEAN2_TLS_ENABLED is set but JEAN2_TLS_CERT_FILE and/or JEAN2_TLS_KEY_FILE are missing');
+      process.exit(1);
+    }
+  }
 
   const MIME_TYPES: Record<string, string> = {
     '.html': 'text/html',
@@ -163,7 +187,7 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
     });
   }
 
-  const server = http.createServer((req, res) => {
+  const requestHandler = (req: IncomingMessage, res: ServerResponse) => {
     let urlPath = (req.url ?? '/').split('?')[0];
 
     if (urlPath === '/') {
@@ -204,7 +228,11 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
       const indexPath = path.join(distPath, 'index.html');
       serveFile(res, indexPath, 'text/html');
     });
-  });
+  };
+
+  const server = tlsOptions
+    ? https.createServer(tlsOptions, requestHandler)
+    : http.createServer(requestHandler);
 
   server.on('error', (err) => {
     console.error(`[client] Server error: ${err.message}`);
@@ -212,7 +240,8 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
   });
 
   server.listen(port, () => {
-    console.log(`Jean2 client running at http://localhost:${port}`);
+    const protocol = tlsOptions ? 'https' : 'http';
+    console.log(`Jean2 client running at ${protocol}://localhost:${port}`);
   });
 
   function shutdown() {
@@ -294,7 +323,8 @@ export function createClientLauncher(): ClientLauncher {
         };
       }
 
-      const url = `http://localhost:${port}`;
+      const clientProtocol = process.env.JEAN2_TLS_ENABLED === 'true' ? 'https' : 'http';
+      const url = `${clientProtocol}://localhost:${port}`;
 
       try {
         childProcess = Bun.spawn(
@@ -311,7 +341,7 @@ export function createClientLauncher(): ClientLauncher {
             stderr: 'inherit',
             env: {
               ...process.env,
-              JEAN2_SERVER_URL: `${serverHost === '0.0.0.0' ? 'localhost' : serverHost}:${serverPort}`,
+              JEAN2_SERVER_URL: `${clientProtocol}://${serverHost === '0.0.0.0' ? 'localhost' : serverHost}:${serverPort}`,
             },
           },
         );

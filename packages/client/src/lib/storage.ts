@@ -1,18 +1,4 @@
-import { isElectron, isTauriMobile } from '@/lib/platform';
-
-let tauriStore: { get: <T>(key: string) => Promise<T | undefined>; set: (key: string, value: unknown) => Promise<void>; delete: (key: string) => Promise<boolean>; clear: () => Promise<void>; save: () => Promise<void>; } | null = null;
-
-async function getTauriStore() {
-  if (tauriStore) return tauriStore;
-  try {
-    const { Store } = await import('@tauri-apps/plugin-store');
-    tauriStore = await Store.load('settings.json');
-    return tauriStore;
-  } catch (error) {
-    console.error('Failed to initialize Tauri store:', error);
-    return null;
-  }
-}
+import { isElectron } from '@/lib/platform';
 
 function localStorageGet<T>(key: string): T | null {
   try {
@@ -29,14 +15,6 @@ export const storage = {
       return window.__JEAN2_ELECTRON__.store.get<T>(key);
     }
 
-    if (isTauriMobile()) {
-      const store = await getTauriStore();
-      if (store) {
-        const value = await store.get<T>(key);
-        return value ?? null;
-      }
-    }
-
     return localStorageGet<T>(key);
   },
 
@@ -44,15 +22,6 @@ export const storage = {
     if (isElectron() && window.__JEAN2_ELECTRON__) {
       await window.__JEAN2_ELECTRON__.store.set(key, value);
       return;
-    }
-
-    if (isTauriMobile()) {
-      const store = await getTauriStore();
-      if (store) {
-        await store.set(key, value);
-        await store.save();
-        return;
-      }
     }
 
     localStorage.setItem(key, JSON.stringify(value));
@@ -64,15 +33,6 @@ export const storage = {
       return;
     }
 
-    if (isTauriMobile()) {
-      const store = await getTauriStore();
-      if (store) {
-        await store.delete(key);
-        await store.save();
-        return;
-      }
-    }
-
     localStorage.removeItem(key);
   },
 
@@ -82,20 +42,11 @@ export const storage = {
       return;
     }
 
-    if (isTauriMobile()) {
-      const store = await getTauriStore();
-      if (store) {
-        await store.clear();
-        await store.save();
-        return;
-      }
-    }
-
     localStorage.clear();
   },
 
   isNative(): boolean {
-    return isElectron() || isTauriMobile();
+    return isElectron();
   },
 };
 

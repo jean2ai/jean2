@@ -28,9 +28,9 @@ export function AppHeader() {
     <>
       {/* Traffic light spacer for macOS - provides space for native window controls */}
       {isElectron() && (
-          <div className="block md:hidden h-[30px] shrink-0 z-[60]" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
+          <div className="block md:hidden h-[30px] shrink-0 z-40" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
-      <header className="md:hidden flex items-center justify-between pl-3 pr-5 pt-2 sticky top-0 z-[60] shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
+      <header className="md:hidden flex items-center justify-between pl-3 pr-5 pt-2 sticky top-0 z-40 shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <ServerSwitcher compact />
