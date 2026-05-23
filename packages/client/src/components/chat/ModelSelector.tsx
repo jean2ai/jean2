@@ -28,6 +28,7 @@ interface Model {
 interface ModelSelectorProps {
   models: Model[];
   selectedModelId: string | null | undefined;
+  selectedProviderId?: string | null;
   onChangeModel: (modelId: string, providerId: string) => void;
   disabled?: boolean;
   compact?: boolean;
@@ -43,9 +44,44 @@ function getTierBadge(tier: string): string {
   }
 }
 
+function renderCommandItems(
+  groupedModels: Record<string, Model[]>,
+  selectedComposite: string | null,
+  handleSelect: (composite: string) => void,
+  compositeKey: (model: Model) => string,
+) {
+  return Object.entries(groupedModels).map(([providerName, providerModels]) => (
+    <CommandGroup key={providerName} heading={providerName}>
+      {providerModels.map((model) => {
+        const key = compositeKey(model);
+        return (
+          <CommandItem
+            key={key}
+            value={key}
+            showCheck={false}
+            onSelect={() => handleSelect(key)}
+          >
+            <span>{model.name}</span>
+            <span className="text-muted-foreground text-xs">
+              {getTierBadge(model.tier)}
+            </span>
+            <Check
+              className={cn(
+                'ml-auto size-4',
+                selectedComposite === key ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+          </CommandItem>
+        );
+      })}
+    </CommandGroup>
+  ));
+}
+
 export function ModelSelector({
   models,
   selectedModelId,
+  selectedProviderId,
   onChangeModel,
   disabled,
   compact = false,
@@ -61,15 +97,28 @@ export function ModelSelector({
     return acc;
   }, {} as Record<string, Model[]>);
 
-  const handleSelect = (modelId: string) => {
-    const model = models.find((m) => m.id === modelId);
+  const compositeKey = (model: Model) => model.providerId + ':' + model.id;
+
+  const handleSelect = (composite: string) => {
+    const colonIdx = composite.indexOf(':');
+    const providerId = composite.slice(0, colonIdx);
+    const modelId = composite.slice(colonIdx + 1);
+    const model = models.find((m) => m.providerId === providerId && m.id === modelId);
     if (model) {
-      onChangeModel(modelId, model.providerId);
+      onChangeModel(modelId, providerId);
       setOpen(false);
     }
   };
 
-  const selectedModel = models.find((m) => m.id === selectedModelId);
+  const selectedComposite = selectedModelId && selectedProviderId
+    ? selectedProviderId + ':' + selectedModelId
+    : null;
+
+  const selectedModel = selectedModelId && selectedProviderId
+    ? models.find((m) => m.providerId === selectedProviderId && m.id === selectedModelId)
+    : models.find((m) => m.id === selectedModelId);
+
+  const commandItems = renderCommandItems(groupedModels, selectedComposite, handleSelect, compositeKey);
 
   if (iconOnly) {
     return (
@@ -91,33 +140,7 @@ export function ModelSelector({
             <CommandInput placeholder="Search model..." />
             <CommandList className="max-h-[50vh] overflow-y-auto">
               <CommandEmpty>No model found.</CommandEmpty>
-              {Object.entries(groupedModels).map(([providerName, providerModels]) => (
-                <CommandGroup key={providerName} heading={providerName}>
-                  {providerModels.map((model) => (
-                    <CommandItem
-                      key={model.id}
-                      value={model.id}
-                      onSelect={() => handleSelect(model.id)}
-                      className="justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{model.name}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {getTierBadge(model.tier)}
-                        </span>
-                      </div>
-                      <Check
-                        className={cn(
-                          'size-4',
-                          selectedModelId === model.id
-                            ? 'opacity-100'
-                            : 'opacity-0'
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              ))}
+              {commandItems}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -147,33 +170,7 @@ export function ModelSelector({
             <CommandInput placeholder="Search model..." />
             <CommandList className="max-h-[50vh] overflow-y-auto">
               <CommandEmpty>No model found.</CommandEmpty>
-              {Object.entries(groupedModels).map(([providerName, providerModels]) => (
-                <CommandGroup key={providerName} heading={providerName}>
-                  {providerModels.map((model) => (
-                    <CommandItem
-                      key={model.id}
-                      value={model.id}
-                      onSelect={() => handleSelect(model.id)}
-                      className="justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{model.name}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {getTierBadge(model.tier)}
-                        </span>
-                      </div>
-                      <Check
-                        className={cn(
-                          'size-4',
-                          selectedModelId === model.id
-                            ? 'opacity-100'
-                            : 'opacity-0'
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              ))}
+              {commandItems}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -205,33 +202,7 @@ export function ModelSelector({
           <CommandInput placeholder="Search model..." />
           <CommandList className="max-h-[50vh] overflow-y-auto">
             <CommandEmpty>No model found.</CommandEmpty>
-            {Object.entries(groupedModels).map(([providerName, providerModels]) => (
-              <CommandGroup key={providerName} heading={providerName}>
-                {providerModels.map((model) => (
-                  <CommandItem
-                    key={model.id}
-                    value={model.id}
-                    onSelect={() => handleSelect(model.id)}
-                    className="justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>{model.name}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {getTierBadge(model.tier)}
-                      </span>
-                    </div>
-                    <Check
-                      className={cn(
-                        'size-4',
-                        selectedModelId === model.id
-                          ? 'opacity-100'
-                          : 'opacity-0'
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
+            {commandItems}
           </CommandList>
         </Command>
       </PopoverContent>

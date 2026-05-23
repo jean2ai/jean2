@@ -267,15 +267,28 @@ export function getAllModels(): Array<ModelDefinition & { providerId: string; pr
   return allModels;
 }
 
-export function findModel(modelId: string): (ModelDefinition & { providerId: string; providerName: string }) | undefined {
+export function findModel(modelId: string, providerId?: string): (ModelDefinition & { providerId: string; providerName: string }) | undefined {
+  if (providerId) {
+    const config = loadModelsConfig();
+    const provider = config.providers.find(p => p.id === providerId);
+    if (!provider) return undefined;
+    const model = provider.models.find(m => m.id === modelId);
+    if (!model) return undefined;
+    return {
+      ...model,
+      providerId: provider.id,
+      providerName: provider.name,
+    } as ModelDefinition & { providerId: string; providerName: string };
+  }
   return getAllModels().find(m => m.id === modelId);
 }
 
 export function findModelVariant(
   modelId: string,
   variantKey: string,
+  providerId?: string,
 ): Record<string, unknown> | undefined {
-  const model = findModel(modelId);
+  const model = findModel(modelId, providerId);
   return model?.variants?.[variantKey]?.providerOptions;
 }
 

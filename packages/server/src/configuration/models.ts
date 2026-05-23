@@ -92,7 +92,7 @@ export function validateModelsDocument(config: unknown): config is ModelsConfig 
   }
 
   const providerIds = new Set<string>();
-  const modelIds = new Set<string>();
+  const allModelIds = new Set<string>();
 
   for (const provider of c.providers) {
     if (!provider || typeof provider !== 'object') {
@@ -117,6 +117,8 @@ export function validateModelsDocument(config: unknown): config is ModelsConfig 
     if (!Array.isArray(p.models)) {
       return false;
     }
+
+    const providerModelIds = new Set<string>();
 
     for (const model of p.models) {
       if (!model || typeof model !== 'object') {
@@ -179,10 +181,11 @@ export function validateModelsDocument(config: unknown): config is ModelsConfig 
         }
       }
 
-      if (modelIds.has(m.id)) {
+      if (providerModelIds.has(m.id)) {
         return false;
       }
-      modelIds.add(m.id);
+      providerModelIds.add(m.id);
+      allModelIds.add(m.id);
     }
   }
 
@@ -191,7 +194,7 @@ export function validateModelsDocument(config: unknown): config is ModelsConfig 
     return false;
   }
 
-  if (!modelIds.has(c.defaultModel)) {
+  if (!allModelIds.has(c.defaultModel)) {
     return false;
   }
 
@@ -246,16 +249,11 @@ export async function deleteProvider(providerId: string): Promise<ModelsConfig> 
     );
   }
 
-  const allModelIds = config.providers.flatMap(p => p.models.map(m => m.id));
-  if (allModelIds.includes(config.defaultModel)) {
-    const defaultModelProvider = config.providers.find(p =>
-      p.models.some(m => m.id === config.defaultModel),
+  const providerToDelete = config.providers[providerIndex];
+  if (providerToDelete.models.some(m => m.id === config.defaultModel)) {
+    throw new ConfigurationValidationError(
+      `Cannot delete provider "${providerId}" because it contains the default model "${config.defaultModel}"`,
     );
-    if (defaultModelProvider?.id === providerId) {
-      throw new ConfigurationValidationError(
-        `Cannot delete provider "${providerId}" because it contains the default model "${config.defaultModel}"`,
-      );
-    }
   }
 
   config.providers.splice(providerIndex, 1);
@@ -271,9 +269,9 @@ export async function createModel(providerId: string, data: CreateModelRequest):
     throw new ConfigurationNotFoundError('Provider', providerId);
   }
 
-  const allModelIds = config.providers.flatMap(p => p.models.map(m => m.id));
-  if (allModelIds.includes(data.id)) {
-    throw new ConfigurationConflictError(`Model with id "${data.id}" already exists`);
+  const providerModelIds = provider.models.map(m => m.id);
+  if (providerModelIds.includes(data.id)) {
+    throw new ConfigurationConflictError(`Model with id "${data.id}" already exists in provider "${providerId}"`);
   }
 
   const newModel: ModelDefinition = {
@@ -363,9 +361,10 @@ export async function setDefaults(data: SetDefaultsRequest): Promise<ModelsConfi
     throw new ConfigurationValidationError(`Provider "${data.defaultProvider}" does not exist`);
   }
 
-  const allModelIds = config.providers.flatMap(p => p.models.map(m => m.id));
-  if (!allModelIds.includes(data.defaultModel)) {
-    throw new ConfigurationValidationError(`Model "${data.defaultModel}" does not exist`);
+  const defaultProvider = config.providers.find(p => p.id === data.defaultProvider)!;
+  const modelExists = defaultProvider.models.some(m => m.id === data.defaultModel);
+  if (!modelExists) {
+    throw new ConfigurationValidationError(`Model "${data.defaultModel}" does not exist in provider "${data.defaultProvider}"`);
   }
 
   config.defaultProvider = data.defaultProvider;

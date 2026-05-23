@@ -146,7 +146,9 @@ export function ChatHeader({
     preconfigs.find((p) => p.id === session.preconfigId)?.model ||
     modelName;
 
-  const currentModelInfo = models.find((m) => m.id === selectedModel);
+  const currentModelInfo = session.selectedProvider
+    ? models.find((m) => m.providerId === session.selectedProvider && m.id === selectedModel)
+    : models.find((m) => m.id === selectedModel);
   const contextWindow = currentModelInfo?.contextWindow;
 
   return (
@@ -209,6 +211,7 @@ export function ChatHeader({
             <ModelSelector
               models={models}
               selectedModelId={selectedModel}
+              selectedProviderId={session.selectedProvider}
               onChangeModel={onChangeModel}
               disabled={session.status === 'closed' || !!session.parentId || isObserver}
               iconOnly={isMobile}

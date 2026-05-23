@@ -59,9 +59,6 @@ export async function syncModels(mode: 'merge' | 'override'): Promise<SyncResult
   const local = getModelsDocument();
 
   const localProviderIds = new Set(local.providers.map(p => p.id));
-  const localModelIds = new Set(
-    local.providers.flatMap(p => p.models.map(m => m.id)),
-  );
 
   const addedProviders: string[] = [];
   const addedModels: string[] = [];
@@ -77,7 +74,7 @@ export async function syncModels(mode: 'merge' | 'override'): Promise<SyncResult
     }
 
     const localProvider = local.providers.find(p => p.id === upstreamProvider.id)!;
-    mergeProviderModels(localProvider, upstreamProvider, addedModels, localModelIds);
+    mergeProviderModels(localProvider, upstreamProvider, addedModels);
   }
 
   if (addedProviders.length > 0 || addedModels.length > 0) {
@@ -102,12 +99,13 @@ function mergeProviderModels(
   localProvider: ProviderDefinition,
   upstreamProvider: ProviderDefinition,
   addedModels: string[],
-  localModelIds: Set<string>,
 ): void {
+  const localProviderModelIds = new Set(localProvider.models.map(m => m.id));
+
   for (const upstreamModel of upstreamProvider.models) {
-    if (!localModelIds.has(upstreamModel.id)) {
+    if (!localProviderModelIds.has(upstreamModel.id)) {
       localProvider.models.push(structuredClone(upstreamModel));
-      localModelIds.add(upstreamModel.id);
+      localProviderModelIds.add(upstreamModel.id);
       addedModels.push(upstreamModel.id);
     }
   }
