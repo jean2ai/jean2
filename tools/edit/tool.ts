@@ -23,7 +23,50 @@ interface MatchInfo {
 
 export const definition: ToolDefinition = {
   name: 'edit',
-  description: 'Performs string replacements in files with fuzzy matching support.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
+  description: `Performs string replacements in an existing file.
+
+## When to use
+
+- Making targeted changes to an existing file (adding, modifying, or removing lines)
+- Replacing a specific block of code, function, or text
+- Applying small, surgical edits without rewriting the entire file
+
+## When NOT to use
+
+- Creating a new file — use write-file instead
+- Replacing the entire file content — use write-file instead
+- Making many edits to the same file — use multiedit for atomic batch edits
+- Applying git-style patches — use apply-patch instead
+
+## Parameters
+
+- path (required): Absolute path to the file to edit
+- oldString (required): The text to find and replace. Must be copied VERBATIM from the file — same indentation, quotes, punctuation, and whitespace. Do NOT guess, approximate, or "fix" what you think the text should be. Always read the file first to get the exact content.
+- newString (required): The replacement text
+- strategy (optional): Matching strategy to use: 'exact' | 'line_start' | 'line_end' | 'partial' | 'multi_line'. When omitted, strategies are tried in order automatically.
+
+## Matching Strategies
+
+1. **exact**: Exact string match. The oldString must appear verbatim in the file. This is the default and should be used whenever possible.
+2. **line_start**: Match at the start of a line. Use when the text to match starts at the beginning of a line.
+3. **line_end**: Match at the end of a line. Use when the text to match ends at the end of a line.
+4. **partial**: Partial/substring match that ignores whitespace differences. Use as a fallback when exact indentation is uncertain.
+5. **multi_line**: Multi-line pattern matching. Use when oldString spans two or more lines.
+
+## Critical Rules
+
+- **Copy verbatim**: oldString must be an exact substring of the file content — matching character-for-character including all whitespace, indentation, blank lines, and surrounding code.
+- **Read first**: Always read the file before editing so you have the exact content to copy.
+- **Unique match**: oldString must match exactly one location. If it matches multiple locations or none, the edit will fail. Make oldString specific enough — include enough surrounding context to be unambiguous.
+- **No regex**: oldString is a literal string, not a regular expression. Do not use regex patterns.
+- **Single edit**: This tool performs one replacement per call. For multiple edits to the same file, use multiedit instead.
+
+## Permission Model
+
+This tool requires explicit permission for:
+- Files outside the workspace
+- Sensitive files (.env, .pem, .key, credentials, etc.)
+- Editing system directories is blocked entirely`,
   inputSchema: {
     type: 'object',
     properties: {
