@@ -11,9 +11,11 @@
 </p>
 
 <p align="center">
-  <a href="https://jean2.ai/docs/getting-started">Get Started</a> ·
-  <a href="https://jean2.ai">Docs</a> ·
-  <a href="https://github.com/rabbyte-tech/jean2">GitHub</a>
+  <a href="docs/getting-started.md">Get Started</a> ·
+  <a href="docs/">Docs</a> ·
+  <a href="https://github.com/rabbyte-tech/jean2">GitHub</a> ·
+  <a href="https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj">Chrome Extension</a> ·
+  <a href="https://discord.com/invite/38sUKnUNPQ">Discord</a>
 </p>
 
 ---
@@ -42,10 +44,12 @@ jean2 start
 Connect a client:
 
 ```bash
-npx @jean2/client
+jean2 open
 ```
 
-> Desktop apps available for macOS, Windows, and iOS. See the [setup guide](https://jean2.ai/docs/getting-started) for all options.
+The server automatically serves the client on `http://localhost:3774`.
+
+> Desktop app for macOS (Electron), plus a PWA client that runs on any device — phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
 >
 > For development from source, see [Contributing](#contributing).
 
@@ -59,7 +63,7 @@ Connect any combination of LLM providers — OpenAI, Anthropic, Google, OpenRout
 
 ### 🔧 Extensible Tools
 
-Write tools in TypeScript — a tool is just a directory with a `tool.ts` entry point and a `package.json`. Export a `definition` and an `execute` function, and the agent picks it up. No build step, no registration. Tools get a full `ToolContext` with `ctx.ask()` for permissions and user interaction.
+Write tools in TypeScript — a tool is just a directory with a `tool.ts` entry point and a `package.json`. Export a `definition` and an `execute` function, and the agent picks it up. Tools are compiled at install time, no manual registration needed. Tools get a full `ToolContext` with `ctx.ask()` for permissions and user interaction.
 
 ### 🛡️ Ask Protocol
 
@@ -67,11 +71,15 @@ Every tool interaction flows through a unified Ask protocol. Permissions, user q
 
 ### 🔌 MCP & Skills
 
-Connect any MCP server (local or remote, with OAuth). Define Skills as discoverable `SKILL.md` instruction sets. Both are automatically available to your agent sessions.
+Connect any MCP server (local or remote, with OAuth). Define Skills as discoverable `SKILL.md` instruction sets. Connect MCP servers per workspace and install skills to make them available to your agent sessions.
+
+### 🧩 Browser Extension
+
+Give your agent eyes on the web. The [Jean2Browser extension](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) lets the agent navigate pages, read content, and click elements — install it directly from the Chrome Web Store.
 
 ### 🤖 Subagent Orchestration
 
-Agents spawn hierarchical subagents for complex tasks. Isolated sessions, inherited workspace context, cascading interrupts. Configure depth limits per preconfig.
+Agents spawn hierarchical subagents for complex tasks. Isolated sessions, inherited workspace context, cascading interrupts. Depth limited to 2 levels.
 
 ### 🌐 Access From Anywhere
 
@@ -79,7 +87,7 @@ One persistent server. REST + WebSocket under the hood. Desktop, mobile, or brow
 
 ### 🎯 Make It Yours
 
-System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. Download preset bundles or build from nothing. Your agent, your rules.
+System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. Your agent, your rules.
 
 ---
 
@@ -87,7 +95,7 @@ System prompts, tools, and skills are all files on disk. Edit them, add them, re
 
 | Use Case | Description                                                                                                                               |
 |----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| **AI-Powered Coding** | Connect Claude, GPT-5.4, or Gemini to your codebase. Subagents explore, refactor, and implement with full workspace isolation.            |
+| **AI-Powered Coding** | Connect Claude, GPT-5.5, or Gemini to your codebase. Subagents explore, refactor, and implement with full workspace isolation.            |
 | **Research & Analysis** | Give your agent tools to query APIs, scrape pages, and process documents. Isolated workspaces keep contexts separate.                     |
 | **Deployment & Ops** | Connect MCP servers for Kubernetes, AWS, or Terraform. Multi-step deployment pipelines via subagent orchestration.                        |
 | **Automation Workflows** | Create agent personalities for repetitive tasks. Skills let agents follow domain-specific workflows. Queue sessions for batch processing. |
@@ -108,7 +116,7 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | **grep** | Search files with regex patterns |
 | **question** | Ask users structured questions (forms, selects, confirmations) |
 
-[+7 more tools available](https://jean2.ai/docs/tools/registry) · [Explore all tools](https://jean2.ai/docs/tools/registry)
+[+17 more tools available](docs/tools.md) · [Explore all tools](docs/tools.md)
 
 > Tools are TypeScript modules (`tool.ts` + `package.json`) that implement the `ToolModule` interface from `@jean2/sdk`. They can use the Ask protocol (`ctx.ask()`) for permissions and user interaction.
 
@@ -119,11 +127,10 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Client Layer                              │
-│    ┌───────────┐  ┌──────────┐  ┌─────────────────────────┐     │
-│    │ Desktop   │  │ Mobile   │  │ Web (npx @jean2/client) │     │
-│    │ (Electron)│  │ (Tauri)  │  │                         │     │
-│    └────┬──────┘  └────┬─────┘  └──────────┬──────────────┘     │
-│         └──────────────┴─┬─────────────────┘                    │
+│    ┌───────────────────┐  ┌─────────────────────────────────┐   │
+│    │ Desktop (Electron)│  │ Web / PWA (jean2 open)          │   │
+│    └────────┬──────────┘  └────────────────┬────────────────┘   │
+│             └──────────────────────────────┘                    │
 │                          │                                      │
 │              WebSocket + REST (any network)                     │
 │              local · Tailscale · VPN · public                   │
@@ -142,9 +149,9 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 │               │   (TypeScript)     │                           │
 │               └────────────────────┘                           │
 │         ┌──────────────────────────────────────┐               │
-│         │         Ask Protocol                  │               │
-│         │  Permissions · Questions · Forms      │               │
-│         │  User interaction · Client capabilities│              │
+│         │         Ask Protocol                  │              │
+│         │  Permissions · Questions · Forms      │              │
+│         │  User interaction · Client capabilities│             │
 │         └──────────────────────────────────────┘               │
 │                     ┌──────────────┐                           │
 │                     │ Subagent     │                           │
@@ -167,8 +174,7 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | [`@jean2/server`](packages/server/) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
 | [`@jean2/client`](packages/client/) | React 19 + Vite 8 UI — chat, file browser, permissions, multi-server |
 | [`@jean2/sdk`](packages/sdk/) | Shared TypeScript types, WebSocket protocol, transport layer, REST clients |
-| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app — macOS and Windows |
-| [`@jean2/client-tauri`](packages/client-tauri/) | Tauri 2 native app — mobile (iOS, Android) |
+| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app — macOS |
 
 ### Tech Stack
 
@@ -179,7 +185,7 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | Client | React 19, Vite 8, TypeScript |
 | UI | Tailwind CSS v4, shadcn/ui, Radix UI |
 | Desktop | [Electron](https://www.electronjs.org/) |
-| Mobile | [Tauri 2](https://tauri.app/) |
+| PWA | PWA — works on any device with a browser |
 | LLM | Vercel AI SDK v6, MCP SDK |
 
 ---
@@ -210,9 +216,16 @@ When set, all API and WebSocket endpoints require the token via `Authorization: 
 
 ## Configuration
 
-All configuration lives in `~/.jean2/` — model definitions, API keys, tools, preconfigs, and workspace data. See the [configuration docs](https://jean2.ai/docs/getting-started) for the full reference.
+All configuration lives in `~/.jean2/` — model definitions, API keys, tools, preconfigs, and workspace data. See the [configuration guide](docs/configuration.md) for the full reference.
 
 ---
+
+## Community
+
+Join the [Jean2 Discord](https://discord.com/invite/38sUKnUNPQ) to follow development, share ideas, get help, or contribute.
+
+---
+
 ## License
 
 [Apache 2.0](LICENSE)
