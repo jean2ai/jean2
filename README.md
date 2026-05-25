@@ -8,6 +8,16 @@
 
 <p align="center">
   A coding assistant, a research agent, a personal automation — same binary, different configuration.
+  **One server. Any LLM. Every device. Nothing leaves your machine.**
+  Run Claude, GPT, or Gemini against your codebase, your browser, your terminal — no vendor lock-in.
+</p>
+
+<p align="center">
+  <a href="https://github.com/rabbyte-tech/jean2/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/rabbyte-tech/jean2?color=6366f1"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-6366f1"></a>
+  <a href="https://bun.sh"><img alt="Bun" src="https://img.shields.io/badge/runtime-Bun-6366f1?logo=bun"></a>
+  <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-6366f1?logo=typescript"></a>
+  <a href="https://discord.com/invite/38sUKnUNPQ"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-6366f1?logo=discord"></a>
 </p>
 
 <p align="center">
@@ -47,7 +57,7 @@ Connect a client:
 jean2 open
 ```
 
-The server automatically serves the client on `http://localhost:3774`.
+The server automatically serves the client on `http://localhost:3774`. Run `jean2 open` to open it in your browser.
 
 > Desktop app for macOS (Electron), plus a PWA client that runs on any device — phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
 >
@@ -55,39 +65,51 @@ The server automatically serves the client on `http://localhost:3774`.
 
 ---
 
+## Why Jean2?
+
+You already have Cursor, Copilot, and Claude Code. Why run your own agent server?
+
+**You bring the keys, you keep the data.** Jean2 runs on your machine, connects to any LLM you pay for, and stores everything locally — no telemetry, no vendor lock-in, no subscription to a single AI company. Swap models mid-conversation. Use budget models for routine tasks, premium for hard problems. Nobody sees your prompts but you.
+
+**Tools, not prompts.** Instead of writing mega-prompts, give your agent real capabilities — file operations, shell commands, web browsing, API calls. Tools are TypeScript. You can read them, modify them, and write your own in minutes.
+
+**One server, every device.** Desktop, phone, tablet — same sessions, same workspaces. Works over Tailscale, VPN, or local network.
+
+---
+
 ## What Sets It Apart
 
-### 🧠 Any LLM
+### 🧠 Use any model, anytime
 
-Connect any combination of LLM providers — OpenAI, Anthropic, Google, OpenRouter, or any OpenAI-compatible endpoint. Switch providers and models per-session. Budget models for routine tasks, premium for hard problems. No vendor lock-in.
+Connect Anthropic, OpenAI, Google, OpenRouter, DeepSeek, or any OpenAI-compatible endpoint. Switch providers and models per-session. Use GPT-5.5 for architecture, DeepSeek for routine refactors, Claude for code review. No lock-in — you're always one click away from a better model.
 
-### 🔧 Extensible Tools
+### 🔧 Tools in TypeScript. No ceremony.
 
-Write tools in TypeScript — a tool is just a directory with a `tool.ts` entry point and a `package.json`. Export a `definition` and an `execute` function, and the agent picks it up. Tools are compiled at install time, no manual registration needed. Tools get a full `ToolContext` with `ctx.ask()` for permissions and user interaction.
+Give your agent real capabilities. A tool is a directory with a `tool.ts` and a `package.json` — Bun compiles it on the fly, no build step. Export a `definition` and an `execute` function, and the agent discovers it automatically. Need your agent to query Jira, deploy to Vercel, or check CI status? Write it in 20 lines.
 
-### 🛡️ Ask Protocol
+### 🛡️ You're always in control
 
-Every tool interaction flows through a unified Ask protocol. Permissions, user questions, confirmations, forms — all routed through the same typed channel. Tools use `ctx.ask()` to request approval, ask questions, or query client capabilities. The client handles the UI, the tool gets a typed response.
+Every tool interaction flows through a unified Ask protocol. Permissions, confirmations, questions, forms — the agent asks, you decide. Auto-approve the safe stuff, require confirmation for the rest. Workspace-level permissions mean project A can be locked down while project B runs freely.
 
-### 🔌 MCP & Skills
+### 🔌 Connect everything
 
-Connect any MCP server (local or remote, with OAuth). Define Skills as discoverable `SKILL.md` instruction sets. Connect MCP servers per workspace and install skills to make them available to your agent sessions.
+Hook into any MCP server (local or remote, with OAuth). Define reusable Skills as `SKILL.md` instruction sets. Connect per workspace — your work project gets Kubernetes access, your side project stays sandboxed.
 
 ### 🧩 Browser Extension
 
 Give your agent eyes on the web. The [Jean2Browser extension](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) lets the agent navigate pages, read content, and click elements — install it directly from the Chrome Web Store.
 
-### 🤖 Subagent Orchestration
+### 🤖 Delegate complex work
 
-Agents spawn hierarchical subagents for complex tasks. Isolated sessions, inherited workspace context, cascading interrupts. Depth limited to 2 levels.
+Agents spawn hierarchical subagents for complex tasks. Ask it to "audit the codebase for security issues" and it spins up researcher subagents, each exploring a different area. Isolated sessions, shared workspace context, cascading interrupts. Stop the parent, stop them all.
 
-### 🌐 Access From Anywhere
+### 🌐 One server, every device
 
-One persistent server. REST + WebSocket under the hood. Desktop, mobile, or browser — all connect the same way. Works over Tailscale, VPN, or local network.
+REST + WebSocket under the hood. Desktop, phone, tablet, browser — all connect the same way. Start a session on your laptop, pick it up on your phone. Works over localhost, Tailscale, VPN, or a reverse proxy.
 
-### 🎯 Make It Yours
+### 🎯 Your rules, not ours
 
-System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. Your agent, your rules.
+System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. No hidden behavior, no "safety" filters you can't turn off. Your agent does what you tell it to.
 
 ---
 
@@ -95,7 +117,7 @@ System prompts, tools, and skills are all files on disk. Edit them, add them, re
 
 | Use Case | Description                                                                                                                               |
 |----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| **AI-Powered Coding** | Connect Claude, GPT-5.5, or Gemini to your codebase. Subagents explore, refactor, and implement with full workspace isolation.            |
+| **AI-Powered Coding** | Connect Claude, GPT-5.5, or Gemini to your codebase. Subagents explore, refactor, and implement with isolated sessions and shared workspace context.            |
 | **Research & Analysis** | Give your agent tools to query APIs, scrape pages, and process documents. Isolated workspaces keep contexts separate.                     |
 | **Deployment & Ops** | Connect MCP servers for Kubernetes, AWS, or Terraform. Multi-step deployment pipelines via subagent orchestration.                        |
 | **Automation Workflows** | Create agent personalities for repetitive tasks. Skills let agents follow domain-specific workflows. Queue sessions for batch processing. |
@@ -220,9 +242,27 @@ All configuration lives in `~/.jean2/` — model definitions, API keys, tools, p
 
 ---
 
-## Community
+## Ready to try it?
 
-Join the [Jean2 Discord](https://discord.com/invite/38sUKnUNPQ) to follow development, share ideas, get help, or contribute.
+**macOS / Linux:**
+```bash
+curl -fsSL https://jean2.ai/install.sh | bash
+jean2 init
+jean2 start
+jean2 open
+```
+
+**Windows:**
+```powershell
+irm https://jean2.ai/install.ps1 | iex
+jean2 init
+jean2 start
+jean2 open
+```
+
+Three commands to your first AI agent. [Get started →](docs/getting-started.md)
+
+[Join the Discord](https://discord.com/invite/38sUKnUNPQ) to follow development, share what you're building, or ask for help.
 
 ---
 
