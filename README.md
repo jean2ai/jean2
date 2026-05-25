@@ -60,8 +60,6 @@ jean2 open
 The server automatically serves the client on `http://localhost:3774`. Run `jean2 open` to open it in your browser.
 
 > Desktop app for macOS (Electron), plus a PWA client that runs on any device — phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
->
-> For development from source, see [Contributing](#contributing).
 
 ---
 
