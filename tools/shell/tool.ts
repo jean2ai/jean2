@@ -388,11 +388,16 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
 
 async function detectWindowsShell(command: string): Promise<string[]> {
   if (typeof Bun !== 'undefined' && Bun.which) {
+    // Prepend `$LASTEXITCODE = 0;` to work around nvm-windows (and similar)
+    // PowerShell wrappers that check $LASTEXITCODE before it has been set.
+    // In a fresh non-interactive session no native command has run yet, so
+    // $LASTEXITCODE is undefined — causing "variable cannot be retrieved".
+    const psCommand = `$LASTEXITCODE = 0; ${command}`;
     if (Bun.which('pwsh')) {
-      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command];
+      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psCommand];
     }
     if (Bun.which('powershell')) {
-      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command];
+      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psCommand];
     }
   }
   return ['cmd.exe', '/d', '/s', '/c', command];
