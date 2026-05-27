@@ -394,10 +394,10 @@ async function detectWindowsShell(command: string): Promise<string[]> {
     // $LASTEXITCODE is undefined — causing "variable cannot be retrieved".
     const psCommand = `$LASTEXITCODE = 0; ${command}`;
     if (Bun.which('pwsh')) {
-      return ['pwsh', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psCommand];
+      return ['pwsh', '-NoLogo', '-NonInteractive', '-WindowStyle', 'Hidden', psCommand];
     }
     if (Bun.which('powershell')) {
-      return ['powershell', '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psCommand];
+      return ['powershell', '-NoLogo', '-NonInteractive', '-WindowStyle', 'Hidden', psCommand];
     }
   }
   return ['cmd.exe', '/d', '/s', '/c', command];
