@@ -1,7 +1,14 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
-import Arborist from '@npmcli/arborist';
+import {
+  createArborist,
+  fetchPackageMetadata,
+  checkVersionAge,
+  resolveMaxSatisfying,
+  extractIntegrity,
+} from '@/services/npm-utils';
+
+const PROTECTED_DEPENDENCIES = ['@jean2/sdk'];
 
 export class NpmInstallError extends Error {
   constructor(message: string) {
@@ -24,14 +31,7 @@ export interface NpmInstallResult {
     version?: string;
     dependencies?: Record<string, string>;
   };
-}
-
-function getDefaultNpmCacheDir(): string {
-  return process.env.JEAN2_NPM_CACHE_DIR || join(homedir(), '.jean2', 'npm-cache');
-}
-
-function getRegistry(): string {
-  return process.env.JEAN2_NPM_REGISTRY || 'https://registry.npmjs.org';
+  protectedVersions?: Record<string, { version: string; integrity: string | null }>;
 }
 
 export async function installDependencies(
@@ -65,23 +65,56 @@ export async function installDependencies(
     };
   }
 
-  const registry = options.registry || getRegistry();
-  const cacheDir = options.cacheDir || getDefaultNpmCacheDir();
+  for (const dep of PROTECTED_DEPENDENCIES) {
+    const range = pkgJson.dependencies![dep];
+    if (range) {
+      const metadata = await fetchPackageMetadata(dep);
+      if (metadata) {
+        const resolved = resolveMaxSatisfying(metadata, range);
+        if (resolved) {
+          const age = await checkVersionAge(dep, resolved);
+          if (!age.ok) {
+            const ageHours = Math.round(
+              (Date.now() - new Date(age.publishedAt || Date.now()).getTime()) / (1000 * 60 * 60),
+            );
+            console.log(
+              `[tools] ${dep}@${resolved} was published ${ageHours}h ago ` +
+              `(minimum: ${age.minAgeHours}h) — using it anyway but consider pinning`,
+            );
+          }
+        }
+      }
+    }
+  }
 
   try {
-    const arb = new Arborist({
-      path: toolDir,
-      registry,
-      cache: cacheDir,
+    const arb = createArborist(toolDir, {
+      registry: options.registry,
+      cache: options.cacheDir,
     });
 
     const tree = await arb.reify();
     const installedCount = tree?.children?.size || 0;
 
+    const protectedVersions: Record<string, { version: string; integrity: string | null }> = {};
+    for (const dep of PROTECTED_DEPENDENCIES) {
+      if (pkgJson.dependencies![dep]) {
+        const child = tree?.children?.get(dep);
+        if (child) {
+          const version = (child as unknown as { package?: { version?: string } }).package?.version;
+          const integrity = extractIntegrity(tree, dep);
+          if (version) {
+            protectedVersions[dep] = { version, integrity };
+          }
+        }
+      }
+    }
+
     return {
       success: true,
       installedCount,
       packageJson: pkgJson,
+      protectedVersions: Object.keys(protectedVersions).length > 0 ? protectedVersions : undefined,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

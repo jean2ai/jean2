@@ -1,9 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import Arborist from '@npmcli/arborist';
 
 import { getClientDir } from '@/paths';
+import {
+  createArborist,
+  fetchPackageMetadata,
+  checkVersionAge,
+  extractIntegrity,
+} from '@/services/npm-utils';
 
 const CLIENT_PACKAGE = '@jean2/client';
 const MANIFEST_FILE = '.client-manifest.json';
@@ -12,6 +17,7 @@ interface ClientManifest {
   version: string;
   installedAt: string;
   lastUpdateCheck?: string;
+  integrity?: string;
 }
 
 function getClientManifestPath(): string {
@@ -32,15 +38,7 @@ function writeClientManifest(manifest: ClientManifest): void {
   writeFileSync(getClientManifestPath(), JSON.stringify(manifest, null, 2));
 }
 
-function getNpmCacheDir(): string {
-  return process.env.JEAN2_NPM_CACHE_DIR || join(getClientDir(), '..', 'npm-cache');
-}
-
-function getRegistry(): string {
-  return process.env.JEAN2_NPM_REGISTRY || 'https://registry.npmjs.org';
-}
-
-async function installClientPackage(): Promise<string> {
+async function installClientPackage(): Promise<{ version: string; integrity: string | null }> {
   const clientDir = getClientDir();
   mkdirSync(clientDir, { recursive: true });
 
@@ -56,11 +54,7 @@ async function installClientPackage(): Promise<string> {
 
   writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2));
 
-  const arb = new Arborist({
-    path: clientDir,
-    registry: getRegistry(),
-    cache: getNpmCacheDir(),
-  });
+  const arb = createArborist(clientDir);
 
   console.log('[client] Installing @jean2/client from npm...');
   const tree = await arb.reify();
@@ -71,14 +65,16 @@ async function installClientPackage(): Promise<string> {
   }
 
   const version = (child as unknown as { package?: { version?: string } }).package?.version || 'unknown';
+  const integrity = extractIntegrity(tree, CLIENT_PACKAGE);
   writeClientManifest({
     version,
     installedAt: new Date().toISOString(),
     lastUpdateCheck: new Date().toISOString(),
+    integrity: integrity ?? undefined,
   });
 
-  console.log(`[client] Installed @jean2/client@${version}`);
-  return version;
+  console.log(`[client] Installed @jean2/client@${version}${integrity ? ` (verified)` : ''}`);
+  return { version, integrity };
 }
 
 function getCliPath(): string | null {
@@ -92,20 +88,25 @@ function isInstalled(): boolean {
 }
 
 async function fetchLatestVersion(): Promise<string | null> {
-  const registry = getRegistry();
-  const url = `${registry.replace(/\/$/, '')}/${CLIENT_PACKAGE}/latest`;
+  const metadata = await fetchPackageMetadata(CLIENT_PACKAGE);
+  if (!metadata) return null;
 
-  try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(10_000),
-      headers: { 'Accept': 'application/json' },
-    });
-    if (!response.ok) return null;
-    const data = await response.json() as { version?: string };
-    return data.version ?? null;
-  } catch {
+  const latest = metadata.distTags.latest;
+  if (!latest) return null;
+
+  const age = await checkVersionAge(CLIENT_PACKAGE, latest);
+  if (!age.ok) {
+    const ageHours = Math.round(
+      (Date.now() - new Date(age.publishedAt || Date.now()).getTime()) / (1000 * 60 * 60),
+    );
+    console.log(
+      `[client] @jean2/client@${latest} was published ${ageHours}h ago ` +
+      `(minimum: ${age.minAgeHours}h) — skipping auto-update`,
+    );
     return null;
   }
+
+  return latest;
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
@@ -283,7 +284,8 @@ export function createClientLauncher(): ClientLauncher {
       }
 
       try {
-        return await installClientPackage();
+        const result = await installClientPackage();
+        return result.version;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[client] Failed to install: ${message}`);
@@ -387,10 +389,8 @@ export function createClientLauncher(): ClientLauncher {
     },
 
     async relaunch(port: number, serverPort: number, serverHost: string): Promise<LaunchResult> {
-      // Stop current client
       this.stop();
 
-      // Reinstall latest
       console.log('[client] Updating...');
       try {
         await installClientPackage();
@@ -404,7 +404,6 @@ export function createClientLauncher(): ClientLauncher {
         };
       }
 
-      // Relaunch
       return this.launch(port, serverPort, serverHost);
     },
 

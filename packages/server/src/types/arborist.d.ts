@@ -3,17 +3,26 @@ declare module '@npmcli/arborist' {
     path?: string;
     registry?: string;
     cache?: string;
+    preferOnline?: boolean;
   }
 
-  interface Node {
+  interface ArboristNode {
     path: string;
-    children: Map<string, Node>;
+    package?: {
+      name?: string;
+      version?: string;
+      dist?: {
+        integrity?: string;
+      };
+    };
+    children: Map<string, ArboristNode>;
   }
 
   class Arborist {
     constructor(options: ArboristOptions);
-    reify(): Promise<Node>;
+    reify(): Promise<ArboristNode>;
   }
 
+  export { ArboristNode };
   export default Arborist;
 }

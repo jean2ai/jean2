@@ -15,6 +15,8 @@ export interface InstallManifest {
   packageName?: string;
   packageVersion?: string;
   installStrategy: 'source+npm' | 'source+npm+bundle';
+  sdkVersion?: string;
+  sdkIntegrity?: string;
 }
 
 export function readInstallManifest(

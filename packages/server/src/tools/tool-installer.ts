@@ -101,8 +101,13 @@ export async function installTool(
   }
   const modulePath = existsSync(toolJsPath) ? toolJsPath : toolTsPath;
 
+  let sdkVersion: string | undefined;
+  let sdkIntegrity: string | undefined;
+
   try {
-    await installDependencies({ toolDir: sourcePath });
+    const installResult = await installDependencies({ toolDir: sourcePath });
+    sdkVersion = installResult.protectedVersions?.['@jean2/sdk']?.version;
+    sdkIntegrity = installResult.protectedVersions?.['@jean2/sdk']?.integrity ?? undefined;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return {
@@ -149,6 +154,8 @@ export async function installTool(
     entry: existsSync(toolJsPath) ? 'tool.js' : 'tool.ts',
     runtime: 'bun',
     installStrategy: 'source+npm',
+    sdkVersion,
+    sdkIntegrity,
   };
   writeInstallManifest(stagingDir, manifest);
 
@@ -232,8 +239,13 @@ export async function installToolFromUrl(
       };
     }
 
+    let sdkVersionFromUrl: string | undefined;
+    let sdkIntegrityFromUrl: string | undefined;
+
     try {
-      await installDependencies({ toolDir: extractedRoot });
+      const installResult = await installDependencies({ toolDir: extractedRoot });
+      sdkVersionFromUrl = installResult.protectedVersions?.['@jean2/sdk']?.version;
+      sdkIntegrityFromUrl = installResult.protectedVersions?.['@jean2/sdk']?.integrity ?? undefined;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -299,6 +311,8 @@ export async function installToolFromUrl(
       entry: bundledEntry,
       runtime: 'bun',
       installStrategy: 'source+npm+bundle',
+      sdkVersion: sdkVersionFromUrl,
+      sdkIntegrity: sdkIntegrityFromUrl,
     };
     writeInstallManifest(stagingDir, manifest);
 
