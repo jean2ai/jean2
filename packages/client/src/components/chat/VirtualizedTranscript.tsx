@@ -1,13 +1,11 @@
 import { useRef, useEffect, useState, useCallback, memo, useLayoutEffect } from 'react';
 import { buildApiUrl } from '@/config/urls';
-import { useCallbackRef } from '@/hooks/useCallbackRef';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { LegendList, type LegendListRef } from '@legendapp/list/react';
 import { ChevronDown, ChevronRight, Download, FileIcon } from 'lucide-react';
 import type {
   MessageWithParts,
   Part,
   TextPart,
-  ToolPart,
   Message,
   CompactionPart,
   AssistantMessage,
@@ -53,17 +51,6 @@ interface VirtualizedTranscriptProps {
   serverUrl?: string;
 }
 
-const MIN_ESTIMATED_SIZE = 60;
-const MAX_ESTIMATED_SIZE = 300;
-const ROW_PADDING = 16; // p-4 = 16px padding on each side
-
-// Whether the last message is still streaming (growing in height)
-function isLastMessageStreaming(items: DisplayItem[]): boolean {
-  if (items.length === 0) return false;
-  const lastItem = items[items.length - 1];
-  return isAssistantMessage(lastItem.message) && lastItem.message.status === 'streaming';
-}
-
 function getTextContent(parts: Part[]): string {
   return parts
     .filter((part): part is TextPart => part.type === 'text')
@@ -81,7 +68,6 @@ function findRevertMessageId(
     return null;
   }
 
-  // First message: return its own ID — server will recognize index 0 and clear all
   if (targetIndex === 0) {
     return targetMessageId;
   }
@@ -296,9 +282,9 @@ const MessageParts = memo(function MessageParts({
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.serverUrl !== next.serverUrl) return false;
 
-  if (prev.pendingAskRequests !== next.pendingAskRequests) return false;
+  return prev.pendingAskRequests === next.pendingAskRequests;
 
-  return true;
+
 });
 
 interface MessageRowProps {
@@ -396,6 +382,19 @@ const MessageRow = memo(function MessageRow({
   );
 });
 
+function EmptyTranscript() {
+  return (
+    <div className="text-center py-16 text-muted-foreground px-4">
+      <p className="text-lg mb-2">Start a conversation</p>
+      <p className="text-sm">Send a message below to begin.</p>
+    </div>
+  );
+}
+
+function keyExtractor(item: DisplayItem): string {
+  return item.message.id;
+}
+
 export function VirtualizedTranscript({
   displayItems,
   messagesWithParts,
@@ -417,368 +416,16 @@ export function VirtualizedTranscript({
   scrollToBottomRef,
   serverUrl,
 }: VirtualizedTranscriptProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<LegendListRef | null>(null);
+  const autoScrollRef = useRef(autoFollow);
+  const isProgrammaticScrollRef = useRef(false);
+  const [maintainAutoFollow, setMaintainAutoFollow] = useState(autoFollow);
   const [showCompactionBanner, setShowCompactionBanner] = useState(false);
 
-  // Refs for scroll-to-bottom logic
-  const autoScrollRef = useRef(autoFollow);
-  const prevDisplayLengthRef = useRef(displayItems.length);
-  const prevLastItemSizeRef = useRef<number>(0);
-  // Per-session initial scroll tracking to avoid race conditions
-  const initialScrollDoneRef = useRef(false);
-  // Guard against handleScroll disabling follow on programmatic scroll-to-bottom
-  const isProgrammaticScrollRef = useRef(false);
-
-  // Fingerprint of the last item's content state - robust signal for growth detection
-  // Changes when: item added, item replaced, or content mutates (e.g., streaming text)
-  // This ensures the growth-detection effect fires even when length doesn't change
-  const lastItemFingerprintRef = useRef<string>('');
-  const computeLastItemFingerprint = useCallback((items: DisplayItem[]): string => {
-    if (items.length === 0) return '';
-    const last = items[items.length - 1];
-    // Combine: messageId + status + partCount + textContentLength
-    // This captures any meaningful change to the last item
-    const textParts = last.parts.filter(p => p.type === 'text');
-    const totalTextLength = textParts.reduce((sum, p) => sum + (p as TextPart).text.length, 0);
-    const messageId = last.message.id;
-    const status = isAssistantMessage(last.message) ? last.message.status : 'n/a';
-    return `${messageId}:${status}:${last.parts.length}:${totalTextLength}`;
-  }, []);
-
-  // Ref for ResizeObserver to track last row height changes
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const lastRowRef = useRef<HTMLDivElement | null>(null);
-
-  // Track measured sizes for ALL items by index - robust source for growth detection
-  // This is independent of getVirtualItems() which only returns visible items
-  const measuredSizesRef = useRef<Map<number, number>>(new Map());
-
-  // Stable ref to access displayItems without recreating estimateSize
-  const displayItemsRef = useRef(displayItems);
-  displayItemsRef.current = displayItems;
-
-  // Stable estimateSize using ref - no dependencies, won't recreate on render
-  const estimateSize = useCallback((index: number): number => {
-    const item = displayItemsRef.current[index];
-    if (!item) return MIN_ESTIMATED_SIZE + ROW_PADDING;
-
-    // Assistant messages with code/reasoning tend to be taller
-    if (item.message.role === 'assistant') {
-      let height = 100;
-      const hasCode = item.parts.some(
-        p => (p.type === 'text' && (p as TextPart).text?.includes('```')) ||
-             (p.type === 'tool' && (p as ToolPart).state.input?.command)
-      );
-      if (hasCode) height = 180;
-
-      const hasToolResult = item.parts.some(p => p.type === 'tool');
-      if (hasToolResult) height = Math.max(height, 150);
-
-      // Account for compaction dividers (smaller)
-      if (item.parts.some(p => p.type === 'compaction')) {
-        height = 60;
-      }
-
-      // Account for compaction failed state
-      if ((item.message as AssistantMessage).mode === 'compact_failed') {
-        height = 100;
-      }
-
-      // Account for error messages
-      if ((item.message as AssistantMessage).status === 'error') {
-        height = 100;
-      }
-
-      return Math.min(Math.max(height + ROW_PADDING, MIN_ESTIMATED_SIZE + ROW_PADDING), MAX_ESTIMATED_SIZE + ROW_PADDING);
-    }
-
-    // User messages are typically shorter
-    const userHeight = item.parts.length > 1 ? 80 : 60;
-    return Math.min(Math.max(userHeight + ROW_PADDING, MIN_ESTIMATED_SIZE + ROW_PADDING), MAX_ESTIMATED_SIZE + ROW_PADDING);
-  }, []); // Empty deps - uses ref internally
-
-  // ResizeObserver side channel for tracking row heights.
-  // Uses requestAnimationFrame to capture rendered row heights after virtualizer layout.
-  useLayoutEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-
-    // Defer to next frame so virtualizer has rendered rows first
-    const rafId = requestAnimationFrame(() => {
-      const rowEls = scrollEl.querySelectorAll('[data-index]');
-      rowEls.forEach((rowEl) => {
-        const indexAttr = rowEl.getAttribute('data-index');
-        if (indexAttr === null) return;
-        const index = parseInt(indexAttr, 10);
-        measuredSizesRef.current.set(index, (rowEl as HTMLElement).offsetHeight);
-      });
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [displayItems.length]);
-
-  // ResizeObserver to track row height changes (e.g., streaming text growth)
-  // Separate from the scroll-to-bottom observer - this updates measuredSizesRef
-  const rowResizeObserverRef = useRef<ResizeObserver | null>(null);
-  useLayoutEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-
-    // Clean up previous observer
-    if (rowResizeObserverRef.current) {
-      rowResizeObserverRef.current.disconnect();
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        const el = entry.target as HTMLElement;
-        const indexAttr = el.getAttribute('data-index');
-        if (indexAttr === null) return;
-        const index = parseInt(indexAttr, 10);
-        const height = el.offsetHeight;
-        measuredSizesRef.current.set(index, height);
-      });
-    });
-
-    rowResizeObserverRef.current = observer;
-
-    // Observe all current rows
-    const rowEls = scrollEl.querySelectorAll('[data-index]');
-    rowEls.forEach((rowEl) => observer.observe(rowEl));
-
-    return () => observer.disconnect();
-  }, [displayItems.length]);
-
-  // TanStack Virtual returns functions that cannot be memoized by React Compiler
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const rowVirtualizer = useVirtualizer({
-    count: displayItems.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize,
-    overscan: 5,
-    getItemKey: (index) => {
-      const item = displayItems[index];
-      return item?.message?.id ?? `fallback-${index}`;
-    },
-  });
-
-  // Scroll to bottom on initial session load or session change
-  // Uses virtualizer-native scrollToIndex for reliable positioning with unmeasured items
-  useLayoutEffect(() => {
-    // Reset auto-follow state for new session (respects prop if explicitly false)
-    autoScrollRef.current = autoFollow;
-    prevDisplayLengthRef.current = displayItems.length;
-    prevLastItemSizeRef.current = 0;
-    initialScrollDoneRef.current = false;
-    lastItemFingerprintRef.current = '';
-
-    if (displayItems.length === 0) return;
-
-    // Use virtualizer-native scrolling instead of raw DOM manipulation.
-    // scrollToIndex handles unmeasured items correctly by using estimated sizes
-    // and is the proper API for programmatic scrolling in virtualized lists.
-    rowVirtualizer.scrollToIndex(displayItems.length - 1, { align: 'end' });
-    initialScrollDoneRef.current = true;
-  }, [sessionId]); // Only depend on sessionId - rowVirtualizer is stable reference
-
-  // Scroll direction detection: when in follow mode and user scrolls up, disable follow
-  //
-  // Desktop: wheel event with deltaY < 0
-  // Mobile: touchmove — track initial touch Y, compare to detect upward swipe
-  // Both fire BEFORE the onScroll handler, so auto-follow is already disabled when
-  // the scroll position check runs (avoiding the snap-back that traps mobile users)
-  useEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-
-    let touchStartY = 0;
-
-    const onWheel = (e: WheelEvent) => {
-      if (autoScrollRef.current && e.deltaY < 0) {
-        autoScrollRef.current = false;
-        onAutoScrollChange?.(false);
-      }
-    };
-
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartY = e.touches[0]?.clientY ?? 0;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!autoScrollRef.current) return;
-      const currentY = e.touches[0]?.clientY ?? 0;
-      // Finger moving down = content scrolling up = user wants to break out of follow
-      if (currentY > touchStartY + 5) {
-        autoScrollRef.current = false;
-        onAutoScrollChange?.(false);
-      }
-    };
-
-    scrollEl.addEventListener('wheel', onWheel, { passive: false });
-    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
-    scrollEl.addEventListener('touchmove', onTouchMove, { passive: true });
-    return () => {
-      scrollEl.removeEventListener('wheel', onWheel);
-      scrollEl.removeEventListener('touchstart', onTouchStart);
-      scrollEl.removeEventListener('touchmove', onTouchMove);
-    };
-  }, [onAutoScrollChange]);
-
-  // Scroll handler for auto-follow state management
-  const handleScroll = useCallbackRef(() => {
-    // Guard against programmatic scroll triggering follow logic
-    if (isProgrammaticScrollRef.current) return;
-
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-
-    // In follow mode, enforce scroll-to-bottom if user scrolled away
-    if (autoScrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-      // If not at bottom, scroll back to bottom immediately
-      if (distanceFromBottom > 0) {
-        isProgrammaticScrollRef.current = true;
-        scrollEl.scrollTop = scrollHeight;
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false;
-        });
-      }
-    } else {
-      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-      if (distanceFromBottom <= 5) {
-        autoScrollRef.current = true;
-        onAutoScrollChange?.(true);
-      }
-    }
-  });
-
-  // Banner visibility — independent of scroll state
   useLayoutEffect(() => {
     setShowCompactionBanner(isCompacting);
   }, [isCompacting]);
 
-  // Compute fingerprint value BEFORE the effect so we can include it in deps.
-  // This ensures the effect fires when the last item's content mutates
-  // (e.g., streaming text growth) even when displayItems.length doesn't change.
-  const lastItemFingerprintValue = computeLastItemFingerprint(displayItems);
-
-
-
-  // Track content changes and handle conditional auto-scroll
-  // Fires on: new items appended, growing last item (streaming height change)
-  // Fires on: last item content mutations (captured via fingerprint VALUE dependency)
-  // Does NOT force follow on user messages - respects user's scroll position
-  // Does NOT fire on sessionId change (handled by session-load effect above)
-  useLayoutEffect(() => {
-    const currentLength = displayItems.length;
-    const prevLength = prevDisplayLengthRef.current;
-    const lengthChanged = currentLength !== prevLength;
-
-    // Compute and compare last-item fingerprint for robust growth detection
-    // This ensures we catch content mutations even when length doesn't change
-    const currentFingerprint = lastItemFingerprintValue;
-    const fingerprintChanged = currentFingerprint !== lastItemFingerprintRef.current;
-    lastItemFingerprintRef.current = currentFingerprint;
-
-    // Get the last item's measured size from our robust tracking map
-    // This does NOT depend on the last item being currently visible in the virtual window
-    const lastIndex = currentLength - 1;
-    let lastItemMeasuredSize = 0;
-    if (lastIndex >= 0) {
-      lastItemMeasuredSize = measuredSizesRef.current.get(lastIndex) ?? 0;
-    }
-    const prevLastItemSize = prevLastItemSizeRef.current;
-    const lastItemGrew = lastIndex >= 0 && lastItemMeasuredSize > prevLastItemSize && prevLastItemSize > 0;
-
-    // Only update refs AFTER all comparisons are done so next render sees correct values
-    prevDisplayLengthRef.current = currentLength;
-    prevLastItemSizeRef.current = lastItemMeasuredSize;
-
-    // Nothing to do if no content or nothing changed
-    if (currentLength === 0 || (!lengthChanged && !fingerprintChanged && !lastItemGrew)) {
-      return;
-    }
-
-    // Skip if this is the initial load for a session (session-load effect handles it)
-    // We detect initial load by checking if prevLength was 0 and lengthChanged is true
-    // and prevLastItemSize was 0 (meaning no previous measurement existed)
-    // AND initial scroll hasn't been done yet for this session
-    if (prevLength === 0 && currentLength > 0 && prevLastItemSize === 0 && !initialScrollDoneRef.current) {
-      // Initial content load for a session - perform initial scroll here since
-      // session-load effect may have skipped it if content wasn't loaded yet
-      rowVirtualizer.scrollToIndex(currentLength - 1, { align: 'end' });
-      initialScrollDoneRef.current = true;
-      return;
-    }
-
-    // Only follow if auto-follow is currently enabled
-    if (!autoScrollRef.current) {
-      return;
-    }
-
-    // User is at bottom (or was on this render) — follow new content
-    scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
-  }, [displayItems.length, lastItemFingerprintValue, rowVirtualizer]);
-
-  // Set up ResizeObserver on the last row to detect height growth during streaming
-  // NOTE: This only observes when autoScrollRef is true AND user hasn't scrolled up.
-  // The fingerprint effect above handles new content + growth detection for auto-follow.
-  // This ResizeObserver provides smoother incremental updates during active streaming
-  // by pushing down on each small height change, rather than waiting for fingerprint.
-  useEffect(() => {
-    // Find the last rendered row element via data-index
-    const virtualItems = rowVirtualizer.getVirtualItems();
-    const lastIndex = virtualItems.length - 1;
-    if (lastIndex < 0) return;
-
-    const lastVirtualItem = virtualItems[lastIndex];
-    const lastRowElement = scrollRef.current?.querySelector(
-      `[data-index="${lastVirtualItem.index}"]`
-    ) as HTMLDivElement | null;
-
-    // Clean up previous observer
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-    }
-
-    if (!lastRowElement) return;
-
-    lastRowRef.current = lastRowElement;
-
-    // Only observe during streaming when user wants auto-scroll
-    if (!isLastMessageStreaming(displayItems) || !autoScrollRef.current) {
-      return;
-    }
-
-    resizeObserverRef.current = new ResizeObserver((_entries) => {
-      // After the resize is measured, scroll to bottom if:
-      // - user wants auto-scroll (autoScrollRef.current)
-      // - last message is still streaming
-      if (autoScrollRef.current && isLastMessageStreaming(displayItems)) {
-        requestAnimationFrame(() => {
-          if (!autoScrollRef.current) return;
-          scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
-        });
-      }
-    });
-
-    resizeObserverRef.current.observe(lastRowElement);
-
-    return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-        resizeObserverRef.current = null;
-      }
-    };
-  }, [displayItems, rowVirtualizer]);
-
-
-
-  // Auto-clear compaction success after delay
   useEffect(() => {
     if (compactionSuccess) {
       const timer = setTimeout(() => {
@@ -788,35 +435,140 @@ export function VirtualizedTranscript({
     }
   }, [compactionSuccess, onClearCompactionSuccess]);
 
-  // Sync scrollToBottomRef for programmatic scrolling (e.g., when enabling auto-follow)
+  useLayoutEffect(() => {
+    autoScrollRef.current = autoFollow;
+    setMaintainAutoFollow(autoFollow);
+  }, [autoFollow]);
+
+  const disableAutoFollowForUserIntent = useCallback(() => {
+    if (!autoScrollRef.current && !maintainAutoFollow) return;
+
+    autoScrollRef.current = false;
+    setMaintainAutoFollow(false);
+    onAutoScrollChange?.(false);
+  }, [maintainAutoFollow, onAutoScrollChange]);
+
+  useLayoutEffect(() => {
+    if (displayItems.length === 0) return;
+
+    autoScrollRef.current = autoFollow;
+    setMaintainAutoFollow(autoFollow);
+    if (autoFollow) {
+      isProgrammaticScrollRef.current = true;
+      requestAnimationFrame(() => {
+        void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
+          isProgrammaticScrollRef.current = false;
+        });
+      });
+    }
+  }, [sessionId, autoFollow, displayItems.length]);
+
   useLayoutEffect(() => {
     if (scrollToBottomRef) {
       scrollToBottomRef.current = () => {
         autoScrollRef.current = true;
+        setMaintainAutoFollow(true);
         isProgrammaticScrollRef.current = true;
-        scrollRef.current!.scrollTop = scrollRef.current!.scrollHeight;
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false;
+        void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
+          requestAnimationFrame(() => {
+            isProgrammaticScrollRef.current = false;
+          });
         });
       };
     }
   }, [scrollToBottomRef]);
 
-  // Sync autoFollow prop to autoScrollRef when prop changes
-  // This ensures external changes (e.g., toggling "Free" mode) are respected immediately
-  useLayoutEffect(() => {
-    autoScrollRef.current = autoFollow;
-  }, [autoFollow]);
+  useEffect(() => {
+    const scrollEl = listRef.current?.getScrollableNode() as HTMLElement | null | undefined;
+    if (!scrollEl) return;
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
+    let touchStartY = 0;
 
-  return (
-    <div
-      ref={scrollRef}
-      className="flex-1 min-h-0 overflow-y-auto relative chat-transcript-scrollbar"
-      style={{ WebkitOverflowScrolling: 'touch' }}
-      onScroll={handleScroll}
-    >
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) {
+        disableAutoFollowForUserIntent();
+      }
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const currentY = event.touches[0]?.clientY ?? 0;
+      if (currentY > touchStartY + 5) {
+        disableAutoFollowForUserIntent();
+      }
+    };
+
+    scrollEl.addEventListener('wheel', onWheel, { passive: true });
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    scrollEl.addEventListener('touchmove', onTouchMove, { passive: true });
+
+    return () => {
+      scrollEl.removeEventListener('wheel', onWheel);
+      scrollEl.removeEventListener('touchstart', onTouchStart);
+      scrollEl.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [disableAutoFollowForUserIntent]);
+
+  const handleScroll = useCallback(() => {
+    if (isProgrammaticScrollRef.current) return;
+
+    const state = listRef.current?.getState();
+    if (!state) return;
+
+    if (state.isAtEnd || state.isWithinMaintainScrollAtEndThreshold) {
+      if (!autoScrollRef.current || !maintainAutoFollow) {
+        autoScrollRef.current = true;
+        setMaintainAutoFollow(true);
+        onAutoScrollChange?.(true);
+      }
+      return;
+    }
+
+    if (autoScrollRef.current || maintainAutoFollow) {
+      autoScrollRef.current = false;
+      setMaintainAutoFollow(false);
+      onAutoScrollChange?.(false);
+    }
+  }, [maintainAutoFollow, onAutoScrollChange]);
+
+  const renderItem = useCallback(({ item }: { item: DisplayItem }) => (
+    <div className="px-4 py-4">
+      <MessageRow
+        item={item}
+        messagesWithParts={messagesWithParts}
+        sessionId={sessionId}
+        pendingAskRequests={pendingAskRequests}
+        onAskResponse={onAskResponse}
+        onNavigateToSubagent={onNavigateToSubagent}
+        onRemoveFromQueue={onRemoveFromQueue}
+        onRevert={onRevert}
+        onFork={onFork}
+        isMainActiveSession={isMainActiveSession}
+        isCompacting={isCompacting}
+        onCompact={onCompact}
+        serverUrl={serverUrl}
+      />
+    </div>
+  ), [
+    messagesWithParts,
+    sessionId,
+    pendingAskRequests,
+    onAskResponse,
+    onNavigateToSubagent,
+    onRemoveFromQueue,
+    onRevert,
+    onFork,
+    isMainActiveSession,
+    isCompacting,
+    onCompact,
+    serverUrl,
+  ]);
+
+  const header = (
+    <>
       {showCompactionBanner && (
         <div className="sticky top-0 z-10 px-4 pt-4 pb-1 bg-gradient-to-b from-background via-background/95 to-transparent">
           <CompactionInProgressBanner />
@@ -836,55 +588,26 @@ export function VirtualizedTranscript({
           </AlertDescription>
         </Alert>
       )}
+    </>
+  );
 
-      <div
-        className="relative w-full"
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-        }}
-      >
-        {displayItems.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground px-4">
-            <p className="text-lg mb-2">Start a conversation</p>
-            <p className="text-sm">Send a message below to begin.</p>
-          </div>
-        ) : (
-          <div
-            className="absolute top-0 left-0 w-full"
-            style={{
-              transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
-            }}
-          >
-            {virtualItems.map((virtualItem) => {
-              const item = displayItems[virtualItem.index];
-              return (
-                <div
-                  key={item.message.id}
-                  data-index={virtualItem.index}
-                  ref={rowVirtualizer.measureElement}
-                  className="px-4 py-4"
-                >
-                  <MessageRow
-                    item={item}
-                    messagesWithParts={messagesWithParts}
-                    sessionId={sessionId}
-                    pendingAskRequests={pendingAskRequests}
-                    onAskResponse={onAskResponse}
-                    onNavigateToSubagent={onNavigateToSubagent}
-                    onRemoveFromQueue={onRemoveFromQueue}
-                    onRevert={onRevert}
-                    onFork={onFork}
-                    isMainActiveSession={isMainActiveSession}
-                    isCompacting={isCompacting}
-                    onCompact={onCompact}
-                    serverUrl={serverUrl}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+  return (
+    <LegendList
+      ref={listRef}
+      data={displayItems}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      estimatedItemSize={100}
+      drawDistance={800}
+      initialScrollAtEnd
+      maintainScrollAtEnd={maintainAutoFollow ? { animated: false } : false}
+      maintainScrollAtEndThreshold={0.1}
+      maintainVisibleContentPosition={{ data: true, size: true }}
+      onScroll={handleScroll}
+      className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative chat-transcript-scrollbar"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+      ListHeaderComponent={header}
+      ListEmptyComponent={EmptyTranscript}
+    />
   );
 }

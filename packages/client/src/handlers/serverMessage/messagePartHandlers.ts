@@ -200,31 +200,13 @@ export function handlePartAppend(
     const existing = pendingPartAppendsRef.current.get(partId);
     pendingPartAppendsRef.current.set(partId, (existing || '') + delta);
 
-    const now = Date.now();
-    const timeSinceLastFlush = now - lastPartAppendFlushAtRef.current;
-    const THROTTLE_INTERVAL = 50;
-
-    // If within 50ms throttle window and no timeout is scheduled, schedule one
-    if (timeSinceLastFlush < THROTTLE_INTERVAL) {
-      if (partAppendTimeoutRef.current === null) {
-        const remainingTime = THROTTLE_INTERVAL - timeSinceLastFlush;
-        partAppendTimeoutRef.current = setTimeout(() => {
-          partAppendTimeoutRef.current = null;
-          // Only schedule RAF if none pending (avoid double-scheduling)
-          if (partAppendRafRef.current === null) {
-            partAppendRafRef.current = requestAnimationFrame(() => {
-              flushPendingPartAppends();
-            });
-          }
-        }, remainingTime) as unknown as number;
-      }
-    } else {
-      // Outside throttle window, schedule RAF if none pending
-      if (partAppendRafRef.current === null) {
-        partAppendRafRef.current = requestAnimationFrame(() => {
-          flushPendingPartAppends();
-        });
-      }
+    // Flush on next animation frame — no throttle batching.
+    // Per-token updates produce smaller DOM changes, reducing visible content shift
+    // during streaming in free-look mode.
+    if (partAppendRafRef.current === null) {
+      partAppendRafRef.current = requestAnimationFrame(() => {
+        flushPendingPartAppends();
+      });
     }
   }
 }
