@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
+import type { ArboristNode } from '@npmcli/arborist';
 import {
   getMinAgeHours,
   isJean2OwnedPackage,
@@ -150,17 +151,20 @@ describe('npm-utils', () => {
 
   describe('extractIntegrity', () => {
     test('extracts integrity from tree node', () => {
-      const pkgObj = { dist: { integrity: 'sha512-abc123' } };
-      const child = { package: pkgObj };
       const tree = {
-        children: new Map([['@jean2/sdk', child]]),
-      };
+        path: '/project',
+        children: new Map([['@jean2/sdk', {
+          path: '/project/node_modules/@jean2/sdk',
+          package: { dist: { integrity: 'sha512-abc123' } },
+          children: new Map(),
+        }]]),
+      } as ArboristNode;
 
       expect(extractIntegrity(tree, '@jean2/sdk')).toBe('sha512-abc123');
     });
 
     test('returns null when package not in tree', () => {
-      const tree = { children: new Map() };
+      const tree = { path: '/project', children: new Map() } as ArboristNode;
       expect(extractIntegrity(tree, '@jean2/sdk')).toBe(null);
     });
 
@@ -173,10 +177,14 @@ describe('npm-utils', () => {
     });
 
     test('returns null when dist.integrity is missing', () => {
-      const child = { package: { dist: {} } };
       const tree = {
-        children: new Map([['@jean2/sdk', child]]),
-      };
+        path: '/project',
+        children: new Map([['@jean2/sdk', {
+          path: '/project/node_modules/@jean2/sdk',
+          package: { dist: {} },
+          children: new Map(),
+        }]]),
+      } as ArboristNode;
       expect(extractIntegrity(tree, '@jean2/sdk')).toBe(null);
     });
   });

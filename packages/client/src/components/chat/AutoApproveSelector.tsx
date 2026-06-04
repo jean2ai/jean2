@@ -1,5 +1,4 @@
 import { Shield, ShieldOff, ShieldAlert, ShieldCheck } from 'lucide-react';
-import type { PermissionRiskLevel } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

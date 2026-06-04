@@ -7,7 +7,7 @@ import { clearCache as clearToolsCache } from './registry';
 import { downloadArtifact, verifyChecksum, extractArtifact, validateArtifactStructure, ArtifactError } from './tool-artifact';
 import { installDependencies, NpmInstallError } from './tool-npm-installer';
 import { readInstallManifest, writeInstallManifest, type InstallManifest } from './tool-install-manifest';
-import { bundleTool, ToolBundleError } from './tool-bundler';
+import { bundleTool } from './tool-bundler';
 
 const VERSION_FILE = 'VERSION';
 

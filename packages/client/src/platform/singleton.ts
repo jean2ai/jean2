@@ -3,7 +3,7 @@ import { createElectronAdapter } from './adapters/electron';
 import { createBrowserAdapter } from './adapters/browser';
 import { createVSCodeAdapter } from './adapters/vscode';
 
-let _platform: IJean2Platform | null = null;
+const _platform: IJean2Platform | null = null;
 
 function detect(): IJean2Platform {
   if (typeof window === 'undefined') {

@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/client-dist/**',
       '**/data/**',
       '**/storybook-static/**',
+      'packages/vscode/tests/**',
     ],
   },
   

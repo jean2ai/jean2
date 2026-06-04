@@ -10,7 +10,7 @@ import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
 import { AppPanels } from '@/components/app/AppPanels';
-import { platform, hasCapability } from '@/platform';
+import { hasCapability } from '@/platform';
 import {
   SidebarHeader,
   SidebarMenu,

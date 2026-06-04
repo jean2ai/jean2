@@ -181,8 +181,6 @@ export function handlePartAppend(
     addStreamingSession,
     pendingPartAppendsRef,
     partAppendRafRef,
-    lastPartAppendFlushAtRef,
-    partAppendTimeoutRef,
     interruptedSessions,
     currentSessionIdRef,
     flushPendingPartAppends,

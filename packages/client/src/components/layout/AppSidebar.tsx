@@ -1,6 +1,6 @@
 import { useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { ResizablePanel } from './ResizablePanel';
-import { platform, hasCapability } from '@/platform';
+import { hasCapability } from '@/platform';
 
 interface AppSidebarProps {
   children: React.ReactNode;
