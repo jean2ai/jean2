@@ -6,7 +6,7 @@ import {useChatLayoutStore} from '@/stores/chatLayoutStore';
 import {useServerDataStore} from '@/stores/serverDataStore';
 import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
 import type {Preconfig, Workspace} from '@jean2/sdk';
-import { isElectron } from '@/lib/platform';
+import { platform, hasCapability } from '@/platform';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -45,6 +45,11 @@ export function useAppKeyboardHandlers({
   }, [setSidebarOpen, sidebarRef]);
 
   const focusTerminalPanel = useCallback(() => {
+    if (platform.capabilities.terminal && platform.openTerminal) {
+      const activeWorkspace = useServerDataStore.getState().activeWorkspace;
+      void platform.openTerminal(activeWorkspace?.path);
+      return;
+    }
     useChatLayoutStore.getState().setShowTerminalPanel(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -64,10 +69,15 @@ export function useAppKeyboardHandlers({
   });
 
   const handleCloseTerminal = useCallback(() => {
+    if (platform.capabilities.terminal) return;
     useChatLayoutStore.getState().setShowTerminalPanel(false);
   }, []);
 
   const focusFilesPanel = useCallback(() => {
+    if (platform.capabilities.explorer && platform.showExplorer) {
+      void platform.showExplorer();
+      return;
+    }
     requestAnimationFrame(() => {
       filesPanelRef.current?.focus();
     });
@@ -89,14 +99,15 @@ export function useAppKeyboardHandlers({
   }, [activeWorkspace, primaryPreconfigs, createSession]);
 
   const handleNewWindow = useCallback(() => {
-    if (isElectron()) {
-      window.__JEAN2_ELECTRON__?.createWindow();
+    if (platform.capabilities.windowManagement) {
+      platform.createWindow?.();
     }
   }, []);
 
   const router = useRouter();
 
   const handleToggleViewMode = useCallback(() => {
+    if (!hasCapability('multiView')) return;
     const currentPath = router.state.location.pathname;
     if (currentPath.includes('/overview')) {
       router.navigate({ to: '/server/$serverId/workspace', params: { serverId } });
@@ -134,8 +145,8 @@ export function useAppKeyboardHandlers({
   });
 
   useLayoutEffect(() => {
-    if (isElectron()) {
-      return window.__JEAN2_ELECTRON__?.onAccelerator((action) => {
+    if (platform.capabilities.accelerators) {
+      return platform.onAccelerator?.((action) => {
         if (action === 'open-sidebar') {
           focusSidebarSessionPanelRef.current();
         } else if (action === 'open-terminal') {
@@ -143,7 +154,6 @@ export function useAppKeyboardHandlers({
         }
       });
     }
-
   }, []);
 }
 

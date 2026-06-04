@@ -9,6 +9,7 @@ interface ResizablePanelProps {
   children: React.ReactNode;
   header?: React.ReactNode;
   resizable?: boolean;
+  variant?: 'sidebar' | 'floating' | 'inset';
   onContentKeyDown?: (e: React.KeyboardEvent) => void;
   contentRef?: React.Ref<HTMLDivElement>;
 }
@@ -18,7 +19,7 @@ export interface ResizablePanelHandle {
 }
 
 export const ResizablePanel = forwardRef<ResizablePanelHandle, ResizablePanelProps>(
-  ({ children, header, resizable = true, onContentKeyDown, contentRef: externalContentRef }, ref) => {
+  ({ children, header, resizable = true, variant = 'floating', onContentKeyDown, contentRef: externalContentRef }, ref) => {
     const internalContentRef = useRef<HTMLDivElement>(null);
     const contentRef: React.RefObject<HTMLDivElement | null> = externalContentRef && typeof externalContentRef === 'object'
       ? externalContentRef
@@ -45,7 +46,7 @@ export const ResizablePanel = forwardRef<ResizablePanelHandle, ResizablePanelPro
     }), [focusContent]);
 
     return (
-      <Sidebar collapsible="offcanvas" variant="floating">
+      <Sidebar collapsible="offcanvas" variant={variant}>
         {resizable && <SessionsResizeHandle />}
         {header}
         <SidebarContent

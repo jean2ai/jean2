@@ -1,6 +1,7 @@
 import { TerminalPanel } from '@/components/layout/TerminalPanel';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { platform } from '@/platform';
 import type { TerminalPanelHandle } from '@/components/layout/TerminalPanel';
 import type { Jean2Client } from '@jean2/sdk';
 
@@ -20,6 +21,10 @@ export function AppPanels({
   const workspaceId = activeWorkspace?.id;
   const workspacePath = activeWorkspace?.path;
   const workspaceName = activeWorkspace?.name;
+
+  if (platform.capabilities.terminal) {
+    return null;
+  }
 
   return (
     <TerminalPanel

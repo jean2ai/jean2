@@ -1,26 +1,24 @@
+import { platform } from '@/platform';
+
 export type Platform = 'electron' | 'web' | 'unknown';
 
-let detectedPlatform: Platform | null = null;
-
+/**
+ * Returns the runtime platform category.
+ *
+ * VSCode webviews are categorized as 'web' because they share the same
+ * browser runtime constraints (no native modules, no Electron APIs).
+ * Use `platform.id` directly if you need to distinguish VSCode from browser,
+ * or use `hasCapability()` for feature detection.
+ */
 export function getPlatform(): Platform {
-  if (detectedPlatform) return detectedPlatform;
-
-  if (typeof window === 'undefined') {
-    detectedPlatform = 'unknown';
-    return detectedPlatform;
-  }
-
-  if (window.__JEAN2_ELECTRON__) {
-    detectedPlatform = 'electron';
-    return detectedPlatform;
-  }
-
-  detectedPlatform = 'web';
-  return detectedPlatform;
+  if (platform.id === 'electron') return 'electron';
+  if (platform.id === 'vscode') return 'web';
+  if (platform.id === 'web') return 'web';
+  return 'unknown';
 }
 
 export function isElectron(): boolean {
-  return getPlatform() === 'electron';
+  return platform.id === 'electron';
 }
 
 export function isWindows(): boolean {

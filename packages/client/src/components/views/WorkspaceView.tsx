@@ -10,6 +10,7 @@ import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
 import { AppPanels } from '@/components/app/AppPanels';
+import { platform, hasCapability } from '@/platform';
 import {
   SidebarHeader,
   SidebarMenu,
@@ -50,6 +51,7 @@ export default function WorkspaceView() {
 
   const sidebarHeader = (
     <SidebarHeader>
+      {hasCapability('multiView') && (
       <div className="p-2 space-y-2">
         <WorkspaceSwitcher
           workspaces={sidebarData.workspaces}
@@ -64,6 +66,7 @@ export default function WorkspaceView() {
           sdkClient={sdkClient}
         />
       </div>
+      )}
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -120,14 +123,13 @@ export default function WorkspaceView() {
       </AppSidebar>
 
       <main
-        className="flex-1 flex flex-col overflow-hidden min-h-0 p-2"
-        style={{
-          // AppHeader already handles safe-area-inset-top — don't double-count it
+        className={hasCapability('multiView') ? 'flex-1 flex flex-col overflow-hidden min-h-0 p-2' : 'flex-1 flex flex-col overflow-hidden min-h-0'}
+        style={hasCapability('multiView') ? {
           paddingTop: '0.5rem',
           paddingBottom: '0.5rem',
-        }}
+        } : undefined}
       >
-        <div className="flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border">
+        <div className={hasCapability('multiView') ? 'flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border' : 'flex flex-1 flex-col overflow-hidden min-h-0 bg-background'}>
           <WorkspaceHeader />
           <Outlet />
           <AppPanels

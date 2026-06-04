@@ -13,6 +13,7 @@ import {
   fetchLatestClientVersion,
   clearVersionCache,
 } from '@/utils/githubVersion';
+import { platform } from '@/platform';
 
 interface VersionInfoProps {
   sdkClient: Jean2Client | null;
@@ -37,7 +38,7 @@ type ElectronUpdateState =
   | { status: 'downloaded'; version: string }
   | { status: 'error'; message: string };
 
-const isElectron = !!window.__JEAN2_ELECTRON__;
+const isNative = platform.id === 'electron';
 
 function formatLastChecked(timestamp: number | null): string {
   if (!timestamp) return '';
@@ -162,7 +163,7 @@ export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
           ? sdkClient.httpClient.get<{ version: string }>('/info').then(data => data.version).catch(() => null)
           : Promise.resolve(null),
         fetchLatestServerVersion(),
-        isElectron ? Promise.resolve(null) : fetchLatestClientVersion(),
+        isNative ? Promise.resolve(null) : fetchLatestClientVersion(),
       ]);
 
       if (fetchIdRef.current !== currentFetchId) return;
@@ -191,9 +192,9 @@ export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
   }, [fetchVersions, enabled]);
 
   useEffect(() => {
-    if (!isElectron || !window.__JEAN2_ELECTRON__) return;
+    if (!platform.capabilities.updater) return;
 
-    const unsubscribe = window.__JEAN2_ELECTRON__.onUpdaterEvent(event => {
+    const unsubscribe = platform.onUpdaterEvent?.(event => {
       const { type, data } = event;
       switch (type) {
         case 'checking':
@@ -228,9 +229,9 @@ export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
     : 'unknown';
 
   const handleCheckForUpdates = () => {
-    if (isElectron && window.__JEAN2_ELECTRON__) {
+    if (platform.capabilities.updater) {
       setElectronUpdaterState({ status: 'checking' });
-      window.__JEAN2_ELECTRON__.checkForUpdates();
+      platform.checkForUpdates?.();
     } else {
       fetchVersions(true);
     }
@@ -250,7 +251,7 @@ export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Client</span>
-          {isElectron ? (
+          {isNative ? (
             <ElectronClientStatus state={electronUpdaterState} />
           ) : state.loading ? (
             <Skeleton className="h-5 w-32" />
@@ -276,7 +277,7 @@ export function VersionInfo({ sdkClient, enabled }: VersionInfoProps) {
           )}
         </div>
 
-        {!isElectron && (
+        {!isNative && (
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Latest</span>
             {state.loading ? (

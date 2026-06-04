@@ -28,7 +28,9 @@ export default defineConfig({
   base: process.env.VITE_BASE || '/',
   clearScreen: false,
   plugins: [
-    tanstackRouter({ autoCodeSplitting: true }),
+    tanstackRouter({
+      autoCodeSplitting: !process.env.VITE_VSCODE_BUILD,
+    }),
     react(),
     babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwindcss(),
@@ -103,6 +105,9 @@ export default defineConfig({
   envPrefix: ['VITE_'],
   build: {
     outDir: 'dist',
+    ...(process.env.VITE_VSCODE_BUILD ? {
+      modulePreload: false,
+    } : {}),
   },
   server: {
     port: 5173,

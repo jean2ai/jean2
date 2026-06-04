@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useSidebar } from '@/components/ui/sidebar';
+import { platform } from '@/platform';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -45,32 +46,62 @@ export function WorkspaceHeader() {
           </Tooltip>
           {activeWorkspace && (
             <div className="flex items-center gap-1 md:gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                    className={showTerminalPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
-                  >
-                    <TerminalSquare className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setShowFilesPanel(!showFilesPanel)}
-                    className={showFilesPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
-              </Tooltip>
+              {platform.capabilities.terminal ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => platform.openTerminal?.(activeWorkspace?.path)}
+                    >
+                      <TerminalSquare className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Open Terminal</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setShowTerminalPanel(!showTerminalPanel)}
+                      className={showTerminalPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
+                    >
+                      <TerminalSquare className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}</TooltipContent>
+                </Tooltip>
+              )}
+              {platform.capabilities.explorer ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => platform.showExplorer?.()}
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Show Explorer</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setShowFilesPanel(!showFilesPanel)}
+                      className={showFilesPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
+                </Tooltip>
+              )}
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>

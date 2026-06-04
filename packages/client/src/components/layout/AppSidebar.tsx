@@ -1,5 +1,6 @@
 import { useRef, useCallback, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { ResizablePanel } from './ResizablePanel';
+import { platform, hasCapability } from '@/platform';
 
 interface AppSidebarProps {
   children: React.ReactNode;
@@ -129,6 +130,7 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
 
   return (
     <ResizablePanel
+      variant={hasCapability('multiView') ? 'floating' : 'sidebar'}
       header={header}
       contentRef={sessionListRef}
       onContentKeyDown={handleSessionListKeyDown}

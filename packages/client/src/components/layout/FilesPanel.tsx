@@ -24,6 +24,7 @@ import {
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { platform } from '@/platform';
 
 interface FilesPanelProps {
   sdkClient: Jean2Client | null;
@@ -58,13 +59,19 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     const handleFileSelect = useCallback((file: FileEntry) => {
       if (file.type === 'file' && workspaceId) {
-        openFilePreview({
-          workspaceId,
-          path: file.path,
-          name: file.name,
-        });
+        if (platform.capabilities.fileOpen && platform.openFile) {
+          const workspacePath = activeWorkspace?.path ?? '';
+          const absPath = workspacePath ? `${workspacePath}/${file.path}` : file.path;
+          void platform.openFile(absPath);
+        } else {
+          openFilePreview({
+            workspaceId,
+            path: file.path,
+            name: file.name,
+          });
+        }
       }
-    }, [workspaceId, openFilePreview]);
+    }, [workspaceId, openFilePreview, activeWorkspace?.path]);
 
     if (!workspaceId) {
       return null;

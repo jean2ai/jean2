@@ -1,6 +1,7 @@
 // packages/client/src/config/servers.ts
 
 import type { SavedServer, QuickConnection } from '@jean2/sdk';
+import { normalizeServerUrl } from './auth';
 
 const STORAGE_KEYS = {
   SERVERS: 'jean2_servers',
@@ -32,8 +33,19 @@ export function getServerById(id: string): SavedServer | null {
 }
 
 /**
- * Save a new server to localStorage
- * Adds to existing array
+ * Find a server by URL using normalized comparison.
+ * Returns the existing server if found, null otherwise.
+ */
+export function findServerByUrl(url: string): SavedServer | null {
+  const servers = getSavedServers();
+  const normalized = normalizeServerUrl(url);
+  return servers.find((s) => normalizeServerUrl(s.url) === normalized) || null;
+}
+
+/**
+ * Save a new server to localStorage.
+ * Does NOT deduplicate — callers should use getOrCreateServer for
+ * deduplication, or check findServerByUrl first.
  */
 export function saveServer(server: SavedServer): void {
   try {
@@ -42,6 +54,47 @@ export function saveServer(server: SavedServer): void {
     localStorage.setItem(STORAGE_KEYS.SERVERS, JSON.stringify(servers));
   } catch (error) {
     console.error('Error saving server to localStorage:', error);
+  }
+}
+
+/**
+ * Get or create a saved server by URL.
+ * If a server with a matching normalized URL exists, returns it.
+ * Otherwise creates and saves a new one.
+ */
+export function getOrCreateServer(
+  url: string,
+  options: { name?: string; token?: string } = {},
+): SavedServer {
+  const existing = findServerByUrl(url);
+  if (existing) {
+    if (options.token && existing.token !== options.token) {
+      updateServer(existing.id, { token: options.token });
+    }
+    return existing;
+  }
+
+  const server: SavedServer = {
+    id: crypto.randomUUID(),
+    name: options.name || url,
+    url,
+    ...(options.token ? { token: options.token } : {}),
+    createdAt: new Date().toISOString(),
+  };
+  saveServer(server);
+  return server;
+}
+
+/**
+ * Replace ALL saved servers with exactly one server.
+ * Used by VSCode mode to enforce a single-server model where
+ * the server is always the one from VSCode settings.
+ */
+export function setSingleServer(server: SavedServer): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SERVERS, JSON.stringify([server]));
+  } catch (error) {
+    console.error('Error setting single server in localStorage:', error);
   }
 }
 

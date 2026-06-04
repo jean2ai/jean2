@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react';
-import { isElectron } from '@/lib/platform';
+import { platform } from '@/platform';
 import chatFinishSound from '@/assets/sounds/chat-finish.mp3';
 import chatPermissionSound from '@/assets/sounds/chat-permission.mp3';
 
@@ -112,15 +112,15 @@ export function useNotificationSound(): UseNotificationSoundReturn {
   }, [getOrCreateContext, loadBuffer, playBuffer, attachGestureListeners]);
 
   const playSound = useCallback(async (key: SoundKey) => {
-    if (isElectron()) {
+    if (platform.capabilities.sound) {
       const now = Date.now();
       if (now > nativeCooldownRef.current) {
         try {
-          await window.__JEAN2_ELECTRON__?.playSound(key);
+          await platform.playSound?.(key);
           nativeCooldownRef.current = now + 1000;
           return;
         } catch (err) {
-          console.warn('[useNotificationSound] Electron native playback failed, falling back to Web Audio', err);
+          console.warn('[useNotificationSound] Native playback failed, falling back to Web Audio', err);
         }
       }
       await playWebAudio(key);

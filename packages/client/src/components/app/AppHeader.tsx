@@ -1,6 +1,7 @@
 import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
-import { isElectron, isWindows } from '@/lib/platform';
+import { isWindows } from '@/lib/platform';
+import { platform, hasCapability } from '@/platform';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,13 +28,13 @@ export function AppHeader() {
   return (
     <>
       {/* Traffic light spacer for macOS - provides space for native window controls */}
-      {isElectron() && (
+      {platform.id === 'electron' && (
           <div className="block md:hidden h-[30px] shrink-0 z-40" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
-      <header className="md:hidden flex items-center justify-between pl-3 pr-5 pt-2 sticky top-0 z-40 shrink-0" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
+      <header className={`md:hidden flex items-center justify-between pl-3 ${hasCapability('multiView') ? 'pr-5' : 'pr-3'} pt-2 sticky top-0 z-40 shrink-0`} style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <ServerSwitcher compact />
+            {hasCapability('serverSwitching') && <ServerSwitcher compact />}
             <button className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors" title={connected ? 'Connected' : 'Disconnected'}>
                 <span className={`size-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
               </button>
@@ -41,6 +42,7 @@ export function AppHeader() {
         </div>
         <TooltipProvider>
           <div className="flex items-center gap-1">
+            {hasCapability('multiView') && (
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -63,6 +65,7 @@ export function AppHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -95,16 +98,18 @@ export function AppHeader() {
       </header>
 
       {/* Traffic light spacer for macOS - provides space for native window controls */}
-      {isElectron() && (
+      {platform.id === 'electron' && (
         <div className="hidden md:block h-[30px] shrink-0" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} />
       )}
 
-      <header className="hidden md:flex items-center justify-between pl-3 pr-5 pt-2 h-11 shrink-0">
+      <header className={`hidden md:flex items-center justify-between pl-3 ${hasCapability('multiView') ? 'pr-5' : 'pr-3'} pt-2 h-11 shrink-0`}>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <ServerSwitcher
-              compact
-            />
+            {hasCapability('serverSwitching') && (
+              <ServerSwitcher
+                compact
+              />
+            )}
             <button
               className="flex items-center justify-center size-5 rounded-md hover:bg-accent transition-colors"
               title={connected ? 'Connected' : 'Disconnected'}
@@ -114,7 +119,8 @@ export function AppHeader() {
           </div>
         </div>
         <TooltipProvider>
-          <div className="flex items-center gap-2" style={isElectron() ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
+          <div className="flex items-center gap-2" style={platform.id === 'electron' ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}>
+            {hasCapability('multiView') && (
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -143,6 +149,7 @@ export function AppHeader() {
                 <TooltipContent side={isWindows() ? 'bottom' : undefined}>Overview</TooltipContent>
               </Tooltip>
             </>
+            )}
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>

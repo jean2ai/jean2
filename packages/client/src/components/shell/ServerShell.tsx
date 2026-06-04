@@ -7,7 +7,7 @@ import { ViewRefsContext } from '@/contexts/ViewRefsContext';
 import { SessionManagerContext } from '@/contexts/SessionManagerContext';
 import { useServerSessionManager } from '@/hooks/useServerSessionManager';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-import { isElectron } from '@/lib/platform';
+import { platform } from '@/platform';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
 import { AppHeader } from '@/components/app/AppHeader';
@@ -67,8 +67,10 @@ export default function ServerShell() {
   };
 
   return (
-    <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': isElectron() ? '4.625rem' : '2.75rem' } as React.CSSProperties}>
-      <AppHeader />
+    <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': platform.id === 'electron' ? '4.625rem' : '2.75rem' } as React.CSSProperties}>
+      <div className="bg-background">
+        <AppHeader />
+      </div>
 
       <div className="flex flex-1 min-h-0">
         <SessionManagerContext.Provider value={sessionManager}>

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { platform } from '@/platform';
 
 interface DiffViewerProps {
   hunks: DiffHunk[];
@@ -114,6 +115,11 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
 
   const handlePathClick = () => {
     if (!activeWorkspace) return;
+    if (platform.capabilities.fileOpen && platform.openFile) {
+      const absPath = path.startsWith('/') ? path : (activeWorkspace.path ? `${activeWorkspace.path}/${path}` : path);
+      void platform.openFile(absPath);
+      return;
+    }
     openFilePreview({
       workspaceId: activeWorkspace.id,
       path,

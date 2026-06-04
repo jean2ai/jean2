@@ -1,4 +1,4 @@
-import { isElectron } from '@/lib/platform';
+import { platform } from '@/platform';
 
 function localStorageGet<T>(key: string): T | null {
   try {
@@ -11,42 +11,35 @@ function localStorageGet<T>(key: string): T | null {
 
 export const storage = {
   async get<T>(key: string): Promise<T | null> {
-    if (isElectron() && window.__JEAN2_ELECTRON__) {
-      return window.__JEAN2_ELECTRON__.store.get<T>(key);
+    if (platform.storage) {
+      return platform.storage.get<T>(key);
     }
-
     return localStorageGet<T>(key);
   },
 
   async set<T>(key: string, value: T): Promise<void> {
-    if (isElectron() && window.__JEAN2_ELECTRON__) {
-      await window.__JEAN2_ELECTRON__.store.set(key, value);
-      return;
+    if (platform.storage) {
+      return platform.storage.set(key, value);
     }
-
     localStorage.setItem(key, JSON.stringify(value));
   },
 
   async remove(key: string): Promise<void> {
-    if (isElectron() && window.__JEAN2_ELECTRON__) {
-      await window.__JEAN2_ELECTRON__.store.remove(key);
-      return;
+    if (platform.storage) {
+      return platform.storage.remove(key);
     }
-
     localStorage.removeItem(key);
   },
 
   async clear(): Promise<void> {
-    if (isElectron() && window.__JEAN2_ELECTRON__) {
-      await window.__JEAN2_ELECTRON__.store.clear();
-      return;
+    if (platform.storage) {
+      return platform.storage.clear();
     }
-
     localStorage.clear();
   },
 
   isNative(): boolean {
-    return isElectron();
+    return platform.capabilities.storage;
   },
 };
 

@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { cn } from '@/lib/utils';
+import { platform } from '@/platform';
 
 const CODE_THEME_DARK = themes.oneDark;
 const CODE_THEME_LIGHT = themes.oneLight;
@@ -58,6 +59,11 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
 
   const handlePathClick = () => {
     if (!activeWorkspace) return;
+    if (platform.capabilities.fileOpen && platform.openFile) {
+      const absPath = path.startsWith('/') ? path : (activeWorkspace.path ? `${activeWorkspace.path}/${path}` : path);
+      void platform.openFile(absPath);
+      return;
+    }
     openFilePreview({
       workspaceId: activeWorkspace.id,
       path,
