@@ -10,7 +10,7 @@
   "files": ["dist"],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rabbyte-tech/jean2.git",
+    "url": "git+https://github.com/jean2ai/jean2",
     "directory": "packages/client"
   },
   "bugs": {
