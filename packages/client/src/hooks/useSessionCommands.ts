@@ -221,10 +221,10 @@ export function useSessionCommands({
     }
   }, [currentSession, resumeSession]);
 
-  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
+  const addToQueue = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
-      client.queue.add(sessionId, content, attachments);
+      client.queue.add(sessionId, content, { attachments, responseFormatId });
     }
   }, [clientRef]);
 
@@ -235,17 +235,17 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
-  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => {
+  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => {
     const client = clientRef.current;
     if (!currentSession || isCompacting) return;
     if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
-      addToQueue(currentSession.id, content, attachments);
+      addToQueue(currentSession.id, content, attachments, responseFormatId);
     } else {
       if (client && client.connected) {
         client.chat.send(
           currentSession.id,
           content,
-          attachments ? { attachments } : undefined,
+          { attachments, responseFormatId },
         );
       }
     }

@@ -6,6 +6,7 @@ import { FileListViewer } from './FileListViewer';
 import { SuccessIndicator } from './SuccessIndicator';
 import { TerminalOutput } from './TerminalOutput';
 import { TodoList } from './TodoList';
+import { StructuredResponse } from './StructuredResponse';
 
 interface VisualizationRendererProps {
   visualization?: AnyVisualization;
@@ -99,6 +100,15 @@ export const VisualizationRenderer = memo(function VisualizationRenderer({ visua
         <TodoList
           title={visualization.title}
           items={visualization.items}
+        />
+      );
+
+    case 'structured-response':
+      return (
+        <StructuredResponse
+          formatName={visualization.formatName}
+          data={visualization.data}
+          schema={visualization.schema}
         />
       );
 

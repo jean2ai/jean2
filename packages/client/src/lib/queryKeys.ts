@@ -17,6 +17,7 @@ export const queryKeys = {
       all: ['providers'] as const,
       credentials: ['providers', 'credentials'] as const,
     },
+    responseFormats: ['config', 'responseFormats'] as const,
   },
   mcp: {
     status: (workspaceId: string) => ['mcp', 'status', workspaceId] as const,

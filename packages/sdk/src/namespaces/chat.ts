@@ -8,6 +8,7 @@ export class ChatNamespace {
     content: string,
     options?: {
       attachments?: Array<{ id: string; kind: AttachmentKind }>;
+      responseFormatId?: string;
     },
   ): void {
     const msg: ChatMessage = {
@@ -17,6 +18,9 @@ export class ChatNamespace {
     };
     if (options?.attachments && options.attachments.length > 0) {
       msg.attachments = options.attachments;
+    }
+    if (options?.responseFormatId) {
+      msg.responseFormatId = options.responseFormatId;
     }
     this._send(msg);
   }

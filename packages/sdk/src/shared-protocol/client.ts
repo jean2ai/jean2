@@ -50,6 +50,7 @@ export interface ChatMessage {
   sessionId: string;
   content: string;
   attachments?: ChatMessageAttachment[];
+  responseFormatId?: string;
 }
 
 export interface SessionCloseMessage {
@@ -158,6 +159,7 @@ export interface QueueAddMessage {
   sessionId: string;
   content: string;
   attachments?: ChatMessageAttachment[];
+  responseFormatId?: string;
 }
 
 export interface QueueRemoveMessage {

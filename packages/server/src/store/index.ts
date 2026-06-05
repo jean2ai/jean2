@@ -3,6 +3,7 @@ import { dirname } from 'path';
 import { mkdirSync } from 'fs';
 
 import { resolveDatabasePath } from '@/config';
+import { seedBuiltinResponseFormats } from './response-formats';
 
 /**
  * Database Singleton
@@ -182,6 +183,9 @@ export function initializeSchema(db: Database): void {
       mode TEXT,
       parent_id TEXT,
 
+      -- Structured output (when response format was used)
+      structured_output TEXT,
+
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
@@ -322,6 +326,29 @@ export function initializeSchema(db: Database): void {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_terminal_sessions_workspace ON terminal_sessions(workspace_id, status)');
   db.run('CREATE INDEX IF NOT EXISTS idx_terminal_sessions_activity ON terminal_sessions(last_activity_at)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS response_formats (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      schema TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_response_formats_name ON response_formats(name)');
+
+  // Seed built-in response formats
+  seedBuiltinResponseFormats(db);
+
+  // Migrate: add structured_output column to messages if missing
+  try {
+    db.run('ALTER TABLE messages ADD COLUMN structured_output TEXT');
+  } catch {
+    // Column already exists
+  }
 }
 
 export { Database };
@@ -347,3 +374,4 @@ export { deleteAttachmentsForSession, deleteAttachmentsForWorkspace, getAttachme
 
 // Re-export pending asks functions
 export * from './pending-asks';
+export * from './response-formats';

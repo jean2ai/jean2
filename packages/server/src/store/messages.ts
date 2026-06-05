@@ -32,6 +32,8 @@ interface MessageRow {
   summary: number;
   mode: string | null;
   parent_id: string | null;
+  // Structured output
+  structured_output: string | null;
 }
 
 interface PartRow {
@@ -73,6 +75,7 @@ function rowToMessage(row: MessageRow): Message {
       summary: row.summary ? true : undefined,
       mode: (row.mode as 'chat' | 'compaction' | 'compact_failed' | undefined) ?? undefined,
       parentId: row.parent_id ?? undefined,
+      structuredOutput: row.structured_output ? JSON.parse(row.structured_output) : undefined,
     } as AssistantMessage;
   }
 
@@ -97,6 +100,7 @@ function messageToRow(message: Message): MessageRow {
     summary: 0,
     mode: null,
     parent_id: null,
+    structured_output: null,
   };
 
   if (message.role === 'assistant') {
@@ -114,6 +118,7 @@ function messageToRow(message: Message): MessageRow {
       summary: message.summary ? 1 : 0,
       mode: message.mode ?? null,
       parent_id: message.parentId ?? null,
+      structured_output: message.structuredOutput ? JSON.stringify(message.structuredOutput) : null,
     };
   }
 
@@ -159,8 +164,8 @@ export function createMessage(message: Message): Message {
     INSERT INTO messages (
       id, session_id, role, created_at, status, model_id, provider_id,
       agent, tokens_prompt, tokens_completion, cost, completed_at, error,
-      summary, mode, parent_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      summary, mode, parent_id, structured_output
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       row.id,
@@ -179,6 +184,7 @@ export function createMessage(message: Message): Message {
       row.summary,
       row.mode,
       row.parent_id,
+      row.structured_output,
     ],
   );
 
@@ -210,7 +216,7 @@ export function updateMessage(
       status = ?, model_id = ?, provider_id = ?, agent = ?,
       tokens_prompt = ?, tokens_completion = ?, cost = ?,
       completed_at = ?, error = ?,
-      summary = ?, mode = ?, parent_id = ?
+      summary = ?, mode = ?, parent_id = ?, structured_output = ?
     WHERE id = ?
   `,
     [
@@ -226,6 +232,7 @@ export function updateMessage(
       row.summary,
       row.mode,
       row.parent_id,
+      row.structured_output,
       id,
     ],
   );

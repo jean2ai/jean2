@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, memo, useLayoutEffect } from 'react';
 import { buildApiUrl } from '@/config/urls';
 import { LegendList, type LegendListRef } from '@legendapp/list/react';
-import { ChevronDown, ChevronRight, Download, FileIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, FileIcon, Braces } from 'lucide-react';
 import type {
   MessageWithParts,
   Part,
@@ -10,8 +10,10 @@ import type {
   CompactionPart,
   AssistantMessage,
   AskResponse,
+  StructuredOutputData,
 } from '@jean2/sdk';
 import { isAssistantMessage } from '@jean2/sdk';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Minimize2, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +22,7 @@ import { ErrorMessageContent } from './ErrorMessageContent';
 import { ToolCall } from './ToolCall';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { StructuredResponse } from '@/components/visualizations';
 import type { PendingAskRequest } from '@/stores/askStore';
 
 export interface DisplayItem {
@@ -287,6 +290,69 @@ const MessageParts = memo(function MessageParts({
 
 });
 
+const StructuredOutputMessage = memo(function StructuredOutputMessage({
+  parts,
+  structuredOutput,
+  pendingAskRequests,
+  onAskResponse,
+  onNavigateToSubagent,
+  serverUrl,
+}: {
+  parts: Part[];
+  structuredOutput: StructuredOutputData;
+  pendingAskRequests: PendingAskRequest[];
+  onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
+  onNavigateToSubagent?: (sessionId: string) => void;
+  serverUrl?: string;
+}) {
+  const [rawOpen, setRawOpen] = useState(false);
+
+  return (
+    <>
+      <Collapsible open={rawOpen} onOpenChange={setRawOpen}>
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center gap-2 py-1 cursor-pointer hover:text-foreground transition-colors text-muted-foreground">
+            <Braces className="size-3 text-primary" />
+            {rawOpen ? (
+              <ChevronDown className="size-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="size-4 text-muted-foreground" />
+            )}
+            <span className="text-xs">
+              Raw Output
+              {structuredOutput.formatName && (
+                <span className="text-muted-foreground"> · {structuredOutput.formatName}</span>
+              )}
+            </span>
+          </div>
+        </CollapsibleTrigger>
+        {rawOpen && (
+          <CollapsibleContent>
+            <div className="pb-2">
+              <MessageParts
+                parts={parts}
+                pendingAskRequests={pendingAskRequests}
+                onAskResponse={onAskResponse}
+                onNavigateToSubagent={onNavigateToSubagent}
+                inverted={false}
+                serverUrl={serverUrl}
+              />
+            </div>
+          </CollapsibleContent>
+        )}
+      </Collapsible>
+
+      <div className="mt-2">
+        <StructuredResponse
+          formatName={structuredOutput.formatName}
+          data={structuredOutput.data}
+          schema={structuredOutput.schema}
+        />
+      </div>
+    </>
+  );
+});
+
 interface MessageRowProps {
   item: DisplayItem;
   messagesWithParts: MessageWithParts[];
@@ -368,6 +434,15 @@ const MessageRow = memo(function MessageRow({
     >
       {item.parts.length === 0 ? (
         <span className="opacity-50">...</span>
+      ) : isAssistantMessage(item.message) && item.message.structuredOutput ? (
+        <StructuredOutputMessage
+          parts={item.parts}
+          structuredOutput={item.message.structuredOutput}
+          pendingAskRequests={pendingAskRequests}
+          onAskResponse={onAskResponse}
+          onNavigateToSubagent={onNavigateToSubagent}
+          serverUrl={serverUrl}
+        />
       ) : (
         <MessageParts
           parts={item.parts}

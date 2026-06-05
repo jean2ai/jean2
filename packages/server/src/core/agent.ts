@@ -1,5 +1,5 @@
-import { streamText, stepCountIs } from 'ai';
-import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage } from '@jean2/sdk';
+import { streamText, stepCountIs, Output, jsonSchema } from 'ai';
+import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage, ResponseFormat } from '@jean2/sdk';
 import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted } from '@/store';
 
 import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
@@ -39,6 +39,7 @@ export interface ChatOptions {
   maxSteps?: number;
   compactionPolicy?: CompactionPolicy;
   broadcastFn?: BuildToolsOptions['broadcastFn'];
+  responseFormat?: ResponseFormat;
 }
 
 function collectInterruptedToolPartEvents(
@@ -199,6 +200,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     providerOptions = { [providerOptionsKey]: variantOpts };
   }
 
+  // Build structured output if responseFormat is specified
+  const streamOutput = options.responseFormat
+    ? Output.object({ schema: jsonSchema(options.responseFormat.schema) })
+    : undefined;
+
   const result = streamText({
     model,
     system: useProviderInstructions ? undefined : systemMessage,
@@ -211,6 +217,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     abortSignal: abortController.signal,
     experimental_onStepStart,
     onStepFinish,
+    ...(streamOutput ? { output: streamOutput } : {}),
   });
 
   
@@ -357,11 +364,28 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Finalize: get usage data FIRST, then update message with actual tokens
   let usageData = null;
+  let structuredOutputData: import('@jean2/sdk').StructuredOutputData | undefined;
   try {
     const totalUsagePromise = result.totalUsage;
     const usagePromise = result.usage;
     const [totalUsage, usage] = await Promise.all([totalUsagePromise, usagePromise]);
     usageData = usage ?? totalUsage;
+
+    // Extract structured output if response format was specified
+    if (options.responseFormat) {
+      try {
+        const output = await result.output;
+        if (output && typeof output === 'object') {
+          structuredOutputData = {
+            formatName: options.responseFormat.name,
+            data: output as Record<string, unknown>,
+            schema: options.responseFormat.schema,
+          };
+        }
+      } catch (_outputErr) {
+        console.warn('Failed to get structured output:', _outputErr);
+      }
+    }
   } catch (_usageErr) {
     // Usage is optional - continue without it
     console.warn('Failed to get usage data:', _usageErr);
@@ -375,6 +399,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       prompt: usageData?.inputTokens ?? 0,
       completion: usageData?.outputTokens ?? 0,
     },
+    ...(structuredOutputData ? { structuredOutput: structuredOutputData } : {}),
   };
 
   // Emit message.updated event with actual tokens

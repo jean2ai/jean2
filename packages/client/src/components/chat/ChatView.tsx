@@ -42,7 +42,7 @@ interface ChatViewProps {
   prompts?: import('@jean2/sdk').PromptInfo[];
   models: Model[];
   defaultModel: string;
-  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;

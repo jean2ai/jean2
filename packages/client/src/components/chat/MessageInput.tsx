@@ -10,6 +10,8 @@ import { PromptAutocomplete } from '@/components/chat/PromptAutocomplete';
 import { PendingAttachment } from './PendingAttachment';
 import { FileMentionChip } from './FileMentionChip';
 import { AutoApproveSelector } from './AutoApproveSelector';
+import { ResponseFormatSelector } from './ResponseFormatSelector';
+import { useResponseFormatsQuery } from '@/hooks/queries';
 // import { useHighlightBackground } from '@/hooks/useHighlightBackground';
 import { useFileSearch, extractMentionsFromText } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
@@ -21,7 +23,7 @@ import { useServerDataStore } from '@/stores/serverDataStore';
 type AutocompleteMode = 'none' | 'files' | 'prompts';
 
 interface MessageInputProps {
-  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => void;
   disabled?: boolean;
   isStreaming?: boolean;
   onStopStreaming?: () => void;
@@ -89,8 +91,11 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [promptQuery, setPromptQuery] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachmentData[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [selectedResponseFormatId, setSelectedResponseFormatId] = useState<string | undefined>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: responseFormatsData } = useResponseFormatsQuery(sdkClient ?? null);
+  const responseFormats = responseFormatsData?.formats ?? [];
 
   useImperativeHandle(ref, () => ({
     focus: () => textareaRef.current?.focus(),
@@ -338,8 +343,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         const uploadedAttachments = pendingAttachments
           .filter(a => a.uploadedId)
           .map(a => ({ id: a.uploadedId!, kind: a.uploadedKind! }));
-        onSendMessage(expanded, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+        onSendMessage(expanded, uploadedAttachments.length > 0 ? uploadedAttachments : undefined, selectedResponseFormatId);
         cleanupPending();
+        setSelectedResponseFormatId(undefined);
         return;
       }
     }
@@ -347,8 +353,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     const uploadedAttachments = pendingAttachments
       .filter(a => a.uploadedId)
       .map(a => ({ id: a.uploadedId!, kind: a.uploadedKind! }));
-    onSendMessage(trimmed || '', uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+    onSendMessage(trimmed || '', uploadedAttachments.length > 0 ? uploadedAttachments : undefined, selectedResponseFormatId);
     cleanupPending();
+    setSelectedResponseFormatId(undefined);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -602,10 +609,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               }}
             />
             {sessionId && (
-              <AutoApproveSelector
-                sessionId={sessionId}
-                disabled={disabled}
-              />
+              <>
+                <AutoApproveSelector
+                  sessionId={sessionId}
+                  disabled={disabled}
+                />
+                <ResponseFormatSelector
+                  formats={responseFormats}
+                  selectedId={selectedResponseFormatId}
+                  onSelect={setSelectedResponseFormatId}
+                  disabled={disabled}
+                />
+              </>
             )}
           </div>
 

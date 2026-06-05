@@ -1,4 +1,4 @@
-import type { ServerMessage, ClientMessage, AskResponseMessage, Ask, ClientRegisterMessage, SessionControlClaimMessage, SessionControlReleaseMessage, SessionControlRequestTakeoverMessage, SessionControlRespondTakeoverMessage, AskAuthority } from '@jean2/sdk';
+import type { ServerMessage, ClientMessage, ChatMessage, AskResponseMessage, Ask, ClientRegisterMessage, SessionControlClaimMessage, SessionControlReleaseMessage, SessionControlRequestTakeoverMessage, SessionControlRespondTakeoverMessage, AskAuthority } from '@jean2/sdk';
 import { resolveAsk, ASK_TIMEOUT, getSessionIdForPendingAsk, getAuthorityForPendingAsk, type AskBroadcastFn } from '@/tools/ask-user-api';
 import { listAllPendingAsks, cleanupAllPendingAsks, listPendingRequestsByRootSession } from '@/store/pending-asks';
 import {
@@ -19,6 +19,7 @@ import {
   reconcileSessionCompaction,
   reconcileOrphanedToolCalls,
   getAttachment,
+  getResponseFormat,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
@@ -206,6 +207,7 @@ async function runSingleChatTurn(
   workspacePath: string | null | undefined,
   session: NonNullable<ReturnType<typeof getSession>>,
   attachments?: Array<{ id: string; kind: string }>,
+  responseFormat?: import('@jean2/sdk').ResponseFormat,
 ): Promise<ChatTurnResult> {
   const userMsgId = crypto.randomUUID();
 
@@ -292,6 +294,7 @@ async function runSingleChatTurn(
       workspacePath: workspacePath ?? undefined,
       workspaceId: session.workspaceId || undefined,
       broadcastFn: askBroadcastFn,
+      responseFormat,
     })) {
       switch (event.type) {
         case 'message.created':
@@ -469,6 +472,7 @@ async function handleChat(
   sessionId: string,
   content: string,
   attachments?: Array<{ id: string; kind: string }>,
+  responseFormatId?: string,
 ): Promise<void> {
   const session = getSession(sessionId);
   if (!session) {
@@ -540,6 +544,8 @@ async function handleChat(
     return;
   }
 
+  const responseFormat = responseFormatId ? getResponseFormat(responseFormatId) ?? undefined : undefined;
+
   let currentContent: string = content;
   let currentAttachments: Array<{ id: string; kind: string }> | undefined = attachments;
   let overflowRetryDepth = 0;
@@ -556,6 +562,7 @@ async function handleChat(
       workspacePath,
       session,
       currentAttachments,
+      responseFormat,
     );
 
     if (result.contextOverflow) {
@@ -1044,7 +1051,8 @@ export async function handleClientMessage(
     case 'chat.message': {
       const gateChat = checkControllerGate(msg.sessionId, 'chat.message', ws);
       if (gateChat) { sendGateRejection(ctx, ws, gateChat); break; }
-      await handleChat(ctx, ws, msg.sessionId, msg.content, msg.attachments);
+      const chatMsg = msg as ChatMessage;
+      await handleChat(ctx, ws, chatMsg.sessionId, chatMsg.content, chatMsg.attachments, chatMsg.responseFormatId);
       break;
     }
 

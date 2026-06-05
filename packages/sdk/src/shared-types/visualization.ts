@@ -1,7 +1,7 @@
 /**
  * Supported visualization types for tool outputs.
  */
-export type VisualizationType = 'diff' | 'diffs' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none' | 'todo-list';
+export type VisualizationType = 'diff' | 'diffs' | 'code' | 'table' | 'file-list' | 'markdown' | 'shell-output' | 'none' | 'todo-list' | 'structured-response';
 
 /**
  * Base interface for all visualization types embedded in tool output.
@@ -207,6 +207,21 @@ export interface TodoListItem {
 }
 
 /**
+ * Visualization for structured/JSON response output from the LLM.
+ * Used when a response format is selected and the model produces
+ * a structured object instead of free-form text.
+ */
+export interface StructuredResponseVisualization extends ToolVisualization {
+  type: 'structured-response';
+  /** The format name that was used */
+  formatName?: string;
+  /** The structured data returned by the model */
+  data: Record<string, unknown>;
+  /** The JSON Schema that was used to constrain the response */
+  schema?: Record<string, unknown>;
+}
+
+/**
  * Union of all possible visualization types.
  */
 export type AnyVisualization =
@@ -218,7 +233,8 @@ export type AnyVisualization =
   | MarkdownVisualization
   | ShellOutputVisualization
   | NoneVisualization
-  | TodoListVisualization;
+  | TodoListVisualization
+  | StructuredResponseVisualization;
 
 /**
  * Tool output pattern that includes optional visualization data.

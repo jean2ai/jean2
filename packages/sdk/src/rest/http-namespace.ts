@@ -12,6 +12,7 @@ import { AttachmentsRestNamespace } from './attachments';
 import { TerminalsRestNamespace } from './terminals';
 import { McpRestNamespace } from './mcp';
 import { ConfigRestNamespace } from './config';
+import { ResponseFormatsRestNamespace } from './response-formats';
 
 /**
  * Result of loading all initial server data.
@@ -44,6 +45,7 @@ export class HttpNamespace {
   readonly terminals: TerminalsRestNamespace;
   readonly mcp: McpRestNamespace;
   readonly config: ConfigRestNamespace;
+  readonly responseFormats: ResponseFormatsRestNamespace;
 
   constructor(http: HttpClient) {
     this.sessions = new SessionsRestNamespace(http);
@@ -58,6 +60,7 @@ export class HttpNamespace {
     this.terminals = new TerminalsRestNamespace(http);
     this.mcp = new McpRestNamespace(http);
     this.config = new ConfigRestNamespace(http);
+    this.responseFormats = new ResponseFormatsRestNamespace(http);
   }
 
   /**

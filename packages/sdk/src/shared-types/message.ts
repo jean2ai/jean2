@@ -141,6 +141,12 @@ export interface SystemMessage extends MessageBase {
   role: 'system';
 }
 
+export interface StructuredOutputData {
+  formatName?: string;
+  data: Record<string, unknown>;
+  schema?: Record<string, unknown>;
+}
+
 export interface AssistantMessage extends MessageBase {
   role: 'assistant';
   status: AssistantStatus;
@@ -158,6 +164,8 @@ export interface AssistantMessage extends MessageBase {
   summary?: boolean; // true if this message contains a compaction summary
   mode?: 'chat' | 'compaction' | 'compact_failed'; // 'compaction' if summary, 'compact_failed' if compaction failed
   parentId?: string; // Parent message ID for task lineage (links summary to compacted messages)
+  // Structured output metadata (when response format was used)
+  structuredOutput?: StructuredOutputData;
 }
 
 export type Message = UserMessage | AssistantMessage | SystemMessage;

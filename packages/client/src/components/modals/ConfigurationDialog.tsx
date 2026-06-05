@@ -1,5 +1,5 @@
 import type { Jean2Client } from '@jean2/sdk';
-import { Key, Boxes, FileText, Layers, Link2 } from 'lucide-react';
+import { Key, Boxes, FileText, Layers, Link2, Braces } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { OAuthProvidersPanel } from './configuration/OAuthProvidersPanel';
 import { ModelsPanel } from './configuration/ModelsPanel';
 import { PromptsPanel } from './configuration/PromptsPanel';
 import { PreconfigsPanel } from './configuration/PreconfigsPanel';
+import { ResponseFormatsPanel } from './configuration/ResponseFormatsPanel';
 
 interface ConfigurationDialogProps {
   open: boolean;
@@ -32,12 +33,12 @@ export function ConfigurationDialog({
         <DialogHeader>
           <DialogTitle>Configuration</DialogTitle>
           <DialogDescription>
-            Manage credentials, OAuth providers, models, prompts, and preconfigs
+            Manage credentials, OAuth providers, models, prompts, preconfigs, and response formats
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="providers" className="mt-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="providers">
               <Key className="size-4" data-icon="inline-start" />
               <span className="hidden sm:inline">Credentials</span>
@@ -57,6 +58,10 @@ export function ConfigurationDialog({
             <TabsTrigger value="preconfigs">
               <Layers className="size-4" data-icon="inline-start" />
               <span className="hidden sm:inline">Preconfigs</span>
+            </TabsTrigger>
+            <TabsTrigger value="response-formats">
+              <Braces className="size-4" data-icon="inline-start" />
+              <span className="hidden sm:inline">Formats</span>
             </TabsTrigger>
           </TabsList>
 
@@ -87,6 +92,12 @@ export function ConfigurationDialog({
           <TabsContent value="preconfigs" className="mt-4">
             <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
               <PreconfigsPanel sdkClient={sdkClient} />
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="response-formats" className="mt-4">
+            <ScrollArea className="h-[calc(100dvh-14rem)] sm:h-[500px]">
+              <ResponseFormatsPanel sdkClient={sdkClient} />
             </ScrollArea>
           </TabsContent>
         </Tabs>

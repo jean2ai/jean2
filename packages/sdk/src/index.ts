@@ -61,6 +61,8 @@ export { TerminalsRestNamespace } from './rest/terminals';
 export { McpRestNamespace } from './rest/mcp';
 export { ConfigRestNamespace } from './rest/config';
 export { ConfigModelsNamespace, ConfigPromptsNamespace } from './rest/config';
+export { ResponseFormatsRestNamespace } from './rest/response-formats';
+export type { CreateResponseFormatRequest, UpdateResponseFormatRequest } from './rest/response-formats';
 export { HttpNamespace } from './rest/http-namespace';
 export type { LoadAllResult } from './rest/http-namespace';
 
