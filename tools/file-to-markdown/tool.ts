@@ -2,7 +2,8 @@
 // Adapted from jojomondag/FileToMarkdown (MIT) — converted per-converter logic ported to TypeScript + Jean2 wrapper
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
-import { join } from 'path';
+import { dirname, join } from 'path';
+
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const DEFAULT_READ_LIMIT = 2000;
@@ -70,8 +71,15 @@ export function detectFormat(path: string): SupportedFormat | null {
 
 export async function convertPdf(buffer: Uint8Array): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist');
-  // Resolve worker from node_modules — tools have their own node_modules/ directory
-  pdfjsLib.GlobalWorkerOptions.workerSrc = join(import.meta.dir, 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+  // Resolve worker from the actual pdfjs-dist module location — works in dev (monorepo hoist) and production
+  try {
+    const mainUrl = import.meta.resolve('pdfjs-dist');
+    const mainPath = new URL(mainUrl).pathname;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = join(dirname(mainPath), 'pdf.worker.mjs');
+  } catch {
+    // Bundled or unusual environment — fall back to relative path
+    pdfjsLib.GlobalWorkerOptions.workerSrc = join(import.meta.dir, 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+  }
   const doc = await pdfjsLib.getDocument({ data: buffer, useSystemFonts: true }).promise;
   const pages: string[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
@@ -572,7 +580,7 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     }
 
     const checksum = computeChecksum(resolvedPath, stat.size, stat.modifiedAt.getTime());
-    const cacheDir = `${ctx.sessionId}`;
+    const cacheDir = `${ctx.fs.tempDir}/${ctx.sessionId}`;
     const cachePath = `${cacheDir}/file-to-markdown-${checksum}.md`;
 
     let markdown: string;
