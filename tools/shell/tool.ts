@@ -168,7 +168,7 @@ function analyzeRisk(cmd: string, ctx: ToolContext): RiskAnalysis {
   for (const p of paths) {
     const resolved = ctx.resolvePath(p);
     resolvedPaths.push(resolved);
-    if (!ctx.isWithinWorkspace(resolved)) {
+    if (!ctx.isWithinWorkspace(resolved) && !resolved.startsWith(ctx.fs.tempDir)) {
       workspaceBound = false;
     }
   }
