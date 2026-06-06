@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 
 const MAX_RESULT_CHARS = 50_000;
 const PREVIEW_CHARS = 10_000;
-const JEAN2_TEMP_PREFIX = path.join(os.tmpdir(), 'jean2', '');
+const JEAN2_TEMP_DIR = path.join(os.tmpdir(), 'jean2');
 
 export function truncateToolResult(
   result: unknown,
@@ -17,7 +17,7 @@ export function truncateToolResult(
     return result;
   }
 
-  const dir = `${JEAN2_TEMP_PREFIX}${sessionId}`;
+  const dir = path.join(JEAN2_TEMP_DIR, sessionId);
   mkdirSync(dir, { recursive: true });
 
   const sanitizedToolName = toolName.replace(/[^a-zA-Z0-9_-]/g, '_');
