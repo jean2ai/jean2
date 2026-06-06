@@ -4,7 +4,7 @@ import { ConfigurationValidationError } from '@/configuration/errors';
 
 const MODELS_REGISTRY_URL =
   process.env.JEAN2_MODELS_REGISTRY_URL ||
-  'https://raw.githubusercontent.com/rabbyte-tech/jean2/main/packages/server/src/config/models.json';
+  'https://raw.githubusercontent.com/jean2ai/jean2/main/packages/server/src/config/models.json';
 
 export interface SyncResult {
   mode: 'merge' | 'override';

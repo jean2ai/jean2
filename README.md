@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rabbyte-tech/jean2/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/rabbyte-tech/jean2?color=6366f1"></a>
+  <a href="https://github.com/jean2ai/jean2/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/jean2ai/jean2?color=6366f1"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-6366f1"></a>
   <a href="https://bun.sh"><img alt="Bun" src="https://img.shields.io/badge/runtime-Bun-6366f1?logo=bun"></a>
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-6366f1?logo=typescript"></a>
@@ -23,7 +23,7 @@
 <p align="center">
   <a href="docs/getting-started.md">Get Started</a> ·
   <a href="docs/">Docs</a> ·
-  <a href="https://github.com/rabbyte-tech/jean2">GitHub</a> ·
+  <a href="https://github.com/jean2ai/jean2">GitHub</a> ·
   <a href="https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj">Chrome Extension</a> ·
   <a href="https://discord.com/invite/38sUKnUNPQ">Discord</a>
 </p>

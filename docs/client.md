@@ -25,7 +25,7 @@ The PWA caches assets locally and works even without an internet connection to t
 
 ## Desktop App (macOS)
 
-The Electron desktop app provides a native experience with system tray, notifications, and auto-updates. Download from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases), install, and launch it. It connects to the server on port **8742** (configurable via `JEAN2_PORT`).
+The Electron desktop app provides a native experience with system tray, notifications, and auto-updates. Download from [GitHub Releases](https://github.com/jean2ai/jean2/releases), install, and launch it. It connects to the server on port **8742** (configurable via `JEAN2_PORT`).
 
 ## Browser Extension
 

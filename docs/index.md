@@ -50,5 +50,5 @@ LLM Providers (Anthropic, OpenAI, Google, DeepSeek, ...)
 
 ## External Links
 
-- [GitHub](https://github.com/rabbyte-tech/jean2)
+- [GitHub](https://github.com/jean2ai/jean2)
 - [Website](https://jean2.ai)

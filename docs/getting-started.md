@@ -136,7 +136,7 @@ Opens a local web UI connecting to `http://localhost:8742`.
 
 ### Desktop app (macOS)
 
-Download the latest Electron app from [GitHub Releases](https://github.com/rabbyte-tech/jean2/releases).
+Download the latest Electron app from [GitHub Releases](https://github.com/jean2ai/jean2/releases).
 
 ### PWA (any device with a browser)
 

@@ -37,7 +37,7 @@ export interface ToolRepository {
 }
 
 const DEFAULT_REGISTRY_URL =
-  'https://raw.githubusercontent.com/rabbyte-tech/jean2/main/tools/repositoryv3.json';
+  'https://raw.githubusercontent.com/jean2ai/jean2/main/tools/repositoryv3.json';
 const REPOSITORY_TIMEOUT = 10000;
 
 function getRegistryUrl(): string {

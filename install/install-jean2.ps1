@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 
-$VERSION_FILE_URL = "https://raw.githubusercontent.com/rabbyte-tech/jean2/refs/heads/main/packages/server/VERSION"
-$REPO = "rabbyte-tech/jean2"
+$VERSION_FILE_URL = "https://raw.githubusercontent.com/jean2ai/jean2/refs/heads/main/packages/server/VERSION"
+$REPO = "jean2ai/jean2"
 $INSTALL_DIR = "$HOME\.jean2\bin"
 $BINARY_NAME = "jean2.exe"
 $BINARY_PATH = ""
