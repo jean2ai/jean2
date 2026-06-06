@@ -35,6 +35,7 @@ export interface ExecuteToolOptions {
   sessionId: string;
   workspaceId?: string;
   allowedPaths?: string[];
+  additionalPaths?: string[];
   toolCallId?: string;
   abortSignal?: AbortSignal;
   timeout?: number;
@@ -141,7 +142,9 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
   return api;
 }
 
-function createPathHelpers(workspacePath: string) {
+function createPathHelpers(workspacePath: string, additionalPaths: string[] = []) {
+  const allAllowedPaths = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
+
   function resolvePath(path: string): string {
     if (path.startsWith('~/') || path === '~') {
       return join(homedir(), path.slice(1));
@@ -154,8 +157,7 @@ function createPathHelpers(workspacePath: string) {
 
   function isWithinWorkspace(path: string): boolean {
     const resolvedPath = resolvePath(path);
-    const normalizedWorkspace = resolve(workspacePath);
-    return resolvedPath.startsWith(normalizedWorkspace);
+    return allAllowedPaths.some(allowed => resolvedPath.startsWith(allowed));
   }
 
   function isSensitivePath(path: string): boolean {
@@ -217,7 +219,7 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
   } = options;
 
   const effectiveWorkspace = workspacePath || process.cwd();
-  const pathHelpers = createPathHelpers(effectiveWorkspace);
+  const pathHelpers = createPathHelpers(effectiveWorkspace, options.additionalPaths);
 
   const ctx: ToolContext = {
     sessionId,

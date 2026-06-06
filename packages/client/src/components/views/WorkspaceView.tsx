@@ -37,6 +37,7 @@ export default function WorkspaceView() {
     handleCreatePhysicalWorkspace,
     deleteWorkspace,
     renameWorkspace,
+    updateWorkspacePaths,
   } = sessionManager;
 
   useWorkspaceSessions({
@@ -63,6 +64,7 @@ export default function WorkspaceView() {
           onToggleFavorite={sidebarData.handleToggleWorkspaceFavorite}
           onDeleteWorkspace={deleteWorkspace}
           onRenameWorkspace={renameWorkspace}
+          onUpdateWorkspacePaths={updateWorkspacePaths}
           sdkClient={sdkClient}
         />
       </div>
@@ -130,7 +132,10 @@ export default function WorkspaceView() {
         } : undefined}
       >
         <div className={hasCapability('multiView') ? 'flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border' : 'flex flex-1 flex-col overflow-hidden min-h-0 bg-background'}>
-          <WorkspaceHeader />
+          <WorkspaceHeader
+            onUpdateWorkspacePaths={updateWorkspacePaths}
+            sdkClient={sdkClient}
+          />
           <Outlet />
           <AppPanels
             sdkClient={sdkClient}

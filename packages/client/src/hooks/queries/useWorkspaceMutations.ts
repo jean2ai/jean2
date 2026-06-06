@@ -103,3 +103,22 @@ export function useRenameWorkspaceMutation(clientRef: RefObject<Jean2Client | nu
     },
   });
 }
+
+export function useUpdateWorkspaceMutation(clientRef: RefObject<Jean2Client | null>) {
+  return useMutation({
+    mutationFn: async ({ id, additionalPaths }: { id: string; additionalPaths: string[] }): Promise<RenameWorkspaceResult> => {
+      const http = clientRef.current?.httpClient;
+      if (!http) throw new Error('Not connected');
+      return http.patch<RenameWorkspaceResult>(`/workspaces/${id}`, { additionalPaths });
+    },
+    onSuccess: ({ workspace: updatedWorkspace }) => {
+      const store = useServerDataStore.getState();
+      store.setWorkspaces(
+        store.workspaces.map(w => w.id === updatedWorkspace.id ? updatedWorkspace : w),
+      );
+      if (store.activeWorkspace?.id === updatedWorkspace.id) {
+        store.setActiveWorkspace(updatedWorkspace);
+      }
+    },
+  });
+}

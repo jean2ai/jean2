@@ -108,6 +108,7 @@ export interface UseServerSessionManagerReturn {
 
   selectWorkspace: (workspace: Workspace) => void;
   renameWorkspace: (id: string, name: string) => void;
+  updateWorkspacePaths: (id: string, additionalPaths: string[]) => void;
   handleCreateVirtualWorkspace: () => void;
   handleCreatePhysicalWorkspace: (path: string) => void;
   deleteWorkspace: (id: string) => void;
@@ -614,6 +615,28 @@ export function useServerSessionManager({
     }
   };
 
+  const updateWorkspacePaths = async (id: string, additionalPaths: string[]) => {
+    const http = sdkClientRef.current?.httpClient;
+    if (!http) return;
+
+    try {
+      const data = await http.patch<{ workspace: Workspace }>(`/workspaces/${id}`, { additionalPaths });
+      const updatedWorkspace = data.workspace;
+
+      const currentWorkspaces = useServerDataStore.getState().workspaces;
+      useServerDataStore.getState().setWorkspaces(
+        currentWorkspaces.map(w => w.id === id ? updatedWorkspace : w),
+      );
+
+      if (useServerDataStore.getState().activeWorkspace?.id === id) {
+        useServerDataStore.getState().setActiveWorkspace(updatedWorkspace);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Failed to update workspace paths:', message);
+    }
+  };
+
   const handleCreateVirtualWorkspace = async () => {
     const name = `Workspace ${workspaces.length + 1}`;
     const path = `~/.jean2/workspaces/${crypto.randomUUID()}`;
@@ -856,6 +879,7 @@ export function useServerSessionManager({
 
     selectWorkspace,
     renameWorkspace,
+    updateWorkspacePaths,
     handleCreateVirtualWorkspace,
     handleCreatePhysicalWorkspace,
     deleteWorkspace,

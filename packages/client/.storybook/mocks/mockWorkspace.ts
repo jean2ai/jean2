@@ -15,6 +15,7 @@ export function createWorkspace(overrides: MockWorkspaceOverrides = {}): Workspa
       name: 'my-project',
       path: `/home/user/${id}`,
       isVirtual: false,
+      additionalPaths: [],
       createdAt: mockIsoNow(),
       updatedAt: mockIsoNow(),
     },

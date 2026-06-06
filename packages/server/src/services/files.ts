@@ -134,8 +134,9 @@ export async function searchFiles(
 export function isPathWithinWorkspace(
   targetPath: string,
   workspacePath: string,
+  additionalPaths: string[] = [],
 ): boolean {
   const resolved = resolve(targetPath);
-  const workspace = resolve(workspacePath);
-  return resolved.startsWith(workspace);
+  const allAllowed = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
+  return allAllowed.some(allowed => resolved.startsWith(allowed));
 }

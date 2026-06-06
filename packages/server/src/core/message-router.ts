@@ -205,6 +205,7 @@ async function runSingleChatTurn(
   modelId: string,
   provider: string,
   workspacePath: string | null | undefined,
+  additionalPaths: string[] | undefined,
   session: NonNullable<ReturnType<typeof getSession>>,
   attachments?: Array<{ id: string; kind: string }>,
   responseFormat?: import('@jean2/sdk').ResponseFormat,
@@ -293,6 +294,7 @@ async function runSingleChatTurn(
       variant: session.selectedVariant || undefined,
       workspacePath: workspacePath ?? undefined,
       workspaceId: session.workspaceId || undefined,
+      additionalPaths,
       broadcastFn: askBroadcastFn,
       responseFormat,
     })) {
@@ -495,6 +497,7 @@ async function handleChat(
 
   const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;
   const workspacePath = workspace?.path;
+  const additionalPaths = workspace?.additionalPaths;
 
   const preconfig = session.preconfigId
     ? await getPreconfig(session.preconfigId)
@@ -560,6 +563,7 @@ async function handleChat(
       modelId,
       provider,
       workspacePath,
+      additionalPaths,
       session,
       currentAttachments,
       responseFormat,

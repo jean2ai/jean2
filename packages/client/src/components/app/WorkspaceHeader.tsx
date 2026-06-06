@@ -1,5 +1,5 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis } from 'lucide-react';
-import { isWindows } from '@/lib/platform';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink } from 'lucide-react';
+import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
@@ -15,8 +15,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
+import { isWindows } from '@/lib/platform';
 
-export function WorkspaceHeader() {
+interface WorkspaceHeaderProps {
+  onUpdateWorkspacePaths?: (workspaceId: string, additionalPaths: string[]) => void;
+  sdkClient?: import('@jean2/sdk').Jean2Client | null;
+}
+
+export function WorkspaceHeader({ onUpdateWorkspacePaths, sdkClient }: WorkspaceHeaderProps) {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
   const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
@@ -26,6 +33,7 @@ export function WorkspaceHeader() {
   const setShowWorkspacePermissions = useUIStore((s) => s.setShowWorkspacePermissions);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar, state: sidebarState } = useSidebar();
+  const [editingPaths, setEditingPaths] = useState(false);
 
   return (
     <div className="h-9 px-3 flex items-center shrink-0">
@@ -113,12 +121,18 @@ export function WorkspaceHeader() {
                   </TooltipTrigger>
                   <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="min-w-48">
                   <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
                     <Server className="w-4 h-4" />
                     MCP Servers
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  {onUpdateWorkspacePaths && (
+                    <DropdownMenuItem onClick={() => setEditingPaths(true)}>
+                      <FolderSymlink className="w-4 h-4" />
+                      Additional paths
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuCheckboxItem
                     checked={showWorkspacePermissions}
                     onCheckedChange={setShowWorkspacePermissions}
@@ -132,6 +146,15 @@ export function WorkspaceHeader() {
           )}
         </div>
       </TooltipProvider>
+      {onUpdateWorkspacePaths && activeWorkspace && (
+        <WorkspaceAdditionalPathsDialog
+          open={editingPaths}
+          onOpenChange={setEditingPaths}
+          workspace={activeWorkspace}
+          onSave={onUpdateWorkspacePaths}
+          sdkClient={sdkClient ?? null}
+        />
+      )}
     </div>
   );
 }

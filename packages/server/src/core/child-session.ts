@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/sdk';
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
+import { getWorkspace } from '@/store/workspaces';
 import { broadcastEvent, sendToControllerEvent, sendToAskTargetsEvent, type BroadcastFn } from './broadcast';
 import type { AskBroadcastFn } from '@/tools/ask-user-api';
 import { getLLMSubagentMaxSteps } from '@/env';
@@ -24,6 +25,10 @@ export async function executeChildSession(options: {
   error?: string;
 }> {
   const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant, broadcast: broadcastFn = broadcastEvent, broadcastToSession: broadcastToSessionFn = broadcastFn } = options;
+
+  // Resolve additionalPaths from workspace
+  const workspace = workspaceId ? getWorkspace(workspaceId) : null;
+  const additionalPaths = workspace?.additionalPaths;
 
   let messages: MessageWithParts[];
 
@@ -118,6 +123,7 @@ export async function executeChildSession(options: {
       messages,
       workspacePath,
       workspaceId,
+      additionalPaths,
       modelId: modelId ?? undefined,
       providerId: providerId ?? undefined,
       variant: variant ?? undefined,

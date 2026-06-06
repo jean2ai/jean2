@@ -71,7 +71,10 @@ export default function OverviewView() {
         }}
       >
         <div className="flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border">
-          <WorkspaceHeader />
+          <WorkspaceHeader
+            onUpdateWorkspacePaths={sessionManager.updateWorkspacePaths}
+            sdkClient={sessionManager.sdkClient}
+          />
           <Outlet />
           <AppPanels
             sdkClient={sessionManager.sdkClient}

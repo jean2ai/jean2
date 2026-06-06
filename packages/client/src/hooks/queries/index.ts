@@ -4,6 +4,6 @@ export { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePr
 export { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from './usePromptsQueries';
 export { useProvidersQuery, useProviderCredentialsQuery, useConnectProvider, useDisconnectProvider, useSetProviderCredential, useClearProviderCredential } from './useProvidersQueries';
 export { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } from './useMcpQueries';
-export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorkspaceMutation } from './useWorkspaceMutations';
+export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorkspaceMutation, useUpdateWorkspaceMutation } from './useWorkspaceMutations';
 export { useFileBrowseQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery } from './useFileQueries';
 export { useResponseFormatsQuery, useCreateResponseFormat, useUpdateResponseFormat, useDeleteResponseFormat } from './useResponseFormatsQueries';

@@ -134,6 +134,16 @@ export function initializeSchema(db: Database): void {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS workspace_paths (
+      workspace_id TEXT NOT NULL,
+      path TEXT NOT NULL,
+      label TEXT,
+      PRIMARY KEY (workspace_id, path),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       workspace_id TEXT NOT NULL,

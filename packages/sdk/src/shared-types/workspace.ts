@@ -3,6 +3,7 @@ export interface Workspace {
   name: string;
   path: string;
   isVirtual: boolean;
+  additionalPaths: string[];
   createdAt: string;
   updatedAt: string;
 }

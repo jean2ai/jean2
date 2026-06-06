@@ -23,6 +23,7 @@ export interface BuildToolsOptions {
   canSpawnSubagents?: boolean | string[] | null;
   allowedSkills?: string[] | null;
   broadcastFn?: AskBroadcastFn;
+  additionalPaths?: string[];
 }
 
 export async function buildAiSdkTools(
@@ -40,6 +41,7 @@ export async function buildAiSdkTools(
     canSpawnSubagents,
     allowedSkills,
     broadcastFn,
+    additionalPaths,
   } = options;
 
   // Resolve root session ID by walking up the parent chain
@@ -125,6 +127,7 @@ export async function buildAiSdkTools(
             sessionId,
             workspaceId,
             allowedPaths: [getUploadDir()],
+            additionalPaths: additionalPaths ?? [],
             toolCallId,
             abortSignal: toolAbortController.signal,
             timeout: definition.timeout,

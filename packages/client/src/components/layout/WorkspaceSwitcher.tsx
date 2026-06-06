@@ -1,9 +1,10 @@
 import type { Jean2Client } from '@jean2/sdk';
 import { useState, useEffect, useRef } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil, FolderSymlink } from 'lucide-react';
 import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
+import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ interface WorkspaceSwitcherProps {
   onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
   onDeleteWorkspace: (id: string) => void;
   onRenameWorkspace: (id: string, name: string) => void;
+  onUpdateWorkspacePaths: (workspaceId: string, additionalPaths: string[]) => void;
   sdkClient: Jean2Client | null;
 }
 
@@ -50,11 +52,13 @@ export function WorkspaceSwitcher({
   onToggleFavorite,
   onDeleteWorkspace,
   onRenameWorkspace,
+  onUpdateWorkspacePaths,
   sdkClient,
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
+  const [editingPathsWorkspace, setEditingPathsWorkspace] = useState<Workspace | null>(null);
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +111,7 @@ export function WorkspaceSwitcher({
           <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[240px] p-0 max-h-[80vh]">
+      <PopoverContent className="w-[320px] p-0 max-h-[80vh]">
         <Command>
           <CommandInput placeholder="Search workspace..." />
           <CommandList className="max-h-[50vh] overflow-y-auto">
@@ -189,7 +193,7 @@ export function WorkspaceSwitcher({
                           <span className="sr-only">Workspace actions</span>
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="min-w-48">
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
@@ -198,6 +202,16 @@ export function WorkspaceSwitcher({
                         >
                           <Pencil className="size-4" />
                           Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPathsWorkspace(workspace);
+                            setOpen(false);
+                          }}
+                        >
+                          <FolderSymlink className="size-4" />
+                          Additional paths
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -248,6 +262,13 @@ export function WorkspaceSwitcher({
         setShowFolderPicker(false);
       }}
       title="Select Workspace Folder"
+      sdkClient={sdkClient}
+    />
+    <WorkspaceAdditionalPathsDialog
+      open={!!editingPathsWorkspace}
+      onOpenChange={(o) => { if (!o) setEditingPathsWorkspace(null); }}
+      workspace={editingPathsWorkspace ?? { id: '', name: '', path: '', isVirtual: false, additionalPaths: [], createdAt: '', updatedAt: '' }}
+      onSave={onUpdateWorkspacePaths}
       sdkClient={sdkClient}
     />
     <ConfirmationDialog

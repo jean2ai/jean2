@@ -35,7 +35,7 @@ export function registerFileRoutes(app: Hono): void {
 
       const fullPath = join(workspace.path, path);
 
-      if (!isPathWithinWorkspace(fullPath, workspace.path)) {
+      if (!isPathWithinWorkspace(fullPath, workspace.path, workspace.additionalPaths)) {
         return c.json({ error: 'Forbidden', message: 'Path outside workspace' }, 403);
       }
 
@@ -61,7 +61,7 @@ export function registerFileRoutes(app: Hono): void {
     }
 
     try {
-      const preview = await getFilePreview(workspace.path, path);
+      const preview = await getFilePreview(workspace.path, path, workspace.additionalPaths);
       return c.json(preview);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';

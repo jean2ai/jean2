@@ -2,7 +2,25 @@
  * Build workspace context for LLM system prompt
  * This tells the LLM where it's working and how paths work
  */
-export function buildWorkspaceSystemPrompt(workspacePath: string): string {
+export function buildWorkspaceSystemPrompt(
+  workspacePath: string,
+  additionalPaths: string[] = [],
+): string {
+  let additionalSection = '';
+  if (additionalPaths.length > 0) {
+    additionalSection = `
+
+### Additional Paths
+
+This workspace has additional directories you have full access to:
+${additionalPaths.map(p => `- ${p}`).join('\n')}
+
+You can read, write, search, and explore files in these directories using absolute paths.
+Relative paths still resolve from the primary workspace. Use absolute paths for additional paths.
+
+`;
+  }
+
   return `
 <workspace>
 ## Working Directory
@@ -30,8 +48,7 @@ All file operations support three path types:
 - **File Operations**: Relative paths resolve from workspace root
 - **Shell Commands**: Execute from workspace root by default
 - **Search Operations**: Scoped to workspace by default
-
-### Security
+${additionalSection}### Security
 
 Operations outside the workspace directory require explicit approval:
 - Writing outside workspace: Requires approval

@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import type { SessionStatus } from '@jean2/sdk';
@@ -57,7 +57,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
   app.post('/api/workspaces', async (c) => {
     const body = await c.req.json().catch(() => ({}));
 
-    const { name, path: providedPath, isVirtual } = body;
+    const { name, path: providedPath, isVirtual, additionalPaths } = body;
 
     let path = providedPath;
 
@@ -81,11 +81,23 @@ export function registerWorkspaceRoutes(app: Hono): void {
       return c.json({ error: 'Internal Server Error', message: 'Failed to create workspace directory' }, 500);
     }
 
+    // Validate additional paths (must exist on disk)
+    const validatedPaths: string[] = [];
+    if (Array.isArray(additionalPaths)) {
+      for (const p of additionalPaths) {
+        const expanded = expandPath(p);
+        if (existsSync(expanded)) {
+          validatedPaths.push(expanded);
+        }
+      }
+    }
+
     const workspace = createWorkspace({
       id: crypto.randomUUID(),
       name: name || 'New Workspace',
       path,
       isVirtual: isVirtual || false,
+      additionalPaths: validatedPaths,
     });
 
     return c.json({ workspace }, 201);
@@ -103,18 +115,29 @@ export function registerWorkspaceRoutes(app: Hono): void {
     return c.json({ workspace });
   });
 
-  // PATCH /api/workspaces/:id - Update a workspace (name only)
+  // PATCH /api/workspaces/:id - Update a workspace (name and/or additionalPaths)
   app.patch('/api/workspaces/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => ({}));
 
-    const { name } = body;
+    const { name, additionalPaths } = body;
 
-    if (!name) {
-      return c.json({ error: 'Bad Request', message: 'Name is required' }, 400);
+    if (!name && additionalPaths === undefined) {
+      return c.json({ error: 'Bad Request', message: 'Name or additionalPaths is required' }, 400);
     }
 
-    const workspace = updateWorkspace(id, { name });
+    // Validate additional paths
+    let validatedPaths: string[] | undefined;
+    if (Array.isArray(additionalPaths)) {
+      validatedPaths = additionalPaths
+        .map((p: string) => expandPath(p))
+        .filter((p: string) => existsSync(p));
+    }
+
+    const workspace = updateWorkspace(id, {
+      name,
+      additionalPaths: validatedPaths,
+    });
 
     if (!workspace) {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);

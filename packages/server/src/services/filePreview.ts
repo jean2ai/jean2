@@ -126,6 +126,7 @@ function getLanguage(ext: string | undefined): string | undefined {
 export async function getFilePreview(
   workspacePath: string,
   relativePath: string,
+  additionalPaths: string[] = [],
 ): Promise<FilePreviewResponse> {
   let fullPath: string;
   const normalizedInput = relativePath.replace(/\\/g, '/');
@@ -136,14 +137,18 @@ export async function getFilePreview(
     fullPath = join(workspacePath, normalizedInput);
   }
 
-  const workspaceResolved = resolve(workspacePath);
-  if (!fullPath.startsWith(workspaceResolved)) {
+  const allAllowed = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
+  if (!allAllowed.some(allowed => fullPath.startsWith(allowed))) {
     throw new Error('Path outside workspace');
   }
 
-  const responseRelativePath = fullPath === workspaceResolved
+  const primaryResolved = resolve(workspacePath);
+
+  const responseRelativePath = fullPath === primaryResolved
     ? ''
-    : fullPath.slice(workspaceResolved.length + 1);
+    : fullPath.startsWith(primaryResolved)
+      ? fullPath.slice(primaryResolved.length + 1)
+      : fullPath;
 
   const fileName = basename(responseRelativePath);
   const extension = extname(responseRelativePath);

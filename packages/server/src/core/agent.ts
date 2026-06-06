@@ -36,6 +36,7 @@ export interface ChatOptions {
   variant?: string;
   workspacePath?: string;
   workspaceId?: string;
+  additionalPaths?: string[];
   maxSteps?: number;
   compactionPolicy?: CompactionPolicy;
   broadcastFn?: BuildToolsOptions['broadcastFn'];
@@ -112,6 +113,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     canSpawnSubagents: preconfig.canSpawnSubagents,
     allowedSkills: preconfig.skills,
     broadcastFn: options.broadcastFn,
+    additionalPaths: options.additionalPaths,
   });
 
   // Build system message with workspace context
@@ -126,7 +128,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Add workspace context
   if (workspacePath) {
-    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath);
+    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath, options.additionalPaths);
     systemMessage = systemMessage + '\n\n' + workspaceContext;
   }
 

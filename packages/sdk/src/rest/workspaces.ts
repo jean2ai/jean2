@@ -16,6 +16,7 @@ interface CreateOptions {
   name?: string;
   path?: string;
   isVirtual?: boolean;
+  additionalPaths?: string[];
   signal?: AbortSignal;
 }
 
@@ -43,7 +44,7 @@ export class WorkspacesRestNamespace {
 
   async update(
     id: string,
-    data: { name: string },
+    data: { name?: string; additionalPaths?: string[] },
     options?: GetOptions,
   ): Promise<UpdateWorkspaceResponse> {
     return this.http.patch(`/workspaces/${encodeURIComponent(id)}`, data, {
