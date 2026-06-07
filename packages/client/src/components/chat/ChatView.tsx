@@ -237,6 +237,11 @@ export function ChatView({
 
   const [autoFollow, setAutoFollow] = useState(true);
 
+  // Reset to follow mode when switching sessions
+  useEffect(() => {
+    setAutoFollow(true);
+  }, [session.id]);
+
   const handleToggleAutoFollow = useCallback(() => {
     setAutoFollow((prev) => {
       const newValue = !prev;

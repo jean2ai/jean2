@@ -98,3 +98,5 @@ packages/client-tauri/gen/android/app/build/
 packages/client-tauri/gen/android/build/
 packages/client-electron/.electron-cache/
 .electron-cache/
+
+.jean2

@@ -494,7 +494,13 @@ export function VirtualizedTranscript({
   const listRef = useRef<LegendListRef | null>(null);
   const autoScrollRef = useRef(autoFollow);
   const isProgrammaticScrollRef = useRef(false);
+  const userScrollingRef = useRef(false);
+  const userScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [maintainAutoFollow, setMaintainAutoFollow] = useState(autoFollow);
+  const onAutoScrollChangeRef = useRef(onAutoScrollChange);
+  useEffect(() => {
+    onAutoScrollChangeRef.current = onAutoScrollChange;
+  }, [onAutoScrollChange]);
   const [showCompactionBanner, setShowCompactionBanner] = useState(false);
 
   useLayoutEffect(() => {
@@ -515,13 +521,22 @@ export function VirtualizedTranscript({
     setMaintainAutoFollow(autoFollow);
   }, [autoFollow]);
 
-  const disableAutoFollowForUserIntent = useCallback(() => {
-    if (!autoScrollRef.current && !maintainAutoFollow) return;
+  const markUserScrolling = useCallback(() => {
+    userScrollingRef.current = true;
+    if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
+    userScrollTimerRef.current = setTimeout(() => {
+      userScrollingRef.current = false;
+    }, 300);
+  }, []);
 
+  const disableAutoFollowForUserIntent = useCallback(() => {
+    if (!autoScrollRef.current) return;
+
+    markUserScrolling();
     autoScrollRef.current = false;
     setMaintainAutoFollow(false);
-    onAutoScrollChange?.(false);
-  }, [maintainAutoFollow, onAutoScrollChange]);
+    onAutoScrollChangeRef.current?.(false);
+  }, [markUserScrolling]);
 
   useLayoutEffect(() => {
     if (displayItems.length === 0) return;
@@ -532,7 +547,9 @@ export function VirtualizedTranscript({
       isProgrammaticScrollRef.current = true;
       requestAnimationFrame(() => {
         void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
-          isProgrammaticScrollRef.current = false;
+          setTimeout(() => {
+            isProgrammaticScrollRef.current = false;
+          }, 100);
         });
       });
     }
@@ -545,9 +562,9 @@ export function VirtualizedTranscript({
         setMaintainAutoFollow(true);
         isProgrammaticScrollRef.current = true;
         void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
-          requestAnimationFrame(() => {
+          setTimeout(() => {
             isProgrammaticScrollRef.current = false;
-          });
+          }, 100);
         });
       };
     }
@@ -587,6 +604,13 @@ export function VirtualizedTranscript({
     };
   }, [disableAutoFollowForUserIntent]);
 
+  // Cleanup user scroll timer on unmount
+  useEffect(() => {
+    return () => {
+      if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
+    };
+  }, []);
+
   const handleScroll = useCallback(() => {
     if (isProgrammaticScrollRef.current) return;
 
@@ -594,20 +618,23 @@ export function VirtualizedTranscript({
     if (!state) return;
 
     if (state.isAtEnd || state.isWithinMaintainScrollAtEndThreshold) {
-      if (!autoScrollRef.current || !maintainAutoFollow) {
+      if (!autoScrollRef.current) {
         autoScrollRef.current = true;
         setMaintainAutoFollow(true);
-        onAutoScrollChange?.(true);
+        onAutoScrollChangeRef.current?.(true);
       }
       return;
     }
 
-    if (autoScrollRef.current || maintainAutoFollow) {
+    // Only disable auto-follow if the user is actively scrolling.
+    // Layout shifts from content changes can temporarily report !isAtEnd
+    // even though no user interaction occurred.
+    if (autoScrollRef.current && userScrollingRef.current) {
       autoScrollRef.current = false;
       setMaintainAutoFollow(false);
-      onAutoScrollChange?.(false);
+      onAutoScrollChangeRef.current?.(false);
     }
-  }, [maintainAutoFollow, onAutoScrollChange]);
+  }, []);
 
   const renderItem = useCallback(({ item }: { item: DisplayItem }) => (
     <div className="px-4 py-4">
