@@ -33,28 +33,19 @@ function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; 
   return { frontmatter, content };
 }
 
-// Cache for discovered skills
-const skillsCache: Map<string, SkillInfo> = new Map();
-let lastScanPath: string | null = null;
-
 /**
  * Scan for skills in the workspace's .agents/skills directory.
  * Skills are discovered from SKILL.md files in subdirectories.
+ * Always reads fresh from disk so newly created skills are immediately discoverable.
  */
 export async function scanSkills(workspacePath: string): Promise<SkillInfo[]> {
   const skillsDir = join(workspacePath, '.agents', 'skills');
 
-  // Return cached if same workspace
-  if (lastScanPath === workspacePath && skillsCache.size > 0) {
-    return Array.from(skillsCache.values());
-  }
-
-  skillsCache.clear();
-  lastScanPath = workspacePath;
-
   if (!existsSync(skillsDir)) {
     return [];
   }
+
+  const skills: SkillInfo[] = [];
 
   try {
     const skillFolders = await readdir(skillsDir, { withFileTypes: true });
@@ -76,36 +67,30 @@ export async function scanSkills(workspacePath: string): Promise<SkillInfo[]> {
           continue;
         }
 
-        const skillInfo: SkillInfo = {
+        skills.push({
           name: frontmatter.name as string,
           description: frontmatter.description as string,
           location: skillMdPath,
           content: content.trim(),
           userInvocable: frontmatter['user-invocable'] !== false,
-        };
-
-        skillsCache.set(skillInfo.name, skillInfo);
+        });
       } catch (err) {
         console.warn(`Failed to read SKILL.md in ${folder.name}:`, err);
       }
     }
   } catch (err) {
     console.error('Failed to scan skills directory:', err);
-    return [];
   }
 
-  return Array.from(skillsCache.values());
+  return skills;
 }
 
 /**
  * Get a specific skill by name.
  */
 export async function getSkill(name: string, workspacePath: string): Promise<SkillInfo | null> {
-  // Ensure cache is populated
-  if (lastScanPath !== workspacePath) {
-    await scanSkills(workspacePath);
-  }
-  return skillsCache.get(name) || null;
+  const skills = await scanSkills(workspacePath);
+  return skills.find(s => s.name === name) || null;
 }
 
 /**
@@ -150,12 +135,4 @@ export function formatSkillsList(skills: SkillInfo[]): string {
   }
 
   return skills.map(skill => `- **${skill.name}**: ${skill.description}`).join('\n');
-}
-
-/**
- * Clear the skills cache (useful for testing or force refresh).
- */
-export function clearSkillsCache(): void {
-  skillsCache.clear();
-  lastScanPath = null;
 }
