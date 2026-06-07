@@ -1,11 +1,12 @@
 import { getDatabase } from './index';
-import type { Workspace } from '@jean2/sdk';
+import type { Workspace, WorkspaceSettings } from '@jean2/sdk';
 
 interface WorkspaceRow {
   id: string;
   name: string;
   path: string;
   is_virtual: number;
+  settings: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +17,18 @@ export interface CreateWorkspaceInput {
   path: string;
   isVirtual: boolean;
   additionalPaths?: string[];
+  settings?: WorkspaceSettings;
+}
+
+const DEFAULT_SETTINGS: WorkspaceSettings = {};
+
+function parseSettings(raw: string | null): WorkspaceSettings {
+  if (!raw) return { ...DEFAULT_SETTINGS };
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
 }
 
 function mapRowToWorkspace(row: WorkspaceRow): Workspace {
@@ -30,6 +43,7 @@ function mapRowToWorkspace(row: WorkspaceRow): Workspace {
     path: row.path,
     isVirtual: row.is_virtual === 1,
     additionalPaths: pathRows.map(r => r.path),
+    settings: parseSettings(row.settings),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -38,6 +52,7 @@ function mapRowToWorkspace(row: WorkspaceRow): Workspace {
 export function createWorkspace(input: CreateWorkspaceInput): Workspace {
   const db = getDatabase();
   const now = new Date().toISOString();
+  const settings = input.settings ?? DEFAULT_SETTINGS;
 
   const workspace: Workspace = {
     id: input.id,
@@ -45,18 +60,20 @@ export function createWorkspace(input: CreateWorkspaceInput): Workspace {
     path: input.path,
     isVirtual: input.isVirtual,
     additionalPaths: input.additionalPaths ?? [],
+    settings,
     createdAt: now,
     updatedAt: now,
   };
 
   db.run(`
-    INSERT INTO workspaces (id, name, path, is_virtual, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO workspaces (id, name, path, is_virtual, settings, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `, [
     workspace.id,
     workspace.name,
     workspace.path,
     workspace.isVirtual ? 1 : 0,
+    JSON.stringify(settings),
     workspace.createdAt,
     workspace.updatedAt,
   ]);
@@ -86,7 +103,7 @@ export function listWorkspaces(): Workspace[] {
 
 export function updateWorkspace(
   id: string,
-  updates: { name?: string; additionalPaths?: string[] },
+  updates: { name?: string; additionalPaths?: string[]; settings?: WorkspaceSettings },
 ): Workspace | null {
   const db = getDatabase();
   const now = new Date().toISOString();
@@ -106,6 +123,12 @@ export function updateWorkspace(
       );
     }
     db.run('UPDATE workspaces SET updated_at = ? WHERE id = ?', [now, id]);
+  }
+
+  if (updates.settings !== undefined) {
+    db.run('UPDATE workspaces SET settings = ?, updated_at = ? WHERE id = ?', [
+      JSON.stringify(updates.settings), now, id,
+    ]);
   }
 
   return getWorkspace(id);

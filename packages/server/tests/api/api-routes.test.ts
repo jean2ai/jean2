@@ -352,6 +352,87 @@ describe('API Routes', () => {
       expect(res.status).toBe(400);
     });
 
+    test('PATCH /api/workspaces/:id updates settings', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: { memory: { enabled: true, permissionRisk: 'medium' } },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await json(res);
+      expect(body.workspace.settings.memory.enabled).toBe(true);
+      expect(body.workspace.settings.memory.permissionRisk).toBe('medium');
+    });
+
+    test('PATCH /api/workspaces/:id validates settings shape', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: 'not-an-object' }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await json(res);
+      expect(body.message).toContain('object');
+    });
+
+    test('PATCH /api/workspaces/:id validates memory.enabled is boolean', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: { memory: { enabled: 'yes', permissionRisk: 'medium' } },
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await json(res);
+      expect(body.message).toContain('boolean');
+    });
+
+    test('PATCH /api/workspaces/:id validates memory.permissionRisk enum', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: { memory: { enabled: true, permissionRisk: 'invalid' } },
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await json(res);
+      expect(body.message).toContain('risk level');
+    });
+
+    test('PATCH /api/workspaces/:id accepts all valid risk levels', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      for (const risk of ['none', 'low', 'medium', 'high', 'critical']) {
+        const res = await app.request('/api/workspaces/ws1', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            settings: { memory: { enabled: true, permissionRisk: risk } },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = await json(res);
+        expect(body.workspace.settings.memory.permissionRisk).toBe(risk);
+      }
+    });
+
     test('PATCH /api/workspaces/:id returns 404 for missing', async () => {
       const res = await app.request('/api/workspaces/nonexistent', {
         method: 'PATCH',

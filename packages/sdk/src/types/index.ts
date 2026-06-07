@@ -26,7 +26,7 @@ export type {
   MessageEvent,
 } from '../shared';
 
-export type { Workspace } from '../shared';
+export type { Workspace, WorkspaceSettings, WorkspaceMemorySettings } from '../shared';
 export type { Preconfig, PreconfigMode } from '../shared';
 export type { PromptInfo } from '../shared';
 

@@ -38,6 +38,7 @@ export default function WorkspaceView() {
     deleteWorkspace,
     renameWorkspace,
     updateWorkspacePaths,
+    updateWorkspaceSettings,
   } = sessionManager;
 
   useWorkspaceSessions({
@@ -134,6 +135,7 @@ export default function WorkspaceView() {
         <div className={hasCapability('multiView') ? 'flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border' : 'flex flex-1 flex-col overflow-hidden min-h-0 bg-background'}>
           <WorkspaceHeader
             onUpdateWorkspacePaths={updateWorkspacePaths}
+            onUpdateWorkspaceSettings={updateWorkspaceSettings}
             sdkClient={sdkClient}
           />
           <Outlet />

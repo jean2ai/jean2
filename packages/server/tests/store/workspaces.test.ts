@@ -127,4 +127,99 @@ describe('workspaces store', () => {
       expect(countSessionsInWorkspace('ws1')).toBe(2);
     });
   });
+
+  // ── Settings ──────────────────────────────────────────────────
+
+  describe('workspace settings', () => {
+    test('defaults to empty settings when created without settings', () => {
+      seedWorkspace({ id: 'ws1' });
+      const ws = getWorkspace('ws1');
+
+      expect(ws).not.toBeNull();
+      expect(ws!.settings).toEqual({});
+    });
+
+    test('creates workspace with memory settings', () => {
+      createWorkspace({
+        id: 'ws-mem',
+        name: 'Memory WS',
+        path: '/mem',
+        isVirtual: false,
+        settings: { memory: { enabled: true, permissionRisk: 'medium' } },
+      });
+
+      const ws = getWorkspace('ws-mem');
+      expect(ws).not.toBeNull();
+      expect(ws!.settings.memory).toEqual({ enabled: true, permissionRisk: 'medium' });
+    });
+
+    test('updates settings on existing workspace', () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const updated = updateWorkspace('ws1', {
+        settings: { memory: { enabled: true, permissionRisk: 'none' } },
+      });
+
+      expect(updated).not.toBeNull();
+      expect(updated!.settings.memory!.enabled).toBe(true);
+      expect(updated!.settings.memory!.permissionRisk).toBe('none');
+    });
+
+    test('updates settings without affecting other fields', () => {
+      seedWorkspace({ id: 'ws1', name: 'Keep This Name' });
+
+      updateWorkspace('ws1', {
+        settings: { memory: { enabled: true, permissionRisk: 'low' } },
+      });
+
+      const ws = getWorkspace('ws1');
+      expect(ws!.name).toBe('Keep This Name');
+      expect(ws!.settings.memory!.enabled).toBe(true);
+    });
+
+    test('can disable memory after enabling', () => {
+      seedWorkspace({ id: 'ws1' });
+
+      updateWorkspace('ws1', {
+        settings: { memory: { enabled: true, permissionRisk: 'medium' } },
+      });
+
+      updateWorkspace('ws1', {
+        settings: { memory: { enabled: false, permissionRisk: 'medium' } },
+      });
+
+      const ws = getWorkspace('ws1');
+      expect(ws!.settings.memory!.enabled).toBe(false);
+    });
+
+    test('can update name and settings together', () => {
+      seedWorkspace({ id: 'ws1', name: 'Old' });
+
+      const updated = updateWorkspace('ws1', {
+        name: 'New',
+        settings: { memory: { enabled: true, permissionRisk: 'high' } },
+      });
+
+      expect(updated!.name).toBe('New');
+      expect(updated!.settings.memory!.enabled).toBe(true);
+      expect(updated!.settings.memory!.permissionRisk).toBe('high');
+    });
+
+    test('preserves settings when updating only name', () => {
+      createWorkspace({
+        id: 'ws1',
+        name: 'Original',
+        path: '/test',
+        isVirtual: false,
+        settings: { memory: { enabled: true, permissionRisk: 'critical' } },
+      });
+
+      updateWorkspace('ws1', { name: 'Renamed' });
+
+      const ws = getWorkspace('ws1');
+      expect(ws!.name).toBe('Renamed');
+      expect(ws!.settings.memory!.enabled).toBe(true);
+      expect(ws!.settings.memory!.permissionRisk).toBe('critical');
+    });
+  });
 });

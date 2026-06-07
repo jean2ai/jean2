@@ -1,3 +1,4 @@
+import type { WorkspaceSettings } from '../shared';
 import type { HttpClient } from '../transport/http';
 import type {
   ListWorkspacesResponse,
@@ -44,7 +45,7 @@ export class WorkspacesRestNamespace {
 
   async update(
     id: string,
-    data: { name?: string; additionalPaths?: string[] },
+    data: { name?: string; additionalPaths?: string[]; settings?: WorkspaceSettings },
     options?: GetOptions,
   ): Promise<UpdateWorkspaceResponse> {
     return this.http.patch(`/workspaces/${encodeURIComponent(id)}`, data, {

@@ -267,7 +267,7 @@ export function WorkspaceSwitcher({
     <WorkspaceAdditionalPathsDialog
       open={!!editingPathsWorkspace}
       onOpenChange={(o) => { if (!o) setEditingPathsWorkspace(null); }}
-      workspace={editingPathsWorkspace ?? { id: '', name: '', path: '', isVirtual: false, additionalPaths: [], createdAt: '', updatedAt: '' }}
+      workspace={editingPathsWorkspace ?? { id: '', name: '', path: '', isVirtual: false, additionalPaths: [], settings: {}, createdAt: '', updatedAt: '' }}
       onSave={onUpdateWorkspacePaths}
       sdkClient={sdkClient}
     />

@@ -15,6 +15,8 @@ import { createStepCallbacks, type CallbackEvent } from './step-handlers';
 import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
 import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
+import { loadMemoryInstructions, MEMORY_GUIDANCE } from '@/memory';
+import { getWorkspace } from '@/store';
 import {
   getLLMTemperature,
   getLLMMaxSteps,
@@ -130,6 +132,18 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   if (workspacePath) {
     const workspaceContext = buildWorkspaceSystemPrompt(workspacePath, options.additionalPaths);
     systemMessage = systemMessage + '\n\n' + workspaceContext;
+  }
+
+  // Add workspace memory if enabled
+  if (workspaceId) {
+    const workspace = getWorkspace(workspaceId);
+    if (workspace?.settings?.memory?.enabled && workspacePath) {
+      const memorySection = await loadMemoryInstructions(workspacePath);
+      if (memorySection) {
+        systemMessage = systemMessage + '\n\n' + memorySection;
+      }
+      systemMessage = systemMessage + '\n\n' + MEMORY_GUIDANCE;
+    }
   }
 
   const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =

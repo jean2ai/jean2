@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -16,14 +16,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
+import { WorkspaceMemoryDialog } from '@/components/modals/WorkspaceMemoryDialog';
 import { isWindows } from '@/lib/platform';
 
 interface WorkspaceHeaderProps {
   onUpdateWorkspacePaths?: (workspaceId: string, additionalPaths: string[]) => void;
+  onUpdateWorkspaceSettings?: (workspaceId: string, settings: import('@jean2/sdk').WorkspaceSettings) => void;
   sdkClient?: import('@jean2/sdk').Jean2Client | null;
 }
 
-export function WorkspaceHeader({ onUpdateWorkspacePaths, sdkClient }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSettings, sdkClient }: WorkspaceHeaderProps) {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
   const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
@@ -34,6 +36,7 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, sdkClient }: Workspace
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const [editingPaths, setEditingPaths] = useState(false);
+  const [showMemoryDialog, setShowMemoryDialog] = useState(false);
 
   return (
     <div className="h-9 px-3 flex items-center shrink-0">
@@ -133,6 +136,12 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, sdkClient }: Workspace
                       Additional paths
                     </DropdownMenuItem>
                   )}
+                  {onUpdateWorkspaceSettings && (
+                    <DropdownMenuItem onClick={() => setShowMemoryDialog(true)}>
+                      <Brain className="w-4 h-4" />
+                      Memory
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuCheckboxItem
                     checked={showWorkspacePermissions}
                     onCheckedChange={setShowWorkspacePermissions}
@@ -153,6 +162,14 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, sdkClient }: Workspace
           workspace={activeWorkspace}
           onSave={onUpdateWorkspacePaths}
           sdkClient={sdkClient ?? null}
+        />
+      )}
+      {onUpdateWorkspaceSettings && activeWorkspace && (
+        <WorkspaceMemoryDialog
+          open={showMemoryDialog}
+          onOpenChange={setShowMemoryDialog}
+          workspace={activeWorkspace}
+          onSave={onUpdateWorkspaceSettings}
         />
       )}
     </div>

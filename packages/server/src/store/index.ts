@@ -359,6 +359,13 @@ export function initializeSchema(db: Database): void {
   } catch {
     // Column already exists
   }
+
+  // Migrate: add settings column to workspaces if missing
+  try {
+    db.run('ALTER TABLE workspaces ADD COLUMN settings TEXT DEFAULT "{}"');
+  } catch {
+    // Column already exists
+  }
 }
 
 export { Database };

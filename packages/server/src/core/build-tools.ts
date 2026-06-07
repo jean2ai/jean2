@@ -10,7 +10,8 @@ import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { createSkillTool } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
-import { getSession } from '@/store';
+import { getSession, getWorkspace } from '@/store';
+import { memoryToolDefinition, executeMemoryTool } from '@/memory';
 
 export interface BuildToolsOptions {
   toolNames: string[];
@@ -170,6 +171,48 @@ export async function buildAiSdkTools(
       Object.assign(tools, mcpTools);
     } catch (err) {
       console.error('Failed to load MCP tools:', err);
+    }
+  }
+
+  // Memory tool (if enabled for this workspace)
+  if (workspaceId && workspacePath) {
+    const workspace = getWorkspace(workspaceId);
+    const memorySettings = workspace?.settings?.memory;
+    if (memorySettings?.enabled) {
+      const permissionRisk = memorySettings.permissionRisk;
+      tools['memory'] = tool({
+        description: memoryToolDefinition.description,
+        inputSchema: jsonSchema(memoryToolDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const _toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          try {
+            const askFactory = (tcId: string) =>
+              broadcastFn
+                ? createAskApi(sessionId, tcId, 'memory', broadcastFn, workspaceId, rootSessionId)
+                : undefined as unknown as import('@jean2/sdk').AskApi;
+            const askApi = askFactory(toolCallId);
+
+            const result = await executeMemoryTool(
+              args,
+              workspacePath!,
+              permissionRisk,
+              async (ask) => askApi(ask),
+            );
+
+            if (!result.success) {
+              return { error: result.error ?? 'Memory operation failed', ...(result.entries ? { entries: result.entries } : {}), ...(result.usage ? { usage: result.usage } : {}) };
+            }
+
+            return {
+              title: 'Memory updated',
+              ...result.result,
+            };
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+            rejectPendingAsksByToolCallId(toolCallId);
+          }
+        },
+      });
     }
   }
 

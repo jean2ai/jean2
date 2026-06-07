@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 import { mkdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import type { SessionStatus } from '@jean2/sdk';
+import type { SessionStatus, WorkspaceSettings, PermissionRiskLevel } from '@jean2/sdk';
 import {
   listWorkspaces,
   getWorkspace,
@@ -115,15 +115,34 @@ export function registerWorkspaceRoutes(app: Hono): void {
     return c.json({ workspace });
   });
 
-  // PATCH /api/workspaces/:id - Update a workspace (name and/or additionalPaths)
+  // PATCH /api/workspaces/:id - Update a workspace (name, additionalPaths, settings)
   app.patch('/api/workspaces/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => ({}));
 
-    const { name, additionalPaths } = body;
+    const { name, additionalPaths, settings } = body;
 
-    if (!name && additionalPaths === undefined) {
-      return c.json({ error: 'Bad Request', message: 'Name or additionalPaths is required' }, 400);
+    if (!name && additionalPaths === undefined && settings === undefined) {
+      return c.json({ error: 'Bad Request', message: 'Name, additionalPaths, or settings is required' }, 400);
+    }
+
+    // Validate settings shape if provided
+    if (settings !== undefined) {
+      if (typeof settings !== 'object' || settings === null) {
+        return c.json({ error: 'Bad Request', message: 'Settings must be an object' }, 400);
+      }
+      if (settings.memory !== undefined) {
+        if (typeof settings.memory !== 'object' || settings.memory === null) {
+          return c.json({ error: 'Bad Request', message: 'Memory settings must be an object' }, 400);
+        }
+        if (typeof settings.memory.enabled !== 'boolean') {
+          return c.json({ error: 'Bad Request', message: 'memory.enabled must be a boolean' }, 400);
+        }
+        const validRisks: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
+        if (!validRisks.includes(settings.memory.permissionRisk)) {
+          return c.json({ error: 'Bad Request', message: 'memory.permissionRisk must be a valid risk level' }, 400);
+        }
+      }
     }
 
     // Validate additional paths
@@ -137,6 +156,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
     const workspace = updateWorkspace(id, {
       name,
       additionalPaths: validatedPaths,
+      settings: settings as WorkspaceSettings | undefined,
     });
 
     if (!workspace) {
