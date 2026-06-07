@@ -1,7 +1,9 @@
+import { useMemo, useCallback } from 'react';
 import type {
   MessageWithParts,
   AttachmentKind,
   AskResponse,
+  Message,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
@@ -14,6 +16,7 @@ import { OfflineState } from '@/components/shared/OfflineState';
 import { ChatView } from '@/components/chat/ChatView';
 import { Button } from '@/components/ui/button';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
+import { usePinnedMessagesQuery, usePinMessageMutation, useUnpinMessageMutation } from '@/hooks/queries';
 
 export interface AppMainContentProps {
   serverUrl: string | null;
@@ -93,6 +96,36 @@ export function AppMainContent({
   const defaultModel = useServerDataStore(s => s.defaultModel);
 
   const pendingAskRequests = useAskStore(s => s.pendingRequests) as PendingAskRequest[];
+  const navigationIntent = useSessionStore(s => s.navigationIntent);
+  const clearTargetMessageIntent = useSessionStore(s => s.clearTargetMessageIntent);
+  const targetMessageId = navigationIntent.mode === 'target-message' ? navigationIntent.messageId : null;
+
+  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
+  const { data: pinnedMessages } = usePinnedMessagesQuery(sdkClient, activeWorkspace?.id);
+  const pinMessageMutation = usePinMessageMutation(sdkClient, activeWorkspace?.id);
+  const unpinMessageMutation = useUnpinMessageMutation(sdkClient, activeWorkspace?.id);
+
+  const pinnedMessageIds = useMemo(
+    () => new Set((pinnedMessages ?? []).map(pin => pin.messageId)),
+    [pinnedMessages],
+  );
+
+  const handleTogglePinMessage = useCallback((message: Message) => {
+    if (!activeWorkspace || message.role !== 'assistant') return;
+
+    if (pinnedMessageIds.has(message.id)) {
+      unpinMessageMutation.mutate({ messageId: message.id });
+    } else {
+      pinMessageMutation.mutate({
+        sessionId: message.sessionId,
+        messageId: message.id,
+      });
+    }
+  }, [activeWorkspace, pinnedMessageIds, pinMessageMutation, unpinMessageMutation]);
+
+  const handleTargetMessageHandled = useCallback(() => {
+    clearTargetMessageIntent();
+  }, [clearTargetMessageIntent]);
 
   const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
   const isPrimarySession = !currentSession?.parentId;
@@ -198,6 +231,11 @@ export function AppMainContent({
       onReleaseControl={onReleaseControl}
       onRequestTakeover={onRequestTakeover}
       onRespondTakeover={onRespondTakeover}
+      pinnedMessageIds={pinnedMessageIds}
+      onTogglePinMessage={handleTogglePinMessage}
+      targetMessageId={targetMessageId}
+      navigationIntent={navigationIntent}
+      onTargetMessageHandled={handleTargetMessageHandled}
     />
   );
 }

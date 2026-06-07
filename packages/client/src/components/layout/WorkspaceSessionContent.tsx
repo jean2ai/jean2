@@ -218,7 +218,7 @@ export function WorkspaceSessionContent({
 
       {/* Archived Sessions */}
       {archivedSessions.length > 0 && (
-        <Collapsible defaultOpen className="group/collapsible">
+        <Collapsible className="group/collapsible">
           <SidebarGroup>
             <SidebarGroupLabel asChild>
               <CollapsibleTrigger asChild>

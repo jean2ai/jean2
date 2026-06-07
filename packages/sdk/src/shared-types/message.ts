@@ -171,6 +171,21 @@ export interface AssistantMessage extends MessageBase {
 export type Message = UserMessage | AssistantMessage | SystemMessage;
 
 // ===========================================
+// Pinned Message Types
+// ===========================================
+
+export interface PinnedMessage {
+  id: string;
+  workspaceId: string;
+  sessionId: string;
+  messageId: string;
+  createdAt: number;
+  sessionTitle: string | null;
+  messageCreatedAt: number;
+  preview: string;
+}
+
+// ===========================================
 // Combined Types
 // ===========================================
 

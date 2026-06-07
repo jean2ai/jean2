@@ -52,6 +52,10 @@ interface VirtualizedTranscriptProps {
   onAutoScrollChange?: (enabled: boolean) => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   serverUrl?: string;
+  pinnedMessageIds?: Set<string>;
+  onTogglePinMessage?: (message: Message) => void;
+  targetMessageId?: string | null;
+  onTargetMessageHandled?: () => void;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -367,6 +371,9 @@ interface MessageRowProps {
   isCompacting?: boolean;
   onCompact?: () => void;
   serverUrl?: string;
+  isPinned?: boolean;
+  canPin?: boolean;
+  onTogglePin?: () => void;
 }
 
 const MessageRow = memo(function MessageRow({
@@ -383,6 +390,9 @@ const MessageRow = memo(function MessageRow({
   isCompacting = false,
   onCompact,
   serverUrl,
+  isPinned = false,
+  canPin = false,
+  onTogglePin,
 }: MessageRowProps) {
   const compactionPart = item.parts.find(
     (p): p is CompactionPart => p.type === 'compaction'
@@ -431,6 +441,9 @@ const MessageRow = memo(function MessageRow({
       canFork={canRevert && revertMessageId !== null}
       onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
       isClearAll={isClearAll}
+      isPinned={isPinned}
+      canPin={canPin}
+      onTogglePin={onTogglePin}
     >
       {item.parts.length === 0 ? (
         <span className="opacity-50">...</span>
@@ -490,12 +503,16 @@ export function VirtualizedTranscript({
   onAutoScrollChange,
   scrollToBottomRef,
   serverUrl,
+  pinnedMessageIds,
+  onTogglePinMessage,
+  targetMessageId,
+  onTargetMessageHandled,
 }: VirtualizedTranscriptProps) {
   const listRef = useRef<LegendListRef | null>(null);
   const autoScrollRef = useRef(autoFollow);
   const isProgrammaticScrollRef = useRef(false);
-  const userScrollingRef = useRef(false);
-  const userScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
   const [maintainAutoFollow, setMaintainAutoFollow] = useState(autoFollow);
   const onAutoScrollChangeRef = useRef(onAutoScrollChange);
   useEffect(() => {
@@ -517,29 +534,27 @@ export function VirtualizedTranscript({
   }, [compactionSuccess, onClearCompactionSuccess]);
 
   useLayoutEffect(() => {
+    if (targetMessageId) {
+      autoScrollRef.current = false;
+      setMaintainAutoFollow(false);
+      return;
+    }
+
     autoScrollRef.current = autoFollow;
     setMaintainAutoFollow(autoFollow);
-  }, [autoFollow]);
-
-  const markUserScrolling = useCallback(() => {
-    userScrollingRef.current = true;
-    if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
-    userScrollTimerRef.current = setTimeout(() => {
-      userScrollingRef.current = false;
-    }, 300);
-  }, []);
+  }, [autoFollow, targetMessageId]);
 
   const disableAutoFollowForUserIntent = useCallback(() => {
     if (!autoScrollRef.current) return;
 
-    markUserScrolling();
     autoScrollRef.current = false;
     setMaintainAutoFollow(false);
     onAutoScrollChangeRef.current?.(false);
-  }, [markUserScrolling]);
+  }, []);
 
   useLayoutEffect(() => {
     if (displayItems.length === 0) return;
+    if (targetMessageId) return;
 
     autoScrollRef.current = autoFollow;
     setMaintainAutoFollow(autoFollow);
@@ -553,7 +568,7 @@ export function VirtualizedTranscript({
         });
       });
     }
-  }, [sessionId, autoFollow, displayItems.length]);
+  }, [sessionId, autoFollow, displayItems.length, targetMessageId]);
 
   useLayoutEffect(() => {
     if (scrollToBottomRef) {
@@ -604,15 +619,38 @@ export function VirtualizedTranscript({
     };
   }, [disableAutoFollowForUserIntent]);
 
-  // Cleanup user scroll timer on unmount
   useEffect(() => {
-    return () => {
-      if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
-    };
-  }, []);
+    if (!targetMessageId) return;
+
+    const targetIndex = displayItems.findIndex(item => item.message.id === targetMessageId);
+    if (targetIndex < 0) return;
+
+    autoScrollRef.current = false;
+    setMaintainAutoFollow(false);
+    onAutoScrollChangeRef.current?.(false);
+
+    isProgrammaticScrollRef.current = true;
+    listRef.current?.scrollToIndex?.({ index: targetIndex, animated: true });
+    setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, 300);
+
+    const timeout = window.setTimeout(() => {
+      onTargetMessageHandled?.();
+    }, 1500);
+
+    return () => window.clearTimeout(timeout);
+  }, [targetMessageId, displayItems, onTargetMessageHandled]);
+
+  const targetMessageIdRef = useRef(targetMessageId);
+  useEffect(() => {
+    targetMessageIdRef.current = targetMessageId;
+  }, [targetMessageId]);
 
   const handleScroll = useCallback(() => {
     if (isProgrammaticScrollRef.current) return;
+
+    if (targetMessageIdRef.current) return;
 
     const state = listRef.current?.getState();
     if (!state) return;
@@ -626,18 +664,16 @@ export function VirtualizedTranscript({
       return;
     }
 
-    // Only disable auto-follow if the user is actively scrolling.
-    // Layout shifts from content changes can temporarily report !isAtEnd
-    // even though no user interaction occurred.
-    if (autoScrollRef.current && userScrollingRef.current) {
-      autoScrollRef.current = false;
-      setMaintainAutoFollow(false);
-      onAutoScrollChangeRef.current?.(false);
-    }
+
   }, []);
 
   const renderItem = useCallback(({ item }: { item: DisplayItem }) => (
-    <div className="px-4 py-4">
+    <div
+      className={cn(
+        'px-4 py-4',
+        item.message.id === targetMessageId && 'rounded-lg ring-2 ring-primary/40 bg-primary/5',
+      )}
+    >
       <MessageRow
         item={item}
         messagesWithParts={messagesWithParts}
@@ -652,6 +688,13 @@ export function VirtualizedTranscript({
         isCompacting={isCompacting}
         onCompact={onCompact}
         serverUrl={serverUrl}
+        isPinned={pinnedMessageIds?.has(item.message.id) ?? false}
+        canPin={item.message.role === 'assistant' && !item.isQueued}
+        onTogglePin={
+          item.message.role === 'assistant' && !item.isQueued
+            ? () => onTogglePinMessage?.(item.message)
+            : undefined
+        }
       />
     </div>
   ), [
@@ -667,6 +710,9 @@ export function VirtualizedTranscript({
     isCompacting,
     onCompact,
     serverUrl,
+    pinnedMessageIds,
+    onTogglePinMessage,
+    targetMessageId,
   ]);
 
   const header = (
@@ -701,8 +747,8 @@ export function VirtualizedTranscript({
       renderItem={renderItem}
       estimatedItemSize={100}
       drawDistance={800}
-      initialScrollAtEnd
-      maintainScrollAtEnd={maintainAutoFollow ? { animated: false } : false}
+      initialScrollAtEnd={!targetMessageId && autoFollow}
+      maintainScrollAtEnd={!targetMessageId && maintainAutoFollow ? { animated: false } : false}
       maintainScrollAtEndThreshold={0.1}
       maintainVisibleContentPosition={{ data: true, size: true }}
       onScroll={handleScroll}

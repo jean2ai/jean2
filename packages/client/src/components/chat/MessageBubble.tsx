@@ -1,4 +1,4 @@
-import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch } from 'lucide-react';
+import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch, Pin, PinOff } from 'lucide-react';
 import { useState } from 'react';
 import type { Message } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,9 @@ interface MessageBubbleProps {
   onFork?: () => void;
   canFork?: boolean;
   isClearAll?: boolean;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
+  canPin?: boolean;
 }
 
 export function MessageBubble({ 
@@ -29,6 +32,9 @@ export function MessageBubble({
   onFork,
   canFork = false,
   isClearAll = false,
+  isPinned = false,
+  onTogglePin,
+  canPin = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
@@ -41,6 +47,8 @@ export function MessageBubble({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const showPinButton = canPin && onTogglePin && !isQueued;
 
   return (
     <div
@@ -102,6 +110,26 @@ export function MessageBubble({
           <>
             <Bot className="size-3" />
             {message.role}
+            {showPinButton && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onTogglePin}
+                className={cn(
+                  'size-5',
+                  isPinned
+                    ? 'text-primary hover:text-primary/80'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+                title={isPinned ? 'Unpin message' : 'Pin message'}
+              >
+                {isPinned ? (
+                  <PinOff className="size-3" />
+                ) : (
+                  <Pin className="size-3" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

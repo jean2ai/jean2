@@ -10,6 +10,15 @@ export type SessionUsage = {
 
 const DEFAULT_USAGE: SessionUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
+export type SessionNavigationIntent =
+  | { mode: 'follow' }
+  | { mode: 'free' }
+  | { mode: 'target-message'; messageId: string };
+
+export interface ResumeSessionOptions {
+  targetMessageId?: string;
+}
+
 // --- Type Aliases ---
 type SessionsUpdater = Session[] | ((prev: Session[]) => Session[]);
 type MessagesBySessionState = Record<string, Message[]>;
@@ -37,6 +46,9 @@ interface SessionState {
 
   // --- Message Queue ---
   queuedMessages: Record<string, QueuedMessage[]>;
+
+  // --- Navigation ---
+  navigationIntent: SessionNavigationIntent;
 }
 
 interface SessionActions {
@@ -69,6 +81,10 @@ interface SessionActions {
   addQueuedMessage: (sessionId: string, message: QueuedMessage) => void;
   removeQueuedMessageById: (sessionId: string, queueId: string) => void;
   removeQueuedMessagesByIds: (sessionId: string, queueIds: string[]) => void;
+
+  // --- Navigation ---
+  setNavigationIntent: (intent: SessionNavigationIntent) => void;
+  clearTargetMessageIntent: () => void;
 }
 
 type SessionStore = SessionState & SessionActions;
@@ -176,6 +192,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         [sessionId]: (state.queuedMessages[sessionId] || []).filter((q) => !queueIds.includes(q.id)),
       },
     })),
+
+  // --- Navigation ---
+  navigationIntent: { mode: 'follow' },
+  setNavigationIntent: (navigationIntent) => set({ navigationIntent }),
+  clearTargetMessageIntent: () =>
+    set((state) => ({
+      navigationIntent:
+        state.navigationIntent.mode === 'target-message'
+          ? { mode: 'free' }
+          : state.navigationIntent,
+    })),
 }));
 
 // --- Utility Function ---
@@ -187,4 +214,5 @@ export function clearSessionState() {
   state.clearQueuedMessages();
   state.setMessagesBySession({});
   state.setPartsBySession({});
+  state.setNavigationIntent({ mode: 'follow' });
 }

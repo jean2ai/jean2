@@ -21,7 +21,7 @@ import type { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage/types';
 
 import { useServerContext } from '@/contexts/ServerContext';
-import { useSessionStore, type SessionUsage } from '@/stores/sessionStore';
+import { useSessionStore, type ResumeSessionOptions, type SessionUsage } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
@@ -81,7 +81,7 @@ export interface UseServerSessionManagerReturn {
   streamingSessionIds: Set<string>;
 
   createSession: (preconfigId?: string, title?: string) => void;
-  resumeSession: (sessionId: string) => void;
+  resumeSession: (sessionId: string, options?: ResumeSessionOptions) => void;
   closeSession: (sessionId: string) => void;
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
@@ -766,6 +766,7 @@ export function useServerSessionManager({
       },
       resumeSessionAfterCreate: (sessionId: string) => {
         const client = sdkClientRef.current;
+        useSessionStore.getState().setNavigationIntent({ mode: 'follow' });
         if (client && client.connected) {
           client.sessions.resume(sessionId);
         }

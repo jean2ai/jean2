@@ -32,4 +32,7 @@ export const queryKeys = {
       ['files', 'preview', workspaceId, path] as const,
   },
   serverInfo: ['serverInfo'] as const,
+  pinnedMessages: {
+    byWorkspace: (workspaceId: string) => ['pinnedMessages', 'workspace', workspaceId] as const,
+  },
 } as const;

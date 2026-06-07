@@ -1,4 +1,4 @@
-import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus } from '../shared';
+import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage } from '../shared';
 
 /**
  * GET /api/sessions
@@ -475,4 +475,29 @@ export interface SetToolEnvVarResponse {
  */
 export interface ClearToolEnvVarResponse {
   envVar: ToolEnvVarStatus;
+}
+
+// =============================================================================
+// Pinned Messages Responses
+// =============================================================================
+
+/**
+ * GET /api/workspaces/:id/pinned-messages
+ */
+export interface ListPinnedMessagesResponse {
+  pinnedMessages: PinnedMessage[];
+}
+
+/**
+ * POST /api/workspaces/:id/pinned-messages
+ */
+export interface PinMessageResponse {
+  pinnedMessage: PinnedMessage;
+}
+
+/**
+ * DELETE /api/workspaces/:id/pinned-messages/:messageId
+ */
+export interface UnpinMessageResponse {
+  success: boolean;
 }

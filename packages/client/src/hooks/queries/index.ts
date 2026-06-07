@@ -7,3 +7,4 @@ export { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } f
 export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorkspaceMutation, useUpdateWorkspaceMutation } from './useWorkspaceMutations';
 export { useFileBrowseQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery } from './useFileQueries';
 export { useResponseFormatsQuery, useCreateResponseFormat, useUpdateResponseFormat, useDeleteResponseFormat } from './useResponseFormatsQueries';
+export { usePinnedMessagesQuery, usePinMessageMutation, useUnpinMessageMutation } from './usePinnedMessagesQueries';

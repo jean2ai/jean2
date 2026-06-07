@@ -9,6 +9,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
+import { PinnedMessagesPanel } from '@/components/layout/PinnedMessagesPanel';
 import { AppPanels } from '@/components/app/AppPanels';
 import { hasCapability } from '@/platform';
 import {
@@ -123,6 +124,16 @@ export default function WorkspaceView() {
         }}
       >
         {sidebarContent}
+        {sidebarData.activeWorkspace && (
+          <PinnedMessagesPanel
+            sdkClient={sdkClient}
+            workspaceId={sidebarData.activeWorkspace.id}
+            currentSessionId={sidebarData.currentSessionId}
+            onNavigateToPinnedMessage={(sessionId, messageId) => {
+              resumeSession(sessionId, { targetMessageId: messageId });
+            }}
+          />
+        )}
       </AppSidebar>
 
       <main

@@ -11,6 +11,10 @@ import {
   deleteWorkspace,
   listSessionsByWorkspace,
   cleanupSessionsOutputDirs,
+  listPinnedMessagesByWorkspace,
+  pinMessage,
+  unpinMessage,
+  PinnedMessageError,
 } from '@/store';
 import { getWorkspacesDir } from '@/paths';
 import { getTerminalManager } from '@/services/terminal';
@@ -271,5 +275,56 @@ export function registerWorkspaceRoutes(app: Hono): void {
     const rootOnly = c.req.query('rootOnly') === 'true';
     const sessions = listSessionsByWorkspace(workspaceId, { status, rootOnly });
     return c.json({ sessions });
+  });
+
+  // GET /api/workspaces/:id/pinned-messages - List pinned messages for a workspace
+  app.get('/api/workspaces/:id/pinned-messages', async (c) => {
+    const workspaceId = c.req.param('id');
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    const pinnedMessages = listPinnedMessagesByWorkspace(workspaceId);
+    return c.json({ pinnedMessages });
+  });
+
+  // POST /api/workspaces/:id/pinned-messages - Pin a message
+  app.post('/api/workspaces/:id/pinned-messages', async (c) => {
+    const workspaceId = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    const { sessionId, messageId } = body;
+    if (!sessionId || !messageId) {
+      return c.json({ error: 'Bad Request', message: 'sessionId and messageId are required' }, 400);
+    }
+
+    try {
+      const pinnedMessage = pinMessage({ workspaceId, sessionId, messageId });
+      return c.json({ pinnedMessage }, 201);
+    } catch (err) {
+      if (err instanceof PinnedMessageError) {
+        if (err.code === 'message_not_assistant') {
+          return c.json({ error: 'Unprocessable Entity', message: err.message }, 422);
+        }
+        return c.json({ error: 'Not Found', message: err.message }, 404);
+      }
+      throw err;
+    }
+  });
+
+  // DELETE /api/workspaces/:id/pinned-messages/:messageId - Unpin a message
+  app.delete('/api/workspaces/:id/pinned-messages/:messageId', async (c) => {
+    const workspaceId = c.req.param('id');
+    const messageId = c.req.param('messageId');
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    unpinMessage(workspaceId, messageId);
+    return c.json({ success: true });
   });
 }

@@ -350,6 +350,25 @@ export function initializeSchema(db: Database): void {
 
   db.run('CREATE INDEX IF NOT EXISTS idx_response_formats_name ON response_formats(name)');
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS pinned_messages (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+
+      UNIQUE(workspace_id, message_id)
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_pinned_messages_workspace_created ON pinned_messages(workspace_id, created_at DESC)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_pinned_messages_session ON pinned_messages(session_id)');
+
   // Seed built-in response formats
   seedBuiltinResponseFormats(db);
 
@@ -392,3 +411,4 @@ export { deleteAttachmentsForSession, deleteAttachmentsForWorkspace, getAttachme
 // Re-export pending asks functions
 export * from './pending-asks';
 export * from './response-formats';
+export * from './pinned-messages';

@@ -8,6 +8,8 @@ import type {
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import type { ResumeSessionOptions } from '@/stores/sessionStore';
 
 interface UseSessionCommandsParams {
   clientRef: React.RefObject<Jean2Client | null>;
@@ -38,7 +40,7 @@ interface UseSessionCommandsParams {
 
 interface UseSessionCommandsReturn {
   createSession: (preconfigId?: string, title?: string) => void;
-  resumeSession: (sessionId: string) => void;
+  resumeSession: (sessionId: string, options?: ResumeSessionOptions) => void;
   closeSession: (sessionId: string) => void;
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
@@ -110,8 +112,13 @@ export function useSessionCommands({
     setCompactionSuccess(false);
   }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, activeWorkspace, setCompactionSuccess]);
 
-  const resumeSession = useCallback((sessionId: string) => {
+  const resumeSession = useCallback((sessionId: string, options?: ResumeSessionOptions) => {
     const client = clientRef.current;
+    useSessionStore.getState().setNavigationIntent(
+      options?.targetMessageId
+        ? { mode: 'target-message', messageId: options.targetMessageId }
+        : { mode: 'follow' }
+    );
     skipFinishSoundSessionIdsRef.current = new Set(useConnectionStore.getState().streamingSessionIds);
     clearStreamingSessions();
     setCompactionSuccess(false);

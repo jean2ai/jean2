@@ -1,6 +1,6 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Lock, Eye, ArrowDown, ShieldOff, Wifi } from 'lucide-react';
-import type { Jean2Client } from '@jean2/sdk';
+import type { Jean2Client, Message } from '@jean2/sdk';
 import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind, AskResponse } from '@jean2/sdk';
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
@@ -9,6 +9,7 @@ import { VirtualizedTranscript } from './VirtualizedTranscript';
 import type { PendingAskRequest } from '@/stores/askStore';
 import { useSessionControlStore, type ActionRejection } from '@/stores/sessionControlStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
+import type { SessionNavigationIntent } from '@/stores/sessionStore';
 
 export interface Model {
   id: string;
@@ -78,6 +79,11 @@ interface ChatViewProps {
   onReleaseControl?: (sessionId: string) => void;
   onRequestTakeover?: (sessionId: string) => void;
   onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
+  pinnedMessageIds?: Set<string>;
+  onTogglePinMessage?: (message: Message) => void;
+  targetMessageId?: string | null;
+  navigationIntent?: SessionNavigationIntent;
+  onTargetMessageHandled?: () => void;
 }
 
 function mergeMessagesWithQueue(
@@ -190,6 +196,11 @@ export function ChatView({
   onReleaseControl,
   onRequestTakeover,
   onRespondTakeover,
+  pinnedMessageIds,
+  onTogglePinMessage,
+  targetMessageId,
+  navigationIntent = { mode: 'follow' },
+  onTargetMessageHandled,
 }: ChatViewProps) {
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
@@ -235,12 +246,11 @@ export function ChatView({
     return unsub;
   }, [session.id, showRejectionNotice]);
 
-  const [autoFollow, setAutoFollow] = useState(true);
+  const [autoFollow, setAutoFollow] = useState(navigationIntent.mode === 'follow');
 
-  // Reset to follow mode when switching sessions
-  useEffect(() => {
-    setAutoFollow(true);
-  }, [session.id]);
+  useLayoutEffect(() => {
+    setAutoFollow(navigationIntent.mode === 'follow');
+  }, [session.id, navigationIntent.mode]);
 
   const handleToggleAutoFollow = useCallback(() => {
     setAutoFollow((prev) => {
@@ -324,6 +334,10 @@ export function ChatView({
           onAutoScrollChange={setAutoFollow}
           scrollToBottomRef={scrollToBottomRef}
           serverUrl={serverUrl}
+          pinnedMessageIds={pinnedMessageIds}
+          onTogglePinMessage={onTogglePinMessage}
+          targetMessageId={targetMessageId}
+          onTargetMessageHandled={onTargetMessageHandled}
         />
 
         {/* Floating auto-follow toggle button - positioned within transcript area */}

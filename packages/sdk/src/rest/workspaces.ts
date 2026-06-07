@@ -7,6 +7,9 @@ import type {
   UpdateWorkspaceResponse,
   DeleteWorkspaceResponse,
   ListWorkspaceSessionsResponse,
+  ListPinnedMessagesResponse,
+  PinMessageResponse,
+  UnpinMessageResponse,
 } from '../types/rest-responses';
 
 interface ListOptions {
@@ -66,5 +69,38 @@ export class WorkspacesRestNamespace {
     return this.http.get(`/workspaces/${encodeURIComponent(id)}/sessions`, {
       signal: options?.signal,
     });
+  }
+
+  async listPinnedMessages(
+    workspaceId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ListPinnedMessagesResponse> {
+    return this.http.get(
+      `/workspaces/${encodeURIComponent(workspaceId)}/pinned-messages`,
+      { signal: options?.signal },
+    );
+  }
+
+  async pinMessage(
+    workspaceId: string,
+    data: { sessionId: string; messageId: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<PinMessageResponse> {
+    return this.http.post(
+      `/workspaces/${encodeURIComponent(workspaceId)}/pinned-messages`,
+      data,
+      { signal: options?.signal },
+    );
+  }
+
+  async unpinMessage(
+    workspaceId: string,
+    messageId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<UnpinMessageResponse> {
+    return this.http.delete(
+      `/workspaces/${encodeURIComponent(workspaceId)}/pinned-messages/${encodeURIComponent(messageId)}`,
+      { signal: options?.signal },
+    );
   }
 }
