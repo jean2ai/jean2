@@ -32,6 +32,7 @@ interface WorkspaceOverviewProps {
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onRegenerateSessionTitle?: (sessionId: string) => void;
   onCreateSessionInWorkspace: (workspaceId: string) => void;
   connected: boolean;
 }
@@ -50,6 +51,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   onReopenSession,
   onDeleteSession,
   onRenameSession,
+  onRegenerateSessionTitle,
   onCreateSessionInWorkspace,
   connected,
 }: WorkspaceOverviewProps) {
@@ -136,6 +138,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
                             onReopenSession={onReopenSession}
                             onDeleteSession={onDeleteSession}
                             onRename={onRenameSession}
+                            onRegenerateTitle={onRegenerateSessionTitle}
                           />
                         );
                       })

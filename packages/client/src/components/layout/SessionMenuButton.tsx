@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square, Tag, Plus, XIcon } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square, Tag, Plus, XIcon, Sparkles } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/sdk';
@@ -43,6 +43,7 @@ interface SessionMenuButtonProps {
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRename: (sessionId: string, title: string) => void;
+  onRegenerateTitle?: (sessionId: string) => void;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (sessionId: string) => void;
@@ -56,6 +57,7 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   isEditing,
   selectionMode,
   onRename,
+  onRegenerateTitle,
   onReopen,
   onClose,
   onDelete,
@@ -68,6 +70,7 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   isEditing: boolean;
   selectionMode?: boolean;
   onRename: () => void;
+  onRegenerateTitle?: () => void;
   onReopen: () => void;
   onClose: () => void;
   onDelete: () => void;
@@ -124,6 +127,11 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
         <DropdownMenuItem onClick={onRename}>
           <Pencil className="size-4" />
           Rename
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={onRegenerateTitle} disabled={!onRegenerateTitle}>
+          <Sparkles className="size-4" />
+          Regenerate title
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -259,6 +267,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   onReopenSession,
   onDeleteSession,
   onRename,
+  onRegenerateTitle,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -457,6 +466,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               isEditing={isEditing}
               selectionMode={selectionMode}
               onRename={handleRenameStart}
+              onRegenerateTitle={onRegenerateTitle ? () => onRegenerateTitle(session.id) : undefined}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
@@ -549,6 +559,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               isEditing={isEditing}
               selectionMode={selectionMode}
               onRename={handleRenameStart}
+              onRegenerateTitle={onRegenerateTitle ? () => onRegenerateTitle(session.id) : undefined}
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
@@ -574,6 +585,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   onReopenSession={onReopenSession}
                   onDeleteSession={onDeleteSession}
                   onRename={onRename}
+                  onRegenerateTitle={onRegenerateTitle}
                   selectionMode={selectionMode}
                   selected={selected}
                   onToggleSelect={onToggleSelect}

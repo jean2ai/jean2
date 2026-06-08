@@ -82,6 +82,11 @@ export interface SessionDeleteMessage {
   sessionId: string;
 }
 
+export interface SessionGenerateTitleMessage {
+  type: 'session.generate_title';
+  sessionId: string;
+}
+
 export interface SessionRenameMessage {
   type: 'session.rename';
   sessionId: string;
@@ -282,6 +287,7 @@ export type ClientMessage =
   | SessionReopenMessage
   | SessionDeleteMessage
   | SessionRenameMessage
+  | SessionGenerateTitleMessage
   | PermissionListRequestMessage
   | PermissionRevokeMessage
   | PermissionRevokeAllMessage

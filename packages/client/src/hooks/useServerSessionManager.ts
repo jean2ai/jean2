@@ -86,6 +86,7 @@ export interface UseServerSessionManagerReturn {
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
   handleRenameSession: (sessionId: string, title: string) => void;
+  regenerateSessionTitle: (sessionId: string) => void;
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
@@ -783,6 +784,7 @@ export function useServerSessionManager({
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
+    regenerateSessionTitle,
     revertSession,
     forkSession,
     compactSession,
@@ -881,6 +883,7 @@ export function useServerSessionManager({
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
+    regenerateSessionTitle,
     revertSession,
     forkSession,
     compactSession,

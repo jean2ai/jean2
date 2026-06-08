@@ -45,6 +45,7 @@ interface UseSessionCommandsReturn {
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
   handleRenameSession: (sessionId: string, title: string) => void;
+  regenerateSessionTitle: (sessionId: string) => void;
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
@@ -222,6 +223,13 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
+  const regenerateSessionTitle = useCallback((sessionId: string) => {
+    const client = clientRef.current;
+    if (client && client.connected) {
+      client.sessions.generateTitle(sessionId);
+    }
+  }, [clientRef]);
+
   const handleNavigateBack = useCallback(() => {
     if (currentSession?.parentId) {
       resumeSession(currentSession.parentId);
@@ -355,6 +363,7 @@ export function useSessionCommands({
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
+    regenerateSessionTitle,
     revertSession,
     forkSession,
     compactSession,

@@ -57,6 +57,12 @@ import {
   getControlState,
 } from './session-control-registry';
 import { checkAskResponseEligibility } from './capability-router';
+import {
+  generateSessionTitle,
+  hasManualSessionTitle,
+  isDefaultSessionTitle,
+  markManualSessionTitle,
+} from './session-title';
 
 // ── Context ────────────────────────────────────────────────────
 
@@ -232,6 +238,7 @@ async function runSingleChatTurn(
 
   ctx.broadcastToSession(sessionId, { type: 'message.created', message: userMessage });
   ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: textPart });
+  void regenerateSessionTitle(ctx, sessionId);
 
   if (attachments && attachments.length > 0) {
     for (const attachment of attachments) {
@@ -463,6 +470,49 @@ async function runSingleChatTurn(
       errorMessage: message,
       errorType: 'server',
     };
+  }
+}
+
+async function regenerateSessionTitle(
+  ctx: RouterContext,
+  sessionId: string,
+  options?: { force?: boolean },
+): Promise<void> {
+  const session = getSession(sessionId);
+  if (!session) {
+    console.warn('[session-title] Skipping title generation: session not found', sessionId);
+    return;
+  }
+  if (!options?.force && (!isDefaultSessionTitle(session.title) || hasManualSessionTitle(session.metadata))) {
+    console.info('[session-title] Skipping auto title generation', {
+      sessionId,
+      title: session.title,
+      manuallyRenamed: hasManualSessionTitle(session.metadata),
+    });
+    return;
+  }
+
+  try {
+    const messages = listMessagesWithParts(sessionId);
+    console.info('[session-title] Generating session title', {
+      sessionId,
+      force: options?.force === true,
+      messageCount: messages.length,
+    });
+    const title = await generateSessionTitle(messages);
+    if (!title) {
+      console.warn('[session-title] Skipping title update: no title generated', sessionId);
+      return;
+    }
+    const updated = updateSession(sessionId, { title });
+    if (updated) {
+      console.info('[session-title] Updated session title', { sessionId, title });
+      ctx.broadcastToSession(sessionId, { type: 'session.renamed', session: updated });
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[session-title] Failed to generate session title', { sessionId, message });
+    return;
   }
 }
 
@@ -1047,8 +1097,21 @@ export async function handleClientMessage(
         ctx.send(ws, { type: 'error', code: 'invalid_title', message: 'Title cannot be empty' });
         break;
       }
-      const updatedSession = updateSession(msg.sessionId, { title: trimmedTitle });
+      const updatedSession = updateSession(msg.sessionId, {
+        title: trimmedTitle,
+        metadata: markManualSessionTitle(session.metadata),
+      });
       ctx.broadcastToSession(msg.sessionId, { type: 'session.renamed', session: updatedSession! });
+      break;
+    }
+
+    case 'session.generate_title': {
+      const session = getSession(msg.sessionId);
+      if (!session) {
+        ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+        break;
+      }
+      void regenerateSessionTitle(ctx, msg.sessionId, { force: true });
       break;
     }
 

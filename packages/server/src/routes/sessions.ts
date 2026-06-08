@@ -19,6 +19,7 @@ import {
   MAX_ATTACHMENT_SIZE,
 } from '@/store';
 import { existsSync, readFileSync } from 'fs';
+import { markManualSessionTitle } from '@/core/session-title';
 
 export function registerSessionRoutes(app: Hono): void {
   // GET /api/sessions - List all sessions
@@ -103,10 +104,13 @@ export function registerSessionRoutes(app: Hono): void {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => ({}));
 
+    const existing = getSession(id);
     const session = updateSession(id, {
       title: body.title,
       status: body.status,
-      metadata: body.metadata,
+      metadata: body.title !== undefined
+        ? markManualSessionTitle(body.metadata ?? existing?.metadata)
+        : body.metadata,
       tags: body.tags,
     });
 

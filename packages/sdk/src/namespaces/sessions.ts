@@ -46,6 +46,10 @@ export class SessionsNamespace {
     this.send({ type: 'session.compact', sessionId });
   }
 
+  generateTitle(sessionId: string): void {
+    this.send({ type: 'session.generate_title', sessionId });
+  }
+
   revert(sessionId: string, messageId: string): void {
     this.send({ type: 'session.revert', sessionId, messageId });
   }

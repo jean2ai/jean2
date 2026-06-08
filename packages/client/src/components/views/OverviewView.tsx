@@ -25,6 +25,7 @@ export default function OverviewView() {
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
+    regenerateSessionTitle,
     createSessionInWorkspace,
   } = sessionManager;
 
@@ -43,6 +44,7 @@ export default function OverviewView() {
       onReopenSession={reopenSession}
       onDeleteSession={permanentlyDeleteSession}
       onRenameSession={handleRenameSession}
+      onRegenerateSessionTitle={regenerateSessionTitle}
       onCreateSessionInWorkspace={createSessionInWorkspace}
       connected={sidebarData.connected}
     />

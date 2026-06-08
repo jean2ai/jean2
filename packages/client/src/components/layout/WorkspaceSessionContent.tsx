@@ -34,6 +34,7 @@ interface WorkspaceSessionContentProps {
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onRegenerateSessionTitle?: (sessionId: string) => void;
   onBulkCloseSessions: (sessionIds: Set<string>) => void;
   onBulkDeleteSessions: (sessionIds: Set<string>) => void;
   tagGroups: Map<string, Session[]>;
@@ -54,6 +55,7 @@ export function WorkspaceSessionContent({
   onReopenSession,
   onDeleteSession,
   onRenameSession,
+  onRegenerateSessionTitle,
   onBulkCloseSessions,
   onBulkDeleteSessions,
   tagGroups,
@@ -135,6 +137,7 @@ export function WorkspaceSessionContent({
       onReopenSession={onReopenSession}
       onDeleteSession={onDeleteSession}
       onRename={onRenameSession}
+      onRegenerateTitle={onRegenerateSessionTitle}
       selectionMode={selectionMode}
       selected={selectedIds.has(session.id)}
       onToggleSelect={handleToggleSelect}
@@ -320,6 +323,7 @@ export function WorkspaceSessionContent({
                       onReopenSession={onReopenSession}
                       onDeleteSession={onDeleteSession}
                       onRename={onRenameSession}
+                      onRegenerateTitle={onRegenerateSessionTitle}
                       allWorkspaceTags={allWorkspaceTags}
                       onAddTag={onAddTag}
                       onRemoveTag={onRemoveTag}

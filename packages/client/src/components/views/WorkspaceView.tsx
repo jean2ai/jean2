@@ -35,6 +35,7 @@ export default function WorkspaceView() {
     reopenSession,
     permanentlyDeleteSession,
     handleRenameSession,
+    regenerateSessionTitle,
     selectWorkspace,
     handleCreateVirtualWorkspace,
     handleCreatePhysicalWorkspace,
@@ -134,6 +135,7 @@ export default function WorkspaceView() {
       onReopenSession={reopenSession}
       onDeleteSession={permanentlyDeleteSession}
       onRenameSession={handleRenameSession}
+      onRegenerateSessionTitle={regenerateSessionTitle}
       onBulkCloseSessions={handleBulkCloseSessions}
       onBulkDeleteSessions={handleBulkDeleteSessions}
       tagGroups={sidebarData.tagGroups}
