@@ -511,18 +511,71 @@ export function VirtualizedTranscript({
   const listRef = useRef<LegendListRef | null>(null);
   const autoScrollRef = useRef(autoFollow);
   const isProgrammaticScrollRef = useRef(false);
-
+  const followScrollRafRef = useRef<number | null>(null);
+  const followScrollTimeoutRef = useRef<number | null>(null);
+  const targetMessageIdRef = useRef(targetMessageId);
 
   const [maintainAutoFollow, setMaintainAutoFollow] = useState(autoFollow);
   const onAutoScrollChangeRef = useRef(onAutoScrollChange);
   useEffect(() => {
     onAutoScrollChangeRef.current = onAutoScrollChange;
   }, [onAutoScrollChange]);
+
+  useLayoutEffect(() => {
+    targetMessageIdRef.current = targetMessageId;
+  }, [targetMessageId]);
   const [showCompactionBanner, setShowCompactionBanner] = useState(false);
+
+  const scrollToEndForFollow = useCallback(() => {
+    if (targetMessageIdRef.current || !autoScrollRef.current) return;
+
+    isProgrammaticScrollRef.current = true;
+    const scrollResult = listRef.current?.scrollToEnd({ animated: false });
+    void Promise.resolve(scrollResult).finally(() => {
+      window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 100);
+    });
+  }, []);
+
+  const scheduleFollowScrollToEnd = useCallback(() => {
+    if (targetMessageIdRef.current || !autoScrollRef.current) return;
+
+    if (followScrollRafRef.current !== null) {
+      cancelAnimationFrame(followScrollRafRef.current);
+    }
+    if (followScrollTimeoutRef.current !== null) {
+      window.clearTimeout(followScrollTimeoutRef.current);
+    }
+
+    followScrollRafRef.current = requestAnimationFrame(() => {
+      followScrollRafRef.current = requestAnimationFrame(() => {
+        followScrollRafRef.current = null;
+        scrollToEndForFollow();
+      });
+    });
+
+    followScrollTimeoutRef.current = window.setTimeout(() => {
+      scrollToEndForFollow();
+      followScrollTimeoutRef.current = window.setTimeout(() => {
+        followScrollTimeoutRef.current = null;
+        scrollToEndForFollow();
+      }, 300);
+    }, 120);
+  }, [scrollToEndForFollow]);
 
   useLayoutEffect(() => {
     setShowCompactionBanner(isCompacting);
   }, [isCompacting]);
+
+  useEffect(() => () => {
+    if (followScrollRafRef.current !== null) {
+      cancelAnimationFrame(followScrollRafRef.current);
+    }
+    if (followScrollTimeoutRef.current !== null) {
+      window.clearTimeout(followScrollTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (compactionSuccess) {
@@ -559,31 +612,25 @@ export function VirtualizedTranscript({
     autoScrollRef.current = autoFollow;
     setMaintainAutoFollow(autoFollow);
     if (autoFollow) {
-      isProgrammaticScrollRef.current = true;
-      requestAnimationFrame(() => {
-        void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
-          setTimeout(() => {
-            isProgrammaticScrollRef.current = false;
-          }, 100);
-        });
-      });
+      scheduleFollowScrollToEnd();
     }
-  }, [sessionId, autoFollow, displayItems.length, targetMessageId]);
+  }, [sessionId, autoFollow, displayItems.length, targetMessageId, scheduleFollowScrollToEnd]);
+
+  useLayoutEffect(() => {
+    if (displayItems.length === 0 || targetMessageId || !autoFollow) return;
+
+    scheduleFollowScrollToEnd();
+  }, [displayItems, messagesWithParts, autoFollow, targetMessageId, scheduleFollowScrollToEnd]);
 
   useLayoutEffect(() => {
     if (scrollToBottomRef) {
       scrollToBottomRef.current = () => {
         autoScrollRef.current = true;
         setMaintainAutoFollow(true);
-        isProgrammaticScrollRef.current = true;
-        void listRef.current?.scrollToEnd({ animated: false }).finally(() => {
-          setTimeout(() => {
-            isProgrammaticScrollRef.current = false;
-          }, 100);
-        });
+        scheduleFollowScrollToEnd();
       };
     }
-  }, [scrollToBottomRef]);
+  }, [scrollToBottomRef, scheduleFollowScrollToEnd]);
 
   useEffect(() => {
     const scrollEl = listRef.current?.getScrollableNode() as HTMLElement | null | undefined;
@@ -641,11 +688,6 @@ export function VirtualizedTranscript({
 
     return () => window.clearTimeout(timeout);
   }, [targetMessageId, displayItems, onTargetMessageHandled]);
-
-  const targetMessageIdRef = useRef(targetMessageId);
-  useEffect(() => {
-    targetMessageIdRef.current = targetMessageId;
-  }, [targetMessageId]);
 
   const handleScroll = useCallback(() => {
     if (isProgrammaticScrollRef.current) return;
