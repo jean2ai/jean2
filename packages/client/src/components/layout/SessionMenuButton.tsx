@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square, Tag, Plus, XIcon } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/sdk';
@@ -17,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
@@ -45,6 +46,9 @@ interface SessionMenuButtonProps {
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (sessionId: string) => void;
+  allWorkspaceTags?: string[];
+  onAddTag?: (sessionId: string, tag: string) => void;
+  onRemoveTag?: (sessionId: string, tag: string) => void;
 }
 
 const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
@@ -55,6 +59,10 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   onReopen,
   onClose,
   onDelete,
+  sessionTags,
+  allWorkspaceTags,
+  onAddTag,
+  onRemoveTag,
 }: {
   isClosed: boolean;
   isEditing: boolean;
@@ -63,10 +71,46 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   onReopen: () => void;
   onClose: () => void;
   onDelete: () => void;
+  sessionTags: string[];
+  allWorkspaceTags?: string[];
+  onAddTag?: (tag: string) => void;
+  onRemoveTag?: (tag: string) => void;
 }) {
+  const [tagInputOpen, setTagInputOpen] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (tagInputOpen && tagInputRef.current) {
+      tagInputRef.current.focus();
+    }
+  }, [tagInputOpen]);
+
+  const filteredSuggestions = allWorkspaceTags?.filter(
+    t => t.toLowerCase().includes(tagInput.toLowerCase()) && !sessionTags.includes(t),
+  ) ?? [];
+
   if (isEditing) return <div className="shrink-0 size-7" />;
 
   if (selectionMode) return <div className="shrink-0 size-7" />;
+
+  const toggleTagInput = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setTagInputOpen((prev) => !prev);
+  };
+
+  const preventClose = (e: Event) => {
+    e.preventDefault();
+  };
+
+  const commitTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && onAddTag) {
+      onAddTag(trimmed);
+      setTagInput('');
+      setTagInputOpen(false);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -76,11 +120,84 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
           <span className="sr-only">Session actions</span>
         </SidebarMenuAction>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-52">
         <DropdownMenuItem onClick={onRename}>
           <Pencil className="size-4" />
           Rename
         </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        {sessionTags.length > 0 && onRemoveTag ? (
+          <>
+            <DropdownMenuItem onClick={() => onRemoveTag(sessionTags[0])}>
+              <XIcon className="size-4" />
+              Remove tag
+              <span className="ml-auto text-xs text-muted-foreground">{sessionTags[0]}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={toggleTagInput} onSelect={preventClose}>
+              <Tag className="size-4" />
+              Change tag
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem onClick={toggleTagInput} onSelect={preventClose}>
+            <Tag className="size-4" />
+            Add tag
+          </DropdownMenuItem>
+        )}
+        {tagInputOpen && (
+          <div className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
+              <input
+                ref={tagInputRef}
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitTag();
+                  } else if (e.key === 'Escape') {
+                    setTagInputOpen(false);
+                    setTagInput('');
+                  }
+                }}
+                placeholder="Tag name..."
+                className="flex-1 min-w-0 h-6 px-2 text-xs bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={commitTag}
+                className="p-0.5 hover:bg-accent rounded"
+              >
+                <Plus className="size-3" />
+              </button>
+            </div>
+            {tagInput && filteredSuggestions.length > 0 && (
+              <div className="mt-1 max-h-24 overflow-y-auto">
+                {filteredSuggestions.slice(0, 5).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      if (onAddTag) {
+                        onAddTag(suggestion);
+                        setTagInput('');
+                        setTagInputOpen(false);
+                      }
+                    }}
+                    className="w-full text-left text-xs px-2 py-1 hover:bg-accent rounded"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <DropdownMenuSeparator />
+
         {isClosed ? (
           <>
             <DropdownMenuItem onClick={onReopen}>
@@ -145,6 +262,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  allWorkspaceTags,
+  onAddTag,
+  onRemoveTag,
 }: SessionMenuButtonProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(session.title || '');
@@ -318,6 +438,11 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                       <SessionStatusIcon status={session.subagentStatus} isStreaming={isActive ? derived.isStreaming : false} runningAt={session.runningAt} />
                       {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
+                      {(session.tags?.length ?? 0) > 0 && (
+                        <span className="text-[10px] px-1.5 py-0 rounded-full bg-primary/10 text-primary shrink-0">
+                          {session.tags![0]}
+                        </span>
+                      )}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs">
@@ -335,6 +460,10 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
+              sessionTags={session.tags ?? []}
+              allWorkspaceTags={allWorkspaceTags}
+              onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
+              onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
             />
           </div>
         </SidebarMenuItem>
@@ -401,6 +530,11 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                       <SessionStatusIcon status={session.subagentStatus} isStreaming={isActive ? derived.isStreaming : false} runningAt={session.runningAt} />
                       {derived.hasPendingPermission && <AlertTriangle className="size-3 text-warning shrink-0 animate-pulse" />}
                       {session.title || 'Untitled'}
+                      {(session.tags?.length ?? 0) > 0 && (
+                        <span className="text-[10px] px-1.5 py-0 rounded-full bg-primary/10 text-primary shrink-0">
+                          {session.tags![0]}
+                        </span>
+                      )}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs">
@@ -418,6 +552,10 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               onReopen={() => onReopenSession(session.id)}
               onClose={() => onCloseSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
+              sessionTags={session.tags ?? []}
+              allWorkspaceTags={allWorkspaceTags}
+              onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
+              onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
             />
           </div>
 
@@ -439,6 +577,9 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   selectionMode={selectionMode}
                   selected={selected}
                   onToggleSelect={onToggleSelect}
+                  allWorkspaceTags={allWorkspaceTags}
+                  onAddTag={onAddTag}
+                  onRemoveTag={onRemoveTag}
                 />
               ))}
             </SidebarMenuSub>

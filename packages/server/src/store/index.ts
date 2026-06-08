@@ -385,6 +385,13 @@ export function initializeSchema(db: Database): void {
   } catch {
     // Column already exists
   }
+
+  // Migrate: add tags column to sessions if missing
+  try {
+    db.run("ALTER TABLE sessions ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'");
+  } catch {
+    // Column already exists
+  }
 }
 
 export { Database };

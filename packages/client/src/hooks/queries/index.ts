@@ -8,3 +8,4 @@ export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorksp
 export { useFileBrowseQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery } from './useFileQueries';
 export { useResponseFormatsQuery, useCreateResponseFormat, useUpdateResponseFormat, useDeleteResponseFormat } from './useResponseFormatsQueries';
 export { usePinnedMessagesQuery, usePinMessageMutation, useUnpinMessageMutation } from './usePinnedMessagesQueries';
+export { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from './useSessionTagsQueries';

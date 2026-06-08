@@ -22,4 +22,5 @@ export interface Session {
   subagentStatus?: SubagentStatus | null;  // Status for subagent sessions only
   runningAt?: string | null;  // ISO timestamp when session started running, null when not running
   compacting?: boolean;  // Whether compaction is in progress
+  tags?: string[];  // User-assigned tags for grouping (default: [])
 }

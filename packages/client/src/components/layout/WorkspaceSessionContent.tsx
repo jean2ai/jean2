@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronRight, CheckSquare, X, Archive, MoreHorizontal, Trash2 } from 'lucide-react';
+import { ChevronRight, CheckSquare, X, Archive, MoreHorizontal, Trash2, Tag } from 'lucide-react';
 import type { Session } from '@jean2/sdk';
 import {
   SidebarGroup,
@@ -36,6 +36,11 @@ interface WorkspaceSessionContentProps {
   onRenameSession: (sessionId: string, title: string) => void;
   onBulkCloseSessions: (sessionIds: Set<string>) => void;
   onBulkDeleteSessions: (sessionIds: Set<string>) => void;
+  tagGroups: Map<string, Session[]>;
+  orderedTagNames: string[];
+  allWorkspaceTags: string[];
+  onAddTag: (sessionId: string, tag: string) => void;
+  onRemoveTag: (sessionId: string, tag: string) => void;
 }
 
 export function WorkspaceSessionContent({
@@ -51,6 +56,11 @@ export function WorkspaceSessionContent({
   onRenameSession,
   onBulkCloseSessions,
   onBulkDeleteSessions,
+  tagGroups,
+  orderedTagNames,
+  allWorkspaceTags,
+  onAddTag,
+  onRemoveTag,
 }: WorkspaceSessionContentProps) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -111,6 +121,31 @@ export function WorkspaceSessionContent({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectionMode, handleCancel]);
+
+  const renderSessionButton = (session: Session) => (
+    <SessionMenuButton
+      key={session.id}
+      session={session}
+      childrenMap={childrenMap}
+      sessionDerivedValues={sessionDerivedValues}
+      isActive={currentSessionId === session.id}
+      currentSessionId={currentSessionId}
+      onResumeSession={onResumeSession}
+      onCloseSession={onCloseSession}
+      onReopenSession={onReopenSession}
+      onDeleteSession={onDeleteSession}
+      onRename={onRenameSession}
+      selectionMode={selectionMode}
+      selected={selectedIds.has(session.id)}
+      onToggleSelect={handleToggleSelect}
+      allWorkspaceTags={allWorkspaceTags}
+      onAddTag={onAddTag}
+      onRemoveTag={onRemoveTag}
+    />
+  );
+
+  const hasTags = orderedTagNames.length > 0;
+  const ungroupedSessions = tagGroups.get('__ungrouped__') ?? [];
 
   const renderActiveSection = () => (
     <Collapsible defaultOpen className="group/collapsible">
@@ -186,26 +221,41 @@ export function WorkspaceSessionContent({
         </SidebarGroupLabel>
         <CollapsibleContent>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {activeSessions.map(session => (
-                <SessionMenuButton
-                  key={session.id}
-                  session={session}
-                  childrenMap={childrenMap}
-                  sessionDerivedValues={sessionDerivedValues}
-                  isActive={currentSessionId === session.id}
-                  currentSessionId={currentSessionId}
-                  onResumeSession={onResumeSession}
-                  onCloseSession={onCloseSession}
-                  onReopenSession={onReopenSession}
-                  onDeleteSession={onDeleteSession}
-                  onRename={onRenameSession}
-                  selectionMode={selectionMode}
-                  selected={selectedIds.has(session.id)}
-                  onToggleSelect={handleToggleSelect}
-                />
-              ))}
-            </SidebarMenu>
+            {hasTags ? (
+              <>
+                {orderedTagNames.map(tagName => {
+                  const sessions = tagGroups.get(tagName) ?? [];
+                  return (
+                    <Collapsible key={tagName} defaultOpen className="group/tag-collapsible">
+                      <div className="flex items-center px-2 py-1 text-xs font-medium text-muted-foreground">
+                        <CollapsibleTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            <ChevronRight className="size-3 transition-transform group-data-[state=open]/tag-collapsible:rotate-90" />
+                            <Tag className="size-3" />
+                            {tagName}
+                          </button>
+                        </CollapsibleTrigger>
+                        <Badge variant="secondary" className="ml-auto text-[10px]">{sessions.length}</Badge>
+                      </div>
+                      <CollapsibleContent>
+                        <SidebarMenu>
+                          {sessions.map(renderSessionButton)}
+                        </SidebarMenu>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+                {ungroupedSessions.length > 0 && (
+                  <SidebarMenu>
+                    {ungroupedSessions.map(renderSessionButton)}
+                  </SidebarMenu>
+                )}
+              </>
+            ) : (
+              <SidebarMenu>
+                {activeSessions.map(renderSessionButton)}
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </CollapsibleContent>
       </SidebarGroup>
@@ -270,6 +320,9 @@ export function WorkspaceSessionContent({
                       onReopenSession={onReopenSession}
                       onDeleteSession={onDeleteSession}
                       onRename={onRenameSession}
+                      allWorkspaceTags={allWorkspaceTags}
+                      onAddTag={onAddTag}
+                      onRemoveTag={onRemoveTag}
                     />
                   ))}
                 </SidebarMenu>

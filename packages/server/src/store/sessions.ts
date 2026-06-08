@@ -27,6 +27,7 @@ interface SessionRow {
   subagent_status: string | null;
   running_at: string | null;
   compacting: number;
+  tags: string;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -34,13 +35,14 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   const now = new Date().toISOString();
   const s: Session = {
     ...session,
+    tags: session.tags ?? [],
     createdAt: session.createdAt || now,
     updatedAt: session.updatedAt || now,
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting, tags)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -58,6 +60,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.subagentStatus ?? null,
     s.runningAt ?? null,
     s.compacting ?? false,
+    JSON.stringify(s.tags ?? []),
   ]);
   
   return s;
@@ -93,7 +96,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -159,6 +162,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.compacting !== undefined) {
     setClauses.push('compacting = ?');
     values.push(updates.compacting ? 1 : 0);
+  }
+  if (updates.tags !== undefined) {
+    setClauses.push('tags = ?');
+    values.push(JSON.stringify(updates.tags));
   }
   
   values.push(id);
@@ -300,7 +307,28 @@ function mapRowToSession(row: SessionRow): Session {
     subagentStatus: row.subagent_status as SubagentStatus | null ?? null,
     runningAt: row.running_at ?? null,
     compacting: !!row.compacting,
+    tags: row.tags ? JSON.parse(row.tags) : [],
   };
+}
+
+export function listTagsByWorkspace(workspaceId: string): string[] {
+  const db = getDatabase();
+  const rows = db.query(
+    'SELECT DISTINCT tags FROM sessions WHERE workspace_id = ? AND tags != ?',
+  ).all(workspaceId, '[]') as { tags: string }[];
+
+  const tagSet = new Set<string>();
+  for (const row of rows) {
+    try {
+      const tags: string[] = JSON.parse(row.tags);
+      for (const tag of tags) {
+        tagSet.add(tag);
+      }
+    } catch {
+      // Skip malformed
+    }
+  }
+  return Array.from(tagSet).sort();
 }
 
 export function getChildSessions(parentId: string): Session[] {

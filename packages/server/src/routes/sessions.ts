@@ -8,6 +8,7 @@ import {
   deleteSession,
   listMessages,
   listSessionsGrouped,
+  listTagsByWorkspace,
 } from '@/store';
 import {
   getAttachmentByKey,
@@ -75,6 +76,16 @@ export function registerSessionRoutes(app: Hono): void {
     return c.json({ sessions });
   });
 
+  // GET /api/sessions/tags - List all tags for a workspace
+  app.get('/api/sessions/tags', async (c) => {
+    const workspaceId = c.req.query('workspaceId');
+    if (!workspaceId) {
+      return c.json({ error: 'Bad Request', message: 'workspaceId query parameter is required' }, 400);
+    }
+    const tags = listTagsByWorkspace(workspaceId);
+    return c.json({ tags });
+  });
+
   // GET /api/sessions/:id - Get a session by ID
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
@@ -96,6 +107,7 @@ export function registerSessionRoutes(app: Hono): void {
       title: body.title,
       status: body.status,
       metadata: body.metadata,
+      tags: body.tags,
     });
 
     if (!session) {

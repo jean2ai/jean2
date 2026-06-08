@@ -33,6 +33,8 @@ export interface UseSidebarDataReturn {
   sessions: Session[];
   activeSessions: Session[];
   archivedSessions: Session[];
+  tagGroups: Map<string, Session[]>;
+  orderedTagNames: string[];
 
   // Helper functions
   isWorkspaceFavorited: (workspaceId: string) => boolean;
@@ -142,6 +144,42 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     };
   }, [sessions]);
 
+  // Derive tag groups from activeSessions
+  const tagGroups = useMemo((): Map<string, Session[]> => {
+    const groups = new Map<string, Session[]>();
+    const ungrouped: Session[] = [];
+
+    for (const session of activeSessions) {
+      const primaryTag = session.tags?.[0];
+      if (primaryTag) {
+        const existing = groups.get(primaryTag) ?? [];
+        existing.push(session);
+        groups.set(primaryTag, existing);
+      } else {
+        ungrouped.push(session);
+      }
+    }
+
+    if (ungrouped.length > 0) {
+      groups.set('__ungrouped__', ungrouped);
+    }
+
+    return groups;
+  }, [activeSessions]);
+
+  // Derive ordered tag names (sorted by most recently updated session in group)
+  const orderedTagNames = useMemo((): string[] => {
+    const entries = Array.from(tagGroups.entries())
+      .filter(([tag]) => tag !== '__ungrouped__')
+      .map(([tag, sessions]) => ({
+        tag,
+        lastUpdated: Math.max(...sessions.map(s => new Date(s.updatedAt).getTime())),
+      }));
+
+    entries.sort((a, b) => b.lastUpdated - a.lastUpdated);
+    return entries.map(e => e.tag);
+  }, [tagGroups]);
+
   const isWorkspaceFavorited = useCallback(
     (workspaceId: string) => {
       return quickConnections.some(
@@ -188,6 +226,8 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     sessions,
     activeSessions,
     archivedSessions,
+    tagGroups,
+    orderedTagNames,
     isWorkspaceFavorited,
     handleToggleWorkspaceFavorite,
   };

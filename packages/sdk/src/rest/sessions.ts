@@ -28,6 +28,7 @@ interface UpdateOptions {
   title?: string;
   status?: SessionStatus;
   metadata?: Record<string, unknown>;
+  tags?: string[];
 }
 
 interface ListGroupedOptions {
@@ -89,5 +90,12 @@ export class SessionsRestNamespace {
     if (options.status) params.status = options.status;
     if (options.rootOnly) params.rootOnly = 'true';
     return this.http.get(`/workspaces/${encodeURIComponent(options.workspaceId)}/sessions`, { params, signal: options.signal });
+  }
+
+  async listTags(workspaceId: string, options?: { signal?: AbortSignal }): Promise<{ tags: string[] }> {
+    return this.http.get('/sessions/tags', {
+      params: { workspaceId },
+      signal: options?.signal,
+    });
   }
 }

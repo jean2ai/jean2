@@ -5,6 +5,8 @@ import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useWorkspaceSessions } from '@/hooks/useWorkspaceSessions';
+import { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from '@/hooks/queries';
+import { useSessionStore } from '@/stores/sessionStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
@@ -51,6 +53,32 @@ export default function WorkspaceView() {
   // Read from store via useSidebarData — WebSocket events update the store
   const activeSessions = sidebarData.activeSessions;
   const archivedSessions = sidebarData.archivedSessions;
+
+  // Tags
+  const { data: tagsData } = useWorkspaceTagsQuery(sdkClient, sidebarData.activeWorkspace?.id ?? null);
+  const allWorkspaceTags = tagsData?.tags ?? [];
+  const invalidateWorkspaceTags = useInvalidateWorkspaceTags();
+
+  const updateSession = useSessionStore(s => s.updateSession);
+
+  const handleAddTag = useCallback(async (sessionId: string, tag: string) => {
+    if (!sdkClient) return;
+    const newTags = [tag];
+    const { session } = await sdkClient.http.sessions.update(sessionId, { tags: newTags });
+    updateSession(session);
+    if (sidebarData.activeWorkspace?.id) {
+      invalidateWorkspaceTags(sidebarData.activeWorkspace.id);
+    }
+  }, [sdkClient, sidebarData.activeWorkspace?.id, invalidateWorkspaceTags, updateSession]);
+
+  const handleRemoveTag = useCallback(async (sessionId: string, _tag: string) => {
+    if (!sdkClient) return;
+    const { session } = await sdkClient.http.sessions.update(sessionId, { tags: [] });
+    updateSession(session);
+    if (sidebarData.activeWorkspace?.id) {
+      invalidateWorkspaceTags(sidebarData.activeWorkspace.id);
+    }
+  }, [sdkClient, sidebarData.activeWorkspace?.id, invalidateWorkspaceTags, updateSession]);
 
   const sidebarHeader = (
     <SidebarHeader>
@@ -108,6 +136,11 @@ export default function WorkspaceView() {
       onRenameSession={handleRenameSession}
       onBulkCloseSessions={handleBulkCloseSessions}
       onBulkDeleteSessions={handleBulkDeleteSessions}
+      tagGroups={sidebarData.tagGroups}
+      orderedTagNames={sidebarData.orderedTagNames}
+      allWorkspaceTags={allWorkspaceTags}
+      onAddTag={handleAddTag}
+      onRemoveTag={handleRemoveTag}
     />
   );
 

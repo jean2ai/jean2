@@ -4,6 +4,7 @@ export const queryKeys = {
     byWorkspace: (workspaceId: string) => ['sessions', 'workspace', workspaceId] as const,
     grouped: (workspaceIds: string[], status?: string) =>
       ['sessions', 'grouped', { workspaceIds: [...workspaceIds].sort(), status }] as const,
+    tags: (workspaceId: string) => ['sessions', 'tags', workspaceId] as const,
   },
   tools: {
     all: ['tools'] as const,
