@@ -24,6 +24,8 @@ export type AskRequestHandler = (
   authority?: any,
 ) => void;
 
+export type DisconnectHandler = (code: number, reason: string, wasClean: boolean) => void;
+
 const EXTENSION_CAPABILITIES = [
   'browser_automation',
   'active_tab_read',
@@ -37,6 +39,7 @@ const EXTENSION_CAPABILITIES = [
 export class BrowserClient {
   private client: Jean2Client | null = null;
   private askHandler: AskRequestHandler | null = null;
+  private disconnectHandler: DisconnectHandler | null = null;
   private _connected = false;
 
   get connected(): boolean {
@@ -45,6 +48,10 @@ export class BrowserClient {
 
   onAskRequest(handler: AskRequestHandler): void {
     this.askHandler = handler;
+  }
+
+  onDisconnected(handler: DisconnectHandler): void {
+    this.disconnectHandler = handler;
   }
 
   async connect(config: ExtensionConfig, clientId: string): Promise<void> {
@@ -68,9 +75,10 @@ export class BrowserClient {
       console.log('[browser] Connected to Jean2 server');
     });
 
-    this.client.on('disconnected', () => {
+    this.client.on('disconnected', ({ code, reason, wasClean }) => {
       this._connected = false;
-      console.log('[browser] Disconnected from Jean2 server');
+      console.log('[browser] Disconnected from Jean2 server:', code, reason);
+      this.disconnectHandler?.(code, reason, wasClean);
     });
 
     this.client.on('error.connection', (error) => {

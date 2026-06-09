@@ -26,10 +26,17 @@ import type {
 } from './types';
 
 const MAX_TEXT_LENGTH = 50_000;
+const RECONNECT_ALARM = 'jean2-reconnect';
+const RECONNECT_ALARM_PERIOD_MINUTES = 0.5; // 30 seconds
+const INITIAL_RECONNECT_DELAY_MS = 1_000;
+const MAX_RECONNECT_DELAY_MS = 60_000;
 
 let browserClient: BrowserClient | null = null;
 let connectionState: ConnectionState = 'disconnected';
 let connectionError: string | null = null;
+let reconnectAttempts = 0;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let intentionalDisconnect = false;
 
 // ── Active Tab Reading ──────────────────────────────────────
 
@@ -250,6 +257,34 @@ async function manageTab(params: TabManageParams): Promise<TabManageResult> {
 
 // ── Connection Lifecycle ────────────────────────────────────
 
+function clearReconnectTimeout(): void {
+  if (reconnectTimeout !== null) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+}
+
+function scheduleReconnect(): void {
+  if (intentionalDisconnect) return;
+
+  clearReconnectTimeout();
+
+  const delay = Math.min(
+    INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+    MAX_RECONNECT_DELAY_MS,
+  );
+  const jitter = delay * 0.2 * Math.random();
+  const totalDelay = delay + jitter;
+
+  reconnectAttempts++;
+  console.log(`[browser] Reconnecting in ${Math.round(totalDelay)}ms (attempt ${reconnectAttempts})`);
+
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    connectToServer();
+  }, totalDelay);
+}
+
 async function connectToServer(): Promise<void> {
   try {
     const [clientId, config] = await Promise.all([
@@ -271,8 +306,17 @@ async function connectToServer(): Promise<void> {
       },
     );
 
+    browserClient.onDisconnected((_code, _reason, _wasClean) => {
+      if (!intentionalDisconnect) {
+        console.log('[browser] Unexpected disconnect, scheduling reconnect');
+        scheduleReconnect();
+      }
+    });
+
     await browserClient.connect(config, clientId);
     connectionState = 'connected';
+    connectionError = null;
+    reconnectAttempts = 0;
     console.log('[browser] Connected and registered successfully');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -280,6 +324,7 @@ async function connectToServer(): Promise<void> {
     connectionState = 'error';
     connectionError = message;
     browserClient = null;
+    scheduleReconnect();
   }
 }
 
@@ -424,6 +469,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === 'connect') {
     const { serverUrl, token } = message as { serverUrl: string; token?: string };
+    intentionalDisconnect = false;
+    clearReconnectTimeout();
     // Save config first, then connect
     chrome.storage.local.set(
       { jean2_browser_config: { serverUrl, token: token || undefined } },
@@ -446,6 +493,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'disconnect') {
+    intentionalDisconnect = true;
+    clearReconnectTimeout();
     connectionState = 'disconnected';
     connectionError = null;
     if (browserClient) {
@@ -464,10 +513,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[browser] Extension installed');
+  intentionalDisconnect = false;
   connectToServer();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   console.log('[browser] Browser startup');
+  intentionalDisconnect = false;
   connectToServer();
+});
+
+// Periodic alarm to keep service worker alive and ensure connection
+chrome.alarms.create(RECONNECT_ALARM, {
+  periodInMinutes: RECONNECT_ALARM_PERIOD_MINUTES,
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === RECONNECT_ALARM) {
+    if (!browserClient?.connected && !intentionalDisconnect) {
+      console.log('[browser] Health check: disconnected, reconnecting');
+      clearReconnectTimeout();
+      connectToServer();
+    }
+  }
+});
+
+// Graceful cleanup before service worker is terminated
+chrome.runtime.onSuspend.addListener(() => {
+  console.log('[browser] Service worker suspending');
+  clearReconnectTimeout();
+  if (browserClient) {
+    browserClient.disconnect();
+    browserClient = null;
+  }
+  connectionState = 'disconnected';
 });
