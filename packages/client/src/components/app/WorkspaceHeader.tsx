@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -19,6 +19,7 @@ import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdd
 import { WorkspaceMemoryDialog } from '@/components/modals/WorkspaceMemoryDialog';
 import { WorkspaceSkillsDialog } from '@/components/modals/WorkspaceSkillsDialog';
 import { isWindows } from '@/lib/platform';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface WorkspaceHeaderProps {
   onUpdateWorkspacePaths?: (workspaceId: string, additionalPaths: string[]) => void;
@@ -34,11 +35,16 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
   const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
   const setShowMCPDialog = useUIStore((s) => s.setShowMCPDialog);
   const setShowWorkspacePermissions = useUIStore((s) => s.setShowWorkspacePermissions);
+  const expandedToolbar = useUIStore((s) => s.expandedToolbar);
+  const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const [editingPaths, setEditingPaths] = useState(false);
   const [showMemoryDialog, setShowMemoryDialog] = useState(false);
   const [showSkillsDialog, setShowSkillsDialog] = useState(false);
+
+  const isMobile = useIsMobile();
+  const showExpanded = expandedToolbar && !isMobile;
 
   return (
     <div className="h-9 px-3 flex items-center shrink-0">
@@ -115,50 +121,118 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                   <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
                 </Tooltip>
               )}
-              <DropdownMenu>
+
+              {showExpanded && (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-sm" onClick={() => setShowMCPDialog(true)}>
+                        <Server className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>MCP Servers</TooltipContent>
+                  </Tooltip>
+                  {onUpdateWorkspacePaths && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={() => setEditingPaths(true)}>
+                          <FolderSymlink className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Additional Paths</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onUpdateWorkspaceSettings && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={() => setShowMemoryDialog(true)}>
+                          <Brain className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Memory</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onUpdateWorkspaceSettings && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={() => setShowSkillsDialog(true)}>
+                          <Wrench className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Skill Management</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
+                        className={showWorkspacePermissions ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
+                      >
+                        <Shield className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{showWorkspacePermissions ? 'Hide Permissions' : 'Show Permissions'}</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+              {!showExpanded && (
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm">
+                          <Ellipsis className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end" className="min-w-48">
+                    <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
+                      <Server className="w-4 h-4" />
+                      MCP Servers
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {onUpdateWorkspacePaths && (
+                      <DropdownMenuItem onClick={() => setEditingPaths(true)}>
+                        <FolderSymlink className="w-4 h-4" />
+                        Additional paths
+                      </DropdownMenuItem>
+                    )}
+                    {onUpdateWorkspaceSettings && (
+                      <DropdownMenuItem onClick={() => setShowMemoryDialog(true)}>
+                        <Brain className="w-4 h-4" />
+                        Memory
+                      </DropdownMenuItem>
+                    )}
+                    {onUpdateWorkspaceSettings && (
+                      <DropdownMenuItem onClick={() => setShowSkillsDialog(true)}>
+                        <Wrench className="w-4 h-4" />
+                        Skill Management
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuCheckboxItem
+                      checked={showWorkspacePermissions}
+                      onCheckedChange={setShowWorkspacePermissions}
+                    >
+                      <Shield className="w-4 h-4" />
+                      Permissions
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {!isMobile && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
-                        <Ellipsis className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setExpandedToolbar(!expandedToolbar)}>
+                      {expandedToolbar ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+                    </Button>
                   </TooltipTrigger>
-                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
+                  <TooltipContent>{expandedToolbar ? 'Collapse Toolbar' : 'Expand Toolbar'}</TooltipContent>
                 </Tooltip>
-                <DropdownMenuContent align="end" className="min-w-48">
-                  <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
-                    <Server className="w-4 h-4" />
-                    MCP Servers
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {onUpdateWorkspacePaths && (
-                    <DropdownMenuItem onClick={() => setEditingPaths(true)}>
-                      <FolderSymlink className="w-4 h-4" />
-                      Additional paths
-                    </DropdownMenuItem>
-                  )}
-                  {onUpdateWorkspaceSettings && (
-                    <DropdownMenuItem onClick={() => setShowMemoryDialog(true)}>
-                      <Brain className="w-4 h-4" />
-                      Memory
-                    </DropdownMenuItem>
-                  )}
-                  {onUpdateWorkspaceSettings && (
-                    <DropdownMenuItem onClick={() => setShowSkillsDialog(true)}>
-                      <Wrench className="w-4 h-4" />
-                      Skill Management
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuCheckboxItem
-                    checked={showWorkspacePermissions}
-                    onCheckedChange={setShowWorkspacePermissions}
-                  >
-                    <Shield className="w-4 h-4" />
-                    Permissions
-                  </DropdownMenuCheckboxItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              )}
             </div>
           )}
         </div>

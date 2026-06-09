@@ -1,4 +1,4 @@
-import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench } from 'lucide-react';
+import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { isWindows } from '@/lib/platform';
 import { platform, hasCapability } from '@/platform';
@@ -22,7 +22,9 @@ export function AppHeader() {
   const setShowSettings = useUIStore((s) => s.setShowSettings);
   const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
   const setShowTools = useUIStore((s) => s.setShowTools);
-   const location = useLocation();
+  const expandedToolbar = useUIStore((s) => s.expandedToolbar);
+  const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
+  const location = useLocation();
   const isOverview = location.pathname.includes('/overview');
 
   return (
@@ -150,33 +152,71 @@ export function AppHeader() {
               </Tooltip>
             </>
             )}
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-sm">
-                      <Ellipsis className="w-4 h-4" />
+            {expandedToolbar && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setShowConfiguration(true)}>
+                      <SlidersHorizontal className="w-4 h-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Configuration
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowTools(true)}>
-                  <Wrench className="mr-2 h-4 w-4" />
-                  Tools
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowSettings(true)}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </TooltipTrigger>
+                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Configuration</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setShowTools(true)}>
+                      <Wrench className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Tools</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={() => setShowSettings(true)}>
+                      <Settings className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Settings</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+            {!expandedToolbar && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon-sm">
+                        <Ellipsis className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="w-48 min-w-48">
+                  <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
+                    <SlidersHorizontal className="mr-2 h-4 w-4" />
+                    Configuration
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowTools(true)}>
+                    <Wrench className="mr-2 h-4 w-4" />
+                    Tools
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowSettings(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" onClick={() => setExpandedToolbar(!expandedToolbar)}>
+                  {expandedToolbar ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side={isWindows() ? 'bottom' : undefined}>{expandedToolbar ? 'Collapse Toolbar' : 'Expand Toolbar'}</TooltipContent>
+            </Tooltip>
           </div>
         </TooltipProvider>
       </header>

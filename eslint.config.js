@@ -10,6 +10,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/client-dist/**',
+      '**/dev-dist/**',
       '**/data/**',
       '**/storybook-static/**',
       'packages/vscode/tests/**',
