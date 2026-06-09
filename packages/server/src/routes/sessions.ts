@@ -112,6 +112,7 @@ export function registerSessionRoutes(app: Hono): void {
         ? markManualSessionTitle(body.metadata ?? existing?.metadata)
         : body.metadata,
       tags: body.tags,
+      autoApproveSeverity: body.autoApproveSeverity,
     });
 
     if (!session) {

@@ -2,6 +2,8 @@ export type SessionStatus = 'active' | 'closed';
 
 export type SubagentStatus = 'running' | 'completed' | 'error' | 'interrupted';
 
+export type AutoApproveSeverity = 'off' | 'none' | 'low' | 'medium' | 'high';
+
 export interface Session {
   id: string;
   workspaceId: string;  // FK to workspace
@@ -23,4 +25,5 @@ export interface Session {
   runningAt?: string | null;  // ISO timestamp when session started running, null when not running
   compacting?: boolean;  // Whether compaction is in progress
   tags?: string[];  // User-assigned tags for grouping (default: [])
+  autoApproveSeverity?: AutoApproveSeverity | null;  // Auto-approve risk level for permissions
 }

@@ -3,6 +3,7 @@ export type {
   Session,
   SessionStatus,
   SubagentStatus,
+  AutoApproveSeverity,
 } from '../shared';
 
 export type {

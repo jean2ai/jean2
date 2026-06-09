@@ -443,6 +443,7 @@ export function handleRelease(
 export function handleRequestTakeover(
   sessionId: string,
   ws: ServerWebSocket,
+  autoApprove = false,
 ): ControlActionResult {
   const conn = getConnectionByWs(ws);
   const clientId = conn?.clientId ?? null;
@@ -501,6 +502,27 @@ export function handleRequestTakeover(
   }
 
   const now = Date.now();
+
+  if (autoApprove) {
+    console.log(
+      `[control] Takeover auto-approved (env): newController=${clientId} previousController=${record.controllerClientId} sessionId=${sessionId}`,
+    );
+
+    record.controllerClientId = clientId;
+    record.controllerConnectionId = null;
+    record.acquiredAt = now;
+    record.lastHeartbeatAt = now;
+    record.leaseExpiresAt = null;
+    record.status = 'controlled';
+    record.pendingTakeover = null;
+
+    return {
+      success: true,
+      controlState: recordToState(record),
+      transitionReason: 'takeover_auto_approved',
+    };
+  }
+
   record.status = 'takeover_requested';
   record.pendingTakeover = {
     requestedByClientId: clientId,

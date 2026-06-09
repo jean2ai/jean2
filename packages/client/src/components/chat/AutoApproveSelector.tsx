@@ -1,4 +1,5 @@
 import { Shield, ShieldOff, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,10 +15,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useUIStore } from '@/stores/uiStore';
+import type { AutoApproveSeverity } from '@jean2/sdk';
+import type { Jean2Client } from '@jean2/sdk';
+import { useSessionStore } from '@/stores/sessionStore';
 
 interface AutoApproveSelectorProps {
   sessionId: string;
+  sdkClient: Jean2Client | null;
   disabled?: boolean;
 }
 
@@ -83,14 +87,30 @@ function getMenuItemIconClass(level: SeverityLevel): string {
 
 export function AutoApproveSelector({
   sessionId,
+  sdkClient,
   disabled,
 }: AutoApproveSelectorProps) {
-  const autoApproveBySession = useUIStore((s) => s.autoApproveBySession);
-  const setAutoApproveMaxSeverity = useUIStore((s) => s.setAutoApproveMaxSeverity);
+  const sessions = useSessionStore((s) => s.sessions);
+  const updateSession = useSessionStore((s) => s.updateSession);
 
-  const currentLevel = (autoApproveBySession[sessionId] ?? 'low') as SeverityLevel;
+  const session = sessions.find((s) => s.id === sessionId);
+  const currentLevel = (session?.autoApproveSeverity ?? 'low') as SeverityLevel;
   const config = SEVERITY_CONFIGS[currentLevel];
   const Icon = config.icon;
+
+  const handleSeverityChange = useCallback(async (level: SeverityLevel) => {
+    if (!sdkClient) return;
+
+    try {
+      const result = await sdkClient.http.sessions.update(sessionId, {
+        autoApproveSeverity: level as AutoApproveSeverity,
+      });
+
+      updateSession(result.session);
+    } catch (err) {
+      console.error('Failed to update auto-approve setting:', err);
+    }
+  }, [sdkClient, sessionId, updateSession]);
 
   if (disabled) {
     return (
@@ -142,7 +162,7 @@ export function AutoApproveSelector({
           return (
             <DropdownMenuItem
               key={level}
-              onClick={() => setAutoApproveMaxSeverity(sessionId, level as SeverityLevel)}
+              onClick={() => handleSeverityChange(level)}
               className={isActive ? 'bg-accent' : ''}
             >
               <LevelIcon className={`size-4 ${getMenuItemIconClass(level)}`} />

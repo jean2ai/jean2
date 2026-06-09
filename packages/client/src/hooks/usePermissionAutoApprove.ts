@@ -1,13 +1,18 @@
 import { useEffect } from 'react';
 import type { AskHandler } from '@/stores/askStore';
-import type { AskPermissionResponse, GrantScope, PermissionRiskLevel } from '@jean2/sdk';
+import type { AskPermissionResponse, PermissionRiskLevel } from '@jean2/sdk';
 import { useAskStore } from '@/stores/askStore';
-import { useUIStore } from '@/stores/uiStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 const RISK_ORDER: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
 
 function isAtOrBelow(risk: PermissionRiskLevel, max: PermissionRiskLevel): boolean {
   return RISK_ORDER.indexOf(risk) <= RISK_ORDER.indexOf(max);
+}
+
+function getSessionAutoApproveSeverity(sessionId: string): PermissionRiskLevel | 'off' | null {
+  const session = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+  return session?.autoApproveSeverity ?? null;
 }
 
 function createPermissionHandler(): AskHandler {
@@ -18,9 +23,9 @@ function createPermissionHandler(): AskHandler {
     if (!isPermissionAsk) return undefined;
 
     // Check the per-session auto-approve severity setting
-    const maxSeverity = useUIStore.getState().getAutoApproveMaxSeverity(request.sessionId);
+    const maxSeverity = getSessionAutoApproveSeverity(request.sessionId);
 
-    // If no per-session setting, auto-approve 'low' by default (backward compatible)
+    // If no session setting, default to 'low' (backward compatible)
     // If explicitly 'off', skip auto-approve entirely
     if (maxSeverity === 'off') return undefined;
     const effectiveMax = maxSeverity ?? 'low';
@@ -31,15 +36,8 @@ function createPermissionHandler(): AskHandler {
       return undefined;
     }
 
-    // Respect the allowed scopes from server policy
-    const allowedScopes = 'allowedScopes' in ask
-      ? (ask.allowedScopes as GrantScope[]) ?? ['once', 'session', 'workspace']
-      : ['once', 'session', 'workspace'];
-
-    // Use 'session' if allowed, otherwise 'once' — never auto-approve 'workspace' scope
-    const autoScope = allowedScopes.includes('session') ? 'session' : 'once';
-
-    return { type: 'permission', grant: autoScope } satisfies AskPermissionResponse;
+    // Auto-approve always uses 'once' scope — no grants are persisted
+    return { type: 'permission', grant: 'once' } satisfies AskPermissionResponse;
   };
 }
 

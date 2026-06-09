@@ -40,6 +40,7 @@ import {
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
   getLLMDeepseekApiKey,
+  getAutoApproveTakeover,
 } from '@/env';
 import * as providerManager from '@/providers';
 import { isSandboxActive, sandboxController } from '@/sandbox';
@@ -835,7 +836,7 @@ export async function handleClientMessage(
 
     case 'session.control.request_takeover': {
       const takeoverMsg = msg as SessionControlRequestTakeoverMessage;
-      const result = handleControlRequestTakeover(takeoverMsg.sessionId, ws);
+      const result = handleControlRequestTakeover(takeoverMsg.sessionId, ws, getAutoApproveTakeover());
       if (result.success) {
         ctx.broadcastToSession(takeoverMsg.sessionId, buildControlUpdatedMessage(takeoverMsg.sessionId, result.transitionReason));
       } else {

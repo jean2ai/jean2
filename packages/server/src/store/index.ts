@@ -392,6 +392,13 @@ export function initializeSchema(db: Database): void {
   } catch {
     // Column already exists
   }
+
+  // Migrate: add auto_approve_severity column to sessions if missing
+  try {
+    db.run('ALTER TABLE sessions ADD COLUMN auto_approve_severity TEXT');
+  } catch {
+    // Column already exists
+  }
 }
 
 export { Database };

@@ -29,6 +29,7 @@ interface UpdateOptions {
   status?: SessionStatus;
   metadata?: Record<string, unknown>;
   tags?: string[];
+  autoApproveSeverity?: string | null;
 }
 
 interface ListGroupedOptions {

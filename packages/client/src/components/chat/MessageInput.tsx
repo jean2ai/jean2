@@ -612,6 +612,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               <>
                 <AutoApproveSelector
                   sessionId={sessionId}
+                  sdkClient={sdkClient ?? null}
                   disabled={disabled}
                 />
                 <ResponseFormatSelector

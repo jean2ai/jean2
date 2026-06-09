@@ -5,6 +5,7 @@ import type {
   GrantScope,
   PermissionIntent,
   AskAuthority,
+  PermissionRiskLevel,
 } from '@jean2/sdk';
 import {
   matchGrant,
@@ -24,6 +25,8 @@ import {
   SHELL_DANGEROUS_COMMANDS,
   SHELL_FILESYSTEM_COMMANDS,
 } from '@jean2/sdk';
+import { getSession } from '@/store/sessions';
+import { getParticipantConnections } from '@/core/session-control-registry';
 
 // =============================================================================
 // Permission Request Manager
@@ -63,6 +66,44 @@ const DEFAULT_ASK_AUTHORITY: AskAuthority = {
 // =============================================================================
 
 export type PermissionBroadcastFn = (message: unknown) => void;
+
+// =============================================================================
+// Server-side auto-approve helpers
+// =============================================================================
+
+const RISK_ORDER: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
+
+function isRiskAtOrBelow(risk: PermissionRiskLevel, max: PermissionRiskLevel): boolean {
+  return RISK_ORDER.indexOf(risk) <= RISK_ORDER.indexOf(max);
+}
+
+function tryServerAutoApprove(
+  sessionId: string,
+  ask: Ask,
+): boolean {
+  const isPermissionAsk = ask.type === 'permission';
+  if (!isPermissionAsk) return false;
+
+  const permAsk = ask as PermissionAsk;
+  const risk = permAsk.risk;
+  if (!risk) return false;
+
+  const session = getSession(sessionId);
+  const maxSeverity = session?.autoApproveSeverity;
+  if (!maxSeverity || maxSeverity === 'off') return false;
+
+  if (!isRiskAtOrBelow(risk, maxSeverity)) return false;
+
+  // Only auto-approve if no clients are connected for this session
+  const connections = getParticipantConnections(sessionId);
+  if (connections.length > 0) return false;
+
+  console.log(
+    `[permissions] Server auto-approve (no client connected): risk=${risk} session=${sessionId}`,
+  );
+
+  return true;
+}
 
 // =============================================================================
 // Helpers
@@ -208,6 +249,12 @@ export async function requestPermission(params: RequestPermissionParams): Promis
     if (matchResult.matched) {
       return true;
     }
+  }
+
+  // Server-side auto-approve: if session has autoApproveSeverity configured
+  // and no client is connected, auto-approve with 'once' scope
+  if (tryServerAutoApprove(sessionId, ask)) {
+    return true;
   }
 
   // Generate a unique requestId

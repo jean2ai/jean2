@@ -28,6 +28,7 @@ interface SessionRow {
   running_at: string | null;
   compacting: number;
   tags: string;
+  auto_approve_severity: string | null;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -41,8 +42,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting, tags, auto_approve_severity)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -61,6 +62,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.runningAt ?? null,
     s.compacting ?? false,
     JSON.stringify(s.tags ?? []),
+    s.autoApproveSeverity ?? null,
   ]);
   
   return s;
@@ -96,7 +98,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags' | 'autoApproveSeverity'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -166,6 +168,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.tags !== undefined) {
     setClauses.push('tags = ?');
     values.push(JSON.stringify(updates.tags));
+  }
+  if (updates.autoApproveSeverity !== undefined) {
+    setClauses.push('auto_approve_severity = ?');
+    values.push(updates.autoApproveSeverity ?? null);
   }
   
   values.push(id);
@@ -308,6 +314,7 @@ function mapRowToSession(row: SessionRow): Session {
     runningAt: row.running_at ?? null,
     compacting: !!row.compacting,
     tags: row.tags ? JSON.parse(row.tags) : [],
+    autoApproveSeverity: (row.auto_approve_severity as Session['autoApproveSeverity']) ?? null,
   };
 }
 

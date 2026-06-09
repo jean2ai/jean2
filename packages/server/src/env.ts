@@ -252,3 +252,7 @@ export function getTlsCertFile(): string | undefined {
 export function getTlsKeyFile(): string | undefined {
   return process.env.JEAN2_TLS_KEY_FILE;
 }
+
+export function getAutoApproveTakeover(): boolean {
+  return process.env.JEAN2_AUTO_APPROVE_TAKEOVER !== 'false';
+}
