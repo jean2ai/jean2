@@ -67,6 +67,7 @@ async function setupMocks(opts: {
   mock.module('@/store', () => ({
     transitionToolToRunningByCallId: mock(() => null),
     getSession: mock(() => ({ id: 'sess-1' })),
+    getWorkspace: mock(() => null),
   }));
 
   mock.module('@/paths', () => ({
@@ -81,12 +82,27 @@ async function setupMocks(opts: {
     truncateToolResult: mock((result: unknown) => result),
   }));
 
+  mock.module('@/memory', () => ({
+    memoryToolDefinition: {
+      name: 'memory',
+      description: 'Mock memory tool',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    executeMemoryTool: mock(async () => ({ success: true })),
+  }));
+
   mock.module('@/mcp', () => ({
     getTools: mock(async () => opts.mcpTools ?? {}),
   }));
 
   mock.module('@/skills', () => ({
     createSkillTool: mock(async () => opts.skillTool ?? null),
+    skillManageToolDefinition: {
+      name: 'skill_manage',
+      description: 'Mock skill manage tool',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    executeSkillManageTool: mock(async () => ({ success: true, title: 'Mock' })),
   }));
 
   const { buildAiSdkTools } = await import('@/core/build-tools');

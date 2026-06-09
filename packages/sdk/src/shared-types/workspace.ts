@@ -5,8 +5,14 @@ export interface WorkspaceMemorySettings {
   permissionRisk: PermissionRiskLevel;
 }
 
+export interface WorkspaceSkillSettings {
+  managementEnabled: boolean;
+  permissionRisk: PermissionRiskLevel;
+}
+
 export interface WorkspaceSettings {
   memory?: WorkspaceMemorySettings;
+  skills?: WorkspaceSkillSettings;
 }
 
 export interface Workspace {

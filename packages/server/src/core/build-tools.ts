@@ -8,7 +8,7 @@ import { interruptManager } from './interrupt';
 import { broadcastEvent, type BroadcastFn } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
-import { createSkillTool } from '@/skills';
+import { createSkillTool, skillManageToolDefinition, executeSkillManageTool } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { getSession, getWorkspace } from '@/store';
 import { memoryToolDefinition, executeMemoryTool } from '@/memory';
@@ -206,6 +206,49 @@ export async function buildAiSdkTools(
             return {
               title: 'Memory updated',
               ...result.result,
+            };
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+            rejectPendingAsksByToolCallId(toolCallId);
+          }
+        },
+      });
+    }
+
+    // Skill management tool (if enabled for this workspace)
+    const skillSettings = workspace?.settings?.skills;
+    if (skillSettings?.managementEnabled) {
+      const permissionRisk = skillSettings.permissionRisk;
+      tools['skill_manage'] = tool({
+        description: skillManageToolDefinition.description,
+        inputSchema: jsonSchema(skillManageToolDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const _toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          try {
+            const askFactory = (tcId: string) =>
+              broadcastFn
+                ? createAskApi(sessionId, tcId, 'skill_manage', broadcastFn, workspaceId, rootSessionId)
+                : undefined as unknown as import('@jean2/sdk').AskApi;
+            const askApi = askFactory(toolCallId);
+
+            const result = await executeSkillManageTool(
+              args,
+              workspacePath!,
+              permissionRisk,
+              async (ask) => askApi(ask),
+            );
+
+            if (!result.success) {
+              return { error: result.error ?? 'Skill management operation failed' };
+            }
+
+            return {
+              title: result.title,
+              action: result.action,
+              name: result.name,
+              description: result.description,
+              path: result.path,
+              summary: result.summary,
             };
           } finally {
             interruptManager.unregisterToolExecution(sessionId, toolCallId);

@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
 import { WorkspaceMemoryDialog } from '@/components/modals/WorkspaceMemoryDialog';
+import { WorkspaceSkillsDialog } from '@/components/modals/WorkspaceSkillsDialog';
 import { isWindows } from '@/lib/platform';
 
 interface WorkspaceHeaderProps {
@@ -37,6 +38,7 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const [editingPaths, setEditingPaths] = useState(false);
   const [showMemoryDialog, setShowMemoryDialog] = useState(false);
+  const [showSkillsDialog, setShowSkillsDialog] = useState(false);
 
   return (
     <div className="h-9 px-3 flex items-center shrink-0">
@@ -142,6 +144,12 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                       Memory
                     </DropdownMenuItem>
                   )}
+                  {onUpdateWorkspaceSettings && (
+                    <DropdownMenuItem onClick={() => setShowSkillsDialog(true)}>
+                      <Wrench className="w-4 h-4" />
+                      Skill Management
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuCheckboxItem
                     checked={showWorkspacePermissions}
                     onCheckedChange={setShowWorkspacePermissions}
@@ -168,6 +176,14 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
         <WorkspaceMemoryDialog
           open={showMemoryDialog}
           onOpenChange={setShowMemoryDialog}
+          workspace={activeWorkspace}
+          onSave={onUpdateWorkspaceSettings}
+        />
+      )}
+      {onUpdateWorkspaceSettings && activeWorkspace && (
+        <WorkspaceSkillsDialog
+          open={showSkillsDialog}
+          onOpenChange={setShowSkillsDialog}
           workspace={activeWorkspace}
           onSave={onUpdateWorkspaceSettings}
         />
