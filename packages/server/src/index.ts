@@ -13,6 +13,7 @@ import {
 import { handleConnectionDisconnect as handleControlDisconnect, sweepExpiredGrace, clearStaleTakeoverRequests, buildControlUpdatedMessage, getParticipantConnections, getControllerConnections } from '@/core/session-control-registry';
 import { scanTools } from '@/tools';
 import { closeDatabase } from '@/store';
+import { backfillFts } from '@/session-search/fts';
 import type { ServerMessage, ClientMessage, AskAuthority } from '@jean2/sdk';
 import { getTerminalManager, getTerminalEventManager, encodeFrame, OPCODES } from '@/services/terminal';
 import { cleanupRunningSessionsOnStartup } from '@/store/terminal-sessions';
@@ -20,6 +21,7 @@ import {
   reconcileAllSessionsCompaction,
   reconcileAllOrphanedToolCalls,
   cleanupAllPendingAsks,
+  cleanupOrphanedData,
 } from '@/store';
 import { getPort, getHost } from '@/config';
 import type { ServerWebSocket } from 'bun';
@@ -103,6 +105,14 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   reconcileAllSessionsCompaction();
   reconcileAllOrphanedToolCalls();
   cleanupAllPendingAsks();
+
+  const cleanupStats = cleanupOrphanedData();
+  const totalOrphaned = Object.values(cleanupStats).reduce((sum, v) => sum + v, 0);
+  if (totalOrphaned > 0) {
+    console.log('[cleanup] Removed orphaned data:', cleanupStats);
+  }
+
+  backfillFts();
 
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();

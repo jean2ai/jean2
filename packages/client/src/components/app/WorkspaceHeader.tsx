@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench, Search, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -18,6 +18,7 @@ import {
 import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
 import { WorkspaceMemoryDialog } from '@/components/modals/WorkspaceMemoryDialog';
 import { WorkspaceSkillsDialog } from '@/components/modals/WorkspaceSkillsDialog';
+import { WorkspaceSessionSearchDialog } from '@/components/modals/WorkspaceSessionSearchDialog';
 import { isWindows } from '@/lib/platform';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -42,6 +43,7 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
   const [editingPaths, setEditingPaths] = useState(false);
   const [showMemoryDialog, setShowMemoryDialog] = useState(false);
   const [showSkillsDialog, setShowSkillsDialog] = useState(false);
+  const [showSessionSearchDialog, setShowSessionSearchDialog] = useState(false);
 
   const isMobile = useIsMobile();
   const showExpanded = expandedToolbar && !isMobile;
@@ -162,6 +164,16 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                       <TooltipContent>Skill Management</TooltipContent>
                     </Tooltip>
                   )}
+                  {onUpdateWorkspaceSettings && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={() => setShowSessionSearchDialog(true)}>
+                          <Search className="w-4 h-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Session Search</TooltipContent>
+                    </Tooltip>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -213,6 +225,12 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                         Skill Management
                       </DropdownMenuItem>
                     )}
+                    {onUpdateWorkspaceSettings && (
+                      <DropdownMenuItem onClick={() => setShowSessionSearchDialog(true)}>
+                        <Search className="w-4 h-4" />
+                        Session Search
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuCheckboxItem
                       checked={showWorkspacePermissions}
                       onCheckedChange={setShowWorkspacePermissions}
@@ -258,6 +276,14 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
         <WorkspaceSkillsDialog
           open={showSkillsDialog}
           onOpenChange={setShowSkillsDialog}
+          workspace={activeWorkspace}
+          onSave={onUpdateWorkspaceSettings}
+        />
+      )}
+      {onUpdateWorkspaceSettings && activeWorkspace && (
+        <WorkspaceSessionSearchDialog
+          open={showSessionSearchDialog}
+          onOpenChange={setShowSessionSearchDialog}
           workspace={activeWorkspace}
           onSave={onUpdateWorkspaceSettings}
         />

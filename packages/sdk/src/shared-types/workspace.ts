@@ -10,9 +10,16 @@ export interface WorkspaceSkillSettings {
   permissionRisk: PermissionRiskLevel;
 }
 
+export interface WorkspaceSessionSearchSettings {
+  enabled: boolean;
+  permissionRisk: PermissionRiskLevel;
+  includeToolResults: boolean;
+}
+
 export interface WorkspaceSettings {
   memory?: WorkspaceMemorySettings;
   skills?: WorkspaceSkillSettings;
+  sessionSearch?: WorkspaceSessionSearchSettings;
 }
 
 export interface Workspace {

@@ -17,6 +17,7 @@ import { convertToAiSdkMessages } from './message-utils';
 import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
 import { loadMemoryInstructions, MEMORY_GUIDANCE } from '@/memory';
 import { SKILL_MANAGE_GUIDANCE } from '@/skills';
+import { SESSION_SEARCH_GUIDANCE } from '@/session-search';
 import { getWorkspace } from '@/store';
 import {
   getLLMTemperature,
@@ -149,6 +150,11 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     // Add skill management guidance if enabled
     if (workspace?.settings?.skills?.managementEnabled) {
       systemMessage = systemMessage + '\n\n' + SKILL_MANAGE_GUIDANCE;
+    }
+
+    // Add session search guidance if enabled
+    if (workspace?.settings?.sessionSearch?.enabled) {
+      systemMessage = systemMessage + '\n\n' + SESSION_SEARCH_GUIDANCE;
     }
   }
 

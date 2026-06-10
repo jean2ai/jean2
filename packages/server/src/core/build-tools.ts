@@ -12,6 +12,7 @@ import { createSkillTool, skillManageToolDefinition, executeSkillManageTool } fr
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { getSession, getWorkspace } from '@/store';
 import { memoryToolDefinition, executeMemoryTool } from '@/memory';
+import { sessionSearchToolDefinition, executeSessionSearchTool } from '@/session-search';
 
 export interface BuildToolsOptions {
   toolNames: string[];
@@ -250,6 +251,60 @@ export async function buildAiSdkTools(
               path: result.path,
               summary: result.summary,
             };
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+            rejectPendingAsksByToolCallId(toolCallId);
+          }
+        },
+      });
+    }
+
+    // Session search tool (if enabled for this workspace)
+    const sessionSearchSettings = workspace?.settings?.sessionSearch;
+    if (sessionSearchSettings?.enabled) {
+      const searchPermissionRisk = sessionSearchSettings.permissionRisk;
+      const includeToolResults = sessionSearchSettings.includeToolResults;
+      tools['session_search'] = tool({
+        description: sessionSearchToolDefinition.description,
+        inputSchema: jsonSchema(sessionSearchToolDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const _toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          try {
+            const askFactory = (tcId: string) =>
+              broadcastFn
+                ? createAskApi(sessionId, tcId, 'session_search', broadcastFn, workspaceId, rootSessionId)
+                : undefined as unknown as import('@jean2/sdk').AskApi;
+            const askApi = askFactory(toolCallId);
+
+            const result = await executeSessionSearchTool(
+              args,
+              workspaceId!,
+              sessionId,
+              includeToolResults,
+              searchPermissionRisk,
+              async (ask) => askApi(ask),
+            );
+
+            if (!result.success) {
+              return { error: result.error ?? 'Session search failed' };
+            }
+
+            const output = {
+              success: result.success,
+              mode: result.mode,
+              title: result.title,
+              ...(result.query !== undefined && { query: result.query }),
+              ...(result.scope !== undefined && { scope: result.scope }),
+              ...(result.results !== undefined && { results: result.results }),
+              ...(result.sessionId !== undefined && { sessionId: result.sessionId }),
+              ...(result.sessionTitle !== undefined && { sessionTitle: result.sessionTitle }),
+              ...(result.anchorMessageId !== undefined && { anchorMessageId: result.anchorMessageId }),
+              ...(result.messagesBefore !== undefined && { messagesBefore: result.messagesBefore }),
+              ...(result.messagesAfter !== undefined && { messagesAfter: result.messagesAfter }),
+              ...(result.messages !== undefined && { messages: result.messages }),
+            };
+
+            return output;
           } finally {
             interruptManager.unregisterToolExecution(sessionId, toolCallId);
             rejectPendingAsksByToolCallId(toolCallId);

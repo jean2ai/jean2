@@ -159,6 +159,21 @@ export function registerWorkspaceRoutes(app: Hono): void {
           return c.json({ error: 'Bad Request', message: 'skills.permissionRisk must be a valid risk level' }, 400);
         }
       }
+      if (settings.sessionSearch !== undefined) {
+        if (typeof settings.sessionSearch !== 'object' || settings.sessionSearch === null) {
+          return c.json({ error: 'Bad Request', message: 'Session search settings must be an object' }, 400);
+        }
+        if (typeof settings.sessionSearch.enabled !== 'boolean') {
+          return c.json({ error: 'Bad Request', message: 'sessionSearch.enabled must be a boolean' }, 400);
+        }
+        const validRisks: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
+        if (!validRisks.includes(settings.sessionSearch.permissionRisk)) {
+          return c.json({ error: 'Bad Request', message: 'sessionSearch.permissionRisk must be a valid risk level' }, 400);
+        }
+        if (typeof settings.sessionSearch.includeToolResults !== 'boolean') {
+          return c.json({ error: 'Bad Request', message: 'sessionSearch.includeToolResults must be a boolean' }, 400);
+        }
+      }
     }
 
     // Validate additional paths

@@ -1,4 +1,6 @@
 import { getDatabase } from './index';
+import { getSession } from './sessions';
+import { indexMessage as ftsIndexMessage, removeMessageFromFts, removeSessionFromFts, getMessageContentForFts } from '@/session-search/fts';
 import type {
   Message,
   Part,
@@ -188,6 +190,8 @@ export function createMessage(message: Message): Message {
     ],
   );
 
+  syncMessageToFts(message.id, message.sessionId, message.role);
+
   return message;
 }
 
@@ -237,6 +241,8 @@ export function updateMessage(
     ],
   );
 
+  syncMessageToFts(id, updated.sessionId, updated.role);
+
   return updated;
 }
 
@@ -250,6 +256,7 @@ export function listMessages(sessionId: string): Message[] {
 
 export function deleteMessages(sessionId: string): number {
   const db = getDatabase();
+  removeSessionFromFts(sessionId);
   const result = db.run('DELETE FROM messages WHERE session_id = ?', [
     sessionId,
   ]);
@@ -258,6 +265,7 @@ export function deleteMessages(sessionId: string): number {
 
 export function deleteMessage(messageId: string): boolean {
   const db = getDatabase();
+  removeMessageFromFts(messageId);
   db.run('DELETE FROM parts WHERE message_id = ?', [messageId]);
   const result = db.run('DELETE FROM messages WHERE id = ?', [messageId]);
   return result.changes > 0;
@@ -278,6 +286,11 @@ export function createPart(part: Part, sessionId: string): Part {
   `,
     [row.id, row.message_id, row.session_id, row.type, row.data, row.created_at],
   );
+
+  if (part.type === 'text' || part.type === 'tool') {
+    const msg = getMessage(part.messageId);
+    if (msg) syncMessageToFts(msg.id, msg.sessionId, msg.role);
+  }
 
   return part;
 }
@@ -310,6 +323,10 @@ export function updatePart(
     row.data,
     id,
   ]);
+
+  if (existing.type === 'text' || existing.type === 'tool' || updated.type === 'text' || updated.type === 'tool') {
+    syncMessageToFts(message.id, message.sessionId, message.role);
+  }
 
   return updated;
 }
@@ -674,4 +691,20 @@ export function buildEffectiveContextHistory(
     latestCompactionBoundary: boundaryMsgId,
     hasCompaction: true,
   };
+}
+
+// =============================================================================
+// FTS Sync Helper
+// =============================================================================
+
+function syncMessageToFts(messageId: string, sessionId: string, role: string): void {
+  try {
+    const session = getSession(sessionId);
+    if (!session?.workspaceId) return;
+
+    const { content, toolName } = getMessageContentForFts(messageId);
+    ftsIndexMessage(messageId, sessionId, session.workspaceId, role, content, toolName);
+  } catch {
+    // FTS sync failure should not break message operations
+  }
 }

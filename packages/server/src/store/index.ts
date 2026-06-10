@@ -4,6 +4,7 @@ import { mkdirSync } from 'fs';
 
 import { resolveDatabasePath } from '@/config';
 import { seedBuiltinResponseFormats } from './response-formats';
+import { initializeFts } from '@/session-search/fts';
 
 /**
  * Database Singleton
@@ -399,6 +400,9 @@ export function initializeSchema(db: Database): void {
   } catch {
     // Column already exists
   }
+
+  // Initialize FTS table for session search
+  initializeFts(db);
 }
 
 export { Database };
@@ -426,3 +430,7 @@ export { deleteAttachmentsForSession, deleteAttachmentsForWorkspace, getAttachme
 export * from './pending-asks';
 export * from './response-formats';
 export * from './pinned-messages';
+
+// Re-export cleanup
+export { cleanupOrphanedData } from './cleanup';
+export type { CleanupStats } from './cleanup';
