@@ -45,7 +45,7 @@ function parsePorcelainStatus(output: string): Map<string, { status: GitFileStat
     const staged = x !== ' ' && x !== '?';
     const unstaged = y !== ' ' && y !== '?';
 
-    let filePath = line.slice(3);
+    let filePath = line.slice(2).trim();
     let oldPath: string | undefined;
 
     if ((status === 'renamed' || status === 'copied') && filePath.includes(' -> ')) {
@@ -91,6 +91,7 @@ async function execGit(args: string[]): Promise<{ stdout: string; exitCode: numb
     const proc = Bun.spawn(['git', ...args], {
       stdout: 'pipe',
       stderr: 'pipe',
+      windowsHide: true
     });
 
     const exitCode = await proc.exited;
