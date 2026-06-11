@@ -294,6 +294,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     for await (const delta of result.fullStream) {
 
       if (abortController.signal.aborted) {
+        handlers.flushPending();
         // Clean up any pending/running tool parts that won't get results
         for (const event of collectInterruptedToolPartEvents(streamCtx.toolParts, _sessionId)) {
           yield event;
@@ -328,7 +329,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         yield event;
       }
     }
+    handlers.flushPending();
   } catch (err) {
+    handlers.flushPending();
     const classified = classifyApiError(err);
 
     console.error('[streamChat] AI SDK error', {

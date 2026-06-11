@@ -306,6 +306,7 @@ export function getPart(id: string): Part | null {
 export function updatePart(
   id: string,
   updates: Record<string, unknown>,
+  options?: { syncFts?: boolean },
 ): Part | null {
   const db = getDatabase();
   const existing = getPart(id);
@@ -324,7 +325,10 @@ export function updatePart(
     id,
   ]);
 
-  if (existing.type === 'text' || existing.type === 'tool' || updated.type === 'text' || updated.type === 'tool') {
+  if (
+    options?.syncFts !== false &&
+    (existing.type === 'text' || existing.type === 'tool' || updated.type === 'text' || updated.type === 'tool')
+  ) {
     syncMessageToFts(message.id, message.sessionId, message.role);
   }
 
