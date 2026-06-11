@@ -24,6 +24,7 @@ import {
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { queryClient } from '@/components/providers/QueryProvider';
 import { platform } from '@/platform';
 
 interface FilesPanelProps {
@@ -43,6 +44,10 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
     const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
     const workspaceId = activeWorkspace?.id;
+
+    const handleRefresh = useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['files'] });
+    }, []);
 
     const focus = useCallback(() => {
       setShowFilesPanel(true);
@@ -117,7 +122,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
           <SidebarHeader>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton className="w-full justify-between" onClick={() => fileTreeRef.current?.refresh()}>
+                <SidebarMenuButton className="w-full justify-between" onClick={handleRefresh}>
                   <span className="text-sm font-semibold">Files</span>
                   <RefreshCw className="size-4" />
                 </SidebarMenuButton>

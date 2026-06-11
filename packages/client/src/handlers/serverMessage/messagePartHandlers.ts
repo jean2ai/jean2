@@ -1,5 +1,14 @@
-import type { Message, Part } from '@jean2/sdk';
+import type { Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
+import { queryClient } from '@/components/providers/QueryProvider';
+
+const FILE_MUTATING_TOOLS = new Set([
+  'edit', 'multiedit', 'write-file', 'apply-patch', 'shell',
+]);
+
+function invalidateFileQueries(): void {
+  queryClient.invalidateQueries({ queryKey: ['files'] });
+}
 
 export function handleMessageCreated(
   msg: { type: 'message.created'; message: Message },
@@ -168,6 +177,18 @@ export function handlePartUpdated(
           },
         };
       });
+    }
+  }
+
+  if (part.type === 'tool') {
+    const toolPart = part as ToolPart;
+    if (
+      FILE_MUTATING_TOOLS.has(toolPart.name) &&
+      (toolPart.state.status === 'completed' ||
+       toolPart.state.status === 'error' ||
+       toolPart.state.status === 'interrupted')
+    ) {
+      invalidateFileQueries();
     }
   }
 }
