@@ -1,5 +1,5 @@
 import { stat, readFile } from 'fs/promises';
-import { basename, extname, join, resolve } from 'path';
+import { basename, extname, isAbsolute, join, resolve } from 'path';
 import type { FilePreviewResponse } from '@jean2/sdk';
 import {
   FILE_PREVIEW_MAX_BYTES,
@@ -131,7 +131,7 @@ export async function getFilePreview(
   let fullPath: string;
   const normalizedInput = relativePath.replace(/\\/g, '/');
 
-  if (normalizedInput.startsWith('/')) {
+  if (isAbsolute(normalizedInput)) {
     fullPath = resolve(normalizedInput);
   } else {
     fullPath = join(workspacePath, normalizedInput);

@@ -1,4 +1,4 @@
-import { join, resolve, extname } from 'path';
+import { isAbsolute, join, resolve, extname } from 'path';
 import { homedir, tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, DirEntry, FileStat, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
@@ -125,8 +125,8 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
       if (path.startsWith('~')) {
         return join(homedir(), path.slice(1));
       }
-      if (path.startsWith('/')) {
-        return path;
+      if (isAbsolute(path)) {
+        return resolve(path);
       }
       return resolve(workspacePath, path);
     },
@@ -149,8 +149,8 @@ function createPathHelpers(workspacePath: string, additionalPaths: string[] = []
     if (path.startsWith('~/') || path === '~') {
       return join(homedir(), path.slice(1));
     }
-    if (path.startsWith('/')) {
-      return path;
+    if (isAbsolute(path)) {
+      return resolve(path);
     }
     return resolve(workspacePath, path);
   }

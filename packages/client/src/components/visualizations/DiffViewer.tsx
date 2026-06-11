@@ -6,6 +6,7 @@ const CODE_THEME_DARK = themes.oneDark;
 const CODE_THEME_LIGHT = themes.oneLight;
 import type { DiffHunk } from '@/utils/diff';
 import { cn } from '@/lib/utils';
+import { isAbsolutePath, pathBasename } from '@/lib/platform';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -116,14 +117,14 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const handlePathClick = () => {
     if (!activeWorkspace) return;
     if (platform.capabilities.fileOpen && platform.openFile) {
-      const absPath = path.startsWith('/') ? path : (activeWorkspace.path ? `${activeWorkspace.path}/${path}` : path);
+      const absPath = isAbsolutePath(path) ? path : (activeWorkspace.path ? `${activeWorkspace.path}/${path}` : path);
       void platform.openFile(absPath);
       return;
     }
     openFilePreview({
       workspaceId: activeWorkspace.id,
       path,
-      name: path.split('/').pop() || path,
+      name: pathBasename(path),
     });
   };
 
