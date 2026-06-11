@@ -131,7 +131,6 @@ export async function getGitStatus(workspacePath: string): Promise<GitStatusResu
   }
 
   const availability = await detectGitAvailability(workspacePath);
-  console.log('git', availability)
 
   if (!availability.available) {
     const result: GitStatusResult = { availability, files: new Map() };

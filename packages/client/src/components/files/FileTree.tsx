@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeNode } from './FileTreeNode';
@@ -23,6 +24,7 @@ export interface FileTreeHandle {
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
   ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const queryClient = useQueryClient();
 
     const { data, isLoading, error, refetch } = useFileBrowseQuery(
       sdkClient,
@@ -35,7 +37,14 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
     const currentPath = data?.currentPath ?? '';
 
     useImperativeHandle(ref, () => ({
-      refresh: () => { refetch(); },
+      refresh: () => {
+        if (sdkClient && workspaceId) {
+          sdkClient.http.files.browse(workspaceId, undefined, { showHidden, clearGitCache: true }).catch(() => {});
+        }
+        queryClient.invalidateQueries({
+          queryKey: ['files', 'browse', workspaceId],
+        });
+      },
       focus: () => {
         const container = containerRef.current;
         if (!container) return;
@@ -46,7 +55,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
           container.focus();
         }
       },
-    }), [refetch]);
+    }), [sdkClient, workspaceId, showHidden, queryClient]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
       const container = containerRef.current;
