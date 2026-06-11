@@ -13,23 +13,30 @@ const TITLE_SYSTEM_PROMPT = [
   'Return exactly one XML tag: <title>Concise Topic</title>',
   '',
   'Rules:',
-  '- 2-6 word noun phrase, not a sentence. No quotes. No trailing punctuation.',
+  '- Output ONLY the <title> tag immediately. Do NOT think, reason, or explain first.',
+  '- The title must capture what the conversation is ABOUT, not how it starts.',
+  '- Concise title, not a sentence. Max 80 characters. No quotes. No trailing punctuation.',
   '- MUST use the same language as the user message.',
-  '- Focus on the main topic or question, not on the file itself.',
-  '- When a file is mentioned, focus on WHAT the user wants to do WITH it, not just that they shared it.',
+  '- When a file is mentioned, focus on WHAT the user wants to do WITH it.',
   '- Vary phrasing — avoid repetitive patterns like always starting with "Analyzing" or "How to".',
   '- Never include tool names (e.g. "shell tool", "edit tool", "bash tool").',
   '- Never mention the user, assistant, conversation, prompt, or title-generation task.',
-  '- Never describe what happened in third person; name the topic directly.',
-  '- Keep exact: technical terms, numbers, filenames, HTTP codes.',
-  '- Remove filler: the, this, my, a, an.',
+  '- Keep exact: technical terms, ticket numbers, filenames, HTTP codes.',
   '- Return one title only; do not provide examples, alternatives, lists, or numbering.',
   '- Do not explain your reasoning.',
   '- DO NOT say you cannot generate a title or complain about the input.',
   '- Always output something meaningful, even if the input is minimal.',
   '- If the user message is short or casual (e.g. "hello", "lol", "hey"): create a title that reflects the tone (e.g. Greeting, Quick check-in, Light chat).',
   '',
-  'Examples:',
+  'BAD titles (just copying opening words):',
+  '"lets start task CAS-1873, where we have to implement landing page from scratch"',
+  '  ✗ <title>Lets start task CAS 1873</title>  ← just copied the opening',
+  '  ✓ <title>CAS-1873 Landing page implementation</title>  ← captures the actual topic',
+  '"can you help me fix the login bug I found yesterday"',
+  '  ✗ <title>Can you help me fix</title>  ← just copied opening words',
+  '  ✓ <title>Login bug fix</title>  ← captures the actual topic',
+  '',
+  'Good examples:',
   '"debug 500 errors in production" → <title>Debugging production 500 errors</title>',
   '"refactor user service" → <title>Refactoring user service</title>',
   '"why is app.js failing" → <title>app.js failure investigation</title>',
@@ -42,6 +49,8 @@ const TITLE_SYSTEM_PROMPT = [
   '"@App.tsx add dark mode toggle" → <title>Dark mode toggle in App</title>',
   '"hello" → <title>Greeting</title>',
   '"what\'s new in Python 3.13" → <title>Python 3.13 new features</title>',
+  '"i think we should probably migrate to postgres" → <title>Postgres migration</title>',
+  '"hey so I was thinking, can we add SSO?" → <title>SSO implementation</title>',
 ].join('\n');
 
 export function isDefaultSessionTitle(title: string | null | undefined): boolean {
@@ -74,8 +83,8 @@ export async function generateSessionTitle(messages: MessageWithParts[]): Promis
     model,
     system: TITLE_SYSTEM_PROMPT,
     prompt: `Generate a title for this conversation:\n\n<chat>\n${conversation}\n</chat>`,
-    maxOutputTokens: omitMaxOutputTokens ? undefined : 48,
-    temperature: 0.3,
+    ...(omitMaxOutputTokens ? {} : { maxOutputTokens: 20000 }),
+    temperature: 0.5,
     providerOptions: providerOptions as Parameters<typeof generateText>[0]['providerOptions'],
   });
 
@@ -149,7 +158,7 @@ function cleanTitle(value: string): string | null {
     .replace(/^[-*•]\s*/, '')
     .replace(/^['"`]+|['"`.]+$/g, '')
     .replace(/\s+/g, ' ')
-    .slice(0, 80)
+    .slice(0, 100)
     .trim();
   return title || null;
 }
