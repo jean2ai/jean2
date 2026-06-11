@@ -220,12 +220,22 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
 
   const effectiveWorkspace = workspacePath || process.cwd();
   const pathHelpers = createPathHelpers(effectiveWorkspace, options.additionalPaths);
+  const toolAbortController = new AbortController();
+  const forwardAbort = (): void => {
+    toolAbortController.abort(abortSignal?.reason);
+  };
+
+  if (abortSignal?.aborted) {
+    forwardAbort();
+  } else {
+    abortSignal?.addEventListener('abort', forwardAbort, { once: true });
+  }
 
   const ctx: ToolContext = {
     sessionId,
     workspacePath: effectiveWorkspace,
     workspaceId: options.workspaceId,
-    abortSignal: abortSignal ?? new AbortController().signal,
+    abortSignal: toolAbortController.signal,
     allowedPaths: options.allowedPaths ?? [],
     fs: createFileSystemApi(effectiveWorkspace, sessionId),
     llm: createLlmApi ? createLlmApi() : ({} as LlmApi),
@@ -241,6 +251,7 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
+      toolAbortController.abort(new Error(`Tool execution timed out after ${timeout}ms`));
       reject(new Error(`Tool execution timed out after ${timeout}ms`));
     }, timeout);
   });
@@ -263,6 +274,7 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
       error: message,
     };
   } finally {
+    abortSignal?.removeEventListener('abort', forwardAbort);
     clearTimeout(timeoutId);
   }
 }
