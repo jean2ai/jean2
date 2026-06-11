@@ -1,14 +1,41 @@
+export type GitFileStatus =
+  | 'modified'
+  | 'added'
+  | 'deleted'
+  | 'renamed'
+  | 'copied'
+  | 'untracked'
+  | 'ignored'
+  | 'conflicted';
+
+export interface GitDiffSummary {
+  status: GitFileStatus;
+  staged: boolean;
+  unstaged: boolean;
+  additions?: number;
+  deletions?: number;
+  oldPath?: string;
+}
+
+export interface GitAvailability {
+  available: boolean;
+  reason?: 'git_not_installed' | 'not_a_git_repo' | 'git_error';
+  root?: string;
+}
+
 export interface FileEntry {
   name: string;
   type: 'file' | 'directory';
   path: string;
   extension?: string;
+  git?: GitDiffSummary;
 }
 
 export interface FileListResponse {
   files: FileEntry[];
   currentPath: string;
   mode: 'browse' | 'search';
+  git?: GitAvailability;
 }
 
 export interface FileSearchResult {

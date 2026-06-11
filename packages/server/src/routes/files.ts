@@ -5,6 +5,7 @@ import { join, dirname, resolve } from 'path';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
+import { getGitStatus, attachGitStatusToEntries } from '@/services/gitStatus';
 
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
@@ -40,7 +41,24 @@ export function registerFileRoutes(app: Hono): void {
       }
 
       const files = await listDirectory(fullPath, showHidden);
-      return c.json({ files, currentPath: path, mode: 'browse' });
+
+      let gitStatus;
+      try {
+        gitStatus = await getGitStatus(workspace.path);
+      } catch {
+        gitStatus = null;
+      }
+
+      const filesWithGit = gitStatus
+        ? attachGitStatusToEntries(files, fullPath, gitStatus)
+        : files;
+
+      return c.json({
+        files: filesWithGit,
+        currentPath: path,
+        mode: 'browse',
+        git: gitStatus?.availability,
+      });
     } catch (_err: unknown) {
       const _message = _err instanceof Error ? _err.message : 'Unknown error';
       return c.json({ error: 'Not Found', message: 'Path not found' }, 404);

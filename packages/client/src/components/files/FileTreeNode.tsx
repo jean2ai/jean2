@@ -5,6 +5,7 @@ import type { Jean2Client } from '@jean2/sdk';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useFileBrowseQuery } from '@/hooks/queries';
+import { GitStatusBadge } from './GitStatusBadge';
 
 interface FileTreeNodeProps {
   entry: FileEntry;
@@ -85,12 +86,13 @@ export function FileTreeNode({
           'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
           'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
           'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
-          '[&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate',
+          '[&_svg]:size-4 [&_svg]:shrink-0',
         )}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <Icon className={iconColor} />
         <div className="flex-1 min-w-0 truncate">{entry.name}</div>
+        {entry.git && <GitStatusBadge git={entry.git} />}
       </button>
     );
   }
@@ -106,7 +108,7 @@ export function FileTreeNode({
             'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
             'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
             'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
-            '[&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate',
+            '[&_svg]:size-4 [&_svg]:shrink-0',
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
@@ -122,6 +124,7 @@ export function FileTreeNode({
           )}
           <Icon className={iconColor} />
           <div className="flex-1 min-w-0 truncate">{entry.name}</div>
+          {entry.git && <GitStatusBadge git={entry.git} />}
         </button>
       </CollapsibleTrigger>
 

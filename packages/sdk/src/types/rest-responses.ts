@@ -1,4 +1,4 @@
-import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage } from '../shared';
+import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability } from '../shared';
 
 /**
  * GET /api/sessions
@@ -343,6 +343,7 @@ export interface BrowseFilesResponse {
   files: FileEntry[];
   currentPath: string;
   mode: 'browse';
+  git?: GitAvailability;
 }
 
 /**
