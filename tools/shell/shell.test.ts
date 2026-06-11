@@ -1,47 +1,50 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import type { ToolContext, PermissionAsk } from '@jean2/sdk';
-import { definition, execute } from './tool';
+import { definition, detectWindowsShell, execute } from './tool';
 
-// ── Mock Bun.spawnSync so NO real processes ever execute ─────────
+// ── Mock Bun.spawn so NO real processes ever execute ─────────
 
 const FAKE_STDOUT = Buffer.from('mock-output');
 const FAKE_STDERR = Buffer.from('');
-const FAKE_SUCCESS = {
-  stdout: FAKE_STDOUT,
-  stderr: FAKE_STDERR,
-  exitCode: 0,
-  success: true,
-  pid: -1,
-} as unknown as ReturnType<typeof Bun.spawnSync>;
-const FAKE_FAILURE = {
-  stdout: Buffer.from(''),
-  stderr: Buffer.from('mock-error'),
-  exitCode: 1,
-  success: false,
-  pid: -1,
-} as unknown as ReturnType<typeof Bun.spawnSync>;
 
-const originalSpawnSync = Bun.spawnSync;
+const originalSpawn = Bun.spawn;
 let spawnSyncCalls: { shell: string[]; cwd: string }[] = [];
 let spawnSyncBehavior: 'success' | 'fail' = 'success';
 
-function mockSpawnSync(
+function createMockProcess(stdout: Buffer, stderr: Buffer, exitCode: number): ReturnType<typeof Bun.spawn> {
+  return {
+    stdout,
+    stderr,
+    exited: Promise.resolve(exitCode),
+    exitCode,
+    signalCode: null,
+    killed: false,
+    pid: -1,
+    ref: () => {},
+    unref: () => {},
+    kill: () => true,
+  } as unknown as ReturnType<typeof Bun.spawn>;
+}
+
+function mockSpawn(
   cmd: string[],
   opts?: { cwd?: string },
-): ReturnType<typeof Bun.spawnSync> {
+): ReturnType<typeof Bun.spawn> {
   spawnSyncCalls.push({ shell: cmd, cwd: opts?.cwd ?? '' });
-  return spawnSyncBehavior === 'success' ? FAKE_SUCCESS : FAKE_FAILURE;
+  return spawnSyncBehavior === 'success'
+    ? createMockProcess(FAKE_STDOUT, FAKE_STDERR, 0)
+    : createMockProcess(Buffer.from(''), Buffer.from('mock-error'), 1);
 }
 
 beforeEach(() => {
   spawnSyncCalls = [];
   spawnSyncBehavior = 'success';
   // @ts-expect-error -- overriding global for test isolation
-  Bun.spawnSync = mockSpawnSync;
+  Bun.spawn = mockSpawn;
 });
 
 afterEach(() => {
-  Bun.spawnSync = originalSpawnSync;
+  Bun.spawn = originalSpawn;
 });
 
 // ── Mock Tool Context ────────────────────────────────────────────
@@ -171,6 +174,41 @@ describe('shell tool definition', () => {
 
   test('has 60 second timeout', () => {
     expect(definition.timeout).toBe(60000);
+  });
+});
+
+describe('windows shell wrapper', () => {
+  test('uses hidden PowerShell Start-Process wrapper when powershell is available', async () => {
+    const originalWhich = Bun.which;
+    Bun.which = (cmd: string) => cmd === 'powershell.exe' ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' : null;
+
+    try {
+      const shell = await detectWindowsShell('npm test', 'C:\\repo');
+      expect(shell[0]).toContain('powershell.exe');
+      expect(shell).toContain('-WindowStyle');
+      expect(shell).toContain('Hidden');
+      expect(shell).toContain('-Command');
+      const script = shell.at(-1) ?? '';
+      expect(script).toContain('Start-Process');
+      expect(script).toContain('-WindowStyle Hidden');
+      expect(script).toContain('-RedirectStandardOutput');
+      expect(script).toContain('-RedirectStandardError');
+      expect(script).toContain("@('/d','/s','/c', 'npm test')");
+    } finally {
+      Bun.which = originalWhich;
+    }
+  });
+
+  test('falls back to cmd.exe when powershell is unavailable', async () => {
+    const originalWhich = Bun.which;
+    Bun.which = () => null;
+
+    try {
+      const shell = await detectWindowsShell('echo hello', 'C:\\repo');
+      expect(shell).toEqual(['cmd.exe', '/d', '/s', '/c', 'echo hello']);
+    } finally {
+      Bun.which = originalWhich;
+    }
   });
 });
 

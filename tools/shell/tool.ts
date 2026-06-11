@@ -344,19 +344,39 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
     const platform = await detectPlatform();
 
     if (platform === 'windows') {
-      shell = await detectWindowsShell(effectiveCommand);
+      shell = await detectWindowsShell(effectiveCommand, cwd);
     } else {
       shell = ['sh', '-c', effectiveCommand];
     }
 
-    const result = Bun.spawnSync(shell, {
+    const proc = Bun.spawn(shell, {
       cwd,
+      stdout: 'pipe',
+      stderr: 'pipe',
       ...(platform === 'windows' ? { windowsHide: true } : {}),
     } as Record<string, unknown>);
 
-    const stdout = result.stdout?.toString() ?? '';
-    const stderr = result.stderr?.toString() ?? '';
-    const exitCode = result.exitCode ?? 1;
+    const killOnAbort = (): void => {
+      proc.kill();
+    };
+
+    if (ctx.abortSignal.aborted) {
+      proc.kill();
+    } else {
+      ctx.abortSignal.addEventListener('abort', killOnAbort, { once: true });
+    }
+
+    const [stdout, stderr, exitCode] = await Promise.all([
+      readProcessOutput(proc.stdout),
+      readProcessOutput(proc.stderr),
+      proc.exited,
+    ]);
+
+    ctx.abortSignal.removeEventListener('abort', killOnAbort);
+
+    if (ctx.abortSignal.aborted) {
+      return { success: false, error: 'Tool execution interrupted' };
+    }
 
     const visualization: ShellOutputVisualization = {
       type: 'shell-output',
@@ -379,6 +399,17 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
   }
 }
 
+async function readProcessOutput(output: unknown): Promise<string> {
+  if (!output) return '';
+  if (output instanceof Uint8Array) return Buffer.from(output).toString();
+  if (output instanceof ReadableStream) return new Response(output).text();
+  if (output instanceof Blob) return output.text();
+  if (typeof output === 'object' && 'text' in output && typeof output.text === 'function') {
+    return output.text() as Promise<string>;
+  }
+  return String(output);
+}
+
 async function detectPlatform(): Promise<'windows' | 'unix'> {
   if (typeof process !== 'undefined' && process.platform) {
     return process.platform === 'win32' ? 'windows' : 'unix';
@@ -386,19 +417,31 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
   return 'unix';
 }
 
-async function detectWindowsShell(command: string): Promise<string[]> {
-  if (typeof Bun !== 'undefined' && Bun.which) {
-    // Prepend `$LASTEXITCODE = 0;` to work around nvm-windows (and similar)
-    // PowerShell wrappers that check $LASTEXITCODE before it has been set.
-    // In a fresh non-interactive session no native command has run yet, so
-    // $LASTEXITCODE is undefined — causing "variable cannot be retrieved".
-    const psCommand = `$LASTEXITCODE = 0; ${command}`;
-    if (Bun.which('pwsh')) {
-      return ['pwsh', '-NoLogo', '-NonInteractive', '-WindowStyle', 'Hidden', psCommand];
-    }
-    if (Bun.which('powershell')) {
-      return ['powershell', '-NoLogo', '-NonInteractive', '-WindowStyle', 'Hidden', psCommand];
-    }
+export async function detectWindowsShell(command: string, cwd: string): Promise<string[]> {
+  const powershell = typeof Bun !== 'undefined' && Bun.which
+    ? Bun.which('powershell.exe') ?? Bun.which('powershell')
+    : 'powershell.exe';
+
+  if (!powershell) {
+    return ['cmd.exe', '/d', '/s', '/c', command];
   }
-  return ['cmd.exe', '/d', '/s', '/c', command];
+
+  const script = [
+    `$out = [System.IO.Path]::GetTempFileName()`,
+    `$err = [System.IO.Path]::GetTempFileName()`,
+    'try {',
+    `  $p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/s','/c', ${quotePowerShellString(command)}) -WorkingDirectory ${quotePowerShellString(cwd)} -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru`,
+    '  if (Test-Path -LiteralPath $out) { [Console]::Out.Write([System.IO.File]::ReadAllText($out)) }',
+    '  if (Test-Path -LiteralPath $err) { [Console]::Error.Write([System.IO.File]::ReadAllText($err)) }',
+    '  exit $p.ExitCode',
+    '} finally {',
+    '  Remove-Item -LiteralPath $out,$err -Force -ErrorAction SilentlyContinue',
+    '}',
+  ].join('; ');
+
+  return [powershell, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', script];
+}
+
+function quotePowerShellString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
