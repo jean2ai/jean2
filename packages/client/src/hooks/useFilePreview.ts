@@ -21,7 +21,7 @@ export function useFilePreview({
   sdkClient,
   enabled,
 }: UseFilePreviewOptions): UseFilePreviewResult {
-  const { data, isLoading, error, refetch } = useFilePreviewQuery(
+  const { data, isLoading, isFetching, error, refetch } = useFilePreviewQuery(
     sdkClient,
     workspaceId,
     path,
@@ -30,7 +30,7 @@ export function useFilePreview({
 
   return {
     data: data ?? null,
-    loading: isLoading,
+    loading: isLoading || isFetching,
     error: error?.message ?? null,
     reload: () => { refetch(); },
   };

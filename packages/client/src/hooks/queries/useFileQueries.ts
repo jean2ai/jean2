@@ -13,6 +13,7 @@ export function useFileBrowseQuery(
     queryKey: queryKeys.files.browse(workspaceId ?? '', path, opts),
     queryFn: () => sdkClient!.http.files.browse(workspaceId!, path, opts),
     enabled: !!sdkClient && !!workspaceId && (enabledOverride ?? true),
+    staleTime: 0,
   });
 }
 
@@ -58,6 +59,7 @@ export function useFilePreviewQuery(
     queryKey: queryKeys.files.preview(workspaceId ?? '', path ?? ''),
     queryFn: () => sdkClient!.http.files.preview(workspaceId!, path!),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
+    staleTime: 0,
   });
 }
 
@@ -71,5 +73,6 @@ export function useFileGitDiffQuery(
     queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? ''),
     queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
+    staleTime: 0,
   });
 }

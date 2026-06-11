@@ -6,6 +6,44 @@ import { getModelWithMetadata } from '@/core/model-utils';
 const DEFAULT_SESSION_TITLES = new Set(['new session', 'new']);
 const MAX_CONTEXT_CHARS = 12000;
 
+const TITLE_SYSTEM_PROMPT = [
+  'You are a title generator. You output ONLY a thread title. Nothing else.',
+  'Generate a brief title that would help the user find this conversation later.',
+  '',
+  'Return exactly one XML tag: <title>Concise Topic</title>',
+  '',
+  'Rules:',
+  '- 2-6 word noun phrase, not a sentence. No quotes. No trailing punctuation.',
+  '- MUST use the same language as the user message.',
+  '- Focus on the main topic or question, not on the file itself.',
+  '- When a file is mentioned, focus on WHAT the user wants to do WITH it, not just that they shared it.',
+  '- Vary phrasing — avoid repetitive patterns like always starting with "Analyzing" or "How to".',
+  '- Never include tool names (e.g. "shell tool", "edit tool", "bash tool").',
+  '- Never mention the user, assistant, conversation, prompt, or title-generation task.',
+  '- Never describe what happened in third person; name the topic directly.',
+  '- Keep exact: technical terms, numbers, filenames, HTTP codes.',
+  '- Remove filler: the, this, my, a, an.',
+  '- Return one title only; do not provide examples, alternatives, lists, or numbering.',
+  '- Do not explain your reasoning.',
+  '- DO NOT say you cannot generate a title or complain about the input.',
+  '- Always output something meaningful, even if the input is minimal.',
+  '- If the user message is short or casual (e.g. "hello", "lol", "hey"): create a title that reflects the tone (e.g. Greeting, Quick check-in, Light chat).',
+  '',
+  'Examples:',
+  '"debug 500 errors in production" → <title>Debugging production 500 errors</title>',
+  '"refactor user service" → <title>Refactoring user service</title>',
+  '"why is app.js failing" → <title>app.js failure investigation</title>',
+  '"implement rate limiting" → <title>Rate limiting implementation</title>',
+  '"how do I connect postgres to my API" → <title>Postgres API connection</title>',
+  '"best practices for React hooks" → <title>React hooks best practices</title>',
+  '"@src/auth.ts can you add refresh token support" → <title>Auth refresh token support</title>',
+  '"@utils/parser.ts this is broken" → <title>Parser bug fix</title>',
+  '"look at @config.json" → <title>Config review</title>',
+  '"@App.tsx add dark mode toggle" → <title>Dark mode toggle in App</title>',
+  '"hello" → <title>Greeting</title>',
+  '"what\'s new in Python 3.13" → <title>Python 3.13 new features</title>',
+].join('\n');
+
 export function isDefaultSessionTitle(title: string | null | undefined): boolean {
   return DEFAULT_SESSION_TITLES.has((title ?? '').trim().toLowerCase());
 }
@@ -34,19 +72,10 @@ export async function generateSessionTitle(messages: MessageWithParts[]): Promis
 
   const result = await generateText({
     model,
-    system: [
-      'You name chat sessions.',
-      'Return exactly one XML tag in this format: <title>Concise Topic</title>.',
-      'The title must be a 2-6 word noun phrase, not a sentence.',
-      'Return one title only; do not provide examples, alternatives, lists, or numbering.',
-      'Do not explain your reasoning.',
-      'Do not mention the user, assistant, conversation, prompt, or title-generation task.',
-      'Do not describe what happened in third person; name the topic directly.',
-      'No quotes. No trailing punctuation.',
-    ].join(' '),
-    prompt: `Name this chat based on its actual topic. Use a direct topic label, not third-person narration.\n\n<chat>\n${conversation}\n</chat>`,
+    system: TITLE_SYSTEM_PROMPT,
+    prompt: `Generate a title for this conversation:\n\n<chat>\n${conversation}\n</chat>`,
     maxOutputTokens: omitMaxOutputTokens ? undefined : 48,
-    temperature: 0.2,
+    temperature: 0.3,
     providerOptions: providerOptions as Parameters<typeof generateText>[0]['providerOptions'],
   });
 

@@ -51,6 +51,11 @@ export default function FilePreviewOverlay({
 
   const diffData = diffQuery.data?.diffAvailable ? diffQuery.data : undefined;
 
+  const handleRefresh = () => {
+    reload();
+    diffQuery.refetch();
+  };
+
   if (!target) return null;
 
   const formatSize = (bytes: number): string => {
@@ -133,6 +138,14 @@ export default function FilePreviewOverlay({
           <DialogDescription className="text-xs text-muted-foreground truncate">
             {target.path}
           </DialogDescription>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleRefresh}
+            className="absolute right-12 top-4"
+          >
+            <RefreshCw className="size-4" />
+          </Button>
           {data && (
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">

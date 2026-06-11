@@ -13,7 +13,6 @@ interface BrowseOptions {
   path?: string;
   showHidden?: boolean;
   limit?: number;
-  clearGitCache?: boolean;
   signal?: AbortSignal;
 }
 
@@ -53,9 +52,6 @@ export class FilesRestNamespace {
     }
     if (options?.limit !== undefined) {
       params.limit = String(options.limit);
-    }
-    if (options?.clearGitCache) {
-      params.clearGitCache = '1';
     }
 
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/files`, {

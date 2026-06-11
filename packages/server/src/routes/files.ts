@@ -5,7 +5,7 @@ import { join, dirname, resolve } from 'path';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
-import { getGitStatus, clearGitStatusCache, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
+import { getGitStatus, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
 
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
@@ -44,9 +44,6 @@ export function registerFileRoutes(app: Hono): void {
 
       let gitStatus;
       try {
-        if (c.req.query('clearGitCache') === '1') {
-          clearGitStatusCache();
-        }
         gitStatus = await getGitStatus(workspace.path);
       } catch {
         gitStatus = null;

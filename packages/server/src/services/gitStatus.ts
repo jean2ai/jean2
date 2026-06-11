@@ -9,16 +9,10 @@ export interface GitStatusResult {
   files: Map<string, GitDiffSummary>;
 }
 
-interface CacheEntry {
-  result: GitStatusResult;
-  mtime: number;
-}
-
-const CACHE_TTL = 2_000;
-const cache = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<GitStatusResult>>();
 
 export function clearGitStatusCache(): void {
-  cache.clear();
+  inflight.clear();
 }
 
 function normalizePath(p: string): string {
@@ -123,19 +117,11 @@ async function detectGitAvailability(workspacePath: string): Promise<GitAvailabi
   return { available: true, root: rootResult.stdout };
 }
 
-export async function getGitStatus(workspacePath: string): Promise<GitStatusResult> {
-  const now = Date.now();
-  const cached = cache.get(workspacePath);
-  if (cached && now - cached.mtime < CACHE_TTL) {
-    return cached.result;
-  }
-
+async function computeGitStatus(workspacePath: string): Promise<GitStatusResult> {
   const availability = await detectGitAvailability(workspacePath);
 
   if (!availability.available) {
-    const result: GitStatusResult = { availability, files: new Map() };
-    cache.set(workspacePath, { result, mtime: now });
-    return result;
+    return { availability, files: new Map() };
   }
 
   try {
@@ -180,17 +166,24 @@ export async function getGitStatus(workspacePath: string): Promise<GitStatusResu
       });
     }
 
-    const result: GitStatusResult = { availability, files };
-    cache.set(workspacePath, { result, mtime: now });
-    return result;
+    return { availability, files };
   } catch {
-    const result: GitStatusResult = {
+    return {
       availability: { available: false, reason: 'git_error' },
       files: new Map(),
     };
-    cache.set(workspacePath, { result, mtime: now });
-    return result;
   }
+}
+
+export async function getGitStatus(workspacePath: string): Promise<GitStatusResult> {
+  const existing = inflight.get(workspacePath);
+  if (existing) return existing;
+
+  const promise = computeGitStatus(workspacePath).finally(() => {
+    inflight.delete(workspacePath);
+  });
+  inflight.set(workspacePath, promise);
+  return promise;
 }
 
 const STATUS_PRIORITY: Record<GitFileStatus, number> = {

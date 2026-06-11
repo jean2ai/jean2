@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { useTagCollapseState } from '@/hooks/useTagCollapseState';
 
 interface WorkspaceSessionContentProps {
   activeSessions: Session[];
@@ -64,6 +65,7 @@ export function WorkspaceSessionContent({
   onAddTag,
   onRemoveTag,
 }: WorkspaceSessionContentProps) {
+  const { isTagOpen, toggleTag } = useTagCollapseState();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
@@ -229,7 +231,7 @@ export function WorkspaceSessionContent({
                 {orderedTagNames.map(tagName => {
                   const sessions = tagGroups.get(tagName) ?? [];
                   return (
-                    <Collapsible key={tagName} defaultOpen className="group/tag-collapsible">
+                    <Collapsible key={tagName} open={isTagOpen(tagName)} onOpenChange={(open) => toggleTag(tagName, open)} className="group/tag-collapsible">
                       <div className="flex items-center px-2 py-1 text-xs font-medium text-muted-foreground">
                         <CollapsibleTrigger asChild>
                           <button className="flex items-center gap-1 hover:text-foreground transition-colors">
