@@ -90,3 +90,38 @@ export type FilePreviewResponse =
   | FilePreviewBinaryResponse
   | FilePreviewUnsupportedResponse
   | FilePreviewTooLargeResponse;
+
+export type GitFileDiffUnavailableReason =
+  | 'git_not_installed'
+  | 'not_a_git_repo'
+  | 'not_changed'
+  | 'path_outside_workspace'
+  | 'file_not_found'
+  | 'binary'
+  | 'git_error';
+
+export interface GitDiffChange {
+  type: 'added' | 'removed' | 'context';
+  content: string;
+  lineNumber?: number;
+  newLineNumber?: number;
+}
+
+export interface GitDiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  changes: GitDiffChange[];
+}
+
+export interface GitFileDiffResponse {
+  path: string;
+  diffAvailable: boolean;
+  reason?: GitFileDiffUnavailableReason;
+  status?: GitDiffSummary;
+  hunks: GitDiffHunk[];
+  additions: number;
+  deletions: number;
+  language?: string;
+}

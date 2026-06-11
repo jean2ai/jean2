@@ -18,6 +18,7 @@ interface DiffViewerProps {
   language?: string;
   additions?: number;
   deletions?: number;
+  disablePathOpen?: boolean;
   matchInfo?: {
     strategy: string;
     lineNumber: number;
@@ -103,7 +104,7 @@ const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumb
   );
 });
 
-export const DiffViewer = memo(function DiffViewer({ hunks, path, language: propLanguage, additions, deletions }: DiffViewerProps) {
+export const DiffViewer = memo(function DiffViewer({ hunks, path, language: propLanguage, additions, deletions, disablePathOpen }: DiffViewerProps) {
   const [expanded, setExpanded] = useState(true);
   const language = propLanguage || detectLanguage(path);
 
@@ -140,15 +141,24 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
           </button>
 
           <FileText className="size-3" />
-          <button
-            type="button"
-            onClick={handlePathClick}
-            className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted min-w-0 truncate"
-            title={path}
-          >
-            {path}
-            <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
-          </button>
+          {disablePathOpen ? (
+            <span
+              className="flex items-center gap-1 font-mono pr-2 px-1 py-0.5 min-w-0 truncate"
+              title={path}
+            >
+              {path}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={handlePathClick}
+              className="flex items-center gap-1 font-mono pr-2 hover:text-foreground transition-colors cursor-pointer rounded px-1 py-0.5 -mx-1 hover:bg-muted min-w-0 truncate"
+              title={path}
+            >
+              {path}
+              <ExternalLink className="size-2.5 opacity-0 group-hover/path:opacity-100 transition-opacity" />
+            </button>
+          )}
 
           {additions !== undefined && deletions !== undefined && (
             <span className="ml-auto mr-2 text-muted-foreground">

@@ -1,5 +1,8 @@
-import { relative, normalize, sep } from 'path';
-import type { FileEntry, GitAvailability, GitDiffSummary, GitFileStatus } from '@jean2/sdk';
+import { relative, normalize, sep, resolve, join, extname } from 'path';
+import { stat, readFile } from 'fs/promises';
+import type { FileEntry, GitAvailability, GitDiffSummary, GitFileStatus, GitFileDiffResponse, GitDiffHunk, GitDiffChange, GitFileDiffUnavailableReason } from '@jean2/sdk';
+import { isBinaryExtension, isBinaryFile, FILE_PREVIEW_MAX_BYTES } from '@/utils/binaryDetection';
+import { getLanguageForPath } from '@/services/filePreview';
 
 export interface GitStatusResult {
   availability: GitAvailability;
@@ -128,6 +131,7 @@ export async function getGitStatus(workspacePath: string): Promise<GitStatusResu
   }
 
   const availability = await detectGitAvailability(workspacePath);
+  console.log('git', availability)
 
   if (!availability.available) {
     const result: GitStatusResult = { availability, files: new Map() };
@@ -291,9 +295,242 @@ export function attachGitStatusToEntries(
   });
 }
 
+export function parseUnifiedDiff(patch: string): {
+  hunks: GitDiffHunk[];
+  additions: number;
+  deletions: number;
+} {
+  const hunks: GitDiffHunk[] = [];
+  let additions = 0;
+  let deletions = 0;
+
+  if (!patch.trim()) return { hunks, additions, deletions };
+
+  const lines = patch.split('\n');
+  let currentHunk: GitDiffHunk | null = null;
+  let oldLineNum = 0;
+  let newLineNum = 0;
+  let inHunk = false;
+
+  for (const line of lines) {
+    if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+      if (currentHunk) {
+        hunks.push(currentHunk);
+        currentHunk = null;
+      }
+      inHunk = false;
+      continue;
+    }
+
+    const hunkHeader = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+    if (hunkHeader) {
+      if (currentHunk) {
+        hunks.push(currentHunk);
+      }
+
+      oldLineNum = parseInt(hunkHeader[1], 10);
+      const oldCount = hunkHeader[2] !== undefined ? parseInt(hunkHeader[2], 10) : 1;
+      newLineNum = parseInt(hunkHeader[3], 10);
+      const newCount = hunkHeader[4] !== undefined ? parseInt(hunkHeader[4], 10) : 1;
+
+      currentHunk = {
+        oldStart: oldLineNum,
+        oldLines: oldCount,
+        newStart: newLineNum,
+        newLines: newCount,
+        changes: [],
+      };
+      inHunk = true;
+      continue;
+    }
+
+    if (!inHunk || !currentHunk) continue;
+
+    if (line.startsWith('\\')) {
+      continue;
+    }
+
+    if (line.startsWith('+')) {
+      currentHunk.changes.push({
+        type: 'added',
+        content: line.slice(1),
+        newLineNumber: newLineNum,
+      });
+      newLineNum++;
+      additions++;
+    } else if (line.startsWith('-')) {
+      currentHunk.changes.push({
+        type: 'removed',
+        content: line.slice(1),
+        lineNumber: oldLineNum,
+      });
+      oldLineNum++;
+      deletions++;
+    } else if (line.startsWith(' ') || line === '') {
+      if (line === '' && !inHunk) continue;
+      currentHunk.changes.push({
+        type: 'context',
+        content: line.startsWith(' ') ? line.slice(1) : '',
+        lineNumber: oldLineNum,
+        newLineNumber: newLineNum,
+      });
+      oldLineNum++;
+      newLineNum++;
+    }
+  }
+
+  if (currentHunk) {
+    hunks.push(currentHunk);
+  }
+
+  return { hunks, additions, deletions };
+}
+
+function makeUnavailableResponse(
+  relativePath: string,
+  reason: GitFileDiffUnavailableReason,
+): GitFileDiffResponse {
+  return {
+    path: relativePath,
+    diffAvailable: false,
+    reason,
+    hunks: [],
+    additions: 0,
+    deletions: 0,
+  };
+}
+
+export async function getGitFileDiff(
+  workspacePath: string,
+  relativePath: string,
+  additionalPaths: string[] = [],
+): Promise<GitFileDiffResponse> {
+  const normalizedInput = relativePath.replace(/\\/g, '/');
+
+  let fullPath: string;
+  const isAbs = normalizedInput.startsWith('/');
+  if (isAbs) {
+    fullPath = resolve(normalizedInput);
+  } else {
+    fullPath = join(workspacePath, normalizedInput);
+  }
+
+  const allAllowed = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
+  if (!allAllowed.some(allowed => fullPath.startsWith(allowed))) {
+    return makeUnavailableResponse(relativePath, 'path_outside_workspace');
+  }
+
+  const gitStatus = await getGitStatus(workspacePath);
+  if (!gitStatus.availability.available) {
+    return makeUnavailableResponse(relativePath, gitStatus.availability.reason as GitFileDiffUnavailableReason);
+  }
+
+  const gitRoot = gitStatus.availability.root!;
+  const repoRelativePath = normalizePath(relative(gitRoot, fullPath));
+
+  if (repoRelativePath.startsWith('..')) {
+    return makeUnavailableResponse(relativePath, 'path_outside_workspace');
+  }
+
+  const fileStatus = gitStatus.files.get(repoRelativePath);
+
+  if (!fileStatus) {
+    return makeUnavailableResponse(relativePath, 'not_changed');
+  }
+
+  const language = getLanguageForPath(relativePath);
+
+  if (fileStatus.status === 'untracked') {
+    try {
+      const stats = await stat(fullPath);
+      if (stats.size > FILE_PREVIEW_MAX_BYTES) {
+        return makeUnavailableResponse(relativePath, 'binary');
+      }
+
+      const ext = extname(fullPath);
+      if (isBinaryExtension(ext)) {
+        return makeUnavailableResponse(relativePath, 'binary');
+      }
+
+      const binary = await isBinaryFile(fullPath, stats.size);
+      if (binary) {
+        return makeUnavailableResponse(relativePath, 'binary');
+      }
+
+      const content = await readFile(fullPath, 'utf-8');
+      const lines = content.split('\n');
+      if (lines.length > 0 && lines[lines.length - 1] === '') {
+        lines.pop();
+      }
+
+      const changes: GitDiffChange[] = lines.map((line, index) => ({
+        type: 'added' as const,
+        content: line,
+        newLineNumber: index + 1,
+      }));
+
+      return {
+        path: relativePath,
+        diffAvailable: true,
+        status: fileStatus,
+        hunks: [{
+          oldStart: 0,
+          oldLines: 0,
+          newStart: 1,
+          newLines: lines.length,
+          changes,
+        }],
+        additions: lines.length,
+        deletions: 0,
+        language,
+      };
+    } catch {
+      return makeUnavailableResponse(relativePath, 'file_not_found');
+    }
+  }
+
+  try {
+    const { stdout, exitCode } = await execGit(['-C', workspacePath, 'diff', 'HEAD', '--', repoRelativePath]);
+
+    if (exitCode !== 0) {
+      return makeUnavailableResponse(relativePath, 'git_error');
+    }
+
+    if (!stdout.trim()) {
+      return makeUnavailableResponse(relativePath, 'not_changed');
+    }
+
+    if (/^Binary files /.test(stdout.trim()) || /differ\s*$/.test(stdout.trim())) {
+      return makeUnavailableResponse(relativePath, 'binary');
+    }
+
+    const { hunks, additions, deletions } = parseUnifiedDiff(stdout);
+
+    if (hunks.length === 0) {
+      if (stdout.includes('Binary files')) {
+        return makeUnavailableResponse(relativePath, 'binary');
+      }
+      return makeUnavailableResponse(relativePath, 'not_changed');
+    }
+
+    return {
+      path: relativePath,
+      diffAvailable: true,
+      status: fileStatus,
+      hunks,
+      additions,
+      deletions,
+      language,
+    };
+  } catch {
+    return makeUnavailableResponse(relativePath, 'git_error');
+  }
+}
+
 export const _internal = {
   parsePorcelainStatus,
   parseNumstat,
   aggregateDirectoryStatus,
   mapStatus,
+  parseUnifiedDiff,
 };

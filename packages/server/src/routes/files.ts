@@ -5,7 +5,7 @@ import { join, dirname, resolve } from 'path';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
-import { getGitStatus, attachGitStatusToEntries } from '@/services/gitStatus';
+import { getGitStatus, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
 
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
@@ -94,6 +94,23 @@ export function registerFileRoutes(app: Hono): void {
 
       return c.json({ error: 'Not Found', message }, 404);
     }
+  });
+
+  app.get('/api/workspaces/:id/git/diff', async (c) => {
+    const workspaceId = c.req.param('id');
+    const path = c.req.query('path');
+
+    if (!path) {
+      return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
+    }
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    const diff = await getGitFileDiff(workspace.path, path, workspace.additionalPaths);
+    return c.json(diff);
   });
 
   app.get('/api/fs/browse', async (c) => {

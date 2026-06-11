@@ -31,6 +31,8 @@ export const queryKeys = {
     parent: (path: string) => ['files', 'parent', path] as const,
     preview: (workspaceId: string, path: string) =>
       ['files', 'preview', workspaceId, path] as const,
+    gitDiff: (workspaceId: string, path: string) =>
+      ['files', 'git-diff', workspaceId, path] as const,
   },
   serverInfo: ['serverInfo'] as const,
   pinnedMessages: {

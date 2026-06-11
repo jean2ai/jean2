@@ -60,3 +60,16 @@ export function useFilePreviewQuery(
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
   });
 }
+
+export function useFileGitDiffQuery(
+  sdkClient: Jean2Client | null,
+  workspaceId: string | undefined,
+  path: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? ''),
+    queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!),
+    enabled: !!sdkClient && !!workspaceId && !!path && enabled,
+  });
+}

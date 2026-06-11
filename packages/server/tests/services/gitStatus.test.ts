@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import { _internal, attachGitStatusToEntries } from '@/services/gitStatus';
 import type { FileEntry, GitDiffSummary, GitAvailability } from '@jean2/sdk';
 
-const { parsePorcelainStatus, parseNumstat, aggregateDirectoryStatus, mapStatus } = _internal;
+const { parsePorcelainStatus, parseNumstat, aggregateDirectoryStatus, mapStatus, parseUnifiedDiff } = _internal;
 
 describe('gitStatus', () => {
   describe('mapStatus', () => {
@@ -270,6 +270,145 @@ describe('gitStatus', () => {
       };
       const result = attachGitStatusToEntries(entries, '/workspace', gitStatus);
       expect(result[0].git).toBeUndefined();
+    });
+  });
+
+  describe('parseUnifiedDiff', () => {
+    test('parses empty diff', () => {
+      const result = parseUnifiedDiff('');
+      expect(result.hunks).toHaveLength(0);
+      expect(result.additions).toBe(0);
+      expect(result.deletions).toBe(0);
+    });
+
+    test('parses single hunk with added and removed lines', () => {
+      const patch = [
+        'diff --git a/file.ts b/file.ts',
+        'index abc1234..def5678 100644',
+        '--- a/file.ts',
+        '+++ b/file.ts',
+        '@@ -10,7 +10,8 @@',
+        ' context line 1',
+        '-removed line',
+        ' context line 2',
+        '+added line 1',
+        '+added line 2',
+        ' context line 3',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(1);
+
+      const hunk = result.hunks[0];
+      expect(hunk.oldStart).toBe(10);
+      expect(hunk.oldLines).toBe(7);
+      expect(hunk.newStart).toBe(10);
+      expect(hunk.newLines).toBe(8);
+      expect(hunk.changes).toHaveLength(6);
+
+      expect(hunk.changes[0]).toEqual({ type: 'context', content: 'context line 1', lineNumber: 10, newLineNumber: 10 });
+      expect(hunk.changes[1]).toEqual({ type: 'removed', content: 'removed line', lineNumber: 11 });
+      expect(hunk.changes[2]).toEqual({ type: 'context', content: 'context line 2', lineNumber: 12, newLineNumber: 11 });
+      expect(hunk.changes[3]).toEqual({ type: 'added', content: 'added line 1', newLineNumber: 12 });
+      expect(hunk.changes[4]).toEqual({ type: 'added', content: 'added line 2', newLineNumber: 13 });
+      expect(hunk.changes[5]).toEqual({ type: 'context', content: 'context line 3', lineNumber: 13, newLineNumber: 14 });
+
+      expect(result.additions).toBe(2);
+      expect(result.deletions).toBe(1);
+    });
+
+    test('parses multiple hunks', () => {
+      const patch = [
+        'diff --git a/file.ts b/file.ts',
+        '--- a/file.ts',
+        '+++ b/file.ts',
+        '@@ -1,3 +1,3 @@',
+        ' line 1',
+        '-old line',
+        '+new line',
+        '@@ -20,3 +20,3 @@',
+        ' line 20',
+        '-old 21',
+        '+new 21',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(2);
+      expect(result.additions).toBe(2);
+      expect(result.deletions).toBe(2);
+
+      expect(result.hunks[0].oldStart).toBe(1);
+      expect(result.hunks[1].oldStart).toBe(20);
+    });
+
+    test('handles single-line hunk header without count', () => {
+      const patch = [
+        '@@ -12 +12 @@',
+        '-old',
+        '+new',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].oldStart).toBe(12);
+      expect(result.hunks[0].oldLines).toBe(1);
+      expect(result.hunks[0].newStart).toBe(12);
+      expect(result.hunks[0].newLines).toBe(1);
+    });
+
+    test('handles @@ -0,0 +1,N @@ for new files', () => {
+      const patch = [
+        '@@ -0,0 +1,3 @@',
+        '+line 1',
+        '+line 2',
+        '+line 3',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].oldStart).toBe(0);
+      expect(result.hunks[0].oldLines).toBe(0);
+      expect(result.hunks[0].newStart).toBe(1);
+      expect(result.hunks[0].newLines).toBe(3);
+      expect(result.additions).toBe(3);
+      expect(result.deletions).toBe(0);
+    });
+
+    test('ignores file headers', () => {
+      const patch = [
+        'diff --git a/foo.ts b/foo.ts',
+        'index abc..def 100644',
+        '--- a/foo.ts',
+        '+++ b/foo.ts',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].changes).toHaveLength(2);
+    });
+
+    test('ignores no-newline-at-end-of-file markers', () => {
+      const patch = [
+        '@@ -1,2 +1,2 @@',
+        ' line 1',
+        '-line 2',
+        '\\ No newline at end of file',
+        '+line 2 new',
+      ].join('\n');
+
+      const result = parseUnifiedDiff(patch);
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].changes).toHaveLength(3);
+      expect(result.additions).toBe(1);
+      expect(result.deletions).toBe(1);
+    });
+
+    test('returns empty for whitespace-only input', () => {
+      const result = parseUnifiedDiff('   \n  \n');
+      expect(result.hunks).toHaveLength(0);
     });
   });
 });

@@ -123,6 +123,11 @@ function getLanguage(ext: string | undefined): string | undefined {
   return CODE_EXTENSIONS[key];
 }
 
+export function getLanguageForPath(filePath: string): string | undefined {
+  const ext = extname(filePath);
+  return getLanguage(ext);
+}
+
 export async function getFilePreview(
   workspacePath: string,
   relativePath: string,

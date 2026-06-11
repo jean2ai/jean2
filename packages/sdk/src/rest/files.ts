@@ -3,6 +3,7 @@ import type {
   BrowseFilesResponse,
   SearchFilesResponse,
   PreviewFileResponse,
+  GitDiffFileResponse,
   BrowseFsResponse,
   FsParentResponse,
   ListDrivesResponse,
@@ -79,6 +80,17 @@ export class FilesRestNamespace {
 
   async preview(workspaceId: string, path: string, options?: PreviewOptions): Promise<PreviewFileResponse> {
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/file-preview`, {
+      params: { path },
+      signal: options?.signal,
+    });
+  }
+
+  async gitDiff(
+    workspaceId: string,
+    path: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<GitDiffFileResponse> {
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/git/diff`, {
       params: { path },
       signal: options?.signal,
     });

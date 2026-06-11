@@ -8,8 +8,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { FileCodeView } from './FileCodeView';
 import FilePreviewContent from './FilePreviewContent';
 import { useFilePreview } from '@/hooks/useFilePreview';
+import { useFileGitDiffQuery } from '@/hooks/queries';
 import { Button } from '@/components/ui/button';
 
 interface FilePreviewOverlayProps {
@@ -18,6 +22,10 @@ interface FilePreviewOverlayProps {
   sdkClient: Jean2Client | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function hasContent(preview: { kind: string }): preview is { kind: 'code' | 'text' | 'markdown'; content: string } {
+  return preview.kind === 'code' || preview.kind === 'text' || preview.kind === 'markdown';
 }
 
 export default function FilePreviewOverlay({
@@ -34,12 +42,82 @@ export default function FilePreviewOverlay({
     enabled: open && !!target && !!workspaceId,
   });
 
+  const diffQuery = useFileGitDiffQuery(
+    sdkClient,
+    workspaceId,
+    target?.path,
+    open && !!target && !!workspaceId,
+  );
+
+  const diffData = diffQuery.data?.diffAvailable ? diffQuery.data : undefined;
+
   if (!target) return null;
 
   const formatSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-center p-8">
+          <AlertCircle className="size-8 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground mb-3">{error}</p>
+          <Button variant="outline" size="sm" onClick={reload}>
+            <RefreshCw className="size-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      );
+    }
+
+    if (!data) return null;
+
+    // Markdown: Source / Preview tabs
+    if (data.kind === 'markdown') {
+      return (
+        <Tabs defaultValue="preview" className="h-full flex flex-col">
+          <TabsList className="mx-4 mt-3 shrink-0 w-fit">
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+            <TabsTrigger value="source">Source</TabsTrigger>
+          </TabsList>
+          <TabsContent value="preview" className="flex-1 min-h-0 mt-0 overflow-auto p-6 chat-transcript-scrollbar">
+            <MarkdownRenderer>{data.content}</MarkdownRenderer>
+          </TabsContent>
+          <TabsContent value="source" className="flex-1 min-h-0 mt-0">
+            <FileCodeView
+              content={data.content}
+              language={data.language}
+              diff={diffData ? { hunks: diffData.hunks, additions: diffData.additions, deletions: diffData.deletions } : undefined}
+            />
+          </TabsContent>
+        </Tabs>
+      );
+    }
+
+    // Code / text: unified code view with diff highlights
+    if (hasContent(data)) {
+      return (
+        <FileCodeView
+          content={data.content}
+          language={data.language}
+          diff={diffData ? { hunks: diffData.hunks, additions: diffData.additions, deletions: diffData.deletions } : undefined}
+        />
+      );
+    }
+
+    // Binary, too large, unsupported — keep existing status panels
+    return <FilePreviewContent preview={data} />;
   };
 
   return (
@@ -67,29 +145,22 @@ export default function FilePreviewOverlay({
                 {formatSize(data.size)}
                 {data.language && ` · ${data.language}`}
               </span>
+              {diffData && (
+                <>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-600">
+                    +{diffData.additions}
+                  </span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/10 text-red-600">
+                    -{diffData.deletions}
+                  </span>
+                </>
+              )}
             </div>
           )}
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden">
-          {loading && (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-          {error && !loading && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-              <AlertCircle className="size-8 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground mb-3">{error}</p>
-              <Button variant="outline" size="sm" onClick={reload}>
-                <RefreshCw className="size-3.5 mr-1.5" />
-                Retry
-              </Button>
-            </div>
-          )}
-          {data && !loading && !error && (
-            <FilePreviewContent preview={data} />
-          )}
+          {renderContent()}
         </div>
       </DialogContent>
     </Dialog>
