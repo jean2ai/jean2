@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { _internal, attachGitStatusToEntries, clearGitStatusCache } from '@/services/gitStatus';
+import { _internal, attachGitStatusToEntries } from '@/services/gitStatus';
 import type { FileEntry, GitDiffSummary, GitAvailability } from '@jean2/sdk';
 
 const { parsePorcelainStatus, parseNumstat, aggregateDirectoryStatus, mapStatus } = _internal;
