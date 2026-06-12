@@ -14,6 +14,9 @@ export interface ProviderStatus {
   provider: string;
   connected: boolean;
   authorizationUrl?: string;
+  flowId?: string;
+  redirectStrategy?: string;
+  redirectUri?: string;
   error?: string;
   connectedAt?: string;
   accountId?: string;
@@ -23,12 +26,18 @@ export interface ProviderStatus {
   connectable?: boolean;
 }
 
-export interface CodexProviderConfig {
+/** Generic OAuth token storage config (access/refresh token pair). */
+export interface OAuthTokenConfig {
   type: 'oauth';
-  provider: 'codex';
+  provider: string;
   access: string;
   refresh: string;
   expires: number;
-  accountId?: string;
   connectedAt: string;
+}
+
+/** Codex-specific provider config — extends OAuthTokenConfig with account ID. */
+export interface CodexProviderConfig extends OAuthTokenConfig {
+  provider: 'codex';
+  accountId?: string;
 }

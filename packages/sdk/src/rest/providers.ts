@@ -7,7 +7,9 @@ import type {
   ListCredentialsResponse,
   SetCredentialResponse,
   ClearCredentialResponse,
+  CompleteOAuthResponse,
 } from '../types/rest-responses';
+import type { OAuthRedirectStrategy } from '../shared-types/oauth';
 
 interface ListProvidersOptions {
   signal?: AbortSignal;
@@ -18,6 +20,7 @@ interface GetStatusOptions {
 }
 
 interface ConnectOptions {
+  redirectStrategy?: OAuthRedirectStrategy;
   signal?: AbortSignal;
 }
 
@@ -30,6 +33,14 @@ interface SetCredentialOptions {
 }
 
 interface ClearCredentialOptions {
+  signal?: AbortSignal;
+}
+
+interface CompleteOAuthOptions {
+  flowId: string;
+  code: string;
+  state: string;
+  redirectUri: string;
   signal?: AbortSignal;
 }
 
@@ -53,10 +64,12 @@ export class ProvidersRestNamespace {
   }
 
   /**
-   * POST /api/providers/:providerId/connect - Start connection flow
+   * POST /api/providers/:providerId/connect - Start OAuth connection flow
    */
   async connect(providerId: string, options?: ConnectOptions): Promise<ConnectProviderResponse> {
-    return this.http.post(`/providers/${encodeURIComponent(providerId)}/connect`, undefined, {
+    return this.http.post(`/providers/${encodeURIComponent(providerId)}/connect`, {
+      redirectStrategy: options?.redirectStrategy,
+    }, {
       signal: options?.signal,
     });
   }
@@ -67,6 +80,20 @@ export class ProvidersRestNamespace {
   async disconnect(providerId: string, options?: DisconnectOptions): Promise<DisconnectProviderResponse> {
     return this.http.delete(`/providers/${encodeURIComponent(providerId)}`, {
       signal: options?.signal,
+    });
+  }
+
+  /**
+   * POST /api/oauth/callback - Complete OAuth flow by sending authorization code
+   */
+  async completeOAuth(options: CompleteOAuthOptions): Promise<CompleteOAuthResponse> {
+    return this.http.post('/oauth/callback', {
+      flowId: options.flowId,
+      code: options.code,
+      state: options.state,
+      redirectUri: options.redirectUri,
+    }, {
+      signal: options.signal,
     });
   }
 

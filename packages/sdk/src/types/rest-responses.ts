@@ -176,7 +176,19 @@ export interface GetProviderStatusResponse {
  */
 export interface ConnectProviderResponse {
   authorizationUrl: string;
+  flowId?: string;
+  redirectStrategy?: string;
+  redirectUri?: string;
   status: ProviderStatus;
+}
+
+/**
+ * POST /api/oauth/callback
+ */
+export interface CompleteOAuthResponse {
+  success: boolean;
+  provider?: string;
+  error?: string;
 }
 
 /**

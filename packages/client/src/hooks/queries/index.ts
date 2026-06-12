@@ -2,7 +2,7 @@ export { useToolsQuery, useToolEnvVarsQuery, useToolSetEnvVar, useToolClearEnvVa
 export { useModelsConfigQuery, useCreateProvider, useUpdateProvider, useDeleteProvider, useCreateModel, useUpdateModel, useDeleteModel, useSetModelDefaults, useSyncModels } from './useModelsQueries';
 export { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePreconfig } from './usePreconfigsQueries';
 export { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from './usePromptsQueries';
-export { useProvidersQuery, useProviderCredentialsQuery, useConnectProvider, useDisconnectProvider, useSetProviderCredential, useClearProviderCredential } from './useProvidersQueries';
+export { useProvidersQuery, useProviderCredentialsQuery, useConnectProvider, useDisconnectProvider, useCompleteOAuth, useSetProviderCredential, useClearProviderCredential } from './useProvidersQueries';
 export { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } from './useMcpQueries';
 export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorkspaceMutation, useUpdateWorkspaceMutation } from './useWorkspaceMutations';
 export { useFileBrowseQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery, useFileGitDiffQuery } from './useFileQueries';

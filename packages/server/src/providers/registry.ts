@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { ProviderDescriptor, ProviderStatus } from '@jean2/sdk';
+import type { ProviderDescriptor, ProviderStatus, OAuthRedirectStrategy } from '@jean2/sdk';
 
 export interface ModelFactoryOptions {
   modelId: string;
@@ -15,18 +15,45 @@ export interface ModelFactoryResult {
   providerOptions?: Record<string, Record<string, unknown>>;
 }
 
+export interface ConnectOptions {
+  /** The redirect strategy the client prefers. */
+  redirectStrategy?: OAuthRedirectStrategy;
+}
+
+export interface ConnectResult {
+  authorizationUrl?: string;
+  flowId?: string;
+  redirectStrategy?: OAuthRedirectStrategy;
+  redirectUri?: string;
+}
+
 export interface ConnectableProvider {
   descriptor: ProviderDescriptor;
 
   getStatus(): ProviderStatus;
 
-  connect(): Promise<{ authorizationUrl?: string }>;
+  connect(options?: ConnectOptions): Promise<ConnectResult>;
 
   disconnect(): Promise<void>;
+
+  /**
+   * Called by the OAuth manager when tokens are successfully exchanged.
+   * The provider should save tokens and return provider-specific status.
+   */
+  onTokensReceived(tokens: TokenResponse): Promise<void>;
 
   createModel(options: ModelFactoryOptions): Promise<ModelFactoryResult>;
 
   onConnectComplete?: (callback: (success: boolean, error?: string) => void) => void;
+}
+
+/** Standard OAuth 2.0 token response. */
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  id_token?: string;
+  token_type?: string;
 }
 
 const providers = new Map<string, ConnectableProvider>();
@@ -51,12 +78,12 @@ export function getProviderStatus(id: string): ProviderStatus {
   return provider.getStatus();
 }
 
-export async function connectProvider(id: string): Promise<{ authorizationUrl?: string }> {
+export async function connectProvider(id: string, options?: ConnectOptions): Promise<ConnectResult> {
   const provider = providers.get(id);
   if (!provider) {
     throw new Error(`Unknown connectable provider: ${id}`);
   }
-  return provider.connect();
+  return provider.connect(options);
 }
 
 export async function disconnectProvider(id: string): Promise<void> {

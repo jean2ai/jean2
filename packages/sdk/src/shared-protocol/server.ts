@@ -310,6 +310,9 @@ export interface ProviderStatusMessage {
   provider: string;
   connected: boolean;
   authorizationUrl?: string;
+  flowId?: string;
+  redirectStrategy?: string;
+  redirectUri?: string;
   error?: string;
 }
 

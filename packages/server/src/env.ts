@@ -256,3 +256,7 @@ export function getTlsKeyFile(): string | undefined {
 export function getAutoApproveTakeover(): boolean {
   return process.env.JEAN2_AUTO_APPROVE_TAKEOVER !== 'false';
 }
+
+export function getBaseUrl(): string | undefined {
+  return process.env.JEAN2_BASE_URL;
+}

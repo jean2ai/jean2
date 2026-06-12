@@ -1230,13 +1230,18 @@ export async function handleClientMessage(
 
     case 'provider.connect': {
       try {
-        const result = await providerManager.connectProvider(msg.provider);
+        const result = await providerManager.connectProvider(msg.provider, {
+          redirectStrategy: msg.redirectStrategy as 'client_redirect' | 'manual_paste' | 'server_callback' | undefined,
+        });
         const status = await providerManager.getProviderStatus(msg.provider);
         ctx.broadcast({
           type: 'provider.status',
           provider: msg.provider,
           connected: status.connected,
           authorizationUrl: result.authorizationUrl,
+          flowId: result.flowId,
+          redirectStrategy: result.redirectStrategy,
+          redirectUri: result.redirectUri,
         });
 
         const provider = providerManager.getProvider(msg.provider);

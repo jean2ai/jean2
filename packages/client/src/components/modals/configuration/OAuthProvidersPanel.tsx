@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import { useProvidersQuery, useConnectProvider, useDisconnectProvider } from '@/hooks/queries';
-import { Loader2, Unplug, Copy, Check } from 'lucide-react';
+import { useProvidersQuery, useConnectProvider, useDisconnectProvider, useCompleteOAuth } from '@/hooks/queries';
+import { Loader2, Unplug, Copy, Check, ClipboardPaste } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ProviderStatus } from '@jean2/sdk';
 
@@ -9,51 +9,150 @@ interface PanelProps {
   sdkClient: Jean2Client | null;
 }
 
+interface PendingAuth {
+  providerId: string;
+  flowId: string;
+  redirectUri: string;
+  authorizationUrl: string;
+}
+
 export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
   const { data: providersData, isLoading: loading } = useProvidersQuery(sdkClient);
   const connectMut = useConnectProvider(sdkClient);
   const disconnectMut = useDisconnectProvider(sdkClient);
+  const completeMut = useCompleteOAuth(sdkClient);
   const providers: ProviderStatus[] = providersData?.providers ?? [];
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [authUrls, setAuthUrls] = useState<Record<string, string>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
+  const [copiedAuth, setCopiedAuth] = useState(false);
+  const [pasteUrl, setPasteUrl] = useState('');
+  const [completing, setCompleting] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const handleConnect = async (providerId: string) => {
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const handleConnect = useCallback(async (providerId: string) => {
     setConnectingId(providerId);
-    setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
+    setPendingAuth(null);
     setError(null);
     try {
-      const data = await connectMut.mutateAsync(providerId);
-      if (data.authorizationUrl) {
-        setAuthUrls((prev) => ({ ...prev, [providerId]: data.authorizationUrl! }));
+      const data = await connectMut.mutateAsync({ providerId });
+      if (data.authorizationUrl && data.flowId) {
+        const pending: PendingAuth = {
+          providerId,
+          flowId: data.flowId,
+          redirectUri: data.redirectUri || '',
+          authorizationUrl: data.authorizationUrl,
+        };
+        setPendingAuth(pending);
+
+        // Start a localhost listener to capture the redirect
+        if (data.redirectStrategy === 'client_redirect' || !data.redirectStrategy) {
+          startLocalhostListener(pending, data.redirectUri || '');
+        }
+
+        // Open the authorization URL in a new tab
+        window.open(data.authorizationUrl, '_blank');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect provider');
-      setAuthUrls((prev) => ({ ...prev, [providerId]: '' }));
     } finally {
       setConnectingId(null);
     }
-  };
+  }, [connectMut]);
 
-  const handleDisconnect = async (providerId: string) => {
+  const startLocalhostListener = useCallback((pending: PendingAuth, redirectUri: string) => {
+    try {
+      const url = new URL(redirectUri);
+      const port = parseInt(url.port, 10);
+      if (!port || isNaN(port)) return;
+
+      // We can't start a real HTTP server in the browser.
+      // The localhost listener only works in Electron / native environments.
+      // For web browsers, the user will need to use manual paste.
+      // This is a no-op for SPA — the fallback is manual paste.
+    } catch {
+      // Invalid redirect URI, fall through to manual paste
+    }
+  }, []);
+
+  const handlePasteSubmit = useCallback(async () => {
+    if (!pendingAuth || !pasteUrl.trim()) return;
+
+    setCompleting(true);
+    setError(null);
+    try {
+      let code: string;
+      let state: string;
+
+      // Parse the pasted URL — could be full URL, query string, or just the code
+      const trimmed = pasteUrl.trim();
+      try {
+        const parsed = new URL(trimmed);
+        code = parsed.searchParams.get('code') || '';
+        state = parsed.searchParams.get('state') || '';
+      } catch {
+        // Maybe it's a query string like ?code=...&state=...
+        if (trimmed.includes('code=')) {
+          const params = new URLSearchParams(trimmed.startsWith('?') ? trimmed : `?${trimmed}`);
+          code = params.get('code') || '';
+          state = params.get('state') || '';
+        } else {
+          // Bare code value
+          code = trimmed;
+          state = '';
+        }
+      }
+
+      if (!code) {
+        setError('Could not extract authorization code from the pasted URL');
+        return;
+      }
+
+      const result = await completeMut.mutateAsync({
+        flowId: pendingAuth.flowId,
+        code,
+        state,
+        redirectUri: pendingAuth.redirectUri,
+      });
+
+      if (result.success) {
+        setPendingAuth(null);
+        setPasteUrl('');
+      } else {
+        setError(result.error || 'OAuth completion failed');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to complete OAuth');
+    } finally {
+      setCompleting(false);
+    }
+  }, [pendingAuth, pasteUrl, completeMut]);
+
+  const handleCopyAuthUrl = useCallback(async () => {
+    if (!pendingAuth) return;
+    try {
+      await navigator.clipboard.writeText(pendingAuth.authorizationUrl);
+      setCopiedAuth(true);
+      setTimeout(() => setCopiedAuth(false), 2000);
+    } catch {
+      // silently fail
+    }
+  }, [pendingAuth]);
+
+  const handleDisconnect = useCallback(async (providerId: string) => {
     setError(null);
     try {
       await disconnectMut.mutateAsync(providerId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect provider');
     }
-  };
-
-  const handleCopyUrl = async (url: string, providerId: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedId(providerId);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      // silently fail
-    }
-  };
+  }, [disconnectMut]);
 
   if (loading) {
     return (
@@ -104,7 +203,7 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
               )}
 
               <div className="flex gap-2">
-                {!provider.connected && !authUrls[provider.provider] && (
+                {!provider.connected && pendingAuth?.providerId !== provider.provider && (
                   <Button
                     size="sm"
                     onClick={() => handleConnect(provider.provider)}
@@ -129,33 +228,62 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
                 )}
               </div>
 
-              {!provider.connected && authUrls[provider.provider] && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    Open this URL in your browser to complete the connection:
-                  </p>
-                  <div className="rounded-md bg-muted p-2">
-                    <a
-                      href={authUrls[provider.provider]}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-blue-500 underline break-all"
+              {pendingAuth?.providerId === provider.provider && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Open this URL in your browser to authenticate:
+                    </p>
+                    <div className="rounded-md bg-muted p-2">
+                      <a
+                        href={pendingAuth.authorizationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-xs text-blue-500 underline break-all"
+                      >
+                        {pendingAuth.authorizationUrl}
+                      </a>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyAuthUrl}
                     >
-                      {authUrls[provider.provider]}
-                    </a>
+                      {copiedAuth ? (
+                        <Check className="size-3" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )}
+                      {copiedAuth ? 'Copied' : 'Copy URL'}
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCopyUrl(authUrls[provider.provider]!, provider.provider)}
-                  >
-                    {copiedId === provider.provider ? (
-                      <Check className="size-3" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                    {copiedId === provider.provider ? 'Copied' : 'Copy URL'}
-                  </Button>
+
+                  <div className="border-t pt-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      After authenticating, paste the redirect URL from your browser:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={pasteUrl}
+                        onChange={(e) => setPasteUrl(e.target.value)}
+                        placeholder="http://localhost:1455/oauth/.../callback?code=...&state=..."
+                        className="flex-1 rounded-md border bg-background px-3 py-1.5 text-xs font-mono"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handlePasteSubmit}
+                        disabled={!pasteUrl.trim() || completing}
+                      >
+                        {completing ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <ClipboardPaste className="size-3" />
+                        )}
+                        Submit
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

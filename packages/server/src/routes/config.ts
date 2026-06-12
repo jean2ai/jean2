@@ -165,10 +165,19 @@ export function registerConfigRoutes(app: Hono): void {
   // POST /api/providers/:providerId/connect - Start connection flow
   app.post('/api/providers/:providerId/connect', async (c) => {
     const providerId = c.req.param('providerId');
+    const body = await c.req.json().catch(() => ({}));
     try {
-      const result = await providers.connectProvider(providerId);
+      const result = await providers.connectProvider(providerId, {
+        redirectStrategy: body.redirectStrategy,
+      });
       const status = await providers.getProviderStatus(providerId);
-      return c.json({ authorizationUrl: result.authorizationUrl, status });
+      return c.json({
+        authorizationUrl: result.authorizationUrl,
+        flowId: result.flowId,
+        redirectStrategy: result.redirectStrategy,
+        redirectUri: result.redirectUri,
+        status,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: 'Failed to start connection', message }, 500);
@@ -196,6 +205,35 @@ export function registerConfigRoutes(app: Hono): void {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: 'Failed to disconnect', message }, 500);
+    }
+  });
+
+  // POST /api/oauth/callback - Complete OAuth flow (client sends authorization code)
+  app.post('/api/oauth/callback', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    try {
+      const result = await providers.completeOAuthFlow(
+        body.flowId,
+        body.code,
+        body.state,
+        body.redirectUri,
+      );
+      return c.json({ success: true, provider: result.providerId });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ success: false, error: message }, 400);
+    }
+  });
+
+  // GET /api/providers/:providerId/oauth/callback - Server-side OAuth callback (cloud-hosted)
+  app.get('/api/providers/:providerId/oauth/callback', async (c) => {
+    const providerId = c.req.param('providerId');
+    try {
+      const url = new URL(c.req.url);
+      return await providers.handleServerCallback(providerId, url);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: 'OAuth callback failed', message }, 500);
     }
   });
 

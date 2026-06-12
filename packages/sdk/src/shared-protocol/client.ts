@@ -175,6 +175,7 @@ export interface QueueRemoveMessage {
 export interface ProviderConnectMessage {
   type: 'provider.connect';
   provider: string;
+  redirectStrategy?: string;
 }
 
 export interface ProviderDisconnectMessage {

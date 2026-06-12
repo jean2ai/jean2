@@ -4,6 +4,7 @@ import type {
   ConnectableProvider,
   ModelFactoryOptions,
   ModelFactoryResult,
+  TokenResponse,
 } from '@/providers';
 import { SandboxLanguageModel } from '@/sandbox/model';
 
@@ -27,8 +28,12 @@ export class SandboxProvider implements ConnectableProvider {
     };
   }
 
-  async connect(): Promise<{ authorizationUrl?: string }> {
+  async connect() {
     return {};
+  }
+
+  async onTokensReceived(_tokens: TokenResponse): Promise<void> {
+    // Sandbox provider doesn't use OAuth
   }
 
   async disconnect(): Promise<void> {
