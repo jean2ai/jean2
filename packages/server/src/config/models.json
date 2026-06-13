@@ -11,11 +11,22 @@
           "maxOutputTokens": 384000,
           "tier": "premium",
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low" } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium" } },
-            "high": { "providerOptions": { "reasoningEffort": "high" } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh" } },
-            "max": { "providerOptions": { "reasoningEffort": "max" } }
+            "high": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "adaptive"
+                },
+                "reasoningEffort": "high"
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "adaptive"
+                },
+                "reasoningEffort": "max"
+              }
+            }
           }
         },
         {
@@ -25,11 +36,22 @@
           "maxOutputTokens": 384000,
           "tier": "budget",
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low" } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium" } },
-            "high": { "providerOptions": { "reasoningEffort": "high" } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh" } },
-            "max": { "providerOptions": { "reasoningEffort": "max" } }
+            "high": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "adaptive"
+                },
+                "reasoningEffort": "high"
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "adaptive"
+                },
+                "reasoningEffort": "max"
+              }
+            }
           }
         }
       ]
@@ -38,6 +60,36 @@
       "id": "minimax",
       "name": "MiniMax",
       "models": [
+        {
+          "id": "MiniMax-M3",
+          "name": "MiniMax M3",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 512000,
+          "tier": "premium",
+          "variants": {
+            "No Thinking": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "disabled"
+                }
+              }
+            },
+            "Adaptive": {
+              "providerOptions": {
+                "thinking": {
+                  "type": "adaptive"
+                }
+              }
+            }
+          },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "video": false
+            }
+          }
+        },
         {
           "id": "MiniMax-M2.7",
           "name": "MiniMax M2.7",
@@ -58,6 +110,25 @@
       "id": "zhipu-coding",
       "name": "Z.AI (Coding Plan)",
       "models": [
+        {
+          "id": "glm-5.2",
+          "name": "GLM-5.2",
+          "contextWindow": 1000000,
+          "maxOutputTokens": 131072,
+          "tier": "premium",
+          "variants": {
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high"
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max"
+              }
+            }
+          }
+        },
         {
           "id": "glm-5.1",
           "name": "GLM-5.1",
@@ -105,12 +176,52 @@
           "contextWindow": 1050000,
           "maxOutputTokens": 128000,
           "tier": "premium",
-          "capabilities": { "input": { "text": true, "image": true, "file": ["application/pdf"] } },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
           }
         },
         {
@@ -119,12 +230,52 @@
           "contextWindow": 1050000,
           "maxOutputTokens": 128000,
           "tier": "premium",
-          "capabilities": { "input": { "text": true, "image": true, "file": ["application/pdf"] } },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
           }
         },
         {
@@ -133,26 +284,214 @@
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "premium",
-          "capabilities": { "input": { "text": true, "image": true } },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true
+            }
+          },
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "models": [
+        {
+          "id": "gpt-5.5",
+          "name": "GPT-5.5",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
           }
         },
         {
-          "id": "gpt-5.3-codex",
-          "name": "GPT-5.3 Codex",
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "gpt-5.4-mini",
+          "name": "GPT-5.4 Mini",
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "premium",
-          "capabilities": { "input": { "text": true, "image": true } },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true
+            }
+          },
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
           }
         },
         {
@@ -161,17 +500,54 @@
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
           "tier": "premium",
-          "capabilities": { "input": { "text": true, "image": true } },
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true
+            }
+          },
           "variants": {
-            "low": { "providerOptions": { "reasoningEffort": "low", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "medium": { "providerOptions": { "reasoningEffort": "medium", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "high": { "providerOptions": { "reasoningEffort": "high", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } },
-            "xhigh": { "providerOptions": { "reasoningEffort": "xhigh", "reasoningSummary": "auto", "include": ["reasoning.encrypted_content"] } }
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
           }
         }
       ]
     }
   ],
-  "defaultModel": "MiniMax-M2.7",
+  "defaultModel": "MiniMax-M3",
   "defaultProvider": "minimax"
 }
