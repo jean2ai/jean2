@@ -114,8 +114,14 @@ export function registerFileRoutes(app: Hono): void {
   });
 
   app.get('/api/fs/browse', async (c) => {
+    // When no path is provided (or it's empty), default to home directory.
     const path = c.req.query('path') || homedir();
-    const resolvedPath = resolve(path.startsWith('~') ? expandPath(path) : path);
+    // Expand ~ to homedir, and resolve to absolute. We pass homedir() to
+    // resolve() as the base for any relative path so that browse/parent
+    // navigation stays consistent with the default (home) rather than
+    // process.cwd(), which differs between dev and production.
+    const expanded = path.startsWith('~') ? expandPath(path) : path;
+    const resolvedPath = resolve(expanded.startsWith('/') ? expanded : join(homedir(), expanded));
     const isRoot = resolvedPath === dirname(resolvedPath);
 
     try {
@@ -128,7 +134,10 @@ export function registerFileRoutes(app: Hono): void {
 
   app.get('/api/fs/parent', async (c) => {
     const inputPath = c.req.query('path') || homedir();
-    const resolvedPath = resolve(inputPath);
+    // Resolve relative paths against homedir (not process.cwd()) for
+    // consistency with /api/fs/browse defaults.
+    const resolvedInput = inputPath.startsWith('/') ? inputPath : join(homedir(), inputPath);
+    const resolvedPath = resolve(resolvedInput);
     const parent = dirname(resolvedPath);
     const isRoot = resolvedPath === parent;
 

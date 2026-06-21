@@ -150,6 +150,18 @@ export function FolderPickerDialog({
     }
   }, [open, initialPath]);
 
+  // Sync with the server's resolved path. The server may resolve our requested
+  // path differently (e.g., '' → homedir()), so we adopt the server's
+  // authoritative currentPath to prevent relative paths from leaking into
+  // join() calls during navigation.
+  const serverCurrentPath = directoryData?.currentPath;
+  useEffect(() => {
+    if (serverCurrentPath && serverCurrentPath !== navigatingPath) {
+      setCurrentPath(serverCurrentPath);
+      setNavigatingPath(serverCurrentPath);
+    }
+  }, [serverCurrentPath, navigatingPath]);
+
   useEffect(() => {
     setSelectedIndex(0);
   }, [searchQuery]);
