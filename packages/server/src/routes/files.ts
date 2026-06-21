@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { accessSync, constants } from 'fs';
 import { homedir } from 'os';
-import { join, dirname, resolve } from 'path';
+import { join, dirname, resolve, isAbsolute } from 'path';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
@@ -116,12 +116,11 @@ export function registerFileRoutes(app: Hono): void {
   app.get('/api/fs/browse', async (c) => {
     // When no path is provided (or it's empty), default to home directory.
     const path = c.req.query('path') || homedir();
-    // Expand ~ to homedir, and resolve to absolute. We pass homedir() to
-    // resolve() as the base for any relative path so that browse/parent
-    // navigation stays consistent with the default (home) rather than
-    // process.cwd(), which differs between dev and production.
+    // Expand ~ to homedir, and resolve to absolute. Relative paths are
+    // anchored to homedir (not process.cwd()) so browse/parent navigation
+    // stays consistent with the default regardless of dev vs production.
     const expanded = path.startsWith('~') ? expandPath(path) : path;
-    const resolvedPath = resolve(expanded.startsWith('/') ? expanded : join(homedir(), expanded));
+    const resolvedPath = resolve(isAbsolute(expanded) ? expanded : join(homedir(), expanded));
     const isRoot = resolvedPath === dirname(resolvedPath);
 
     try {
@@ -136,7 +135,7 @@ export function registerFileRoutes(app: Hono): void {
     const inputPath = c.req.query('path') || homedir();
     // Resolve relative paths against homedir (not process.cwd()) for
     // consistency with /api/fs/browse defaults.
-    const resolvedInput = inputPath.startsWith('/') ? inputPath : join(homedir(), inputPath);
+    const resolvedInput = isAbsolute(inputPath) ? inputPath : join(homedir(), inputPath);
     const resolvedPath = resolve(resolvedInput);
     const parent = dirname(resolvedPath);
     const isRoot = resolvedPath === parent;
