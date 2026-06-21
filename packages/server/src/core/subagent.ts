@@ -1,4 +1,4 @@
-import type { ToolDefinition, TextPart, Session } from '@jean2/sdk';
+import type { ToolDefinition, TextPart, Session, ResponseFormat } from '@jean2/sdk';
 import { getPreconfig, listSubagentPreconfigs } from './preconfig';
 import { createSession, getSession, updateSession } from '@/store';
 import { executeChildSession } from './child-session';
@@ -61,12 +61,16 @@ export interface SubagentInput {
   broadcastSessionCreated?: BroadcastSessionFn;
   broadcastSessionUpdated?: BroadcastSessionFn;
   broadcastToSession?: BroadcastFn;
+  /** Optional JSON Schema for structured subagent output */
+  outputSchema?: Record<string, unknown>;
 }
 
 export interface SubagentOutput {
   task_id: string;
   result: string;
   error?: string;
+  /** Structured JSON result when outputSchema was provided */
+  structuredResult?: Record<string, unknown>;
 }
 
 export async function getSubagentToolDefinition(allowedSubagentIds?: string[]): Promise<ToolDefinition> {
@@ -100,6 +104,19 @@ Usage notes:
 3. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 4. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
 5. If the agent description mentions that it should be proactively used, then you should try your best to use it without the user having to ask you to do so first. Use your judgement.
+6. Use the outputSchema parameter (a JSON Schema) to get structured, machine-readable output from a subagent instead of a free-text prose response. The subagent will be constrained to return JSON conforming to that schema.
+
+When to use outputSchema (IMPORTANT - prefer it over free text in these cases):
+- AGGREGATION: When spawning multiple parallel agents and you need to combine, filter, compare, or deduplicate their results. Define a shared schema for all agents so you can merge results programmatically.
+- DATA EXTRACTION: When a subagent is searching, reading, or analyzing something and you need specific fields back (e.g., { findings: [{ file, line, issue, severity }], summary: string }).
+- DECISIONS: When a subagent must return a verdict, classification, or yes/no with reasoning (e.g., { approved: boolean, concerns: string[], confidence: number }).
+- LIST GENERATION: When a subagent finds or produces a list you need to iterate over (e.g., { files: string[], commands: string[] }).
+
+When NOT to use it:
+- The task is exploratory and the output shape is unpredictable (e.g., "summarize what you found about X").
+- The subagent is writing code or modifying files directly — its result is the code changes, not a report.
+
+Pattern for aggregation (map-reduce): define one schema, spawn N agents each with that outputSchema, then in your next turn merge the returned JSON objects. This keeps your context clean because you can reason about the data instead of re-parsing prose from each agent.
 
 Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents at the maximum depth.`,
     timeout: 300000,
@@ -125,6 +142,11 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
           description:
             'Set this to resume a previous subagent session (continues with its previous messages and tool outputs)',
         },
+        outputSchema: {
+          type: 'object',
+          description: 'Optional JSON Schema that the subagent must conform to in its final response. Use this when you need structured, parseable output (e.g., extracted data, categorized findings, structured analysis). When omitted, the subagent returns free text.',
+          additionalProperties: true,
+        },
       },
       required: ['description', 'prompt', 'subagent_type'],
     },
@@ -134,6 +156,7 @@ Note: Subagent depth is limited to 2 levels. You cannot spawn further subagents 
         task_id: { type: 'string' },
         result: { type: 'string' },
         error: { type: 'string' },
+        structuredResult: { type: 'object', additionalProperties: true },
       },
     },
   };
@@ -155,6 +178,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     broadcastSessionCreated: broadcastSessCreated = broadcastSessionCreated as BroadcastSessionFn,
     broadcastSessionUpdated: broadcastSessUpdated = broadcastSessionUpdated as BroadcastSessionFn,
     broadcastToSession: broadcastToSessionFn,
+    outputSchema,
   } = input;
 
   // Check if already aborted before starting
@@ -283,6 +307,18 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       abortSignal.addEventListener('abort', abortHandler);
     }
 
+    // Wrap inline schema as a transient ResponseFormat so the existing
+    // structured output pipeline in agent.ts applies to the subagent.
+    const responseFormat: ResponseFormat | undefined = outputSchema
+      ? {
+          id: `inline-task-${randomUUID()}`,
+          name: 'Task Output',
+          schema: outputSchema,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+      : undefined;
+
     const result = await executeChildSession({
       parentSessionId: sessionId,
       childSessionId: childSession.id,
@@ -303,6 +339,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       broadcastToSession: broadcastToSessionFn ?? ((msg: import('@jean2/sdk').ServerMessage) => {
         broadcastToSessionEvent(sessionId, msg);
       }),
+      ...(responseFormat ? { responseFormat } : {}),
     });
 
     // Check if was aborted during execution
@@ -336,6 +373,9 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       .map((part) => part.text || '')
       .pop() ?? '';
 
+    // Extract structured output if it was captured
+    const structuredResult = result.structuredOutput?.data;
+
     // If there's an error and no text, return it directly
     if (result.error && !text) {
       return {
@@ -352,11 +392,15 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       '<task_result>',
       text || 'No response generated',
       '</task_result>',
+      structuredResult
+        ? '\n<structured_result>\n' + JSON.stringify(structuredResult, null, 2) + '\n</structured_result>'
+        : '',
     ].join('\n');
 
     return {
       task_id: childSession.id,
       result: output,
+      ...(structuredResult ? { structuredResult } : {}),
       ...(result.error && { error: result.error }),
     };
   } catch (err: unknown) {

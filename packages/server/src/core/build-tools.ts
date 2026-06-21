@@ -92,6 +92,7 @@ export async function buildAiSdkTools(
                 }
               },
               allowedSubagentIds,
+              ...(args.outputSchema ? { outputSchema: args.outputSchema as Record<string, unknown> } : {}),
             };
 
             const result = await executeSubagent(subagentInput);

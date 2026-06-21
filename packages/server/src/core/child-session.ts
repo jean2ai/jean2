@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage } from '@jean2/sdk';
+import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage, ResponseFormat, StructuredOutputData } from '@jean2/sdk';
 import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { broadcastEvent, sendToControllerEvent, sendToAskTargetsEvent, type BroadcastFn } from './broadcast';
@@ -20,11 +20,14 @@ export async function executeChildSession(options: {
   variant?: string | null;
   broadcast?: BroadcastFn;
   broadcastToSession?: BroadcastFn;
+  /** Optional response format for structured subagent output */
+  responseFormat?: ResponseFormat;
 }): Promise<{
   parts: Part[];
   error?: string;
+  structuredOutput?: StructuredOutputData;
 }> {
-  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant, broadcast: broadcastFn = broadcastEvent, broadcastToSession: broadcastToSessionFn = broadcastFn } = options;
+  const { childSessionId, preconfig, prompt, workspacePath, workspaceId, resumeFromHistory, modelId, providerId, variant, broadcast: broadcastFn = broadcastEvent, broadcastToSession: broadcastToSessionFn = broadcastFn, responseFormat } = options;
 
   // Resolve additionalPaths from workspace
   const workspace = workspaceId ? getWorkspace(workspaceId) : null;
@@ -79,6 +82,7 @@ export async function executeChildSession(options: {
 
   const finalParts: Part[] = [];
   let error: string | undefined;
+  let structuredOutput: StructuredOutputData | undefined;
 
   function findRootSessionId(sessionId: string): string {
     let current = sessionId;
@@ -129,6 +133,7 @@ export async function executeChildSession(options: {
       variant: variant ?? undefined,
       maxSteps: getLLMSubagentMaxSteps(),
       broadcastFn: askBroadcastFn,
+      ...(responseFormat ? { responseFormat } : {}),
     })) {
     if (event.type === 'message.created') {
       broadcastToSessionFn(event);
@@ -144,6 +149,10 @@ export async function executeChildSession(options: {
     } else if (event.type === 'part.updated') {
       broadcastToSessionFn(event);
     } else if (event.type === 'message.updated' && event.message.role === 'assistant') {
+      // Capture structured output if present on the final message
+      if ('structuredOutput' in event.message && event.message.structuredOutput) {
+        structuredOutput = event.message.structuredOutput as StructuredOutputData;
+      }
       updateMessage(event.message.id, event.message);
       broadcastToSessionFn(event);
     } else if (event.type === 'usage') {
@@ -191,5 +200,6 @@ export async function executeChildSession(options: {
   return {
     parts: finalParts,
     error,
+    ...(structuredOutput ? { structuredOutput } : {}),
   };
 }

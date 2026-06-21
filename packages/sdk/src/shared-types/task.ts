@@ -15,9 +15,13 @@ export interface TaskToolParams {
   
   /** Optional: Resume a previous subagent session */
   task_id?: string;
-  
+
   /** Optional: The command that triggered this task */
   command?: string;
+
+  /** Optional: JSON Schema that the subagent's final response must conform to.
+   * When provided, the subagent produces structured JSON output instead of free text. */
+  outputSchema?: Record<string, unknown>;
 }
 
 /**
@@ -32,9 +36,13 @@ export interface TaskToolResult {
   
   /** The subagent's response text */
   result?: string;
-  
+
   /** Error message if failed */
   error?: string;
+
+  /** Structured JSON result, present only when outputSchema was provided
+   * and the subagent successfully produced conforming output. */
+  structuredResult?: Record<string, unknown>;
 }
 
 /**
