@@ -102,7 +102,10 @@ interface ModelFormData {
   maxOutputTokens?: number;
   tier: Tier;
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
-  capabilities?: { input?: { text?: boolean; image?: boolean; video?: boolean; file?: string[] } };
+  capabilities?: {
+    input?: { text?: boolean; image?: boolean; video?: boolean; file?: string[] };
+    structuredOutput?: { mode: 'native' | 'prompt' };
+  };
 }
 
 const emptyProviderForm: ProviderFormData = { id: '', name: '' };
@@ -147,20 +150,42 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   ): ModelFormData {
     const input = { ...(form.capabilities?.input) };
     input[field] = value;
-    const hasCapabilities = input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0);
+    const hasInputCaps = input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0);
+    const hasOtherCaps = !!form.capabilities?.structuredOutput;
     return {
       ...form,
-      capabilities: hasCapabilities ? { input } : undefined,
+      capabilities: (hasInputCaps || hasOtherCaps)
+        ? { ...(hasInputCaps ? { input } : {}), ...(form.capabilities?.structuredOutput ? { structuredOutput: form.capabilities.structuredOutput } : {}) }
+        : undefined,
     };
   }
 
   function updateFileTypes(form: ModelFormData, raw: string): ModelFormData {
     const file = raw.trim() ? raw.split(',').map(s => s.trim()).filter(Boolean) : undefined;
     const input = { ...form.capabilities?.input, file };
-    const hasCapabilities = input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0);
+    const hasInputCaps = input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0);
+    const hasOtherCaps = !!form.capabilities?.structuredOutput;
     return {
       ...form,
-      capabilities: hasCapabilities ? { input } : undefined,
+      capabilities: (hasInputCaps || hasOtherCaps) ? { ...(hasInputCaps ? { input } : {}), ...form.capabilities?.structuredOutput ? { structuredOutput: form.capabilities.structuredOutput } : {} } : undefined,
+    };
+  }
+
+  function updateStructuredOutputMode(form: ModelFormData, mode: 'native' | 'prompt' | 'none'): ModelFormData {
+    const input = form.capabilities?.input;
+    const hasInputCaps = input && (input.text || input.image || input.video || (Array.isArray(input.file) && input.file.length > 0));
+    if (mode === 'none') {
+      return {
+        ...form,
+        capabilities: hasInputCaps ? { input } : undefined,
+      };
+    }
+    return {
+      ...form,
+      capabilities: {
+        ...(hasInputCaps ? { input } : {}),
+        structuredOutput: { mode },
+      },
     };
   }
 
@@ -385,7 +410,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   if (isCreatingProvider || editingProvider) {
     const editing = config?.providers.find(p => p.id === editingProvider);
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">
             {isCreatingProvider ? 'New Provider' : `Edit: ${editing?.name || editingProvider}`}
@@ -452,7 +477,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
       : null;
 
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">
             {isCreatingModel ? `New Model (${provider?.name || providerId})` : `Edit: ${existingModel?.name || editingModel?.modelId}`}
@@ -581,6 +606,21 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
                 className="mt-1 font-mono text-xs"
               />
             </div>
+            <div>
+              <Label className="text-xs">Structured Output</Label>
+              <select
+                value={modelForm.capabilities?.structuredOutput?.mode ?? 'none'}
+                onChange={(e) => setModelForm(prev => updateStructuredOutputMode(prev, e.target.value as 'native' | 'prompt' | 'none'))}
+                className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              >
+                <option value="none">Default (native)</option>
+                <option value="native">Native (json_schema)</option>
+                <option value="prompt">Prompt-based (schema in system prompt)</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Use Prompt-based for providers that strip JSON schema (GLM, MiniMax). Native works for OpenAI, DeepSeek, etc.
+              </p>
+            </div>
           </div>
 
           <Separator className="my-2" />
@@ -632,7 +672,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="border rounded-lg p-3 space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium flex items-center gap-2">
@@ -878,6 +918,11 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
                                 {model.capabilities?.input?.file && model.capabilities.input.file.length > 0 && (
                                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                     Files ({model.capabilities.input.file.length})
+                                  </Badge>
+                                )}
+                                {model.capabilities?.structuredOutput && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    Struct: {model.capabilities.structuredOutput.mode}
                                   </Badge>
                                 )}
                                 {model.variants && Object.keys(model.variants).length > 0 && (

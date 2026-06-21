@@ -163,7 +163,7 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <p className="text-sm text-muted-foreground">
         Connect subscription-based providers using OAuth. No API keys needed.
       </p>

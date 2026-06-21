@@ -2,6 +2,24 @@ import { create } from 'zustand';
 import type { PermissionRiskLevel } from '@jean2/sdk';
 import type { UseBoundStore, StoreApi } from 'zustand';
 
+// --- Configuration Section (deep-linking) ---
+export type ConfigurationSection =
+  | 'providers'
+  | 'oauth'
+  | 'models'
+  | 'prompts'
+  | 'preconfigs'
+  | 'response-formats'
+  | 'env';
+
+interface ConfigurationSectionState {
+  configurationSection: ConfigurationSection;
+}
+
+interface ConfigurationSectionActions {
+  setConfigurationSection: (section: ConfigurationSection) => void;
+}
+
 // --- Dialogs ---
 interface DialogState {
   showSettings: boolean;
@@ -87,7 +105,7 @@ interface AutoApproveActions {
 }
 
 // --- Combined Store ---
-type UIStore = DialogState & DialogActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions & AutoApproveState & AutoApproveActions;
+type UIStore = DialogState & DialogActions & ConfigurationSectionState & ConfigurationSectionActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions & AutoApproveState & AutoApproveActions;
 
 export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set) => ({
   // --- Dialogs ---
@@ -102,6 +120,10 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   setShowTools: (show) => set({ showTools: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowWorkspacePermissions: (show) => set({ showWorkspacePermissions: show }),
+
+  // --- Configuration Section ---
+  configurationSection: 'providers',
+  setConfigurationSection: (section) => set({ configurationSection: section }),
 
   // --- Settings ---
   chatFinishSoundEnabled: getStoredBoolean(CHAT_FINISH_SOUND_KEY, true),

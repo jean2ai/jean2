@@ -350,6 +350,13 @@ export interface LoadedTool {
 // Tool EnvVar Status
 // ===========================================
 
+export interface EnvVarLink {
+  label: string;
+  url: string;
+}
+
+export type EnvVarSource = 'preset' | 'tool' | 'custom';
+
 export interface ToolEnvVarStatus {
   key: string;
   configured: boolean;
@@ -359,6 +366,9 @@ export interface ToolEnvVarStatus {
   defaultValue?: string;
   example?: string;
   usedBy?: string[];
+  source?: EnvVarSource;
+  category?: string;
+  link?: EnvVarLink;
 }
 
 // ===========================================

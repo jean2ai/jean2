@@ -222,6 +222,16 @@ export interface ModelCapabilities {
     video?: boolean;
     file?: string[];
   };
+  /**
+   * Structured output handling mode.
+   * - `native`: Provider supports `json_schema` response format (OpenAI, DeepSeek, etc.)
+   * - `prompt`: Provider strips schema / only supports `json_object`. Schema is injected
+   *   into the system prompt and JSON is parsed from text output (GLM, MiniMax)
+   * - omitted: same as `native` (default)
+   */
+  structuredOutput?: {
+    mode: 'native' | 'prompt';
+  };
 }
 
 export interface ModelDefinition {

@@ -14,6 +14,7 @@ import { getModelWithMetadata } from './model-utils';
 import { createStepCallbacks, type CallbackEvent } from './step-handlers';
 import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
+import { buildSchemaPromptInstruction, extractJsonFromText } from './structured-output';
 import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
 import { loadMemoryInstructions, MEMORY_GUIDANCE } from '@/memory';
 import { SKILL_MANAGE_GUIDANCE } from '@/skills';
@@ -228,8 +229,19 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     providerOptions = { [providerOptionsKey]: variantOpts };
   }
 
-  // Build structured output if responseFormat is specified
-  const streamOutput = options.responseFormat
+  // Structured output handling: providers that strip the schema (GLM, MiniMax)
+  // need it injected into the system prompt instead of using Output.object().
+  const structuredOutputMode = modelDef?.capabilities?.structuredOutput?.mode ?? 'native';
+  const usePromptBasedStructuredOutput =
+    options.responseFormat && structuredOutputMode === 'prompt';
+
+  // For prompt-based mode, inject the schema instruction into the system message
+  if (usePromptBasedStructuredOutput && options.responseFormat && systemMessage) {
+    systemMessage = systemMessage + '\n\n' + buildSchemaPromptInstruction(options.responseFormat);
+  }
+
+  // For native mode (or no response format), use Output.object() as normal
+  const streamOutput = options.responseFormat && !usePromptBasedStructuredOutput
     ? Output.object({ schema: jsonSchema(options.responseFormat.schema) })
     : undefined;
 
@@ -405,13 +417,28 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     // Extract structured output if response format was specified
     if (options.responseFormat) {
       try {
-        const output = await result.output;
-        if (output && typeof output === 'object') {
-          structuredOutputData = {
-            formatName: options.responseFormat.name,
-            data: output as Record<string, unknown>,
-            schema: options.responseFormat.schema,
-          };
+        if (usePromptBasedStructuredOutput) {
+          // Prompt-based mode: parse JSON from accumulated text output
+          const parsed = extractJsonFromText(streamCtx.currentText);
+          if (parsed) {
+            structuredOutputData = {
+              formatName: options.responseFormat.name,
+              data: parsed,
+              schema: options.responseFormat.schema,
+            };
+          } else {
+            console.warn('Failed to parse structured output from text response');
+          }
+        } else {
+          // Native mode: get validated object from AI SDK
+          const output = await result.output;
+          if (output && typeof output === 'object') {
+            structuredOutputData = {
+              formatName: options.responseFormat.name,
+              data: output as Record<string, unknown>,
+              schema: options.responseFormat.schema,
+            };
+          }
         }
       } catch (_outputErr) {
         console.warn('Failed to get structured output:', _outputErr);

@@ -1,7 +1,8 @@
 import { atomicWriteFile, readFileSafe } from './files';
 import { getEnvFilePath } from '@/paths';
-import { getJean2EnvValue, reloadJean2Env } from '@/env';
+import { getJean2EnvValue, getAllJean2EnvKeys, reloadJean2Env } from '@/env';
 import { listTools } from '@/tools/registry';
+import { ENV_PRESETS, getPreset, isPresetKey } from './env-presets';
 import { ConfigurationPersistenceError, ConfigurationValidationError } from './errors';
 
 function getEnvFilePathForModule(): string {
@@ -27,6 +28,9 @@ export interface ToolEnvVarStatus {
   defaultValue?: string;
   example?: string;
   usedBy?: string[];
+  source?: 'preset' | 'tool' | 'custom';
+  category?: string;
+  link?: { label: string; url: string };
 }
 
 export interface ToolEnvStatus {
@@ -39,47 +43,95 @@ export function isSensitiveEnvKey(key: string): boolean {
 }
 
 export async function listToolEnvVars(): Promise<ToolEnvStatus> {
-  const tools = await listTools();
+  const result = new Map<string, ToolEnvVarStatus>();
+  const configuredKeys = new Set(getAllJean2EnvKeys());
 
-  const envVarToolsMap = new Map<string, string[]>();
-
-  for (const tool of tools) {
-    const envVars = tool.env;
-    if (!envVars || !Array.isArray(envVars)) {
-      continue;
+  // --- Presets ---
+  for (const preset of ENV_PRESETS) {
+    const value = getJean2EnvValue(preset.key);
+    const configured = value !== undefined && value !== '';
+    const status: ToolEnvVarStatus = {
+      key: preset.key,
+      configured,
+      sensitive: preset.sensitive,
+      source: 'preset',
+      category: preset.category,
+      description: preset.description,
+      ...(preset.example && { example: preset.example }),
+      ...(preset.defaultValue && { defaultValue: preset.defaultValue }),
+      ...(preset.link && { link: preset.link }),
+    };
+    if (configured && !preset.sensitive) {
+      status.value = value;
     }
+    result.set(preset.key, status);
+    configuredKeys.delete(preset.key);
+  }
 
-    for (const envVar of envVars) {
-      const existing = envVarToolsMap.get(envVar) || [];
-      existing.push(tool.name);
-      envVarToolsMap.set(envVar, existing);
+  // --- Build exclusion set for keys managed by other surfaces ---
+  const excludedKeys = new Set<string>();
+
+  // JEAN2_* keys: managed by Credentials tab or server config (env.ts getters)
+  // Preset keys with JEAN2_ prefix (e.g. JEAN2_GMAIL_*) are NOT excluded
+  for (const key of configuredKeys) {
+    if (key.startsWith('JEAN2_') && !isPresetKey(key)) {
+      excludedKeys.add(key);
     }
   }
 
-  const uniqueEnvVars = Array.from(envVarToolsMap.keys());
-  const envVars: ToolEnvVarStatus[] = [];
-
-  for (const key of uniqueEnvVars) {
+  // --- Tool-declared env vars ---
+  const tools = await listTools();
+  const envVarToolsMap = new Map<string, string[]>();
+  for (const tool of tools) {
+    if (tool.env && Array.isArray(tool.env)) {
+      for (const envVar of tool.env) {
+        const existing = envVarToolsMap.get(envVar) || [];
+        existing.push(tool.name);
+        envVarToolsMap.set(envVar, existing);
+        excludedKeys.add(envVar); // also exclude from custom
+      }
+    }
+  }
+  for (const [key, usedBy] of envVarToolsMap) {
+    if (result.has(key)) continue; // skip if already a preset
     const value = getJean2EnvValue(key);
     const configured = value !== undefined && value !== '';
     const sensitive = isSensitiveEnvKey(key);
-
     const status: ToolEnvVarStatus = {
       key,
       configured,
       sensitive,
-      usedBy: envVarToolsMap.get(key),
+      source: 'tool',
+      usedBy,
     };
-
-    if (!sensitive && configured) {
+    if (configured && !sensitive) {
       status.value = value;
     }
-
-    envVars.push(status);
+    result.set(key, status);
+    configuredKeys.delete(key);
   }
 
-  envVars.sort((a, b) => a.key.localeCompare(b.key));
+  // --- Custom: any remaining configured key not excluded or a preset ---
+  for (const key of configuredKeys) {
+    if (excludedKeys.has(key)) continue;
+    if (result.has(key)) continue;
+    const value = getJean2EnvValue(key);
+    const configured = value !== undefined && value !== '';
+    if (!configured) continue;
+    const sensitive = isSensitiveEnvKey(key);
+    const status: ToolEnvVarStatus = {
+      key,
+      configured: true,
+      sensitive,
+      source: 'custom',
+    };
+    if (!sensitive) {
+      status.value = value;
+    }
+    result.set(key, status);
+  }
 
+  const envVars = Array.from(result.values()).sort((a, b) => a.key.localeCompare(b.key));
   return { envVars };
 }
 
@@ -128,13 +180,18 @@ export async function setToolEnvVar(key: string, value: string): Promise<ToolEnv
     await atomicWriteFile(getEnvFilePathForModule(), updatedLines.join('\n') + '\n');
     reloadJean2Env();
 
+    const preset = getPreset(trimmedKey);
     const status: ToolEnvVarStatus = {
       key: trimmedKey,
       configured: true,
-      sensitive,
+      sensitive: preset ? preset.sensitive : sensitive,
+      source: preset ? 'preset' : 'custom',
+      ...(preset && { category: preset.category, description: preset.description }),
+      ...(preset?.example && { example: preset.example }),
+      ...(preset?.link && { link: preset.link }),
     };
 
-    if (!sensitive) {
+    if (!status.sensitive) {
       status.value = trimmedValue;
     }
 
@@ -151,7 +208,8 @@ export async function clearToolEnvVar(key: string): Promise<ToolEnvVarStatus> {
   }
 
   const trimmedKey = key.trim();
-  const sensitive = isSensitiveEnvKey(trimmedKey);
+  const preset = getPreset(trimmedKey);
+  const sensitive = preset ? preset.sensitive : isSensitiveEnvKey(trimmedKey);
 
   try {
     const content = await readFileSafe(getEnvFilePathForModule());
@@ -161,6 +219,7 @@ export async function clearToolEnvVar(key: string): Promise<ToolEnvVarStatus> {
         key: trimmedKey,
         configured: false,
         sensitive,
+        ...(preset && { source: 'preset' as const, category: preset.category, description: preset.description }),
       };
     }
 
@@ -188,6 +247,7 @@ export async function clearToolEnvVar(key: string): Promise<ToolEnvVarStatus> {
       key: trimmedKey,
       configured: false,
       sensitive,
+      ...(preset && { source: 'preset' as const, category: preset.category, description: preset.description }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -31,6 +31,9 @@ export interface ModelWithStatus {
       video?: boolean;
       file?: string[];
     };
+    structuredOutput?: {
+      mode: 'native' | 'prompt';
+    };
   };
   providerId: string;
   providerName: string;
@@ -72,6 +75,9 @@ export interface CreateModelRequest {
       video?: boolean;
       file?: string[];
     };
+    structuredOutput?: {
+      mode: 'native' | 'prompt';
+    };
   };
 }
 
@@ -87,6 +93,9 @@ export interface UpdateModelRequest {
       image?: boolean;
       video?: boolean;
       file?: string[];
+    };
+    structuredOutput?: {
+      mode: 'native' | 'prompt';
     };
   };
 }

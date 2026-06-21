@@ -87,6 +87,9 @@
               "text": true,
               "image": true,
               "video": false
+            },
+            "structuredOutput": {
+              "mode": "prompt"
             }
           }
         },
@@ -95,14 +98,24 @@
           "name": "MiniMax M2.7",
           "contextWindow": 204800,
           "maxOutputTokens": 32000,
-          "tier": "budget"
+          "tier": "budget",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         },
         {
           "id": "MiniMax-M2.5",
           "name": "MiniMax M2.5",
           "contextWindow": 204800,
           "maxOutputTokens": 32000,
-          "tier": "budget"
+          "tier": "budget",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         }
       ]
     },
@@ -127,6 +140,11 @@
                 "reasoningEffort": "max"
               }
             }
+          },
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
           }
         },
         {
@@ -134,35 +152,60 @@
           "name": "GLM-5.1",
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
-          "tier": "premium"
+          "tier": "premium",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         },
         {
           "id": "glm-5-turbo",
           "name": "GLM-5 (Turbo)",
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
-          "tier": "premium"
+          "tier": "premium",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         },
         {
           "id": "glm-5",
           "name": "GLM-5",
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
-          "tier": "premium"
+          "tier": "premium",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         },
         {
           "id": "glm-4.7",
           "name": "GLM-4.7",
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
-          "tier": "premium"
+          "tier": "premium",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         },
         {
           "id": "glm-4.7-flash",
           "name": "GLM-4.7 (Flash)",
           "contextWindow": 200000,
           "maxOutputTokens": 128000,
-          "tier": "budget"
+          "tier": "budget",
+          "capabilities": {
+            "structuredOutput": {
+              "mode": "prompt"
+            }
+          }
         }
       ]
     },

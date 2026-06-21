@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Sun, Moon, Monitor, User, Palette, Keyboard, Volume2, VolumeX } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
 import {
@@ -8,6 +9,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -63,6 +71,14 @@ function SchemeButton({ scheme, currentScheme, onClick }: SchemeButtonProps) {
   );
 }
 
+type SettingsSection = 'account' | 'appearance' | 'keybinds';
+
+const SECTIONS: { value: SettingsSection; label: string; icon: typeof User }[] = [
+  { value: 'account', label: 'Account', icon: User },
+  { value: 'appearance', label: 'Appearance', icon: Palette },
+  { value: 'keybinds', label: 'Keybinds', icon: Keyboard },
+];
+
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +97,7 @@ export function SettingsDialog({
   sdkClient,
 }: SettingsDialogProps) {
   const { mode, scheme, setMode, setScheme } = useTheme();
+  const [section, setSection] = useState<SettingsSection>('account');
 
   const { chatFinishSoundEnabled, setChatFinishSoundEnabled, permissionSoundEnabled, setPermissionSoundEnabled } = useUIStore(
     useShallow((s) => ({
@@ -103,7 +120,6 @@ export function SettingsDialog({
     { keys: [mod, 'Shift', 'N'], description: 'New window' },
     { keys: [mod, 'Shift', 'F'], description: 'Toggle follow/free mode' },
     { keys: ['Shift', 'Esc'], description: 'Close focused panel' },
-
     { keys: ['Shift', 'Enter'], description: 'New line in input' },
     { keys: ['Enter'], description: 'Send message' },
     { keys: ['↑', '↓', '←', '→'], description: 'Navigate sessions' },
@@ -113,186 +129,208 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="flex flex-col overflow-hidden p-3 sm:p-4 gap-3 sm:gap-4 max-w-[calc(100vw-0.5rem)] sm:max-w-[700px] h-[85dvh] sm:h-[85vh]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
             Manage your preferences
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="account" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="account">
-              <User className="size-4 sm:size-3" data-icon="inline-start" />
-              <span className="hidden sm:inline">Account</span>
-            </TabsTrigger>
-            <TabsTrigger value="appearance">
-              <Palette className="size-4 sm:size-3" data-icon="inline-start" />
-              <span className="hidden sm:inline">Appearance</span>
-            </TabsTrigger>
-            <TabsTrigger value="keybinds">
-              <Keyboard className="size-4 sm:size-3" data-icon="inline-start" />
-              <span className="hidden sm:inline">Keybinds</span>
-            </TabsTrigger>
+        {/* Mobile: Select dropdown */}
+        <Select value={section} onValueChange={(v) => setSection(v as SettingsSection)}>
+          <SelectTrigger className="sm:hidden w-full shrink-0" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SECTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                <s.icon className="size-4" />
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Tabs
+          value={section}
+          onValueChange={(v) => setSection(v as SettingsSection)}
+          orientation="vertical"
+          className="mt-2 flex-1 min-h-0"
+        >
+          {/* Desktop sidebar */}
+          <TabsList className="hidden sm:flex flex-col h-fit w-40 shrink-0 items-stretch gap-0.5 bg-transparent p-1 rounded-lg">
+            {SECTIONS.map((s) => (
+              <TabsTrigger
+                key={s.value}
+                value={s.value}
+                className="justify-start px-3 py-1.5 text-sm"
+              >
+                <s.icon className="size-4" data-icon="inline-start" />
+                <span>{s.label}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="account" className="mt-4">
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label className="text-sm font-medium">Session</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Manage your current session
-                </p>
-                {isConnected ? (
-                  <LogoutButton token={apiToken} onLogout={onLogout} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No active session
-                  </p>
-                )}
-              </div>
-
-              <Separator />
-
-              <VersionInfo sdkClient={sdkClient} enabled={open} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="appearance" className="mt-4">
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label className="text-sm font-medium">Mode</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Choose light, dark, or system theme
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant={mode === 'light' ? 'default' : 'outline'}
-                    className="justify-start"
-                    onClick={() => setMode('light')}
-                  >
-                    <Sun className="size-4" data-icon="inline-start" />
-                    Light
-                  </Button>
-                  <Button
-                    variant={mode === 'dark' ? 'default' : 'outline'}
-                    className="justify-start"
-                    onClick={() => setMode('dark')}
-                  >
-                    <Moon className="size-4" data-icon="inline-start" />
-                    Dark
-                  </Button>
-                  <Button
-                    variant={mode === 'system' ? 'default' : 'outline'}
-                    className="justify-start"
-                    onClick={() => setMode('system')}
-                  >
-                    <Monitor className="size-4" data-icon="inline-start" />
-                    System
-                  </Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <Label className="text-sm font-medium mb-3 block">Notification Sounds</Label>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="size-4 text-muted-foreground" />
-                      <span className="text-sm">Chat completion</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setChatFinishSoundEnabled(!chatFinishSoundEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatFinishSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-                      />
-                    </button>
+          {/* Shared content area */}
+          <div className="dialog-scrollbar flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain rounded-lg border">
+              <TabsContent value="account" className="mt-0">
+                <div className="p-3 sm:p-4 flex flex-col gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Session</Label>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Manage your current session
+                    </p>
+                    {isConnected ? (
+                      <LogoutButton token={apiToken} onLogout={onLogout} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No active session
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <VolumeX className="size-4 text-muted-foreground" />
-                      <span className="text-sm">Permission requests</span>
+
+                  <Separator />
+
+                  <VersionInfo sdkClient={sdkClient} enabled={open} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="appearance" className="mt-0">
+                <div className="p-3 sm:p-4 flex flex-col gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Mode</Label>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Choose light, dark, or system theme
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        variant={mode === 'light' ? 'default' : 'outline'}
+                        className="justify-start"
+                        onClick={() => setMode('light')}
+                      >
+                        <Sun className="size-4" data-icon="inline-start" />
+                        Light
+                      </Button>
+                      <Button
+                        variant={mode === 'dark' ? 'default' : 'outline'}
+                        className="justify-start"
+                        onClick={() => setMode('dark')}
+                      >
+                        <Moon className="size-4" data-icon="inline-start" />
+                        Dark
+                      </Button>
+                      <Button
+                        variant={mode === 'system' ? 'default' : 'outline'}
+                        className="justify-start"
+                        onClick={() => setMode('system')}
+                      >
+                        <Monitor className="size-4" data-icon="inline-start" />
+                        System
+                      </Button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setPermissionSoundEnabled(!permissionSoundEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${permissionSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block">Notification Sounds</Label>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Volume2 className="size-4 text-muted-foreground" />
+                          <span className="text-sm">Chat completion</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setChatFinishSoundEnabled(!chatFinishSoundEnabled)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatFinishSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                          />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <VolumeX className="size-4 text-muted-foreground" />
+                          <span className="text-sm">Permission requests</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPermissionSoundEnabled(!permissionSoundEnabled)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${permissionSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <Label className="text-sm font-medium">Color Scheme</Label>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Choose your preferred color palette
+                    </p>
+                    <div className="grid grid-cols-5 gap-2">
+                      <SchemeButton
+                        scheme="neutral"
+                        currentScheme={scheme}
+                        onClick={setScheme}
                       />
-                    </button>
+                      <SchemeButton
+                        scheme="ocean"
+                        currentScheme={scheme}
+                        onClick={setScheme}
+                      />
+                      <SchemeButton
+                        scheme="forest"
+                        currentScheme={scheme}
+                        onClick={setScheme}
+                      />
+                      <SchemeButton
+                        scheme="sunset"
+                        currentScheme={scheme}
+                        onClick={setScheme}
+                      />
+                      <SchemeButton
+                        scheme="amethyst"
+                        currentScheme={scheme}
+                        onClick={setScheme}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              </TabsContent>
 
-              <Separator />
-
-              <div>
-                <Label className="text-sm font-medium">Color Scheme</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Choose your preferred color palette
-                </p>
-                <div className="grid grid-cols-5 gap-2">
-                  <SchemeButton
-                    scheme="neutral"
-                    currentScheme={scheme}
-                    onClick={setScheme}
-                  />
-                  <SchemeButton
-                    scheme="ocean"
-                    currentScheme={scheme}
-                    onClick={setScheme}
-                  />
-                  <SchemeButton
-                    scheme="forest"
-                    currentScheme={scheme}
-                    onClick={setScheme}
-                  />
-                  <SchemeButton
-                    scheme="sunset"
-                    currentScheme={scheme}
-                    onClick={setScheme}
-                  />
-                  <SchemeButton
-                    scheme="amethyst"
-                    currentScheme={scheme}
-                    onClick={setScheme}
-                  />
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="keybinds" className="mt-4">
-            <div className="flex flex-col gap-2">
-              {shortcuts.map((shortcut, index) => (
-                <div key={index} className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-1">
-                    {shortcut.keys.map((key, keyIndex) => (
-                      <span key={keyIndex}>
-                        <kbd className="font-mono bg-muted rounded px-2 py-1 text-xs">
-                          {key}
-                        </kbd>
-                        {keyIndex < shortcut.keys.length - 1 && (
-                          <span className="mx-1 text-muted-foreground">+</span>
-                        )}
+              <TabsContent value="keybinds" className="mt-0">
+                <div className="p-3 sm:p-4 flex flex-col gap-2">
+                  {shortcuts.map((shortcut, index) => (
+                    <div key={index} className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {shortcut.keys.map((key, keyIndex) => (
+                          <span key={keyIndex}>
+                            <kbd className="font-mono bg-muted rounded px-2 py-1 text-xs">
+                              {key}
+                            </kbd>
+                            {keyIndex < shortcut.keys.length - 1 && (
+                              <span className="mx-1 text-muted-foreground">+</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="text-sm text-muted-foreground text-right">
+                        {shortcut.description}
                       </span>
-                    ))}
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {shortcut.description}
-                  </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </TabsContent>
+              </TabsContent>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>

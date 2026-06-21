@@ -245,7 +245,7 @@ export function ResponseFormatsPanel({ sdkClient }: PanelProps) {
 
   if (isCreating || editingFormat) {
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={handleCancel}>
@@ -401,7 +401,7 @@ export function ResponseFormatsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {formats.length} format{formats.length !== 1 ? 's' : ''}

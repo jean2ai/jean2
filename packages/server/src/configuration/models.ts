@@ -179,6 +179,13 @@ export function validateModelsDocument(config: unknown): config is ModelsConfig 
           if (inp.video !== undefined && typeof inp.video !== 'boolean') return false;
           if (inp.file !== undefined && typeof inp.file !== 'boolean' && !Array.isArray(inp.file)) return false;
         }
+        if (cap.structuredOutput !== undefined) {
+          if (typeof cap.structuredOutput !== 'object' || cap.structuredOutput === null || Array.isArray(cap.structuredOutput)) {
+            return false;
+          }
+          const so = cap.structuredOutput as Record<string, unknown>;
+          if (so.mode !== 'native' && so.mode !== 'prompt') return false;
+        }
       }
 
       if (providerModelIds.has(m.id)) {

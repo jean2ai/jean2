@@ -81,7 +81,7 @@ export function ProviderCredentialsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <p className="text-sm text-muted-foreground">
         Manage API keys for LLM providers. Keys are stored in ~/.jean2/.env and never exposed to the client.
       </p>

@@ -227,6 +227,10 @@ export function getJean2EnvValue(key: string): string | undefined {
   return envOverlay.get(key);
 }
 
+export function getAllJean2EnvKeys(): string[] {
+  return Array.from(envOverlay.keys());
+}
+
 export function reloadJean2Env(): void {
   envOverlay.clear();
   loadEnvFile();

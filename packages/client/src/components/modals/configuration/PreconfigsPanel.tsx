@@ -249,7 +249,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
 
   if (isCreating || editingPreconfig) {
     return (
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={handleCancel}>
@@ -673,7 +673,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {preconfigs.length} preconfig{preconfigs.length !== 1 ? 's' : ''}

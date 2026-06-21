@@ -18,7 +18,7 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
   const clearEnvVar = useToolClearEnvVar(sdkClient);
 
   const tools: ToolDefinition[] = toolsData?.tools ?? [];
-  const envVars: ToolEnvVarStatus[] = envData?.envVars ?? [];
+  const envVars: ToolEnvVarStatus[] = (envData?.envVars ?? []).filter((v) => v.source === 'tool');
   const loading = toolsLoading || envLoading;
   const error = toolsError?.message ?? setEnvVar.error?.message ?? clearEnvVar.error?.message ?? null;
 
@@ -92,7 +92,7 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-3 sm:p-4 space-y-6">
       {error && (
         <div className="p-2 rounded bg-destructive/10 text-sm text-destructive">{error}</div>
       )}
@@ -109,29 +109,30 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
             return (
               <div
                 key={tool.name}
-                className="flex items-center justify-between p-2.5 rounded-lg border"
+                className="flex items-start justify-between gap-2 p-2.5 rounded-lg border"
               >
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium truncate">{tool.name}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                  <span className="text-sm font-medium break-words">{tool.name}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
                     {tool.description}
                   </p>
                 </div>
-                <div className="shrink-0 ml-2">
+                <div className="shrink-0">
                   {envStatus.total === 0 ? (
-                    <Badge variant="secondary" className="text-xs">
-                      <Check className="size-3 mr-1" />
-                      Ready
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Check className="size-3" />
+                      <span className="hidden sm:inline">Ready</span>
                     </Badge>
                   ) : envStatus.missing > 0 ? (
-                    <Badge variant="outline" className="text-xs text-orange-500 border-orange-300">
-                      <ShieldAlert className="size-3 mr-1" />
-                      {envStatus.missing} env missing
+                    <Badge variant="outline" className="text-xs gap-1 text-orange-500 border-orange-300">
+                      <ShieldAlert className="size-3" />
+                      <span>{envStatus.missing}</span>
+                      <span className="hidden sm:inline">env missing</span>
                     </Badge>
                   ) : (
-                    <Badge variant="default" className="text-xs">
-                      <ShieldCheck className="size-3 mr-1" />
-                      Configured
+                    <Badge variant="default" className="text-xs gap-1">
+                      <ShieldCheck className="size-3" />
+                      <span className="hidden sm:inline">Configured</span>
                     </Badge>
                   )}
                 </div>

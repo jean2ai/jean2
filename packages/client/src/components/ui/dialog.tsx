@@ -59,7 +59,12 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-background p-4 text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 gap-4 rounded-xl bg-background p-4 text-sm ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Center within the safe region (below notch / status bar) instead of
+          // the full viewport, so the close button stays tappable on mobile PWA.
+          // center = 50dvh + top-inset/2 ; maxH = 100dvh - top-inset.
+          // On desktop the inset is 0 so this degrades to plain centering.
+          "top-[calc(50dvh+env(safe-area-inset-top,0px)/2)] -translate-y-1/2 max-h-[calc(100dvh-env(safe-area-inset-top,0px))] overflow-y-auto",
           className
         )}
         {...props}

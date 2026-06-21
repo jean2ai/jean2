@@ -57,6 +57,8 @@ export type {
 export type {
   ToolDefinition,
   ToolEnvVarStatus,
+  EnvVarSource,
+  EnvVarLink,
   ToolResult,
   ToolModule,
   ToolContext,

@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { mkdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import type { SessionStatus, WorkspaceSettings, PermissionRiskLevel } from '@jean2/sdk';
 import {
   listWorkspaces,
@@ -21,10 +21,15 @@ import { getTerminalManager } from '@/services/terminal';
 import * as mcp from '@/mcp';
 
 function expandPath(path: string): string {
-  if (path.startsWith('~/')) {
-    return path.replace('~', homedir());
+  let expanded = path;
+  if (expanded.startsWith('~/') || expanded === '~') {
+    expanded = join(homedir(), expanded.slice(1));
   }
-  return path;
+  // Always resolve to an absolute path so relative paths (e.g. "./project",
+  // "../folder", "project") are anchored to process.cwd() instead of being
+  // stored verbatim. This is essential for cross-platform correctness (macOS,
+  // Linux, Windows with multiple drives).
+  return resolve(expanded);
 }
 
 export function registerWorkspaceRoutes(app: Hono): void {
