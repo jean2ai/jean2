@@ -58,6 +58,77 @@ describe('memory tool', () => {
     });
   });
 
+  // ── List action ──────────────────────────────────────────────
+
+  describe('list', () => {
+    test('returns empty list when no entries exist', async () => {
+      const result = await executeMemoryTool(
+        { action: 'list', target: 'memory' },
+        testDir,
+        'none',
+      );
+      expect(result.success).toBe(true);
+      expect(result.result!.action).toBe('list');
+      expect(result.result!.entries).toEqual([]);
+      expect(result.result!.usage!.chars).toBe(0);
+    });
+
+    test('returns formatted entries with usage', async () => {
+      await executeMemoryTool(
+        { action: 'add', target: 'memory', content: 'First fact' },
+        testDir,
+        'none',
+      );
+      await executeMemoryTool(
+        { action: 'add', target: 'memory', content: 'Second fact' },
+        testDir,
+        'none',
+      );
+
+      const result = await executeMemoryTool(
+        { action: 'list', target: 'memory' },
+        testDir,
+        'none',
+      );
+      expect(result.success).toBe(true);
+      expect(result.result!.entries).toHaveLength(2);
+      expect(result.result!.entries![0]).toBe('[0] First fact');
+      expect(result.result!.entries![1]).toBe('[1] Second fact');
+      expect(result.result!.usage!.chars).toBeGreaterThan(0);
+      expect(result.result!.usage!.limit).toBe(2500);
+    });
+
+    test('list is read-only and does not trigger permission ask', async () => {
+      let askCalled = false;
+      const askFn = async () => { askCalled = true; return true; };
+
+      await executeMemoryTool(
+        { action: 'list', target: 'memory' },
+        testDir,
+        'high',
+        askFn as any,
+      );
+      expect(askCalled).toBe(false);
+    });
+
+    test('list works for both targets', async () => {
+      await executeMemoryTool(
+        { action: 'add', target: 'user', content: 'User pref' },
+        testDir,
+        'none',
+      );
+
+      const userResult = await executeMemoryTool(
+        { action: 'list', target: 'user' },
+        testDir,
+        'none',
+      );
+      expect(userResult.success).toBe(true);
+      expect(userResult.result!.entries).toHaveLength(1);
+      expect(userResult.result!.usage!.limit).toBe(1500);
+    });
+  });
+
   // ── Add action ───────────────────────────────────────────────
 
   describe('add', () => {
@@ -117,6 +188,30 @@ describe('memory tool', () => {
       expect(result.error).toContain('oldText');
     });
 
+    test('no-match error returns numbered entries and list hint', async () => {
+      await executeMemoryTool(
+        { action: 'add', target: 'memory', content: 'Alpha fact' },
+        testDir,
+        'none',
+      );
+      await executeMemoryTool(
+        { action: 'add', target: 'memory', content: 'Beta fact' },
+        testDir,
+        'none',
+      );
+
+      const result = await executeMemoryTool(
+        { action: 'replace', target: 'memory', oldText: 'nonexistent', content: 'New' },
+        testDir,
+        'none',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('list action');
+      expect(result.entries).toContain('[0] Alpha fact');
+      expect(result.entries).toContain('[1] Beta fact');
+    });
+
     test('rejects replace without content', async () => {
       await executeMemoryTool(
         { action: 'add', target: 'memory', content: 'Fact' },
@@ -164,6 +259,42 @@ describe('memory tool', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('oldText');
+    });
+
+    test('no-match error includes consolidation hint and numbered entries', async () => {
+      await executeMemoryTool(
+        { action: 'add', target: 'memory', content: 'Fact one' },
+        testDir,
+        'none',
+      );
+
+      const result = await executeMemoryTool(
+        { action: 'remove', target: 'memory', oldText: 'nonexistent' },
+        testDir,
+        'none',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('list action');
+      expect(result.entries).toContain('[0] Fact one');
+    });
+  });
+
+  // ── Char limit / consolidation ───────────────────────────────
+
+  describe('char limits and consolidation hints', () => {
+    test('add overflow includes char usage and consolidation hint', async () => {
+      const longContent = 'x'.repeat(2501);
+      const result = await executeMemoryTool(
+        { action: 'add', target: 'memory', content: longContent },
+        testDir,
+        'none',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('full');
+      expect(result.error).toContain('merging');
+      expect(result.usage!.limit).toBe(2500);
     });
   });
 

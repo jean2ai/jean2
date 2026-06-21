@@ -1,5 +1,5 @@
 import type { PermissionRiskLevel, PermissionAsk } from '@jean2/sdk';
-import { addEntry, replaceEntry, removeEntry, type MemoryTarget, type MemoryActionResult } from './registry';
+import { addEntry, replaceEntry, removeEntry, listEntries, type MemoryTarget, type MemoryActionResult } from './registry';
 
 export const memoryToolDefinition = {
   name: 'memory',
@@ -8,11 +8,15 @@ export const memoryToolDefinition = {
 Use target="user" for user preferences and communication/workflow expectations.
 Use target="memory" for workspace facts, repo conventions, commands, lessons, and non-obvious fixes.
 
+Character limits: user=${1500} chars, workspace=${2500} chars. Keep entries compact.
+
 Actions:
+- list: Read current entries and char usage for a target. Requires target only.
 - add: Append a new bullet entry. Requires content.
 - replace: Find an entry by oldText substring and replace it. Requires oldText and content.
 - remove: Find an entry by oldText substring and remove it. Requires oldText.
 
+Use list before replace/remove to see the exact current entries and avoid guesswork.
 Only save compact facts that should affect future sessions.
 Do not save secrets, raw logs, large code, or one-off details.`,
   inputSchema: {
@@ -20,7 +24,7 @@ Do not save secrets, raw logs, large code, or one-off details.`,
     properties: {
       action: {
         type: 'string' as const,
-        enum: ['add', 'replace', 'remove'],
+        enum: ['list', 'add', 'replace', 'remove'],
         description: 'The action to perform on the memory file.',
       },
       target: {
@@ -43,7 +47,7 @@ Do not save secrets, raw logs, large code, or one-off details.`,
 };
 
 export interface MemoryToolInput {
-  action: 'add' | 'replace' | 'remove';
+  action: 'list' | 'add' | 'replace' | 'remove';
   target: MemoryTarget;
   content?: string;
   oldText?: string;
@@ -60,12 +64,17 @@ export async function executeMemoryTool(
   const content = input.content as string | undefined;
   const oldText = input.oldText as string | undefined;
 
-  if (!action || !['add', 'replace', 'remove'].includes(action)) {
-    return { success: false, error: 'Invalid action. Must be add, replace, or remove.' };
+  if (!action || !['list', 'add', 'replace', 'remove'].includes(action)) {
+    return { success: false, error: 'Invalid action. Must be list, add, replace, or remove.' };
   }
 
   if (!target || !['user', 'memory'].includes(target)) {
     return { success: false, error: 'Invalid target. Must be user or memory.' };
+  }
+
+  // `list` is read-only and doesn't need permission
+  if (action === 'list') {
+    return listEntries(workspacePath, target);
   }
 
   // Request permission if a risk level is set and askFn is available

@@ -204,9 +204,10 @@ export async function buildAiSdkTools(
               return { error: result.error ?? 'Memory operation failed', ...(result.entries ? { entries: result.entries } : {}), ...(result.usage ? { usage: result.usage } : {}) };
             }
 
+            const r = result.result!;
             return {
-              title: 'Memory updated',
-              ...result.result,
+              title: r.action === 'list' ? `Memory list (${r.target})` : 'Memory updated',
+              ...r,
             };
           } finally {
             interruptManager.unregisterToolExecution(sessionId, toolCallId);

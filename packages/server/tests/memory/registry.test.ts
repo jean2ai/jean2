@@ -348,4 +348,42 @@ describe('memory registry', () => {
       expect(result).toContain('/1500');
     });
   });
+
+  // ── formatEntriesForDisplay ──────────────────────────────────
+
+  describe('formatEntriesForDisplay', () => {
+    test('formats entries with numeric indices', () => {
+      const { formatEntriesForDisplay } = require('@/memory/registry');
+      const result = formatEntriesForDisplay(['- Alpha', '- Beta', '- Gamma']);
+      expect(result).toEqual(['[0] Alpha', '[1] Beta', '[2] Gamma']);
+    });
+
+    test('returns empty array for no entries', () => {
+      const { formatEntriesForDisplay } = require('@/memory/registry');
+      const result = formatEntriesForDisplay([]);
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ── listEntries ──────────────────────────────────────────────
+
+  describe('listEntries', () => {
+    test('returns empty entries for non-existent file', async () => {
+      const { listEntries } = require('@/memory/registry');
+      const result = await listEntries(testDir, 'memory');
+      expect(result.success).toBe(true);
+      expect(result.result.entries).toEqual([]);
+      expect(result.result.usage.chars).toBe(0);
+      expect(result.result.usage.limit).toBe(MEMORY_CHAR_LIMIT);
+    });
+
+    test('returns formatted entries with usage', async () => {
+      const { listEntries } = require('@/memory/registry');
+      writeMemoryFile('memory', '- First\n- Second');
+      const result = await listEntries(testDir, 'memory');
+      expect(result.success).toBe(true);
+      expect(result.result.entries).toEqual(['[0] First', '[1] Second']);
+      expect(result.result.usage.chars).toBeGreaterThan(0);
+    });
+  });
 });

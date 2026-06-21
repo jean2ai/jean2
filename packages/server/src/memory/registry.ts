@@ -92,14 +92,23 @@ export interface MemoryActionResult {
   success: boolean;
   result?: {
     target: MemoryTarget;
-    action: 'add' | 'replace' | 'remove';
+    action: 'list' | 'add' | 'replace' | 'remove';
     path: string;
     usage: MemoryUsage;
     entry?: string;
+    entries?: string[];
   };
   error?: string;
   entries?: string[];
   usage?: MemoryUsage;
+}
+
+/**
+ * Format entries as a numbered list for display in tool results/errors.
+ * Strips the leading `- ` so the index replaces the bullet.
+ */
+export function formatEntriesForDisplay(entries: string[]): string[] {
+  return entries.map((e, i) => `[${i}] ${e.replace(/^- /, '')}`);
 }
 
 async function ensureMemoryDir(workspacePath: string): Promise<void> {
@@ -145,8 +154,8 @@ export async function addEntry(
   if (charCount > charLimit) {
     return {
       success: false,
-      error: 'Memory is full. Replace or remove entries first.',
-      entries: existing,
+      error: `Memory is full (${existingContent.length}/${charLimit} chars). Consider merging related entries to free space, or replace/remove existing ones first.`,
+      entries: formatEntriesForDisplay(existing),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -197,8 +206,8 @@ export async function replaceEntry(
   if (matches.length === 0) {
     return {
       success: false,
-      error: `No entry found matching "${oldText}".`,
-      entries,
+      error: `No entry found matching "${oldText}". Use the list action to see current entries.`,
+      entries: formatEntriesForDisplay(entries),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -207,7 +216,7 @@ export async function replaceEntry(
     return {
       success: false,
       error: `Multiple entries match "${oldText}". Be more specific.`,
-      entries: matches,
+      entries: formatEntriesForDisplay(matches),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -219,8 +228,8 @@ export async function replaceEntry(
   if (charCount > charLimit) {
     return {
       success: false,
-      error: 'Memory is full. Remove entries first.',
-      entries,
+      error: `Memory is full (${existingContent.length}/${charLimit} chars). Consider merging related entries to free space, or remove existing ones first.`,
+      entries: formatEntriesForDisplay(entries),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -264,8 +273,8 @@ export async function removeEntry(
   if (matches.length === 0) {
     return {
       success: false,
-      error: `No entry found matching "${oldText}".`,
-      entries,
+      error: `No entry found matching "${oldText}". Use the list action to see current entries.`,
+      entries: formatEntriesForDisplay(entries),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -274,7 +283,7 @@ export async function removeEntry(
     return {
       success: false,
       error: `Multiple entries match "${oldText}". Be more specific.`,
-      entries: matches,
+      entries: formatEntriesForDisplay(matches),
       usage: { chars: existingContent.length, limit: charLimit },
     };
   }
@@ -291,6 +300,38 @@ export async function removeEntry(
       action: 'remove',
       path: getRelativePath(target),
       usage: { chars: newContent.length, limit: charLimit },
+    },
+  };
+}
+
+export async function listEntries(
+  workspacePath: string,
+  target: MemoryTarget,
+): Promise<MemoryActionResult> {
+  const charLimit = getCharLimit(target);
+  const file = await loadMemoryFile(workspacePath, target);
+
+  if (!file) {
+    return {
+      success: true,
+      result: {
+        target,
+        action: 'list',
+        path: getRelativePath(target),
+        usage: { chars: 0, limit: charLimit },
+        entries: [],
+      },
+    };
+  }
+
+  return {
+    success: true,
+    result: {
+      target,
+      action: 'list',
+      path: file.path,
+      usage: { chars: file.charCount, limit: file.charLimit },
+      entries: formatEntriesForDisplay(file.entries),
     },
   };
 }
@@ -332,6 +373,8 @@ export async function loadMemoryInstructions(
 export const MEMORY_GUIDANCE = `You can persist durable workspace knowledge using the memory tool.
 Use target="user" for user preferences and communication/workflow expectations.
 Use target="memory" for workspace facts, repo conventions, commands, lessons, and non-obvious fixes.
+Character limits: user=${USER_CHAR_LIMIT}, workspace=${MEMORY_CHAR_LIMIT}.
 Only save compact facts that should affect future sessions.
 Do not save secrets, raw logs, large code, or one-off details.
-If memory is full, consolidate existing entries with replace before adding.`;
+If memory is full, consolidate existing entries with replace before adding.
+Use the list action to verify current entries before replacing or removing.`;
