@@ -104,6 +104,42 @@ describe('parseToolInput', () => {
     expect(parseToolInput(42)).toEqual({});
     expect(parseToolInput(true)).toEqual({});
   });
+
+  test('strips null bytes from string values in JSON input', () => {
+    const input = JSON.stringify({ path: '/foo', newString: 'hello\u0000\u0000world' });
+    const result = parseToolInput(input);
+    expect(result).toEqual({ path: '/foo', newString: 'helloworld' });
+    expect(result.newString).not.toContain('\u0000');
+  });
+
+  test('strips null bytes from object input (pre-parsed by AI SDK)', () => {
+    const input = { path: '/foo', oldString: 'ab\u0000cd', newString: 'ef\u0000gh' };
+    const result = parseToolInput(input);
+    expect(result).toEqual({ path: '/foo', oldString: 'abcd', newString: 'efgh' });
+  });
+
+  test('strips null bytes recursively from nested objects and arrays', () => {
+    const input = {
+      items: [{ content: 'a\u0000b' }, { content: 'c\u0000d' }],
+      nested: { text: 'deep\u0000value' },
+    };
+    const result = parseToolInput(input);
+    expect(result).toEqual({
+      items: [{ content: 'ab' }, { content: 'cd' }],
+      nested: { text: 'deepvalue' },
+    });
+  });
+
+  test('handles strings without null bytes unchanged', () => {
+    const result = parseToolInput({ path: '/foo', content: 'hello world' });
+    expect(result).toEqual({ path: '/foo', content: 'hello world' });
+  });
+
+  test('strips null bytes from object keys', () => {
+    const input = { 'key\u0000name': 'value' };
+    const result = parseToolInput(input);
+    expect(result).toEqual({ keyname: 'value' });
+  });
 });
 
 describe('createStepPart', () => {

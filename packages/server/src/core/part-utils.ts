@@ -17,6 +17,32 @@ export function isFilePart(part: Part): part is FilePart {
   return part.type === 'file';
 }
 
+const NULL_BYTE = '\u0000';
+
+function stripNullBytes(value: string): string {
+  if (!value.includes(NULL_BYTE)) {
+    return value;
+  }
+  return value.split(NULL_BYTE).join('');
+}
+
+function sanitizeInput(input: unknown): unknown {
+  if (typeof input === 'string') {
+    return stripNullBytes(input);
+  }
+  if (Array.isArray(input)) {
+    return input.map(sanitizeInput);
+  }
+  if (input !== null && typeof input === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(input)) {
+      result[stripNullBytes(key)] = sanitizeInput((input as Record<string, unknown>)[key]);
+    }
+    return result;
+  }
+  return input;
+}
+
 export function parseToolInput(input: unknown): Record<string, unknown> {
   if (input === null || input === undefined) {
     return {};
@@ -24,12 +50,17 @@ export function parseToolInput(input: unknown): Record<string, unknown> {
   if (typeof input === 'string') {
     try {
       const parsed = JSON.parse(input);
-      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+      if (typeof parsed === 'object' && parsed !== null) {
+        return sanitizeInput(parsed) as Record<string, unknown>;
+      }
+      return {};
     } catch {
       return {};
     }
   }
-  return typeof input === 'object' ? input as Record<string, unknown> : {};
+  return typeof input === 'object'
+    ? sanitizeInput(input) as Record<string, unknown>
+    : {};
 }
 
 export function createStepPart(options: {

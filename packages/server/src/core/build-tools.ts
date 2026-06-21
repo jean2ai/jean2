@@ -8,7 +8,7 @@ import { interruptManager } from './interrupt';
 import { broadcastEvent, type BroadcastFn } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
-import { createSkillTool, skillManageToolDefinition, executeSkillManageTool } from '@/skills';
+import { createSkillTool, skillManageToolDefinition, executeSkillManageTool, buildSkillManageToolDescription } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { getSession, getWorkspace } from '@/store';
 import { memoryToolDefinition, executeMemoryTool } from '@/memory';
@@ -220,8 +220,9 @@ export async function buildAiSdkTools(
     const skillSettings = workspace?.settings?.skills;
     if (skillSettings?.managementEnabled) {
       const permissionRisk = skillSettings.permissionRisk;
+      const skillManageDescription = await buildSkillManageToolDescription(workspacePath!);
       tools['skill_manage'] = tool({
-        description: skillManageToolDefinition.description,
+        description: skillManageDescription,
         inputSchema: jsonSchema(skillManageToolDefinition.inputSchema),
         execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
           const _toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
@@ -250,6 +251,7 @@ export async function buildAiSdkTools(
               description: result.description,
               path: result.path,
               summary: result.summary,
+              skills: result.skills,
             };
           } finally {
             interruptManager.unregisterToolExecution(sessionId, toolCallId);

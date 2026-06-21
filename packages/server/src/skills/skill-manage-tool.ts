@@ -1,9 +1,10 @@
-import { readFile, writeFile, mkdir, rm } from 'fs/promises';
+import { readFile, writeFile, mkdir, rm, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import type { PermissionRiskLevel, PermissionAsk } from '@jean2/sdk';
+import { scanSkills } from './registry';
 
-type SkillManageAction = 'create' | 'update' | 'patch' | 'delete';
+type SkillManageAction = 'list' | 'create' | 'update' | 'patch' | 'delete';
 
 export interface SkillManageResult {
   success: boolean;
@@ -13,6 +14,7 @@ export interface SkillManageResult {
   description?: string;
   path?: string;
   summary?: string;
+  skills?: Array<{ name: string; description: string }>;
   error?: string;
 }
 
@@ -56,17 +58,122 @@ function getSkillMdPath(workspacePath: string, safeName: string): string {
   return join(getSkillDir(workspacePath, safeName), 'SKILL.md');
 }
 
-function ensurePathWithinSkills(workspacePath: string, skillPath: string): boolean {
-  const skillsRoot = resolve(workspacePath, '.agents', 'skills');
-  const resolved = resolve(skillPath);
-  return resolved.startsWith(skillsRoot + '/') || resolved === skillsRoot;
-}
-
 async function ensureSkillsDir(workspacePath: string): Promise<void> {
   const dir = join(workspacePath, '.agents', 'skills');
   if (!existsSync(dir)) {
     await mkdir(dir, { recursive: true });
   }
+}
+
+/**
+ * Resolve a user-provided skill name to the actual on-disk folder name.
+ * Tries exact sanitized match first, then falls back to case-insensitive
+ * matching against both the folder name and the frontmatter `name` field.
+ * Returns the resolved folder name, or null if not found.
+ */
+async function resolveSkillFolder(
+  rawName: string,
+  workspacePath: string,
+): Promise<{ folderName: string; skillMdPath: string } | null> {
+  const safeName = sanitizeSkillName(rawName);
+
+  // Fast path: exact folder match
+  const directPath = getSkillMdPath(workspacePath, safeName);
+  if (existsSync(directPath)) {
+    return { folderName: safeName, skillMdPath: directPath };
+  }
+
+  // Fallback: scan all skills and match case-insensitively by folder name or frontmatter name
+  const skillsDir = join(workspacePath, '.agents', 'skills');
+  if (!existsSync(skillsDir)) {
+    return null;
+  }
+
+  try {
+    const folders = await readdir(skillsDir, { withFileTypes: true });
+    for (const folder of folders) {
+      if (!folder.isDirectory()) continue;
+
+      // Case-insensitive folder name match
+      if (folder.name.toLowerCase() === safeName.toLowerCase()) {
+        const p = join(skillsDir, folder.name, 'SKILL.md');
+        if (existsSync(p)) {
+          return { folderName: folder.name, skillMdPath: p };
+        }
+      }
+
+      // Frontmatter name match (case-insensitive)
+      const mdPath = join(skillsDir, folder.name, 'SKILL.md');
+      if (!existsSync(mdPath)) continue;
+      try {
+        const raw = await readFile(mdPath, 'utf-8');
+        const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+        if (fmMatch) {
+          const nameMatch = fmMatch[1].match(/^name:\s*(.+)$/m);
+          if (nameMatch) {
+            const fmName = nameMatch[1].replace(/^['"]|['"]$/g, '').trim().toLowerCase();
+            if (fmName === safeName.toLowerCase()) {
+              return { folderName: folder.name, skillMdPath: mdPath };
+            }
+          }
+        }
+      } catch {
+        // skip unreadable files
+      }
+    }
+  } catch {
+    // ignore readdir errors
+  }
+
+  return null;
+}
+
+/**
+ * Get a short list of available skill names for error messages.
+ */
+async function getAvailableSkillNames(workspacePath: string): Promise<string[]> {
+  const skills = await scanSkills(workspacePath);
+  return skills.map(s => s.name);
+}
+
+/**
+ * Build the skill_manage tool description with a dynamic list of existing skills.
+ * This gives the LLM visibility into which skill names exist, so it doesn't
+ * have to guess when calling update/patch/delete.
+ */
+export async function buildSkillManageToolDescription(
+  workspacePath: string,
+): Promise<string> {
+  const skills = await scanSkills(workspacePath);
+
+  const lines = [
+    'Create, update, patch, delete, or list workspace skills.',
+    '',
+    'Workspace skills are reusable procedures and workflows stored as SKILL.md files in .agents/skills/.',
+    '',
+    'Actions:',
+    '- list: List all existing skills with their names and descriptions. No other parameters needed.',
+    '- create: Create a new skill. Requires name, description, and content (markdown body).',
+    '- update: Replace a skill\'s full body and optionally update description. Requires name and content.',
+    '- patch: Targeted string replacement in a skill\'s SKILL.md. Requires name, oldString, newString.',
+    '- delete: Remove a skill entirely. Requires name only.',
+    '',
+    'Skill bodies should be procedural: When to Use, Procedure steps, Pitfalls, Verification.',
+    '',
+  ];
+
+  if (skills.length > 0) {
+    lines.push('Existing skills in this workspace:');
+    for (const skill of skills) {
+      lines.push(`- ${skill.name}: ${skill.description}`);
+    }
+    lines.push('');
+    lines.push('For patch/update, use the exact name shown above. Skill names are matched case-insensitively.');
+  } else {
+    lines.push('No skills exist yet. Use create to make the first one.');
+  }
+
+  return lines.join('\n');
 }
 
 export interface SkillManageInput {
@@ -85,6 +192,7 @@ export const skillManageToolDefinition = {
 Workspace skills are reusable procedures and workflows stored as SKILL.md files in .agents/skills/.
 
 Actions:
+- list: List all existing skills with their names and descriptions. No other parameters needed.
 - create: Create a new skill. Requires name, description, and content (markdown body).
 - update: Replace a skill's full body and optionally update description. Requires name and content.
 - patch: Targeted string replacement in a skill's SKILL.md. Requires name, oldString, newString.
@@ -96,12 +204,12 @@ Skill bodies should be procedural: When to Use, Procedure steps, Pitfalls, Verif
     properties: {
       action: {
         type: 'string' as const,
-        enum: ['create', 'update', 'patch', 'delete'],
+        enum: ['list', 'create', 'update', 'patch', 'delete'],
         description: 'The action to perform.',
       },
       name: {
         type: 'string' as const,
-        description: 'Skill name (will be normalized to a safe slug).',
+        description: 'Skill name (will be normalized to a safe slug). Matched case-insensitively against existing skills.',
       },
       description: {
         type: 'string' as const,
@@ -113,14 +221,14 @@ Skill bodies should be procedural: When to Use, Procedure steps, Pitfalls, Verif
       },
       oldString: {
         type: 'string' as const,
-        description: 'Exact text to find for patch action. Must match exactly once.',
+        description: 'Exact text to find for patch action. Must match exactly once. Load the skill first to see the exact content.',
       },
       newString: {
         type: 'string' as const,
         description: 'Replacement text for patch action.',
       },
     },
-    required: ['action', 'name'],
+    required: ['action'],
   },
   timeout: 10000,
 };
@@ -138,10 +246,32 @@ export async function executeSkillManageTool(
   const oldString = input.oldString as string | undefined;
   const newString = input.newString as string | undefined;
 
-  if (!action || !['create', 'update', 'patch', 'delete'].includes(action)) {
-    return { success: false, error: 'Invalid action. Must be create, update, patch, or delete.' };
+  if (!action || !['list', 'create', 'update', 'patch', 'delete'].includes(action)) {
+    return { success: false, error: 'Invalid action. Must be list, create, update, patch, or delete.' };
   }
 
+  // `list` is read-only and doesn't need a name or permission
+  if (action === 'list') {
+    const skills = await scanSkills(workspacePath);
+    if (skills.length === 0) {
+      return {
+        success: true,
+        title: 'No skills found',
+        action: 'list',
+        summary: 'No skills exist in this workspace yet.',
+        skills: [],
+      };
+    }
+    return {
+      success: true,
+      title: `${skills.length} skill${skills.length === 1 ? '' : 's'} found`,
+      action: 'list',
+      summary: skills.map(s => `${s.name}: ${s.description}`).join('\n'),
+      skills: skills.map(s => ({ name: s.name, description: s.description })),
+    };
+  }
+
+  // All other actions require a name
   const nameError = validateSkillName(rawName);
   if (nameError) {
     return { success: false, error: nameError };
@@ -150,11 +280,6 @@ export async function executeSkillManageTool(
   const safeName = sanitizeSkillName(rawName);
   if (!safeName) {
     return { success: false, error: 'Skill name is invalid after normalization.' };
-  }
-
-  const skillMdPath = getSkillMdPath(workspacePath, safeName);
-  if (!ensurePathWithinSkills(workspacePath, skillMdPath)) {
-    return { success: false, error: 'Skill path resolves outside workspace skills directory.' };
   }
 
   const relativePath = `.agents/skills/${safeName}/SKILL.md`;
@@ -185,7 +310,8 @@ export async function executeSkillManageTool(
         return { success: false, error: 'content is required for create action.' };
       }
 
-      if (existsSync(skillMdPath)) {
+      const directPath = getSkillMdPath(workspacePath, safeName);
+      if (existsSync(directPath)) {
         return { success: false, error: `Skill "${safeName}" already exists. Use update or patch instead.` };
       }
 
@@ -194,7 +320,7 @@ export async function executeSkillManageTool(
       await mkdir(skillDir, { recursive: true });
 
       const fileContent = buildFrontmatter(safeName, description) + '\n' + content + '\n';
-      await writeFile(skillMdPath, fileContent, 'utf-8');
+      await writeFile(directPath, fileContent, 'utf-8');
 
       return {
         success: true,
@@ -212,13 +338,23 @@ export async function executeSkillManageTool(
         return { success: false, error: 'content is required for update action.' };
       }
 
-      if (!existsSync(skillMdPath)) {
-        return { success: false, error: `Skill "${safeName}" does not exist. Use create first.` };
+      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      if (!resolved) {
+        const available = await getAvailableSkillNames(workspacePath);
+        return {
+          success: false,
+          error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ' No skills exist yet. Use create first.'}`,
+        };
       }
+
+      // For update, if the LLM passes a different-cased name, use the resolved folder name
+      const resolvedFolder = resolved.folderName;
+      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
+      const resolvedPath = resolved.skillMdPath;
 
       let existingContent: string;
       try {
-        existingContent = await readFile(skillMdPath, 'utf-8');
+        existingContent = await readFile(resolvedPath, 'utf-8');
       } catch {
         return { success: false, error: 'Failed to read existing skill file.' };
       }
@@ -236,16 +372,19 @@ export async function executeSkillManageTool(
       }
 
       const effectiveDescription = description ?? existingDescription;
-      const newFileContent = buildFrontmatter(safeName, effectiveDescription) + '\n' + content + '\n';
-      await writeFile(skillMdPath, newFileContent, 'utf-8');
+      // Preserve the existing frontmatter name to avoid renaming the skill unintentionally
+      const existingFmNameMatch = existingContent.match(/^name:\s*(.+)$/m);
+      const effectiveName = existingFmNameMatch ? existingFmNameMatch[1].replace(/^['"]|['"]$/g, '').trim() : resolvedFolder;
+      const newFileContent = buildFrontmatter(effectiveName, effectiveDescription) + '\n' + content + '\n';
+      await writeFile(resolvedPath, newFileContent, 'utf-8');
 
       return {
         success: true,
-        title: `Skill updated: ${safeName}`,
+        title: `Skill updated: ${effectiveName}`,
         action: 'update',
-        name: safeName,
+        name: effectiveName,
         description: effectiveDescription,
-        path: relativePath,
+        path: resolvedRelativePath,
         summary: 'Replaced skill body.',
       };
     }
@@ -258,13 +397,22 @@ export async function executeSkillManageTool(
         return { success: false, error: 'newString is required for patch action.' };
       }
 
-      if (!existsSync(skillMdPath)) {
-        return { success: false, error: `Skill "${safeName}" does not exist. Use create first.` };
+      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      if (!resolved) {
+        const available = await getAvailableSkillNames(workspacePath);
+        return {
+          success: false,
+          error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ' No skills exist yet. Use create first.'}`,
+        };
       }
+
+      const resolvedPath = resolved.skillMdPath;
+      const resolvedFolder = resolved.folderName;
+      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
 
       let existingContent: string;
       try {
-        existingContent = await readFile(skillMdPath, 'utf-8');
+        existingContent = await readFile(resolvedPath, 'utf-8');
       } catch {
         return { success: false, error: 'Failed to read existing skill file.' };
       }
@@ -272,7 +420,10 @@ export async function executeSkillManageTool(
       // Count matches
       const matches = existingContent.split(oldString).length - 1;
       if (matches === 0) {
-        return { success: false, error: 'oldString not found in skill file.' };
+        return {
+          success: false,
+          error: `oldString not found in skill file. Load the skill via the "skill" tool first to see the exact content, then copy the exact text to oldString.`,
+        };
       }
       if (matches > 1) {
         return { success: false, error: `oldString matched ${matches} locations. Provide a more specific oldString.` };
@@ -299,33 +450,44 @@ export async function executeSkillManageTool(
         }
       }
 
-      await writeFile(skillMdPath, finalContent, 'utf-8');
+      await writeFile(resolvedPath, finalContent, 'utf-8');
+
+      // Resolve the frontmatter name for the result
+      const fmNameMatch = finalContent.match(/^name:\s*(.+)$/m);
+      const resultName = fmNameMatch ? fmNameMatch[1].replace(/^['"]|['"]$/g, '').trim() : resolvedFolder;
 
       return {
         success: true,
-        title: `Skill patched: ${safeName}`,
+        title: `Skill patched: ${resultName}`,
         action: 'patch',
-        name: safeName,
+        name: resultName,
         description: effectiveDescription,
-        path: relativePath,
+        path: resolvedRelativePath,
         summary: 'Replaced one matching block.',
       };
     }
 
     case 'delete': {
-      if (!existsSync(skillMdPath)) {
-        return { success: false, error: `Skill "${safeName}" does not exist.` };
+      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      if (!resolved) {
+        const available = await getAvailableSkillNames(workspacePath);
+        return {
+          success: false,
+          error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ''}`,
+        };
       }
 
-      const skillDir = getSkillDir(workspacePath, safeName);
+      const resolvedFolder = resolved.folderName;
+      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
+      const skillDir = getSkillDir(workspacePath, resolvedFolder);
       await rm(skillDir, { recursive: true, force: true });
 
       return {
         success: true,
-        title: `Skill deleted: ${safeName}`,
+        title: `Skill deleted: ${resolvedFolder}`,
         action: 'delete',
-        name: safeName,
-        path: relativePath,
+        name: resolvedFolder,
+        path: resolvedRelativePath,
         summary: 'Removed workspace skill directory.',
       };
     }
