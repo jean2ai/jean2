@@ -1,17 +1,25 @@
 import { searchMessages, getMessageContentForFts } from './fts';
-import { getDatabase, getSession, getWorkspace } from '@/store';
+import { getDatabase, getSession, getWorkspace, listSessionsByWorkspace } from '@/store';
 import type { PermissionRiskLevel, PermissionAsk } from '@jean2/sdk';
 
 export const sessionSearchToolDefinition = {
   name: 'session_search',
-  description: `Search prior conversation messages from the current workspace or current session archive.
+  description: `Search prior conversation messages, list recent sessions, or read session context from the current workspace.
 Use it to recall past work, find earlier discussions, or retrieve details that may have been compacted away from active context.
-Two modes:
-1. Search mode (provide "query"): Full-text search across messages.
-2. Read-around mode (provide "sessionId" + "aroundMessageId", no "query"): Read messages surrounding a specific message.`,
+Three modes:
+1. List mode (provide "action": "list"): List recent sessions in the workspace with their IDs, titles, and message counts. Use this to discover what sessions exist before reading.
+2. Search mode (provide "query"): Full-text search across messages in the workspace or current session.
+3. Read-around mode (provide "sessionId", optionally "aroundMessageId"): Read messages surrounding a specific message. If "aroundMessageId" is omitted, reads the latest messages in that session.
+
+Typical workflow: list sessions → read a session's latest context → search for specific keywords if needed.`,
   inputSchema: {
     type: 'object' as const,
     properties: {
+      action: {
+        type: 'string' as const,
+        enum: ['list', 'search', 'read'],
+        description: 'The action to perform. "list": enumerate recent sessions. "search": full-text search (default if query provided). "read": read session context. Defaults to "search" if query is provided, "read" if sessionId is provided.',
+      },
       query: {
         type: 'string' as const,
         description: 'Search query for full-text search. Triggers search mode.',
@@ -23,15 +31,15 @@ Two modes:
       },
       sessionId: {
         type: 'string' as const,
-        description: 'Session ID for read-around mode. The target session must belong to the current workspace.',
+        description: 'Session ID for read-around mode. Use "list" action first to discover session IDs. The target session must belong to the current workspace.',
       },
       aroundMessageId: {
         type: 'string' as const,
-        description: 'Anchor message ID for read-around mode. Returns surrounding messages.',
+        description: 'Anchor message ID for read-around mode. Returns surrounding messages. If omitted, reads the latest messages in the session.',
       },
       limit: {
         type: 'number' as const,
-        description: 'Max results for search mode. Default 5, max 20.',
+        description: 'Max results for search mode, or max sessions for list mode. Default 5, max 20.',
       },
       window: {
         type: 'number' as const,
@@ -57,10 +65,18 @@ Two modes:
 
 const MAX_CONTENT_LENGTH = 2000;
 
+export interface SessionListEntry {
+  id: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+}
+
 export interface SessionSearchResult {
   success: boolean;
-  mode: 'search' | 'read';
+  mode: 'list' | 'search' | 'read';
   title: string;
+  sessions?: SessionListEntry[];
   query?: string;
   scope?: string;
   results?: Array<{
@@ -77,6 +93,7 @@ export interface SessionSearchResult {
   sessionId?: string;
   sessionTitle?: string | null;
   anchorMessageId?: string;
+  anchorInferred?: boolean;
   messagesBefore?: number;
   messagesAfter?: number;
   messages?: Array<{
@@ -106,6 +123,13 @@ export async function executeSessionSearchTool(
   const sessionId = input.sessionId as string | undefined;
   const aroundMessageId = input.aroundMessageId as string | undefined;
 
+  const action = (input.action as string) || (query ? 'search' : sessionId ? 'read' : 'search');
+
+  // `list` is read-only metadata — no message content exposed
+  if (action === 'list') {
+    return executeList(workspaceId, currentSessionId, input);
+  }
+
   if (permissionRisk !== 'none' && askFn) {
     const ask: PermissionAsk = {
       type: 'permission',
@@ -127,11 +151,54 @@ export async function executeSessionSearchTool(
     return executeSearch(query, scope, workspaceId, currentSessionId, includeToolResults, input);
   }
 
-  if (sessionId && aroundMessageId) {
+  if (sessionId) {
     return executeReadAround(sessionId, aroundMessageId, workspaceId, input);
   }
 
-  return { success: false, mode: 'search', title: 'Invalid arguments', error: 'Provide "query" for search mode, or "sessionId" + "aroundMessageId" for read-around mode.' };
+  return { success: false, mode: 'search', title: 'Invalid arguments', error: 'Provide "action": "list" to enumerate sessions, "query" for search mode, or "sessionId" for read-around mode.' };
+}
+
+function executeList(
+  workspaceId: string,
+  currentSessionId: string,
+  input: Record<string, unknown>,
+): SessionSearchResult {
+  const limit = Math.min(Math.max((input.limit as number) || 10, 1), 20);
+  const db = getDatabase();
+
+  // Get root sessions (exclude subagent child sessions) ordered by most recently updated
+  const sessions = listSessionsByWorkspace(workspaceId, { rootOnly: true });
+  const limited = sessions.slice(0, limit);
+
+  if (limited.length === 0) {
+    return {
+      success: true,
+      mode: 'list',
+      title: 'No sessions found',
+      sessions: [],
+    };
+  }
+
+  const entries: SessionListEntry[] = limited.map((s) => {
+    const msgCount = (db.query(
+      'SELECT COUNT(*) as cnt FROM messages WHERE session_id = ?',
+    ).get(s.id) as { cnt: number }).cnt;
+
+    return {
+      id: s.id,
+      title: s.title || '(untitled)',
+      messageCount: msgCount,
+      updatedAt: s.updatedAt,
+      ...(s.id === currentSessionId && { isCurrent: true }),
+    } as SessionListEntry & { isCurrent?: boolean };
+  });
+
+  return {
+    success: true,
+    mode: 'list',
+    title: `${sessions.length} session${sessions.length === 1 ? '' : 's'} in workspace`,
+    sessions: entries,
+  };
 }
 
 function executeSearch(
@@ -213,7 +280,7 @@ function executeSearch(
 
 function executeReadAround(
   targetSessionId: string,
-  anchorMessageId: string,
+  anchorMessageId: string | undefined,
   workspaceId: string,
   input: Record<string, unknown>,
 ): SessionSearchResult {
@@ -228,7 +295,26 @@ function executeReadAround(
     return { success: false, mode: 'read', title: 'Access denied', error: 'Session does not belong to current workspace' };
   }
 
-  const anchor = db.query('SELECT * FROM messages WHERE id = ? AND session_id = ?').get(anchorMessageId, targetSessionId) as {
+  // If no anchor provided, infer the latest message in the session
+  let inferredAnchor = false;
+  let effectiveAnchorId: string;
+
+  if (anchorMessageId) {
+    effectiveAnchorId = anchorMessageId;
+  } else {
+    const latest = db.query(
+      'SELECT id, created_at FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT 1',
+    ).get(targetSessionId) as { id: string; created_at: number } | undefined;
+
+    if (!latest) {
+      return { success: false, mode: 'read', title: 'Empty session', error: 'Session has no messages' };
+    }
+
+    effectiveAnchorId = latest.id;
+    inferredAnchor = true;
+  }
+
+  const anchor = db.query('SELECT * FROM messages WHERE id = ? AND session_id = ?').get(effectiveAnchorId, targetSessionId) as {
     id: string;
     created_at: number;
   } | undefined;
@@ -258,7 +344,7 @@ function executeReadAround(
 
   const allIds = [
     ...messagesBefore.reverse().map((m) => m.id),
-    anchorMessageId,
+    effectiveAnchorId,
     ...messagesAfter.map((m) => m.id),
   ];
 
@@ -304,10 +390,11 @@ function executeReadAround(
   return {
     success: true,
     mode: 'read',
-    title: 'Read session context',
+    title: inferredAnchor ? 'Read latest session context' : 'Read session context',
     sessionId: targetSessionId,
     sessionTitle: session.title,
-    anchorMessageId,
+    anchorMessageId: effectiveAnchorId,
+    ...(inferredAnchor && { anchorInferred: true }),
     messagesBefore: beforeCount,
     messagesAfter: afterCount,
     messages,
