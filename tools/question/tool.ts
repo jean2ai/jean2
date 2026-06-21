@@ -48,7 +48,10 @@ export const definition: ToolDefinition = {
     '- single_select returns a string (the selected value)\n' +
     '- multi_select returns a string[] (array of selected values)\n' +
     '- text returns a string\n' +
-    '- confirm returns a boolean',
+    '- confirm returns a boolean\n' +
+    '- CRITICAL: Each option within a single_select/multi_select MUST have a unique `value` field. ' +
+    'Do NOT use empty strings or duplicate values across options — use distinct machine-readable slugs ' +
+    '(e.g., "auth", "database", "api") that differ from each other.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -125,6 +128,33 @@ export async function execute(input: QuestionInput, ctx: ToolContext): Promise<T
 
     if (!input.title || input.title.trim().length === 0) {
       return { success: false, error: 'Title is required' };
+    }
+
+    // Validate select-type questions: each option must have a unique, non-empty value
+    for (const [qi, q] of input.questions.entries()) {
+      if (q.type === 'single_select' || q.type === 'multi_select') {
+        const seenValues = new Set<string>();
+        const duplicates: string[] = [];
+        for (const opt of q.options) {
+          const value = (opt.value ?? '').trim();
+          if (!value) {
+            return {
+              success: false,
+              error: `Question ${qi + 1} ("${q.question}"): option "${opt.label}" has an empty value. Every option must have a unique, non-empty value field.`,
+            };
+          }
+          if (seenValues.has(value)) {
+            duplicates.push(value);
+          }
+          seenValues.add(value);
+        }
+        if (duplicates.length > 0) {
+          return {
+            success: false,
+            error: `Question ${qi + 1} ("${q.question}"): duplicate option value(s): ${duplicates.map((v) => `"${v}"`).join(', ')}. Every option must have a unique value field. Fix the duplicates and try again.`,
+          };
+        }
+      }
     }
 
     ctx.logger.info(`Asking user ${input.questions.length} questions: ${input.title}`);

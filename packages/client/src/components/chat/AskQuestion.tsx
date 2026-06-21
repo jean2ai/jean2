@@ -22,7 +22,7 @@ function SingleSelectView({
   question: SingleSelectQuestion;
   onSelect: (value: string) => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-3">
@@ -30,13 +30,13 @@ function SingleSelectView({
         <p className="text-sm text-muted-foreground">{question.description}</p>
       )}
       <div className="flex flex-col gap-2">
-        {question.options.map((option) => (
+        {question.options.map((option, index) => (
           <button
-            key={option.value}
+            key={index}
             type="button"
-            onClick={() => setSelected(option.value)}
+            onClick={() => setSelectedIndex(index)}
             className={`flex flex-col items-start gap-1 p-3 rounded-lg border transition-colors text-left ${
-              selected === option.value
+              selectedIndex === index
                 ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
                 : 'border-border hover:border-primary/50 hover:bg-muted/50'
             }`}
@@ -44,12 +44,12 @@ function SingleSelectView({
             <div className="flex items-center gap-2 w-full">
               <div
                 className={`size-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  selected === option.value
+                  selectedIndex === index
                     ? 'border-primary bg-primary'
                     : 'border-muted-foreground'
                 }`}
               >
-                {selected === option.value && (
+                {selectedIndex === index && (
                   <div className="size-2 rounded-full bg-primary-foreground" />
                 )}
               </div>
@@ -61,9 +61,9 @@ function SingleSelectView({
           </button>
         ))}
       </div>
-      {selected !== null && (
+      {selectedIndex !== null && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={() => onSelect(selected)}>
+          <Button size="sm" onClick={() => onSelect(question.options[selectedIndex].value)}>
             Confirm
           </Button>
         </div>
@@ -72,7 +72,7 @@ function SingleSelectView({
   );
 }
 
-// --- MultiSelectView (unchanged) ---
+// --- MultiSelectView ---
 function MultiSelectView({
   question,
   onSelect,
@@ -80,33 +80,33 @@ function MultiSelectView({
   question: MultiSelectQuestion;
   onSelect: (values: string[]) => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
-  const toggleOption = useCallback((value: string) => {
-    setSelected((prev) => {
+  const toggleOption = useCallback((index: number) => {
+    setSelectedIndices((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(value)) {
-        newSet.delete(value);
+      if (newSet.has(index)) {
+        newSet.delete(index);
       } else {
         if (question.max && newSet.size >= question.max) {
           return prev;
         }
-        newSet.add(value);
+        newSet.add(index);
       }
       return newSet;
     });
   }, [question.max]);
 
   const handleConfirm = useCallback(() => {
-    const values = Array.from(selected);
+    const values = Array.from(selectedIndices).map((i) => question.options[i].value);
     if (question.min && values.length < question.min) {
       return;
     }
     onSelect(values);
-  }, [selected, question.min, onSelect]);
+  }, [selectedIndices, question.min, question.options, onSelect]);
 
-  const isValid = !question.min || selected.size >= question.min;
-  const maxReached = question.max ? selected.size >= question.max : false;
+  const isValid = !question.min || selectedIndices.size >= question.min;
+  const maxReached = question.max ? selectedIndices.size >= question.max : false;
 
   return (
     <div className="flex flex-col gap-3">
@@ -114,27 +114,27 @@ function MultiSelectView({
         <p className="text-sm text-muted-foreground">{question.description}</p>
       )}
       <div className="flex flex-col gap-2">
-        {question.options.map((option) => {
-          const isDisabled = maxReached && !selected.has(option.value);
+        {question.options.map((option, index) => {
+          const isDisabled = maxReached && !selectedIndices.has(index);
           return (
             <button
-              key={option.value}
+              key={index}
               type="button"
-              onClick={() => toggleOption(option.value)}
+              onClick={() => toggleOption(index)}
               disabled={isDisabled}
               className={`flex flex-col items-start gap-1 p-3 rounded-lg border transition-colors text-left ${
                 isDisabled
                   ? 'border-border opacity-50 cursor-not-allowed'
-                  : selected.has(option.value)
+                  : selectedIndices.has(index)
                     ? 'border-primary bg-primary/5 hover:bg-primary/10'
                     : 'border-border hover:border-primary/50 hover:bg-muted/50'
               }`}
             >
               <div className="flex items-center gap-2 w-full">
                 <Checkbox
-                  checked={selected.has(option.value)}
+                  checked={selectedIndices.has(index)}
                   disabled={isDisabled}
-                  onCheckedChange={() => toggleOption(option.value)}
+                  onCheckedChange={() => toggleOption(index)}
                   className="pointer-events-none"
                 />
                 <span className="font-medium pointer-events-none">{option.label}</span>
@@ -163,7 +163,7 @@ function MultiSelectView({
           onClick={handleConfirm}
           disabled={!isValid}
         >
-          Confirm Selection ({selected.size})
+          Confirm Selection ({selectedIndices.size})
         </Button>
       </div>
     </div>
@@ -321,7 +321,7 @@ function SubQuestionView({
   question: HumanQuestion;
   onAnswer: (answer: string | boolean | string[]) => void;
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [confirmValue, setConfirmValue] = useState<boolean | null>(null);
 
   switch (question.type) {
@@ -330,20 +330,29 @@ function SubQuestionView({
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{question.question}</p>
           <div className="flex flex-wrap gap-2">
-            {question.options.map((option) => (
+            {question.options.map((option, index) => (
               <button
-                key={option.value}
+                key={index}
                 type="button"
                 onClick={() => {
-                  setSelected(new Set([option.value]));
+                  setSelectedIndices(new Set([index]));
                   onAnswer(option.value);
                 }}
-                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                  selected.has(option.value)
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                  selectedIndices.has(index)
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-primary/50'
                 }`}
               >
+                <span
+                  className={`size-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                    selectedIndices.has(index) ? 'border-primary' : 'border-muted-foreground/50'
+                  }`}
+                >
+                  {selectedIndices.has(index) && (
+                    <span className="size-1.5 rounded-full bg-primary" />
+                  )}
+                </span>
                 {option.label}
               </button>
             ))}
@@ -351,35 +360,59 @@ function SubQuestionView({
         </div>
       );
     case 'multi_select': {
-      const toggle = (value: string) => {
-        setSelected((prev) => {
-          const next = new Set(prev);
-          if (next.has(value)) next.delete(value);
-          else if (!question.max || next.size < question.max) next.add(value);
-          else return prev;
-          // Emit array on every change
-          onAnswer(Array.from(next));
-          return next;
-        });
+      const toggle = (index: number) => {
+        const next = new Set(selectedIndices);
+        if (next.has(index)) {
+          next.delete(index);
+        } else if (!question.max || next.size < question.max) {
+          next.add(index);
+        } else {
+          return;
+        }
+        setSelectedIndices(next);
+        onAnswer(Array.from(next).map((i) => question.options[i].value));
       };
+      const msMaxReached = question.max ? selectedIndices.size >= question.max : false;
       return (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium">{question.question}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium">{question.question}</p>
+            <span className="text-xs text-muted-foreground">
+              {selectedIndices.size > 0 ? `${selectedIndices.size} selected` : 'Select all that apply'}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
-            {question.options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => toggle(option.value)}
-                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-                  selected.has(option.value)
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-primary/50'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+            {question.options.map((option, index) => {
+              const isDisabled = msMaxReached && !selectedIndices.has(index);
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => toggle(index)}
+                  disabled={isDisabled}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                    isDisabled
+                      ? 'border-border opacity-50 cursor-not-allowed'
+                      : selectedIndices.has(index)
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <span
+                    className={`size-3.5 rounded-[3px] border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      selectedIndices.has(index) ? 'border-primary bg-primary' : 'border-muted-foreground/50'
+                    }`}
+                  >
+                    {selectedIndices.has(index) && (
+                      <svg className="size-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                        <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       );
