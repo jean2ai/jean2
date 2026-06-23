@@ -426,7 +426,12 @@ export async function detectWindowsShell(command: string, cwd: string): Promise<
     return ['cmd.exe', '/d', '/s', '/c', command];
   }
 
+  // Refresh PATH from the live registry (Machine + User scopes). The parent
+  // server process may hold a stale PATH snapshot (e.g. PHP added after launch),
+  // and cmd.exe cannot refresh its own PATH. PowerShell re-reads the registry
+  // here, and the Start-Process cmd.exe child inherits this refreshed PATH.
   const script = [
+    `$mp = [System.Environment]::GetEnvironmentVariable('PATH','Machine'); $up = [System.Environment]::GetEnvironmentVariable('PATH','User'); $env:PATH = ($mp + ';' + $up).TrimEnd(';')`,
     `$out = [System.IO.Path]::GetTempFileName()`,
     `$err = [System.IO.Path]::GetTempFileName()`,
     `$cmdExe = $env:ComSpec; if (-not $cmdExe) { $cmdExe = Join-Path $env:SystemRoot 'System32\\cmd.exe' }; if (-not $cmdExe -or -not (Test-Path -LiteralPath $cmdExe)) { $cmdExe = 'C:\\Windows\\System32\\cmd.exe' }`,

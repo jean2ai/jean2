@@ -201,8 +201,12 @@ describe('windows shell wrapper', () => {
       expect(script).toContain("$env:ComSpec");
       expect(script).toContain("$env:SystemRoot");
       expect(script).toContain("'C:\\Windows\\System32\\cmd.exe'");
-      expect(script).toContain('-FilePath $cmdExe');
-      expect(script).not.toContain('-FilePath $env:ComSpec');
+      expect(script).toContain("-FilePath $cmdExe");
+      // The wrapper must refresh PATH from the live registry so child cmd.exe
+      // sees tools added after the server launched (stale PATH snapshot).
+      expect(script).toContain("[System.Environment]::GetEnvironmentVariable('PATH','Machine')");
+      expect(script).toContain("[System.Environment]::GetEnvironmentVariable('PATH','User')");
+      expect(script).toContain("$env:PATH");
     } finally {
       Bun.which = originalWhich;
     }
