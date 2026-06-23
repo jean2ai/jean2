@@ -1,5 +1,5 @@
 import type { Jean2Client } from '@jean2/sdk';
-import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal } from 'lucide-react';
+import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { useUIStore } from '@/stores/uiStore';
 import type { ConfigurationSection } from '@/stores/uiStore';
+
 import { ProviderCredentialsPanel } from './configuration/ProviderCredentialsPanel';
 import { OAuthProvidersPanel } from './configuration/OAuthProvidersPanel';
 import { ModelsPanel } from './configuration/ModelsPanel';
@@ -26,30 +27,52 @@ import { PreconfigsPanel } from './configuration/PreconfigsPanel';
 import { ResponseFormatsPanel } from './configuration/ResponseFormatsPanel';
 import { EnvPanel } from './configuration/EnvPanel';
 
+import { AccountPanel } from './configuration/AccountPanel';
+import { AppearancePanel } from './configuration/AppearancePanel';
+import { KeybindsPanel } from './configuration/KeybindsPanel';
+
 interface ConfigurationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sdkClient: Jean2Client | null;
+  apiToken: string | null;
+  isConnected: boolean;
+  onLogout: () => void;
 }
+
+type SectionGroup = 'preferences' | 'server';
+type IconType = typeof Key;
 
 interface SectionDef {
   value: ConfigurationSection;
   label: string;
-  icon: typeof Key;
+  icon: IconType;
+  group: SectionGroup;
 }
 
 const SECTIONS: SectionDef[] = [
-  { value: 'providers', label: 'Credentials', icon: Key },
-  { value: 'oauth', label: 'OAuth', icon: Link2 },
-  { value: 'models', label: 'Models', icon: Boxes },
-  { value: 'prompts', label: 'Prompts', icon: FileText },
-  { value: 'preconfigs', label: 'Preconfigs', icon: Layers },
-  { value: 'response-formats', label: 'Formats', icon: Braces },
-  { value: 'env', label: 'Environment', icon: Terminal },
+  // Preferences
+  { value: 'account', label: 'Account', icon: User, group: 'preferences' },
+  { value: 'appearance', label: 'Appearance', icon: Palette, group: 'preferences' },
+  { value: 'keybinds', label: 'Keybinds', icon: Keyboard, group: 'preferences' },
+  // Server
+  { value: 'providers', label: 'Credentials', icon: Key, group: 'server' },
+  { value: 'oauth', label: 'OAuth', icon: Link2, group: 'server' },
+  { value: 'models', label: 'Models', icon: Boxes, group: 'server' },
+  { value: 'prompts', label: 'Prompts', icon: FileText, group: 'server' },
+  { value: 'preconfigs', label: 'Preconfigs', icon: Layers, group: 'server' },
+  { value: 'response-formats', label: 'Formats', icon: Braces, group: 'server' },
+  { value: 'env', label: 'Environment', icon: Terminal, group: 'server' },
 ];
 
-function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null) {
+function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null, extra: { apiToken: string | null; isConnected: boolean; onLogout: () => void; open: boolean }) {
   switch (value) {
+    case 'account':
+      return <AccountPanel apiToken={extra.apiToken} isConnected={extra.isConnected} onLogout={extra.onLogout} sdkClient={sdkClient} open={extra.open} />;
+    case 'appearance':
+      return <AppearancePanel />;
+    case 'keybinds':
+      return <KeybindsPanel />;
     case 'providers':
       return <ProviderCredentialsPanel sdkClient={sdkClient} />;
     case 'oauth':
@@ -71,17 +94,23 @@ export function ConfigurationDialog({
   open,
   onOpenChange,
   sdkClient,
+  apiToken,
+  isConnected,
+  onLogout,
 }: ConfigurationDialogProps) {
   const section = useUIStore((s) => s.configurationSection);
   const setSection = useUIStore((s) => s.setConfigurationSection);
+
+  const prefSections = SECTIONS.filter((s) => s.group === 'preferences');
+  const serverSections = SECTIONS.filter((s) => s.group === 'server');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col overflow-hidden p-3 sm:p-4 gap-3 sm:gap-4 max-w-[calc(100vw-0.5rem)] sm:max-w-[860px] h-[85dvh] sm:h-[85vh]">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Configuration</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Manage credentials, OAuth providers, models, prompts, preconfigs, response formats, and environment variables
+            Manage preferences, credentials, models, agents, and environment
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +123,15 @@ export function ConfigurationDialog({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SECTIONS.map((s) => (
+            <SelectItem value="_pref_group" disabled className="text-xs font-semibold text-muted-foreground">Preferences</SelectItem>
+            {prefSections.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                <s.icon className="size-4" />
+                {s.label}
+              </SelectItem>
+            ))}
+            <SelectItem value="_server_group" disabled className="text-xs font-semibold text-muted-foreground">Server</SelectItem>
+            {serverSections.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 <s.icon className="size-4" />
                 {s.label}
@@ -111,7 +148,19 @@ export function ConfigurationDialog({
         >
           {/* Desktop sidebar */}
           <TabsList className="hidden sm:flex flex-col h-fit w-44 lg:w-48 shrink-0 items-stretch gap-0.5 bg-transparent p-1 rounded-lg">
-            {SECTIONS.map((s) => (
+            <span className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Preferences</span>
+            {prefSections.map((s) => (
+              <TabsTrigger
+                key={s.value}
+                value={s.value}
+                className="justify-start px-3 py-1.5 text-sm"
+              >
+                <s.icon className="size-4" data-icon="inline-start" />
+                <span>{s.label}</span>
+              </TabsTrigger>
+            ))}
+            <span className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Server</span>
+            {serverSections.map((s) => (
               <TabsTrigger
                 key={s.value}
                 value={s.value}
@@ -123,12 +172,11 @@ export function ConfigurationDialog({
             ))}
           </TabsList>
 
-          {/* Shared content area — flex-grows to fill; min-h-0 + overflow-y-auto
-              makes it scroll instead of pushing the dialog taller. */}
+          {/* Shared content area */}
           <div className="dialog-scrollbar flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain rounded-lg border">
             {SECTIONS.map((s) => (
               <TabsContent key={s.value} value={s.value} className="mt-0">
-                {renderPanel(s.value, sdkClient)}
+                {renderPanel(s.value, sdkClient, { apiToken, isConnected, onLogout, open })}
               </TabsContent>
             ))}
           </div>

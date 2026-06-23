@@ -1,4 +1,4 @@
-import { Settings, SlidersHorizontal, Ellipsis, LayoutGrid, LayoutList, Check, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { Settings, Ellipsis, LayoutGrid, LayoutList, Check, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { isWindows } from '@/lib/platform';
 import { platform, hasCapability } from '@/platform';
@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -20,7 +19,6 @@ export function AppHeader() {
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const connected = useConnectionStore((s) => s.connected);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
-  const setShowConfiguration = useUIStore((s) => s.setShowConfiguration);
   const setShowTools = useUIStore((s) => s.setShowTools);
   const expandedToolbar = useUIStore((s) => s.expandedToolbar);
   const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
@@ -80,15 +78,10 @@ export function AppHeader() {
                 <TooltipContent>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Configuration
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowTools(true)}>
                   <Wrench className="mr-2 h-4 w-4" />
                   Tools
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
@@ -154,14 +147,7 @@ export function AppHeader() {
             )}
             {expandedToolbar && (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setShowConfiguration(true)}>
-                      <SlidersHorizontal className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Configuration</TooltipContent>
-                </Tooltip>
+                <div className="w-px h-5 bg-border mx-1" />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-sm" onClick={() => setShowTools(true)}>
@@ -193,15 +179,10 @@ export function AppHeader() {
                   <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent align="end" className="w-48 min-w-48">
-                  <DropdownMenuItem onClick={() => setShowConfiguration(true)}>
-                    <SlidersHorizontal className="mr-2 h-4 w-4" />
-                    Configuration
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowTools(true)}>
                     <Wrench className="mr-2 h-4 w-4" />
                     Tools
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowSettings(true)}>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings

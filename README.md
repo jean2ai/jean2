@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/promo.webp" alt="Jean2 desktop client — chat interface, workspace selector, and tool execution" width="800">
+  <img src="docs/promo.webp" alt="Jean2 desktop client - chat interface, workspace selector, and tool execution" width="800">
 </p>
 
 <p align="center">
@@ -7,9 +7,9 @@
 </p>
 
 <p align="center">
-  A coding assistant, a research agent, a personal automation — same binary, different configuration.
-  **One server. Any LLM. Every device. Nothing leaves your machine.**
-  Run Claude, GPT, or Gemini against your codebase, your browser, your terminal — no vendor lock-in.
+  A coding assistant, a research agent, a personal automation. Same binary, different configuration.<br>
+  Run Claude, GPT, or Gemini against your codebase, your browser, your terminal with no vendor lock-in.<br>
+  <strong>One server. Any LLM. Every device. Nothing leaves your machine.</strong>
 </p>
 
 <p align="center">
@@ -59,7 +59,7 @@ jean2 open
 
 The server automatically serves the client on `http://localhost:3774`. Run `jean2 open` to open it in your browser.
 
-> Desktop app for macOS (Electron), plus a PWA client that runs on any device — phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
+> Desktop app for macOS (Electron), plus a PWA client that runs on any device - phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
 
 ---
 
@@ -67,11 +67,11 @@ The server automatically serves the client on `http://localhost:3774`. Run `jean
 
 You already have Cursor, Copilot, and Claude Code. Why run your own agent server?
 
-**You bring the keys, you keep the data.** Jean2 runs on your machine, connects to any LLM you pay for, and stores everything locally — no telemetry, no vendor lock-in, no subscription to a single AI company. Swap models mid-conversation. Use budget models for routine tasks, premium for hard problems. Nobody sees your prompts but you.
+**You bring the keys, you keep the data.** Jean2 runs on your machine, connects to any LLM you pay for, and stores everything locally - no telemetry, no vendor lock-in, no subscription to a single AI company. Swap models mid-conversation. Use budget models for routine tasks, premium for hard problems. Nobody sees your prompts but you.
 
-**Tools, not prompts.** Instead of writing mega-prompts, give your agent real capabilities — file operations, shell commands, web browsing, API calls. Tools are TypeScript. You can read them, modify them, and write your own in minutes.
+**Tools, not prompts.** Instead of writing mega-prompts, give your agent real capabilities - file operations, shell commands, web browsing, API calls. Tools are TypeScript. You can read them, modify them, and write your own in minutes.
 
-**One server, every device.** Desktop, phone, tablet — same sessions, same workspaces. Works over Tailscale, VPN, or local network.
+**One server, every device.** Desktop, phone, tablet - same sessions, same workspaces. Works over Tailscale, VPN, or local network.
 
 ---
 
@@ -79,23 +79,23 @@ You already have Cursor, Copilot, and Claude Code. Why run your own agent server
 
 ### 🧠 Use any model, anytime
 
-Connect Anthropic, OpenAI, Google, OpenRouter, DeepSeek, or any OpenAI-compatible endpoint. Switch providers and models per-session. Use GPT-5.5 for architecture, DeepSeek for routine refactors, Claude for code review. No lock-in — you're always one click away from a better model.
+Connect Anthropic, OpenAI, Google, OpenRouter, DeepSeek, or any OpenAI-compatible endpoint. Switch providers and models per-session. Use GPT-5.5 for architecture, DeepSeek for routine refactors, Claude for code review. No lock-in - you're always one click away from a better model.
 
 ### 🔧 Tools in TypeScript. No ceremony.
 
-Give your agent real capabilities. A tool is a directory with a `tool.ts` and a `package.json` — Bun compiles it on the fly, no build step. Export a `definition` and an `execute` function, and the agent discovers it automatically. Need your agent to query Jira, deploy to Vercel, or check CI status? Write it in 20 lines.
+Give your agent real capabilities. A tool is a directory with a `tool.ts` and a `package.json` - Bun compiles it on the fly, no build step. Export a `definition` and an `execute` function, and the agent discovers it automatically. Need your agent to query Jira, deploy to Vercel, or check CI status? Write it in 20 lines.
 
 ### 🛡️ You're always in control
 
-Every tool interaction flows through a unified Ask protocol. Permissions, confirmations, questions, forms — the agent asks, you decide. Auto-approve the safe stuff, require confirmation for the rest. Workspace-level permissions mean project A can be locked down while project B runs freely.
+Every tool interaction flows through a unified Ask protocol. Permissions, confirmations, questions, forms - the agent asks, you decide. Auto-approve the safe stuff, require confirmation for the rest. Workspace-level permissions mean project A can be locked down while project B runs freely.
 
 ### 🔌 Connect everything
 
-Hook into any MCP server (local or remote, with OAuth). Define reusable Skills as `SKILL.md` instruction sets. Connect per workspace — your work project gets Kubernetes access, your side project stays sandboxed.
+Hook into any MCP server (local or remote, with OAuth). Define reusable Skills as `SKILL.md` instruction sets. Connect per workspace - your work project gets Kubernetes access, your side project stays sandboxed.
 
 ### 🧩 Browser Extension
 
-Give your agent eyes on the web. The [Jean2Browser extension](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) lets the agent navigate pages, read content, and click elements — install it directly from the Chrome Web Store.
+Give your agent eyes on the web. The [Jean2Browser extension](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) lets the agent navigate pages, read content, and click elements - install it directly from the Chrome Web Store.
 
 ### 🤖 Delegate complex work
 
@@ -103,7 +103,7 @@ Agents spawn hierarchical subagents for complex tasks. Ask it to "audit the code
 
 ### 🌐 One server, every device
 
-REST + WebSocket under the hood. Desktop, phone, tablet, browser — all connect the same way. Start a session on your laptop, pick it up on your phone. Works over localhost, Tailscale, VPN, or a reverse proxy.
+REST + WebSocket under the hood. Desktop, phone, tablet, browser - all connect the same way. Start a session on your laptop, pick it up on your phone. Works over localhost, Tailscale, VPN, or a reverse proxy.
 
 ### 🎯 Your rules, not ours
 
@@ -124,7 +124,7 @@ System prompts, tools, and skills are all files on disk. Edit them, add them, re
 
 ## Tools
 
-A set of built-in tools to get started with `jean2 init` — or pick what you need and write your own in TypeScript.
+A set of built-in tools to get started with `jean2 init` - or pick what you need and write your own in TypeScript.
 
 | Tool | Description |
 |------|-------------|
@@ -192,9 +192,9 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | Package | Description |
 |---------|-------------|
 | [`@jean2/server`](packages/server/) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
-| [`@jean2/client`](packages/client/) | React 19 + Vite 8 UI — chat, file browser, permissions, multi-server |
+| [`@jean2/client`](packages/client/) | React 19 + Vite 8 UI - chat, file browser, permissions, multi-server |
 | [`@jean2/sdk`](packages/sdk/) | Shared TypeScript types, WebSocket protocol, transport layer, REST clients |
-| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app — macOS |
+| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app - macOS |
 
 ### Tech Stack
 
@@ -205,19 +205,19 @@ A set of built-in tools to get started with `jean2 init` — or pick what you ne
 | Client | React 19, Vite 8, TypeScript |
 | UI | Tailwind CSS v4, shadcn/ui, Radix UI |
 | Desktop | [Electron](https://www.electronjs.org/) |
-| PWA | PWA — works on any device with a browser |
+| PWA | PWA - works on any device with a browser |
 | LLM | Vercel AI SDK v6, MCP SDK |
 
 ---
 
 ## Sessions
 
-- **Compact** — LLM-powered conversation summarization
-- **Fork** — Branch any session at any message
-- **Revert** — Undo to any previous point
-- **Interrupt** — Cancel generation with automatic cascade to subagents
-- **Queue** — Queue messages while the agent is busy
-- **Remote Terminal** — Full PTY terminal with multi-tab support
+- **Compact** - LLM-powered conversation summarization
+- **Fork** - Branch any session at any message
+- **Revert** - Undo to any previous point
+- **Interrupt** - Cancel generation with automatic cascade to subagents
+- **Queue** - Queue messages while the agent is busy
+- **Remote Terminal** - Full PTY terminal with multi-tab support
 
 ---
 
@@ -236,7 +236,7 @@ When set, all API and WebSocket endpoints require the token via `Authorization: 
 
 ## Configuration
 
-All configuration lives in `~/.jean2/` — model definitions, API keys, tools, preconfigs, and workspace data. See the [configuration guide](docs/configuration.md) for the full reference.
+All configuration lives in `~/.jean2/` - model definitions, API keys, tools, preconfigs, and workspace data. See the [configuration guide](docs/configuration.md) for the full reference.
 
 ---
 

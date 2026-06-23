@@ -4,6 +4,11 @@ import type { UseBoundStore, StoreApi } from 'zustand';
 
 // --- Configuration Section (deep-linking) ---
 export type ConfigurationSection =
+  // Preferences
+  | 'account'
+  | 'appearance'
+  | 'keybinds'
+  // Server
   | 'providers'
   | 'oauth'
   | 'models'
@@ -115,7 +120,8 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   showMCPDialog: false,
   showWorkspacePermissions: false,
 
-  setShowSettings: (show) => set({ showSettings: show }),
+  // Open the unified settings dialog (preference or server section)
+  setShowSettings: (show: boolean) => set({ showConfiguration: show, showSettings: show }),
   setShowConfiguration: (show) => set({ showConfiguration: show }),
   setShowTools: (show) => set({ showTools: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),

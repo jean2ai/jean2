@@ -8,6 +8,8 @@ import { interruptManager } from './interrupt';
 import { broadcastEvent, type BroadcastFn } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
+import { executeWorkflow, getWorkflowToolDefinition } from './workflow';
+import type { WorkflowInput, WorkflowResult } from '@jean2/sdk';
 import { createSkillTool, skillManageToolDefinition, executeSkillManageTool, buildSkillManageToolDescription } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { getSession, getWorkspace } from '@/store';
@@ -63,7 +65,8 @@ export async function buildAiSdkTools(
     || (Array.isArray(canSpawnSubagents) && canSpawnSubagents.length > 0);
   const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && canSpawn;
   const allowedSubagentIds = Array.isArray(canSpawnSubagents) ? canSpawnSubagents : undefined;
-  const effectiveToolNames = shouldIncludeTask ? [...toolNames, 'task'] : toolNames;
+  const builtInAgentTools = shouldIncludeTask ? ['task'] : [];
+  const effectiveToolNames = [...toolNames, ...builtInAgentTools];
 
   for (const name of effectiveToolNames) {
     if (name === 'task') {
@@ -213,6 +216,40 @@ export async function buildAiSdkTools(
           } finally {
             interruptManager.unregisterToolExecution(sessionId, toolCallId);
             rejectPendingAsksByToolCallId(toolCallId);
+          }
+        },
+      });
+    }
+
+    // Workflow tool (if enabled for this workspace)
+    const workflowSettings = workspace?.settings?.workflow;
+    if (workflowSettings?.enabled && canSpawn) {
+      const workflowDefinition = await getWorkflowToolDefinition(allowedSubagentIds);
+      tools['workflow'] = tool({
+        description: workflowDefinition.description,
+        inputSchema: jsonSchema(workflowDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          try {
+            const workflowInput = {
+              prompt: args.prompt as string,
+              ...(args.description ? { description: args.description as string } : {}),
+              ...(args.subtasks ? { subtasks: args.subtasks as WorkflowInput['subtasks'] } : {}),
+              ...(args.leafPreconfigId ? { leafPreconfigId: args.leafPreconfigId as string } : {}),
+              ...(args.outputSchema ? { outputSchema: args.outputSchema as Record<string, unknown> } : {}),
+            } as WorkflowInput;
+
+            const result = await executeWorkflow(workflowInput, {
+              sessionId,
+              workspaceId,
+              workspacePath,
+              abortSignal: toolAbortController.signal,
+              allowedSubagentIds,
+            });
+
+            return result as WorkflowResult;
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
           }
         },
       });

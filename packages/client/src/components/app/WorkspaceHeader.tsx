@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Brain, Wrench, Search, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Settings2, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
@@ -16,9 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
-import { WorkspaceMemoryDialog } from '@/components/modals/WorkspaceMemoryDialog';
-import { WorkspaceSkillsDialog } from '@/components/modals/WorkspaceSkillsDialog';
-import { WorkspaceSessionSearchDialog } from '@/components/modals/WorkspaceSessionSearchDialog';
+import { WorkspaceSettingsDialog } from '@/components/modals/WorkspaceSettingsDialog';
 import { isWindows } from '@/lib/platform';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -41,9 +39,7 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const [editingPaths, setEditingPaths] = useState(false);
-  const [showMemoryDialog, setShowMemoryDialog] = useState(false);
-  const [showSkillsDialog, setShowSkillsDialog] = useState(false);
-  const [showSessionSearchDialog, setShowSessionSearchDialog] = useState(false);
+  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
 
   const isMobile = useIsMobile();
   const showExpanded = expandedToolbar && !isMobile;
@@ -126,13 +122,27 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
 
               {showExpanded && (
                 <>
+                   <div className="w-px h-5 bg-border mx-1" />
+                   <Tooltip>
+                     <TooltipTrigger asChild>
+                       <Button variant="ghost" size="icon-sm" onClick={() => setShowMCPDialog(true)}>
+                         <Server className="w-4 h-4" />
+                       </Button>
+                     </TooltipTrigger>
+                     <TooltipContent>MCP Servers</TooltipContent>
+                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" onClick={() => setShowMCPDialog(true)}>
-                        <Server className="w-4 h-4" />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
+                        className={showWorkspacePermissions ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
+                      >
+                        <Shield className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>MCP Servers</TooltipContent>
+                    <TooltipContent>{showWorkspacePermissions ? 'Hide Permissions' : 'Show Permissions'}</TooltipContent>
                   </Tooltip>
                   {onUpdateWorkspacePaths && (
                     <Tooltip>
@@ -147,46 +157,13 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                   {onUpdateWorkspaceSettings && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setShowMemoryDialog(true)}>
-                          <Brain className="w-4 h-4" />
+                        <Button variant="ghost" size="icon-sm" onClick={() => setShowWorkspaceSettings(true)}>
+                          <Settings2 className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Memory</TooltipContent>
+                      <TooltipContent>Workspace Settings</TooltipContent>
                     </Tooltip>
                   )}
-                  {onUpdateWorkspaceSettings && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setShowSkillsDialog(true)}>
-                          <Wrench className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Skill Management</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {onUpdateWorkspaceSettings && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setShowSessionSearchDialog(true)}>
-                          <Search className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Session Search</TooltipContent>
-                    </Tooltip>
-                  )}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
-                        className={showWorkspacePermissions ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
-                      >
-                        <Shield className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{showWorkspacePermissions ? 'Hide Permissions' : 'Show Permissions'}</TooltipContent>
-                  </Tooltip>
                 </>
               )}
               {!showExpanded && (
@@ -206,6 +183,13 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                       <Server className="w-4 h-4" />
                       MCP Servers
                     </DropdownMenuItem>
+                    <DropdownMenuCheckboxItem
+                      checked={showWorkspacePermissions}
+                      onCheckedChange={setShowWorkspacePermissions}
+                    >
+                      <Shield className="w-4 h-4" />
+                      Permissions
+                    </DropdownMenuCheckboxItem>
                     <DropdownMenuSeparator />
                     {onUpdateWorkspacePaths && (
                       <DropdownMenuItem onClick={() => setEditingPaths(true)}>
@@ -214,30 +198,11 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                       </DropdownMenuItem>
                     )}
                     {onUpdateWorkspaceSettings && (
-                      <DropdownMenuItem onClick={() => setShowMemoryDialog(true)}>
-                        <Brain className="w-4 h-4" />
-                        Memory
+                      <DropdownMenuItem onClick={() => setShowWorkspaceSettings(true)}>
+                        <Settings2 className="w-4 h-4" />
+                        Workspace Settings
                       </DropdownMenuItem>
                     )}
-                    {onUpdateWorkspaceSettings && (
-                      <DropdownMenuItem onClick={() => setShowSkillsDialog(true)}>
-                        <Wrench className="w-4 h-4" />
-                        Skill Management
-                      </DropdownMenuItem>
-                    )}
-                    {onUpdateWorkspaceSettings && (
-                      <DropdownMenuItem onClick={() => setShowSessionSearchDialog(true)}>
-                        <Search className="w-4 h-4" />
-                        Session Search
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuCheckboxItem
-                      checked={showWorkspacePermissions}
-                      onCheckedChange={setShowWorkspacePermissions}
-                    >
-                      <Shield className="w-4 h-4" />
-                      Permissions
-                    </DropdownMenuCheckboxItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -265,25 +230,9 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
         />
       )}
       {onUpdateWorkspaceSettings && activeWorkspace && (
-        <WorkspaceMemoryDialog
-          open={showMemoryDialog}
-          onOpenChange={setShowMemoryDialog}
-          workspace={activeWorkspace}
-          onSave={onUpdateWorkspaceSettings}
-        />
-      )}
-      {onUpdateWorkspaceSettings && activeWorkspace && (
-        <WorkspaceSkillsDialog
-          open={showSkillsDialog}
-          onOpenChange={setShowSkillsDialog}
-          workspace={activeWorkspace}
-          onSave={onUpdateWorkspaceSettings}
-        />
-      )}
-      {onUpdateWorkspaceSettings && activeWorkspace && (
-        <WorkspaceSessionSearchDialog
-          open={showSessionSearchDialog}
-          onOpenChange={setShowSessionSearchDialog}
+        <WorkspaceSettingsDialog
+          open={showWorkspaceSettings}
+          onOpenChange={setShowWorkspaceSettings}
           workspace={activeWorkspace}
           onSave={onUpdateWorkspaceSettings}
         />

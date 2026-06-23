@@ -31,6 +31,7 @@ import { revertToStep } from '@/core/revert';
 import { forkSession } from '@/core/fork';
 import { interruptManager } from '@/core/interrupt';
 import { broadcastSessionCreatedExclude } from '@/core/broadcast';
+import { runGoalLoop } from '@/core/goal-loop';
 import {
   getLLMOpenAIApiKey,
   getLLMAnthropicApiKey,
@@ -193,6 +194,7 @@ async function drainQueue(
 
 interface ChatTurnResult {
   streamCompleted: boolean;
+  interrupted: boolean;
   needsAutoCompaction: boolean;
   contextOverflow: boolean;
   isFatal: boolean;
@@ -360,6 +362,7 @@ async function runSingleChatTurn(
           });
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: false,
             isFatal: true,
@@ -378,6 +381,7 @@ async function runSingleChatTurn(
           });
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: false,
             isFatal: false,
@@ -396,6 +400,7 @@ async function runSingleChatTurn(
           });
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: false,
             isFatal: false,
@@ -413,6 +418,7 @@ async function runSingleChatTurn(
           });
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: false,
             isFatal: true,
@@ -424,6 +430,7 @@ async function runSingleChatTurn(
         case 'error.context_overflow': {
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: true,
             isFatal: false,
@@ -441,6 +448,7 @@ async function runSingleChatTurn(
           });
           return {
             streamCompleted: false,
+            interrupted: false,
             needsAutoCompaction: false,
             contextOverflow: false,
             isFatal: true,
@@ -451,8 +459,21 @@ async function runSingleChatTurn(
       }
     }
 
+    // Detect if the stream was interrupted (user pressed Stop).
+    // streamChat cleans up its own interrupt registration in finally block,
+    // so by the time we get here the session is no longer 'active' — but we
+    // can check the last assistant message status to detect interruption.
+    const wasInterrupted = (() => {
+      const msgs = listMessagesWithParts(sessionId);
+      const lastAssistant = [...msgs].reverse().find(m => m.message.role === 'assistant');
+      return lastAssistant && 'status' in lastAssistant.message
+        ? lastAssistant.message.status === 'interrupted'
+        : false;
+    })();
+
     return {
       streamCompleted: true,
+      interrupted: wasInterrupted,
       needsAutoCompaction: pendingCompaction,
       contextOverflow: false,
       isFatal: false,
@@ -464,6 +485,7 @@ async function runSingleChatTurn(
     ctx.send(ws, { type: 'error', code: 'chat_error', message });
     return {
       streamCompleted: false,
+      interrupted: false,
       needsAutoCompaction: false,
       contextOverflow: false,
       isFatal: true,
@@ -526,6 +548,8 @@ async function handleChat(
   content: string,
   attachments?: Array<{ id: string; kind: string }>,
   responseFormatId?: string,
+  goalCondition?: string,
+  goalMaxTurns?: number,
 ): Promise<void> {
   const session = getSession(sessionId);
   if (!session) {
@@ -599,6 +623,47 @@ async function handleChat(
   }
 
   const responseFormat = responseFormatId ? getResponseFormat(responseFormatId) ?? undefined : undefined;
+
+  // ── Goal mode: wrap the chat in a goal loop ────────────────────────────
+  if (goalCondition) {
+    // Create a dedicated AbortController for the goal loop.
+    // We do NOT register it with interruptManager here because streamChat
+    // registers/unregisters the session on every turn. Instead, we listen
+    // to the session interrupt event and abort the goal loop's controller.
+    const goalAbortController = new AbortController();
+
+    // Watch for user interrupts: when interruptManager fires for this session,
+    // abort the goal loop's controller so the entire cycle stops.
+    const checkInterval = setInterval(() => {
+      if (interruptManager.isSessionInterrupted(sessionId) && !goalAbortController.signal.aborted) {
+        goalAbortController.abort(new Error('Goal loop cancelled by user'));
+      }
+    }, 200);
+
+    try {
+      await runGoalLoop({
+        sessionId,
+        condition: goalCondition,
+        initialPrompt: content,
+        maxTurns: goalMaxTurns,
+        abortSignal: goalAbortController.signal,
+        broadcast: ctx.broadcast,
+        runTurn: async (turnContent: string) => {
+          const result = await runSingleChatTurn(
+            ctx, ws, sessionId, turnContent, preconfig, modelId, provider,
+            workspacePath, additionalPaths, session, undefined, responseFormat,
+          );
+          return {
+            streamCompleted: result.streamCompleted,
+            interrupted: result.interrupted,
+          };
+        },
+      });
+    } finally {
+      clearInterval(checkInterval);
+    }
+    return;
+  }
 
   let currentContent: string = content;
   let currentAttachments: Array<{ id: string; kind: string }> | undefined = attachments;
@@ -1120,7 +1185,7 @@ export async function handleClientMessage(
       const gateChat = checkControllerGate(msg.sessionId, 'chat.message', ws);
       if (gateChat) { sendGateRejection(ctx, ws, gateChat); break; }
       const chatMsg = msg as ChatMessage;
-      await handleChat(ctx, ws, chatMsg.sessionId, chatMsg.content, chatMsg.attachments, chatMsg.responseFormatId);
+      await handleChat(ctx, ws, chatMsg.sessionId, chatMsg.content, chatMsg.attachments, chatMsg.responseFormatId, chatMsg.goalCondition, chatMsg.goalMaxTurns);
       break;
     }
 

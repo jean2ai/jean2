@@ -9,6 +9,8 @@ export class ChatNamespace {
     options?: {
       attachments?: Array<{ id: string; kind: AttachmentKind }>;
       responseFormatId?: string;
+      goalCondition?: string;
+      goalMaxTurns?: number;
     },
   ): void {
     const msg: ChatMessage = {
@@ -21,6 +23,12 @@ export class ChatNamespace {
     }
     if (options?.responseFormatId) {
       msg.responseFormatId = options.responseFormatId;
+    }
+    if (options?.goalCondition) {
+      msg.goalCondition = options.goalCondition;
+    }
+    if (options?.goalMaxTurns) {
+      msg.goalMaxTurns = options.goalMaxTurns;
     }
     this._send(msg);
   }

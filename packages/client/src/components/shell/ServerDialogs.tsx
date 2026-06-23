@@ -2,7 +2,6 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Jean2Client, PermissionGrant } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { SettingsDialog } from '@/components/modals/SettingsDialog';
 import { MCPManagementDialog } from '@/components/modals/MCPManagementDialog';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
 import { ToolsDialog } from '@/components/modals/ToolsDialog';
@@ -34,24 +33,20 @@ export function ServerDialogs({
 }: ServerDialogsProps) {
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const {
-    showSettings,
     showMCPDialog,
     showConfiguration,
     showTools,
     showWorkspacePermissions,
-    setShowSettings,
     setShowMCPDialog,
     setShowConfiguration,
     setShowTools,
     setShowWorkspacePermissions,
   } = useUIStore(
     useShallow((s) => ({
-      showSettings: s.showSettings,
       showMCPDialog: s.showMCPDialog,
       showConfiguration: s.showConfiguration,
       showTools: s.showTools,
       showWorkspacePermissions: s.showWorkspacePermissions,
-      setShowSettings: s.setShowSettings,
       setShowMCPDialog: s.setShowMCPDialog,
       setShowConfiguration: s.setShowConfiguration,
       setShowTools: s.setShowTools,
@@ -68,15 +63,6 @@ export function ServerDialogs({
 
   return (
     <>
-      <SettingsDialog
-        open={showSettings}
-        onOpenChange={setShowSettings}
-        apiToken={apiToken}
-        isConnected={isConnected}
-        onLogout={onLogout}
-        sdkClient={sdkClient}
-      />
-
       <MCPManagementDialog
         open={showMCPDialog}
         onOpenChange={setShowMCPDialog}
@@ -108,6 +94,9 @@ export function ServerDialogs({
           }
         }}
         sdkClient={sdkClient}
+        apiToken={apiToken}
+        isConnected={isConnected}
+        onLogout={onLogout}
       />
 
       <ToolsDialog

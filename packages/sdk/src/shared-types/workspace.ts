@@ -16,10 +16,15 @@ export interface WorkspaceSessionSearchSettings {
   includeToolResults: boolean;
 }
 
+export interface WorkspaceWorkflowSettings {
+  enabled: boolean;
+}
+
 export interface WorkspaceSettings {
   memory?: WorkspaceMemorySettings;
   skills?: WorkspaceSkillSettings;
   sessionSearch?: WorkspaceSessionSearchSettings;
+  workflow?: WorkspaceWorkflowSettings;
 }
 
 export interface Workspace {

@@ -91,7 +91,7 @@ export interface UseServerSessionManagerReturn {
   forkSession: (sessionId: string, messageId: string) => void;
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
-  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => void;
+  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;

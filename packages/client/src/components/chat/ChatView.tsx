@@ -43,7 +43,7 @@ interface ChatViewProps {
   prompts?: import('@jean2/sdk').PromptInfo[];
   models: Model[];
   defaultModel: string;
-  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   onRemoveFromQueue: (queueId: string) => void;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
@@ -364,6 +364,7 @@ export function ChatView({
           prompts={prompts}
           sessionId={session.id}
           modelSupportsImage={modelSupportsImage}
+          goalState={(session.metadata as Record<string, unknown> | null)?.goal as import('@jean2/sdk').GoalState | null ?? null}
         />
       )}
 

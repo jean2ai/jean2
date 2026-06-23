@@ -9,6 +9,8 @@ export class QueueNamespace {
     options?: {
       attachments?: Array<{ id: string; kind: AttachmentKind }>;
       responseFormatId?: string;
+      goalCondition?: string;
+      goalMaxTurns?: number;
     },
   ): void {
     this.send({
@@ -17,6 +19,8 @@ export class QueueNamespace {
       content,
       ...(options?.attachments && options.attachments.length > 0 ? { attachments: options.attachments } : {}),
       ...(options?.responseFormatId ? { responseFormatId: options.responseFormatId } : {}),
+      ...(options?.goalCondition ? { goalCondition: options.goalCondition } : {}),
+      ...(options?.goalMaxTurns ? { goalMaxTurns: options.goalMaxTurns } : {}),
     });
   }
 

@@ -51,6 +51,8 @@ export interface ChatMessage {
   content: string;
   attachments?: ChatMessageAttachment[];
   responseFormatId?: string;
+  goalCondition?: string;
+  goalMaxTurns?: number;
 }
 
 export interface SessionCloseMessage {

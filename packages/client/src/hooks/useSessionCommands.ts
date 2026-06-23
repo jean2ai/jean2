@@ -51,7 +51,7 @@ interface UseSessionCommandsReturn {
   compactSession: (sessionId: string) => void;
   addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
-  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
+  sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
   updateSessionPreconfig: (preconfigId: string) => void;
@@ -250,7 +250,7 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
-  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => {
+  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => {
     const client = clientRef.current;
     if (!currentSession || isCompacting) return;
     if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
@@ -260,7 +260,7 @@ export function useSessionCommands({
         client.chat.send(
           currentSession.id,
           content,
-          { attachments, responseFormatId },
+          { attachments, responseFormatId, goalCondition: goal?.condition, goalMaxTurns: goal?.maxTurns },
         );
       }
     }

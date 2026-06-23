@@ -18,7 +18,7 @@ import {
   clearModelsCache,
 } from '@/config';
 import { runMigrations } from '@/store';
-import { initializePreconfigs } from '@/core/preconfig';
+import { initializePreconfigs, migrateUuidPreconfigs } from '@/core/preconfig';
 import defaultModelsJson from '@/config/models.json';
 import { installRecommendedTools } from '@/tools';
 
@@ -210,6 +210,8 @@ JEAN2_LLM_SUBAGENT_MAX_STEPS=500
   if (shouldInstallPreconfigs) {
     console.log('Installing default preconfigs...');
     await initializePreconfigs();
+    // Migrate any UUID-named preconfigs to human-readable slugs
+    await migrateUuidPreconfigs();
   }
 
   // Install recommended tools if requested or if in non-interactive mode with --install-tools

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import { ArrowUp, Square, Paperclip, AlertTriangle } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, AlertTriangle, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -17,13 +17,14 @@ import { useFileSearch, extractMentionsFromText } from '@/hooks/useFileSearch';
 import { useSessionDraft } from '@/hooks/useSessionDraft';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 
 type AutocompleteMode = 'none' | 'files' | 'prompts';
 
 interface MessageInputProps {
-  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string) => void;
+  onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   disabled?: boolean;
   isStreaming?: boolean;
   onStopStreaming?: () => void;
@@ -33,6 +34,7 @@ interface MessageInputProps {
   prompts?: PromptInfo[];
   sessionId?: string;
   modelSupportsImage?: boolean;
+  goalState?: import('@jean2/sdk').GoalState | null;
 }
 
 interface PendingAttachmentData {
@@ -81,6 +83,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   prompts = [],
   sessionId,
   modelSupportsImage,
+  goalState,
 }: MessageInputProps, ref) {
   const { input, setInput, clearInput } = useSessionDraft(sessionId);
   const [cursorPosition, setCursorPosition] = useState(0);
@@ -92,6 +95,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachmentData[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedResponseFormatId, setSelectedResponseFormatId] = useState<string | undefined>(undefined);
+  const [sendMode, setSendMode] = useState<'chat' | 'goal'>('chat');
+  const [goalMaxTurns, setGoalMaxTurns] = useState(5);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: responseFormatsData } = useResponseFormatsQuery(sdkClient ?? null);
@@ -330,10 +335,21 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }
   }, [addFiles]);
 
+  const goalActive = goalState?.status === 'active';
+  const effectiveDisabled = disabled || goalActive;
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const trimmed = input.trim();
-    if ((!trimmed && pendingAttachments.length === 0) || disabled) return;
+    if ((!trimmed && pendingAttachments.length === 0) || effectiveDisabled) return;
+
+    if (sendMode === 'goal') {
+      onSendMessage(trimmed, undefined, undefined, { condition: trimmed, maxTurns: goalMaxTurns });
+      cleanupPending();
+      setSelectedResponseFormatId(undefined);
+      setSendMode('chat');
+      return;
+    }
 
     const parsed = extractPromptCommand(input);
     if (parsed) {
@@ -468,7 +484,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const trimmed = input.trim();
   const hasUploadingAttachment = pendingAttachments.some(a => a.isUploading);
   const canSend = trimmed || pendingAttachments.length > 0;
-  const isDisabled = !canSend || disabled || hasUploadingAttachment;
+  const isDisabled = !canSend || disabled || hasUploadingAttachment || goalActive;
+  const effectivePlaceholder = goalActive
+    ? `Goal active: ${goalState?.condition ?? ''} (Turn ${goalState?.currentTurn ?? 0}/${goalState?.maxTurns ?? 0})`
+    : sendMode === 'goal'
+      ? 'Type the completion condition...'
+      : placeholder;
 
   return (
     <form
@@ -539,8 +560,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder={placeholder}
-                disabled={disabled}
+                placeholder={effectivePlaceholder}
+                disabled={disabled || goalActive}
                 className={cn(
                   'min-h-[52px] max-h-[200px] resize-none border-0 bg-transparent dark:bg-transparent shadow-none',
                   'px-3 pt-3 pb-0 chat-input-scrollbar',
@@ -621,6 +642,69 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   onSelect={setSelectedResponseFormatId}
                   disabled={disabled}
                 />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        'flex items-center justify-center size-8 rounded-md transition-colors',
+                        sendMode === 'goal'
+                          ? 'text-amber-600 hover:bg-amber-600/10'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                        goalActive && 'pointer-events-none opacity-50'
+                      )}
+                      disabled={goalActive}
+                      aria-label="Send mode"
+                    >
+                      <Target className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-56">
+                    <DropdownMenuLabel>Send Mode</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      onClick={() => setSendMode('chat')}
+                    >
+                      <ArrowUp className="size-4 mr-2" />
+                      <span>Chat</span>
+                      {sendMode === 'chat' && <span className="ml-auto text-xs">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      onClick={() => setSendMode('goal')}
+                    >
+                      <Target className="size-4 mr-2" />
+                      <span>Goal</span>
+                      {sendMode === 'goal' && <span className="ml-auto text-xs">✓</span>}
+                    </DropdownMenuItem>
+                    {sendMode === 'goal' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <div className="px-2 py-1.5 flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">Max turns</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
+                              onClick={() => setGoalMaxTurns(Math.max(1, goalMaxTurns - 1))}
+                            >
+                              −
+                            </button>
+                            <span className="w-6 text-center text-xs tabular-nums">{goalMaxTurns}</span>
+                            <button
+                              type="button"
+                              className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
+                              onClick={() => setGoalMaxTurns(Math.min(100, goalMaxTurns + 1))}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
           </div>
@@ -639,20 +723,36 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <span>new line</span>
           </div>
 
-          <Button
-            type="submit"
-            disabled={isDisabled}
-            size="icon"
-            className={cn(
-              'size-8 rounded-full',
-              canSend && !disabled
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'bg-muted text-muted-foreground'
+          <div className="flex items-center gap-1">
+            <Button
+              type="submit"
+              disabled={isDisabled}
+              size="icon"
+              className={cn(
+                'size-8 rounded-full',
+                canSend && !disabled
+                  ? sendMode === 'goal'
+                    ? 'bg-amber-600 text-white hover:bg-amber-600/90'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'bg-muted text-muted-foreground'
+              )}
+              aria-label={sendMode === 'goal' ? 'Set goal' : 'Send message'}
+            >
+              <ArrowUp className="size-4" />
+            </Button>
+            {onStopStreaming && isStreaming && (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="size-8 rounded-full"
+                onClick={onStopStreaming}
+                aria-label="Stop"
+              >
+                <Square className="size-3.5" />
+              </Button>
             )}
-            aria-label="Send message"
-          >
-            <ArrowUp className="size-4" />
-          </Button>
+          </div>
         </div>
       </div>
     </form>

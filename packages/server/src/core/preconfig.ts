@@ -1,11 +1,149 @@
-import { readdir, readFile, writeFile, unlink, mkdir } from 'fs/promises';
+import { readdir, readFile, writeFile, unlink, mkdir, rename } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { randomUUID } from 'crypto';
 import matter from 'gray-matter';
 import type { Preconfig, PreconfigMode } from '@jean2/sdk';
 import { getPreconfigsDir as getPreconfigsDirPath } from '@/paths';
 import { DEFAULT_PREAMBLES } from './defaults';
+
+// ── Slug utilities ─────────────────────────────────────────────
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Check if a string looks like a UUID. */
+function isUuid(str: string): boolean {
+  return UUID_REGEX.test(str);
+}
+
+/**
+ * Convert a preconfig name to a URL-safe kebab-case slug.
+ * "Code Reviewer" → "code-reviewer"
+ * "API v2 Tester!" → "api-v2-tester"
+ */
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+/**
+ * Generate a unique slug from a preconfig name, avoiding collisions with existing preconfigs.
+ * If "code-reviewer" exists, returns "code-reviewer-2", then "code-reviewer-3", etc.
+ */
+export async function generatePreconfigSlug(name: string): Promise<string> {
+  const base = slugify(name) || 'agent';
+  const existing = await listPreconfigs();
+  const existingIds = new Set(existing.map(p => p.id));
+
+  if (!existingIds.has(base)) {
+    return base;
+  }
+
+  let suffix = 2;
+  while (existingIds.has(`${base}-${suffix}`)) {
+    suffix++;
+  }
+  return `${base}-${suffix}`;
+}
+
+// ── Alias resolution ───────────────────────────────────────────
+
+const ALIASES_FILENAME = 'preconfig_aliases.json';
+
+function getAliasesPath(): string {
+  return join(getPreconfigsDir(), ALIASES_FILENAME);
+}
+
+/**
+ * Load the alias map: { oldId → newId }.
+ * Created by the migration to keep old UUID references working.
+ */
+async function loadAliases(): Promise<Record<string, string>> {
+  try {
+    const content = await readFile(getAliasesPath(), 'utf-8');
+    return JSON.parse(content) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+async function saveAliases(aliases: Record<string, string>): Promise<void> {
+  await ensureDir();
+  await writeFile(getAliasesPath(), JSON.stringify(aliases, null, 2));
+}
+
+/**
+ * Resolve a preconfig ID through the alias map.
+ * If the ID has been migrated (was a UUID, now a slug), returns the new slug.
+ */
+async function resolveAlias(id: string): Promise<string> {
+  const aliases = await loadAliases();
+  return aliases[id] ?? id;
+}
+
+// ── UUID migration ─────────────────────────────────────────────
+
+/**
+ * Scan preconfigs for UUID-named files and rename them to slugs.
+ * Keeps old UUID as alias so existing references still resolve.
+ * Safe to run repeatedly — skips non-UUID IDs and already-migrated files.
+ */
+export async function migrateUuidPreconfigs(): Promise<void> {
+  await ensureDir();
+  const aliases = await loadAliases();
+  let migrated = 0;
+
+  const all = await listPreconfigs();
+  const existingIds = new Set(all.map(p => p.id));
+
+  for (const preconfig of all) {
+    if (!isUuid(preconfig.id)) continue;
+
+    const newSlug = await generatePreconfigSlug(preconfig.name);
+
+    // Ensure the slug doesn't collide with something else
+    if (existingIds.has(newSlug) && newSlug !== preconfig.id) {
+      console.warn(`[preconfig-migration] Slug "${newSlug}" already exists, keeping UUID for "${preconfig.id}"`);
+      continue;
+    }
+
+    // Rename the file on disk
+    const { md, json } = await preconfigExists(preconfig.id);
+    const oldMdPath = getPreconfigMdPath(preconfig.id);
+    const oldJsonPath = getPreconfigJsonPath(preconfig.id);
+    const newMdPath = getPreconfigMdPath(newSlug);
+
+    try {
+      if (md) {
+        await rename(oldMdPath, newMdPath);
+      } else if (json) {
+        await rename(oldJsonPath, newMdPath); // Normalize to .md
+      }
+    } catch (err) {
+      console.error(`[preconfig-migration] Failed to rename "${preconfig.id}" → "${newSlug}"`, err);
+      continue;
+    }
+
+    // Update the id field inside the file
+    const updated = { ...preconfig, id: newSlug };
+    await writeFile(newMdPath, serializePreconfigMd(updated));
+
+    // Record the alias so old references still work
+    aliases[preconfig.id] = newSlug;
+    existingIds.delete(preconfig.id);
+    existingIds.add(newSlug);
+    migrated++;
+    console.log(`[preconfig-migration] Renamed "${preconfig.id}" → "${newSlug}"`);
+  }
+
+  if (migrated > 0) {
+    await saveAliases(aliases);
+    console.log(`[preconfig-migration] Migrated ${migrated} preconfig(s) from UUID to slug`);
+  }
+}
 
 function getPreconfigsDir(): string {
   return getPreconfigsDirPath();
@@ -183,20 +321,23 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
 export async function getPreconfig(id: string): Promise<Preconfig | null> {
   await ensureDir();
 
+  // Resolve through alias map first (handles migrated UUID → slug)
+  const resolvedId = await resolveAlias(id);
+
   // Check for .md first (precedence)
-  const mdPath = getPreconfigMdPath(id);
+  const mdPath = getPreconfigMdPath(resolvedId);
   if (existsSync(mdPath)) {
     try {
       const content = await readFile(mdPath, 'utf-8');
       const parsed = parsePreconfigMd(content);
-      return { ...parsed, id };
+      return { ...parsed, id: resolvedId };
     } catch (_e) {
       return null;
     }
   }
 
   // Fall back to .json
-  const jsonPath = getPreconfigJsonPath(id);
+  const jsonPath = getPreconfigJsonPath(resolvedId);
   try {
     const content = await readFile(jsonPath, 'utf-8');
     return JSON.parse(content) as Preconfig;
@@ -211,9 +352,12 @@ export async function createPreconfig(
 ): Promise<Preconfig> {
   await ensureDir();
 
+  // Generate a human-readable slug from the name unless an explicit ID is provided
+  const id = preconfig.id || await generatePreconfigSlug(preconfig.name);
+
   const newPreconfig: Preconfig = {
     ...preconfig,
-    id: preconfig.id || randomUUID(),
+    id,
   };
 
   if (format === 'md') {
