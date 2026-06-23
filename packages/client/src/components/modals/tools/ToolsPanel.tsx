@@ -1,11 +1,7 @@
-import { useState } from 'react';
-import type { Jean2Client, ToolDefinition, ToolEnvVarStatus } from '@jean2/sdk';
-import { Wrench, Check, X, Trash2, Eye, EyeOff, Loader2, ShieldCheck, ShieldAlert, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import type { Jean2Client, ToolDefinition } from '@jean2/sdk';
+import { Check, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { useToolsQuery, useToolEnvVarsQuery, useToolSetEnvVar, useToolClearEnvVar } from '@/hooks/queries';
+import { useToolsQuery, useToolEnvVarsQuery } from '@/hooks/queries';
 
 interface PanelProps {
   sdkClient: Jean2Client | null;
@@ -14,64 +10,16 @@ interface PanelProps {
 export function ToolsPanel({ sdkClient }: PanelProps) {
   const { data: toolsData, isLoading: toolsLoading, error: toolsError } = useToolsQuery(sdkClient);
   const { data: envData, isLoading: envLoading } = useToolEnvVarsQuery(sdkClient);
-  const setEnvVar = useToolSetEnvVar(sdkClient);
-  const clearEnvVar = useToolClearEnvVar(sdkClient);
 
   const tools: ToolDefinition[] = toolsData?.tools ?? [];
-  const envVars: ToolEnvVarStatus[] = (envData?.envVars ?? []).filter((v) => v.source === 'tool');
   const loading = toolsLoading || envLoading;
-  const error = toolsError?.message ?? setEnvVar.error?.message ?? clearEnvVar.error?.message ?? null;
+  const error = toolsError?.message ?? null;
 
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [showSensitive, setShowSensitive] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const handleSetValue = async (key: string) => {
-    if (!sdkClient || !editValue.trim()) return;
-    setActionLoading(key);
-    try {
-      await setEnvVar.mutateAsync({ key, value: editValue.trim() });
-      setEditingKey(null);
-      setEditValue('');
-      setShowSensitive(false);
-    } catch {
-      // Error handled by mutation
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleClearValue = async (key: string) => {
-    if (!sdkClient) return;
-    setActionLoading(key);
-    try {
-      await clearEnvVar.mutateAsync(key);
-    } catch {
-      // Error handled by mutation
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // Build a map of tool name -> env vars for that tool
-  const toolEnvMap = new Map<string, string[]>();
-  for (const env of envVars) {
-    if (env.usedBy) {
-      for (const toolName of env.usedBy) {
-        const existing = toolEnvMap.get(toolName) || [];
-        existing.push(env.key);
-        toolEnvMap.set(toolName, existing);
-      }
-    }
-  }
-
-  // Count env status per tool
   const getToolEnvStatus = (tool: ToolDefinition) => {
     const requiredEnvs = tool.env || [];
     if (requiredEnvs.length === 0) return { total: 0, missing: 0 };
-    const missing = requiredEnvs.filter(key => {
-      const env = envVars.find(e => e.key === key);
+    const missing = requiredEnvs.filter((key) => {
+      const env = envData?.envVars?.find((e) => e.key === key);
       return !env || !env.configured;
     });
     return { total: requiredEnvs.length, missing: missing.length };
@@ -92,195 +40,55 @@ export function ToolsPanel({ sdkClient }: PanelProps) {
   }
 
   return (
-    <div className="p-3 sm:p-4 space-y-6">
+    <div className="p-3 sm:p-4 space-y-4">
       {error && (
         <div className="p-2 rounded bg-destructive/10 text-sm text-destructive">{error}</div>
       )}
 
-      {/* Loaded Tools Section */}
-      <div>
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-          <Wrench className="size-4" />
-          Loaded Tools ({tools.length})
-        </h3>
-        <div className="space-y-1">
-          {tools.map((tool) => {
-            const envStatus = getToolEnvStatus(tool);
-            return (
-              <div
-                key={tool.name}
-                className="flex items-start justify-between gap-2 p-2.5 rounded-lg border"
-              >
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium break-words">{tool.name}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
-                    {tool.description}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  {envStatus.total === 0 ? (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Check className="size-3" />
-                      <span className="hidden sm:inline">Ready</span>
-                    </Badge>
-                  ) : envStatus.missing > 0 ? (
-                    <Badge variant="outline" className="text-xs gap-1 text-orange-500 border-orange-300">
-                      <ShieldAlert className="size-3" />
-                      <span>{envStatus.missing}</span>
-                      <span className="hidden sm:inline">env missing</span>
-                    </Badge>
-                  ) : (
-                    <Badge variant="default" className="text-xs gap-1">
-                      <ShieldCheck className="size-3" />
-                      <span className="hidden sm:inline">Configured</span>
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">
+          {tools.length} tool{tools.length !== 1 ? 's' : ''} loaded. Configure their environment variables in the{' '}
+          <span className="font-medium text-foreground">Environment</span> tab.
+        </p>
       </div>
 
-      {envVars.length > 0 && (
-        <>
-          <Separator />
-          {/* Environment Variables Section */}
-          <div>
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-              Environment Variables ({envVars.length})
-            </h3>
-            <div className="space-y-2">
-              {envVars.map((env) => (
-                <div
-                  key={env.key}
-                  className="p-3 rounded-lg border"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {env.configured ? (
-                        <Check className="size-4 text-green-500" />
-                      ) : (
-                        <X className="size-4 text-orange-500" />
-                      )}
-                      <span className="text-sm font-mono font-medium">{env.key}</span>
-                      {env.sensitive && (
-                        <Lock className="size-3 text-muted-foreground" />
-                      )}
-                      <Badge variant={env.configured ? 'default' : 'secondary'} className="text-xs">
-                        {env.configured ? 'Configured' : 'Not set'}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {env.usedBy && env.usedBy.length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Required by: {env.usedBy.join(', ')}
-                    </p>
-                  )}
-
-                  {/* Current value for non-sensitive configured vars */}
-                  {env.configured && !env.sensitive && env.value && editingKey !== env.key && (
-                    <p className="text-xs text-muted-foreground mt-1 font-mono">
-                      Value: {env.value}
-                    </p>
-                  )}
-
-                  {/* Edit mode */}
-                  {editingKey === env.key ? (
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="relative flex-1">
-                        <Input
-                          type={env.sensitive ? (showSensitive ? 'text' : 'password') : 'text'}
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          placeholder={env.sensitive ? 'Enter secret value...' : 'Enter value...'}
-                          className="h-8 text-sm pr-8"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSetValue(env.key);
-                            if (e.key === 'Escape') {
-                              setEditingKey(null);
-                              setEditValue('');
-                            }
-                          }}
-                          autoFocus
-                        />
-                        {env.sensitive && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-8 w-8"
-                            onClick={() => setShowSensitive(!showSensitive)}
-                          >
-                            {showSensitive ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                          </Button>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleSetValue(env.key)}
-                        disabled={!editValue.trim() || actionLoading === env.key}
-                      >
-                        {actionLoading === env.key ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <Check className="size-3" />
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingKey(null);
-                          setEditValue('');
-                        }}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingKey(env.key);
-                          setEditValue('');
-                          setShowSensitive(false);
-                        }}
-                        disabled={actionLoading === env.key}
-                      >
-                        {env.configured ? 'Update' : 'Set Value'}
-                      </Button>
-                      {env.configured && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleClearValue(env.key)}
-                          disabled={actionLoading === env.key}
-                        >
-                          {actionLoading === env.key ? (
-                            <Loader2 className="size-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-3" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+      <div className="space-y-1">
+        {tools.map((tool) => {
+          const envStatus = getToolEnvStatus(tool);
+          return (
+            <div
+              key={tool.name}
+              className="flex items-start justify-between gap-2 p-2.5 rounded-lg border"
+            >
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium break-words">{tool.name}</span>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
+                  {tool.description}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {envStatus.total === 0 ? (
+                  <Badge variant="secondary" className="text-xs gap-1">
+                    <Check className="size-3" />
+                    <span className="hidden sm:inline">Ready</span>
+                  </Badge>
+                ) : envStatus.missing > 0 ? (
+                  <Badge variant="outline" className="text-xs gap-1 text-orange-500 border-orange-300">
+                    <ShieldAlert className="size-3" />
+                    <span>{envStatus.missing}</span>
+                    <span className="hidden sm:inline">env missing</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="default" className="text-xs gap-1">
+                    <ShieldCheck className="size-3" />
+                    <span className="hidden sm:inline">Configured</span>
+                  </Badge>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
-
-      {envVars.length === 0 && tools.length > 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          No environment variables required by installed tools.
-        </p>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }

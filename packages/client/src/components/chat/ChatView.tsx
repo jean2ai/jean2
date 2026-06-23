@@ -299,7 +299,6 @@ export function ChatView({
         onRename={onRename}
         onNavigateBack={onNavigateBack}
         isStreaming={isStreaming}
-        onInterrupt={onInterrupt}
         onCompact={onCompact}
         isCompacting={isCompacting}
         canCompact={messagesWithParts.length >= 2}
@@ -365,6 +364,8 @@ export function ChatView({
           sessionId={session.id}
           modelSupportsImage={modelSupportsImage}
           goalState={(session.metadata as Record<string, unknown> | null)?.goal as import('@jean2/sdk').GoalState | null ?? null}
+          isStreaming={isStreaming}
+          onStopStreaming={onInterrupt}
         />
       )}
 

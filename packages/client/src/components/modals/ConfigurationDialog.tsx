@@ -1,5 +1,5 @@
 import type { Jean2Client } from '@jean2/sdk';
-import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard } from 'lucide-react';
+import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard, Wrench } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,7 @@ import { PromptsPanel } from './configuration/PromptsPanel';
 import { PreconfigsPanel } from './configuration/PreconfigsPanel';
 import { ResponseFormatsPanel } from './configuration/ResponseFormatsPanel';
 import { EnvPanel } from './configuration/EnvPanel';
+import { ToolsPanel } from './tools/ToolsPanel';
 
 import { AccountPanel } from './configuration/AccountPanel';
 import { AppearancePanel } from './configuration/AppearancePanel';
@@ -63,6 +64,7 @@ const SECTIONS: SectionDef[] = [
   { value: 'preconfigs', label: 'Preconfigs', icon: Layers, group: 'server' },
   { value: 'response-formats', label: 'Formats', icon: Braces, group: 'server' },
   { value: 'env', label: 'Environment', icon: Terminal, group: 'server' },
+  { value: 'tools', label: 'Tools', icon: Wrench, group: 'server' },
 ];
 
 function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null, extra: { apiToken: string | null; isConnected: boolean; onLogout: () => void; open: boolean }) {
@@ -87,6 +89,8 @@ function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null,
       return <ResponseFormatsPanel sdkClient={sdkClient} />;
     case 'env':
       return <EnvPanel sdkClient={sdkClient} />;
+    case 'tools':
+      return <ToolsPanel sdkClient={sdkClient} />;
   }
 }
 

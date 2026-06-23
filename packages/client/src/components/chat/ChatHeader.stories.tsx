@@ -83,14 +83,12 @@ export const LongTitle: Story = {
 export const Streaming: Story = {
   args: {
     isStreaming: true,
-    onInterrupt: () => {},
   },
 };
 
 export const NotStreaming: Story = {
   args: {
     isStreaming: false,
-    onInterrupt: () => {},
   },
 };
 

@@ -1,4 +1,4 @@
-import { Settings, Ellipsis, LayoutGrid, LayoutList, Check, Wrench, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { Settings, Ellipsis, LayoutGrid, LayoutList, Check, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { isWindows } from '@/lib/platform';
 import { platform, hasCapability } from '@/platform';
@@ -19,7 +19,6 @@ export function AppHeader() {
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const connected = useConnectionStore((s) => s.connected);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
-  const setShowTools = useUIStore((s) => s.setShowTools);
   const expandedToolbar = useUIStore((s) => s.expandedToolbar);
   const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
   const location = useLocation();
@@ -78,10 +77,6 @@ export function AppHeader() {
                 <TooltipContent>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
-                <DropdownMenuItem onClick={() => setShowTools(true)}>
-                  <Wrench className="mr-2 h-4 w-4" />
-                  Tools
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
@@ -150,14 +145,6 @@ export function AppHeader() {
                 <div className="w-px h-5 bg-border mx-1" />
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setShowTools(true)}>
-                      <Wrench className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Tools</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon-sm" onClick={() => setShowSettings(true)}>
                       <Settings className="w-4 h-4" />
                     </Button>
@@ -179,10 +166,6 @@ export function AppHeader() {
                   <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent align="end" className="w-48 min-w-48">
-                  <DropdownMenuItem onClick={() => setShowTools(true)}>
-                    <Wrench className="mr-2 h-4 w-4" />
-                    Tools
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowSettings(true)}>
                     <Settings className="mr-2 h-4 w-4" />
                     Settings

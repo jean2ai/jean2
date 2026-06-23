@@ -3,7 +3,7 @@ import type { Jean2Client, ToolEnvVarStatus, EnvVarSource } from '@jean2/sdk';
 import { useToolEnvVarsQuery, useToolSetEnvVar, useToolClearEnvVar } from '@/hooks/queries';
 import {
   Terminal, Check, X, Trash2, Eye, EyeOff, Loader2, Search,
-  Plus, ChevronDown, ExternalLink, Settings2,
+  Plus, ChevronDown, ExternalLink, Settings2, Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ interface Group {
 const SOURCE_ICONS = {
   preset: Settings2,
   custom: Terminal,
+  tool: Wrench,
 } as const;
 
 function groupVars(vars: ToolEnvVarStatus[]): Group[] {
@@ -38,6 +39,8 @@ function groupVars(vars: ToolEnvVarStatus[]): Group[] {
       label = v.category;
     } else if (v.source === 'custom') {
       label = 'Custom';
+    } else if (v.source === 'tool') {
+      label = 'Tools';
     } else {
       label = 'Other';
     }
@@ -47,18 +50,19 @@ function groupVars(vars: ToolEnvVarStatus[]): Group[] {
     byCategory.set(label, arr);
   }
 
-  // Sort: configured presets first, then custom
+  // Collect preset categories in their defined order (first-seen), then Tools, then Custom
   const order: Record<string, number> = {};
   let idx = 0;
   const groups: Group[] = [];
 
-  // Collect preset categories in their defined order (first-seen)
   for (const v of vars) {
     if (v.source === 'preset' && v.category && !(v.category in order)) {
       order[v.category] = idx;
       idx++;
     }
   }
+  order['Tools'] = idx;
+  idx++;
   order['Custom'] = idx;
 
   for (const [label, groupVars] of byCategory) {
@@ -77,7 +81,7 @@ export function EnvPanel({ sdkClient }: PanelProps) {
   const { data: envData, isLoading: loading } = useToolEnvVarsQuery(sdkClient);
   const setEnvVarMut = useToolSetEnvVar(sdkClient);
   const clearEnvVarMut = useToolClearEnvVar(sdkClient);
-  const envVars: ToolEnvVarStatus[] = (envData?.envVars ?? []).filter((v) => v.source !== 'tool');
+  const envVars: ToolEnvVarStatus[] = envData?.envVars ?? [];
 
   const [error, setError] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -406,6 +410,11 @@ function EnvVarRow({
           </div>
           {envVar.description && (
             <p className="text-xs text-muted-foreground">{envVar.description}</p>
+          )}
+          {envVar.usedBy && envVar.usedBy.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Required by: {envVar.usedBy.join(', ')}
+            </p>
           )}
           {envVar.link && (
             <a

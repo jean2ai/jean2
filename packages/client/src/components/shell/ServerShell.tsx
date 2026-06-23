@@ -106,11 +106,7 @@ export default function ServerShell() {
         apiToken={sessionManager.apiToken}
         isConnected={sessionManager.connected}
         sdkClient={sessionManager.sdkClient}
-        permissions={sessionManager.permissions}
         onLogout={sessionManager.handleLogout}
-        onRefreshPermissions={sessionManager.refreshPermissions}
-        onRevokePermission={sessionManager.revokePermission}
-        onRevokeAllPermissions={sessionManager.revokeAllPermissions}
         onConfigurationClose={() => router.invalidate()}
       />
     </SidebarProvider>

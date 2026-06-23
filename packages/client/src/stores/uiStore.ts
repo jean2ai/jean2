@@ -15,7 +15,8 @@ export type ConfigurationSection =
   | 'prompts'
   | 'preconfigs'
   | 'response-formats'
-  | 'env';
+  | 'env'
+  | 'tools';
 
 interface ConfigurationSectionState {
   configurationSection: ConfigurationSection;

@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Archive, Square, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Archive, Minimize2 } from 'lucide-react';
 import type { Session, Preconfig } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TokenMeter } from './TokenMeter';
-import { ModelSelector } from './ModelSelector';
-import { VariantSelector } from './VariantSelector';
-import { PreconfigSelector } from './PreconfigSelector';
+import { ModelVariantConfigSelector } from './ModelVariantConfigSelector';
 import { SessionControlButton } from './SessionControlButton';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
@@ -40,7 +37,6 @@ interface ChatHeaderProps {
   onRename: (sessionId: string, title: string) => void;
   onNavigateBack?: () => void;
   isStreaming?: boolean;
-  onInterrupt?: () => void;
   onCompact?: () => void;
   isCompacting?: boolean;
   canCompact?: boolean;
@@ -87,7 +83,6 @@ export function ChatHeader({
   onRename,
   onNavigateBack,
   isStreaming,
-  onInterrupt,
   onCompact,
   isCompacting,
   canCompact,
@@ -205,29 +200,17 @@ export function ChatHeader({
             )}
           </div>
 
-          <Separator className="md:hidden" />
-
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap md:flex-nowrap shrink-0">
-            <ModelSelector
+          
+<div className="flex items-center gap-3 sm:gap-4 flex-wrap md:flex-nowrap shrink-0">
+            <ModelVariantConfigSelector
               models={models}
               selectedModelId={selectedModel}
               selectedProviderId={session.selectedProvider}
+              fallbackModelName={modelName}
               onChangeModel={onChangeModel}
-              disabled={session.status === 'closed' || !!session.parentId || isObserver}
-              iconOnly={isMobile}
-              compact={isCompact}
-            />
-
-            <VariantSelector
               variants={variants}
               selectedVariant={selectedVariant}
               onChangeVariant={onChangeVariant}
-              disabled={session.status === 'closed' || !!session.parentId || isObserver}
-              iconOnly={isMobile}
-              compact={isCompact}
-            />
-
-            <PreconfigSelector
               preconfigs={preconfigs}
               selectedPreconfigId={session.preconfigId}
               onChangePreconfig={onChangePreconfig}
@@ -235,8 +218,6 @@ export function ChatHeader({
               iconOnly={isMobile}
               compact={isCompact}
             />
-
-            <Separator orientation="vertical" className="hidden md:block" />
 
             {myClientId && (
               <SessionControlButton
@@ -268,26 +249,9 @@ export function ChatHeader({
                     {isCompacting ? 'Compacting...' : 'Compact older messages'}
                   </TooltipContent>
                 </Tooltip>
-                <Separator orientation="vertical" className="hidden md:block" />
               </>
             )}
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={isStreaming ? 'destructive' : 'ghost'}
-                  size="sm"
-                  className={`h-8 w-8 p-0 hover:bg-accent${!isStreaming ? ' text-muted-foreground opacity-60 hover:opacity-100' : ''}`}
-                  onClick={onInterrupt}
-                  disabled={!onInterrupt || isObserver}
-                >
-                  <Square className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isStreaming ? 'Interrupt operation' : 'Interrupt'}
-              </TooltipContent>
-            </Tooltip>
           </div>
         </div>
       </TooltipProvider>

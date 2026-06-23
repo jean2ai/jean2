@@ -1,7 +1,7 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Shield, Server, Ellipsis, FolderSymlink, Settings2, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { TerminalSquare, FolderOpen, PanelLeft, Settings2, ChevronsRight, ChevronsLeft, Ellipsis } from 'lucide-react';
 import { useState } from 'react';
-import { useUIStore } from '@/stores/uiStore';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { platform } from '@/platform';
@@ -10,13 +10,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuCheckboxItem,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { WorkspaceAdditionalPathsDialog } from '@/components/modals/WorkspaceAdditionalPathsDialog';
 import { WorkspaceSettingsDialog } from '@/components/modals/WorkspaceSettingsDialog';
+import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { isWindows } from '@/lib/platform';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -29,16 +27,13 @@ interface WorkspaceHeaderProps {
 export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSettings, sdkClient }: WorkspaceHeaderProps) {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
-  const showWorkspacePermissions = useUIStore((s) => s.showWorkspacePermissions);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
   const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
-  const setShowMCPDialog = useUIStore((s) => s.setShowMCPDialog);
-  const setShowWorkspacePermissions = useUIStore((s) => s.setShowWorkspacePermissions);
   const expandedToolbar = useUIStore((s) => s.expandedToolbar);
   const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const { toggleSidebar, state: sidebarState } = useSidebar();
-  const [editingPaths, setEditingPaths] = useState(false);
+  const sessionManager = useSessionManager();
   const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
 
   const isMobile = useIsMobile();
@@ -120,50 +115,17 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                 </Tooltip>
               )}
 
-              {showExpanded && (
+              {showExpanded && onUpdateWorkspaceSettings && (
                 <>
-                   <div className="w-px h-5 bg-border mx-1" />
-                   <Tooltip>
-                     <TooltipTrigger asChild>
-                       <Button variant="ghost" size="icon-sm" onClick={() => setShowMCPDialog(true)}>
-                         <Server className="w-4 h-4" />
-                       </Button>
-                     </TooltipTrigger>
-                     <TooltipContent>MCP Servers</TooltipContent>
-                   </Tooltip>
+                  <div className="w-px h-5 bg-border mx-1" />
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setShowWorkspacePermissions(!showWorkspacePermissions)}
-                        className={showWorkspacePermissions ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
-                      >
-                        <Shield className="w-4 h-4" />
+                      <Button variant="ghost" size="icon-sm" onClick={() => setShowWorkspaceSettings(true)}>
+                        <Settings2 className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>{showWorkspacePermissions ? 'Hide Permissions' : 'Show Permissions'}</TooltipContent>
+                    <TooltipContent side={isWindows() ? 'bottom' : undefined}>Workspace Settings</TooltipContent>
                   </Tooltip>
-                  {onUpdateWorkspacePaths && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setEditingPaths(true)}>
-                          <FolderSymlink className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Additional Paths</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {onUpdateWorkspaceSettings && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={() => setShowWorkspaceSettings(true)}>
-                          <Settings2 className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Workspace Settings</TooltipContent>
-                    </Tooltip>
-                  )}
                 </>
               )}
               {!showExpanded && (
@@ -179,24 +141,6 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                     <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
                   </Tooltip>
                   <DropdownMenuContent align="end" className="min-w-48">
-                    <DropdownMenuItem onClick={() => setShowMCPDialog(true)}>
-                      <Server className="w-4 h-4" />
-                      MCP Servers
-                    </DropdownMenuItem>
-                    <DropdownMenuCheckboxItem
-                      checked={showWorkspacePermissions}
-                      onCheckedChange={setShowWorkspacePermissions}
-                    >
-                      <Shield className="w-4 h-4" />
-                      Permissions
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuSeparator />
-                    {onUpdateWorkspacePaths && (
-                      <DropdownMenuItem onClick={() => setEditingPaths(true)}>
-                        <FolderSymlink className="w-4 h-4" />
-                        Additional paths
-                      </DropdownMenuItem>
-                    )}
                     {onUpdateWorkspaceSettings && (
                       <DropdownMenuItem onClick={() => setShowWorkspaceSettings(true)}>
                         <Settings2 className="w-4 h-4" />
@@ -220,21 +164,22 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
           )}
         </div>
       </TooltipProvider>
-      {onUpdateWorkspacePaths && activeWorkspace && (
-        <WorkspaceAdditionalPathsDialog
-          open={editingPaths}
-          onOpenChange={setEditingPaths}
-          workspace={activeWorkspace}
-          onSave={onUpdateWorkspacePaths}
-          sdkClient={sdkClient ?? null}
-        />
-      )}
       {onUpdateWorkspaceSettings && activeWorkspace && (
         <WorkspaceSettingsDialog
           open={showWorkspaceSettings}
           onOpenChange={setShowWorkspaceSettings}
           workspace={activeWorkspace}
           onSave={onUpdateWorkspaceSettings}
+          sdkClient={sdkClient ?? null}
+          permissions={sessionManager.permissions}
+          onRefreshPermissions={sessionManager.refreshPermissions}
+          onRevokePermission={sessionManager.revokePermission}
+          onRevokeAllPermissions={() => {
+            if (activeWorkspace.id) {
+              sessionManager.revokeAllPermissions(activeWorkspace.id);
+            }
+          }}
+          onUpdateWorkspacePaths={onUpdateWorkspacePaths ?? (() => {})}
         />
       )}
     </div>

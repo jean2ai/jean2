@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import { ArrowUp, Square, Paperclip, AlertTriangle, Target } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowUp, Square, Paperclip, AlertTriangle, Target, ChevronDown } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { FileEntry, PromptInfo, AttachmentKind } from '@jean2/sdk';
@@ -98,6 +97,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const [sendMode, setSendMode] = useState<'chat' | 'goal'>('chat');
   const [goalMaxTurns, setGoalMaxTurns] = useState(5);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastEscRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: responseFormatsData } = useResponseFormatsQuery(sdkClient ?? null);
   const responseFormats = responseFormatsData?.formats ?? [];
@@ -449,6 +449,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       }
     }
 
+    if (e.key === 'Escape' && isStreaming && onStopStreaming) {
+      const now = Date.now();
+      if (now - lastEscRef.current < 500) {
+        e.preventDefault();
+        onStopStreaming();
+        lastEscRef.current = 0;
+      } else {
+        lastEscRef.current = now;
+      }
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -459,28 +471,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setAutocompleteFiles(files);
   }, []);
 
-  if (isStreaming && onStopStreaming) {
-    return (
-      <div className="p-4 border-t border-border bg-background">
-        <div className="flex items-center justify-center gap-3">
-          <div className="animate-pulse flex items-center gap-2 text-muted-foreground">
-            <div className="size-2 rounded-full bg-primary animate-bounce" />
-            <div className="size-2 rounded-full bg-primary animate-bounce [animation-delay:0.1s]" />
-            <div className="size-2 rounded-full bg-primary animate-bounce [animation-delay:0.2s]" />
-            <span className="text-sm ml-2">Generating...</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onStopStreaming}
-          >
-            <Square className="size-4" data-icon="inline-start" />
-            Stop
-          </Button>
-        </div>
-      </div>
-    );
-  }
   const trimmed = input.trim();
   const hasUploadingAttachment = pendingAttachments.some(a => a.isUploading);
   const canSend = trimmed || pendingAttachments.length > 0;
@@ -511,7 +501,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           isDragOver && 'ring-2 ring-primary border-primary'
         )}
       >
-        {(pendingAttachments.length > 0 || !isStreaming) && (
+        {pendingAttachments.length > 0 && (
           <div className="flex gap-2 flex-wrap px-3 pt-3">
             {pendingAttachments.map(a => (
               <PendingAttachment
@@ -642,69 +632,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   onSelect={setSelectedResponseFormatId}
                   disabled={disabled}
                 />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        'flex items-center justify-center size-8 rounded-md transition-colors',
-                        sendMode === 'goal'
-                          ? 'text-amber-600 hover:bg-amber-600/10'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                        goalActive && 'pointer-events-none opacity-50'
-                      )}
-                      disabled={goalActive}
-                      aria-label="Send mode"
-                    >
-                      <Target className="size-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-56">
-                    <DropdownMenuLabel>Send Mode</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      onClick={() => setSendMode('chat')}
-                    >
-                      <ArrowUp className="size-4 mr-2" />
-                      <span>Chat</span>
-                      {sendMode === 'chat' && <span className="ml-auto text-xs">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={(e) => e.preventDefault()}
-                      onClick={() => setSendMode('goal')}
-                    >
-                      <Target className="size-4 mr-2" />
-                      <span>Goal</span>
-                      {sendMode === 'goal' && <span className="ml-auto text-xs">✓</span>}
-                    </DropdownMenuItem>
-                    {sendMode === 'goal' && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <div className="px-2 py-1.5 flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted-foreground">Max turns</span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
-                              onClick={() => setGoalMaxTurns(Math.max(1, goalMaxTurns - 1))}
-                            >
-                              −
-                            </button>
-                            <span className="w-6 text-center text-xs tabular-nums">{goalMaxTurns}</span>
-                            <button
-                              type="button"
-                              className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
-                              onClick={() => setGoalMaxTurns(Math.min(100, goalMaxTurns + 1))}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </>
             )}
           </div>
@@ -715,42 +642,95 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <span className="mx-1">•</span>
             <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">@</kbd>
             <span>files</span>
-            <span className="mx-1">•</span>
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>
-            <span>to send</span>
-            <span className="mx-1">•</span>
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⇧ Enter</kbd>
-            <span>new line</span>
           </div>
 
-          <div className="flex items-center gap-1">
-            <Button
-              type="submit"
-              disabled={isDisabled}
-              size="icon"
-              className={cn(
-                'size-8 rounded-full',
-                canSend && !disabled
-                  ? sendMode === 'goal'
-                    ? 'bg-amber-600 text-white hover:bg-amber-600/90'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground'
-              )}
-              aria-label={sendMode === 'goal' ? 'Set goal' : 'Send message'}
-            >
-              <ArrowUp className="size-4" />
-            </Button>
-            {onStopStreaming && isStreaming && (
-              <Button
+          <div className="flex h-8 items-center rounded-full border border-border">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={goalActive}
+                  className="flex h-full items-center gap-0.5 rounded-l-full bg-muted pl-2.5 pr-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                  aria-label="Send mode"
+                >
+                  <span className="text-xs font-medium capitalize">{sendMode}</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-56">
+                <DropdownMenuLabel>Send Mode</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  onClick={() => setSendMode('chat')}
+                >
+                  <ArrowUp className="size-4 mr-2" />
+                  <span>Chat</span>
+                  {sendMode === 'chat' && <span className="ml-auto text-xs">✓</span>}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  onClick={() => setSendMode('goal')}
+                >
+                  <Target className="size-4 mr-2" />
+                  <span>Goal</span>
+                  {sendMode === 'goal' && <span className="ml-auto text-xs">✓</span>}
+                </DropdownMenuItem>
+                {sendMode === 'goal' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1.5 flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">Max turns</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
+                          onClick={() => setGoalMaxTurns(Math.max(1, goalMaxTurns - 1))}
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center text-xs tabular-nums">{goalMaxTurns}</span>
+                        <button
+                          type="button"
+                          className="flex items-center justify-center size-5 rounded bg-muted text-foreground hover:bg-accent text-xs"
+                          onClick={() => setGoalMaxTurns(Math.min(100, goalMaxTurns + 1))}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {isStreaming && onStopStreaming && !canSend ? (
+              <button
                 type="button"
-                size="icon"
-                variant="outline"
-                className="size-8 rounded-full"
                 onClick={onStopStreaming}
+                className="flex h-full items-center justify-center rounded-r-full border-l border-border bg-muted px-2.5 text-red-600 transition-colors hover:bg-accent dark:text-red-400"
                 aria-label="Stop"
+                title="Stop (double Esc)"
               >
-                <Square className="size-3.5" />
-              </Button>
+                <Square className="size-4" fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={isDisabled}
+                className={cn(
+                  'flex h-full items-center justify-center rounded-r-full border-l border-border bg-muted px-2.5 transition-colors hover:bg-accent disabled:opacity-50',
+                  isDisabled
+                    ? 'text-muted-foreground'
+                    : sendMode === 'goal'
+                      ? 'text-amber-600 dark:text-amber-500'
+                      : 'text-primary',
+                )}
+                aria-label={isStreaming ? 'Queue message' : sendMode === 'goal' ? 'Set goal' : 'Send message'}
+                title={isStreaming ? 'Queue message' : undefined}
+              >
+                <ArrowUp className="size-4" />
+              </button>
             )}
           </div>
         </div>
