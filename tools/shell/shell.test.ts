@@ -194,6 +194,15 @@ describe('windows shell wrapper', () => {
       expect(script).toContain('-RedirectStandardOutput');
       expect(script).toContain('-RedirectStandardError');
       expect(script).toContain("@('/d','/s','/c', 'npm test')");
+      // ComSpec may be unset in non-native shells (Git Bash/MSYS/WSL);
+      // the script must resolve cmd.exe via a fallback chain rather than
+      // passing an empty $env:ComSpec directly to Start-Process -FilePath.
+      expect(script).toContain('$cmdExe');
+      expect(script).toContain("$env:ComSpec");
+      expect(script).toContain("$env:SystemRoot");
+      expect(script).toContain("'C:\\Windows\\System32\\cmd.exe'");
+      expect(script).toContain('-FilePath $cmdExe');
+      expect(script).not.toContain('-FilePath $env:ComSpec');
     } finally {
       Bun.which = originalWhich;
     }

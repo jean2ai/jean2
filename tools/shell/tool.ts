@@ -429,8 +429,9 @@ export async function detectWindowsShell(command: string, cwd: string): Promise<
   const script = [
     `$out = [System.IO.Path]::GetTempFileName()`,
     `$err = [System.IO.Path]::GetTempFileName()`,
+    `$cmdExe = $env:ComSpec; if (-not $cmdExe) { $cmdExe = Join-Path $env:SystemRoot 'System32\\cmd.exe' }; if (-not $cmdExe -or -not (Test-Path -LiteralPath $cmdExe)) { $cmdExe = 'C:\\Windows\\System32\\cmd.exe' }`,
     'try {',
-    `  $p = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/s','/c', ${quotePowerShellString(command)}) -WorkingDirectory ${quotePowerShellString(cwd)} -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru`,
+    `  $p = Start-Process -FilePath $cmdExe -ArgumentList @('/d','/s','/c', ${quotePowerShellString(command)}) -WorkingDirectory ${quotePowerShellString(cwd)} -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru`,
     '  if (Test-Path -LiteralPath $out) { [Console]::Out.Write([System.IO.File]::ReadAllText($out)) }',
     '  if (Test-Path -LiteralPath $err) { [Console]::Error.Write([System.IO.File]::ReadAllText($err)) }',
     '  exit $p.ExitCode',
