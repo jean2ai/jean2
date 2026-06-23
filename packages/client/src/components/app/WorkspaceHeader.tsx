@@ -1,4 +1,4 @@
-import { TerminalSquare, FolderOpen, PanelLeft, Settings2, ChevronsRight, ChevronsLeft, Ellipsis } from 'lucide-react';
+import { FolderOpen, PanelLeft, Settings2, ChevronsRight, ChevronsLeft, Ellipsis } from 'lucide-react';
 import { useState } from 'react';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -26,9 +26,7 @@ interface WorkspaceHeaderProps {
 
 export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSettings, sdkClient }: WorkspaceHeaderProps) {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
-  const showTerminalPanel = useChatLayoutStore((s) => s.showTerminalPanel);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
-  const setShowTerminalPanel = useChatLayoutStore((s) => s.setShowTerminalPanel);
   const expandedToolbar = useUIStore((s) => s.expandedToolbar);
   const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
@@ -58,34 +56,6 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
           </Tooltip>
           {activeWorkspace && (
             <div className="flex items-center gap-1 md:gap-2">
-              {platform.capabilities.terminal ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => platform.openTerminal?.(activeWorkspace?.path)}
-                    >
-                      <TerminalSquare className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Open Terminal</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-                      className={showTerminalPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
-                    >
-                      <TerminalSquare className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{showTerminalPanel ? 'Hide Terminal' : 'Show Terminal'}</TooltipContent>
-                </Tooltip>
-              )}
               {platform.capabilities.explorer ? (
                 <Tooltip>
                   <TooltipTrigger asChild>

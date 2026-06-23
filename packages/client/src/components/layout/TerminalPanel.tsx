@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { X, Plus, Terminal as TerminalIcon } from 'lucide-react';
+import { X, Plus, Terminal as TerminalIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { TerminalView } from './TerminalView';
 import {
   useTerminalConnection,
@@ -42,6 +42,7 @@ interface TerminalPanelProps {
   workspaceName: string | undefined;
   sdkClient: Jean2Client | null;
   isOpen: boolean;
+  onOpen: () => void;
   onClose: () => void;
 }
 
@@ -55,6 +56,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   workspaceName,
   sdkClient,
   isOpen,
+  onOpen,
   onClose,
 }, ref) {
   const isMobile = useIsMobile();
@@ -526,62 +528,116 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       ? `calc(${viewport.height}px - env(safe-area-inset-top, 0px))`
       : Math.min(window.innerHeight * 0.7, viewport.height);
 
-    return isOpen ? (
-      <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent
-          side="top"
-          className="p-0 bg-background [&>button]:hidden flex flex-col"
-          style={{ height: sheetHeight }}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Terminal</SheetTitle>
-          </SheetHeader>
-
-          <div className="flex items-center justify-between p-2 border-b border-border shrink-0">
-            <div className="flex items-center gap-2">
-              <TerminalIcon className="w-4 h-4" />
-              <span className="font-semibold text-sm">Terminal</span>
-            </div>
-            <Button variant="ghost" size="icon-sm" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {renderTabs()}
-          {renderTerminalContent()}
-        </SheetContent>
-      </Sheet>
-    ) : null;
+    return (
+      <>
+        {/* Single header bar — toggles both directions */}
+        <div className="flex items-center gap-2 border-t border-border bg-background px-3 py-1 shrink-0">
+          <button
+            onClick={() => isOpen ? onClose() : onOpen()}
+            className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <TerminalIcon className="w-3 h-3 flex-shrink-0" />
+            <span>Terminal</span>
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => isOpen ? onClose() : onOpen()}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isOpen
+              ? <ChevronDown className="w-3 h-3" />
+              : <ChevronUp className="w-3 h-3" />}
+          </button>
+        </div>
+        {isOpen && (
+          <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <SheetContent
+              side="top"
+              className="p-0 bg-background [&>button]:hidden flex flex-col"
+              style={{ height: sheetHeight }}
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Terminal</SheetTitle>
+              </SheetHeader>
+              {renderTabs()}
+              {renderTerminalContent()}
+            </SheetContent>
+          </Sheet>
+        )}
+      </>
+    );
   }
-
-  if (!isOpen) return null;
 
   return (
     <div data-terminal-panel="">
-      <div
-        className="w-full cursor-ns-resize flex items-center justify-center border-t border-border bg-background select-none shrink-0"
-        style={{ height: 4 }}
-        onMouseDown={handleResizeStart}
-        onTouchStart={handleResizeStart}
-      >
-        <div className="w-10 h-0.5 bg-muted-foreground/30 rounded-full" />
-      </div>
-      <div
-        className="flex flex-col border-t border-border bg-background overflow-hidden shrink-0"
-        style={{ height: panelHeight }}
-      >
-        <div className="flex items-center justify-between px-2 py-1 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <TerminalIcon className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="font-medium text-xs text-muted-foreground">Terminal</span>
+      {/* Single header bar — toggles both directions, tabs inline when expanded */}
+      <div className="flex items-center gap-1 border-t border-border bg-background px-2 py-1 shrink-0">
+        <TerminalIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+        {isOpen ? (
+          <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-h-0">
+            {tabs.map(tab => (
+              <div
+                key={tab.serverSessionId}
+                className={cn(
+                  'group flex items-center gap-1.5 px-2 py-0.5 text-xs cursor-pointer rounded-sm whitespace-nowrap border border-transparent',
+                  tab.serverSessionId === activeTabServerId
+                    ? 'bg-accent text-accent-foreground border-border'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+                onClick={() => setActiveTabServerId(tab.serverSessionId)}
+              >
+                <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusIndicator(tab.status))} />
+                <span>{shortName} {tab.title}</span>
+                <button
+                  className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity ml-0.5"
+                  onClick={(e) => { e.stopPropagation(); closeTab(tab.serverSessionId); }}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={addTab}
+              title="New terminal tab"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-        {renderTabs()}
-        {renderTerminalContent()}
+        ) : (
+          <span className="text-xs text-muted-foreground flex-1">Terminal</span>
+        )}
+        <button
+          onClick={() => isOpen ? onClose() : onOpen()}
+          className="flex items-center justify-center size-5 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {isOpen
+            ? <ChevronDown className="w-3.5 h-3.5" />
+            : <ChevronUp className="w-3.5 h-3.5" />}
+        </button>
       </div>
+
+      {/* Expanded content */}
+      {isOpen && (
+        <>
+          <div
+            className="w-full cursor-ns-resize flex items-center justify-center border-t border-border bg-background select-none shrink-0"
+            style={{ height: 4 }}
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+          >
+            <div className="w-10 h-0.5 bg-muted-foreground/30 rounded-full" />
+          </div>
+          <div
+            className="flex flex-col border-t border-border bg-background overflow-hidden shrink-0"
+            style={{ height: panelHeight }}
+          >
+            {renderTerminalContent()}
+          </div>
+        </>
+      )}
     </div>
   );
 });

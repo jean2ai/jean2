@@ -384,7 +384,6 @@ export function ModelVariantConfigSelector({
           className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
           disabled={disabled}
         >
-          <Cpu className="size-4 flex-shrink-0 text-muted-foreground" />
           <span className={cn('truncate', maxWidth)}>
             {renderTriggerLabel()}
           </span>

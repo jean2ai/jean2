@@ -34,6 +34,7 @@ export function AppPanels({
       workspaceName={workspaceName}
       sdkClient={sdkClient}
       isOpen={showTerminalPanel}
+      onOpen={() => setShowTerminalPanel(true)}
       onClose={() => setShowTerminalPanel(false)}
     />
   );
