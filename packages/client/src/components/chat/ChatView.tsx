@@ -1,8 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Lock, Eye, ArrowDown, ShieldOff, Wifi } from 'lucide-react';
 import type { Jean2Client, Message } from '@jean2/sdk';
-import type { Session, Preconfig, MessageWithParts, QueuedMessage, AttachmentKind, AskResponse } from '@jean2/sdk';
-import { ChatHeader } from './ChatHeader';
+import type { Session, MessageWithParts, QueuedMessage, AttachmentKind, AskResponse } from '@jean2/sdk';
 import { MessageInput } from './MessageInput';
 import type { MessageInputHandle } from './MessageInput';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
@@ -10,23 +9,6 @@ import type { PendingAskRequest } from '@/stores/askStore';
 import { useSessionControlStore, type ActionRejection } from '@/stores/sessionControlStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import type { SessionNavigationIntent } from '@/stores/sessionStore';
-
-export interface Model {
-  id: string;
-  name: string;
-  contextWindow: number;
-  tier: 'budget' | 'standard' | 'premium';
-  providerId: string;
-  providerName: string;
-  capabilities?: {
-    input?: {
-      text?: boolean;
-      image?: boolean;
-      video?: boolean;
-      file?: boolean;
-    };
-  };
-}
 
 export interface DisplayItem {
   message: import('@jean2/sdk').Message;
@@ -39,27 +21,13 @@ interface ChatViewProps {
   session: Session;
   messagesWithParts: MessageWithParts[];
   queuedMessages: QueuedMessage[];
-  preconfigs: Preconfig[];
   prompts?: import('@jean2/sdk').PromptInfo[];
-  models: Model[];
-  defaultModel: string;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   onRemoveFromQueue: (queueId: string) => void;
-  onChangePreconfig: (preconfigId: string) => void;
-  onChangeModel: (modelId: string, providerId: string) => void;
-  onChangeVariant: (variant: string | null) => void;
   pendingAskRequests: PendingAskRequest[];
   onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
-  onRename: (sessionId: string, title: string) => void;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-  modelName: string;
   modelSupportsImage?: boolean;
   onNavigateToSubagent?: (sessionId: string) => void;
-  onNavigateBack?: () => void;
   isStreaming?: boolean;
   onInterrupt?: () => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
@@ -70,15 +38,9 @@ interface ChatViewProps {
   onClearCompactionSuccess?: () => void;
   serverUrl?: string;
   sdkClient?: Jean2Client | null;
-  selectedVariant: string | null;
-  variants?: Record<string, { providerOptions: Record<string, unknown> }>;
   inputRef?: React.RefObject<MessageInputHandle | null>;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
-  onClaimControl?: (sessionId: string) => void;
-  onReleaseControl?: (sessionId: string) => void;
-  onRequestTakeover?: (sessionId: string) => void;
-  onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
   pinnedMessageIds?: Set<string>;
   onTogglePinMessage?: (message: Message) => void;
   targetMessageId?: string | null;
@@ -160,23 +122,13 @@ export function ChatView({
   session,
   messagesWithParts,
   queuedMessages,
-  preconfigs,
   prompts,
-  models,
-  defaultModel,
   onSendMessage,
   onRemoveFromQueue,
-  onChangePreconfig,
-  onChangeModel,
-  onChangeVariant,
   pendingAskRequests,
   onAskResponse,
-  onRename,
-  usage,
-  modelName,
   modelSupportsImage,
   onNavigateToSubagent,
-  onNavigateBack,
   isStreaming,
   onInterrupt,
   onRevert: _onRevert,
@@ -187,15 +139,9 @@ export function ChatView({
   onClearCompactionSuccess,
   serverUrl,
   sdkClient,
-  selectedVariant,
-  variants,
   inputRef,
   scrollToBottomRef,
   autoFollowToggleRef,
-  onClaimControl,
-  onReleaseControl,
-  onRequestTakeover,
-  onRespondTakeover,
   pinnedMessageIds,
   onTogglePinMessage,
   targetMessageId,
@@ -286,30 +232,6 @@ export function ChatView({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 relative">
-      <ChatHeader
-        session={session}
-        preconfigs={preconfigs}
-        models={models}
-        defaultModel={defaultModel}
-        usage={usage}
-        modelName={modelName}
-        onChangePreconfig={onChangePreconfig}
-        onChangeModel={onChangeModel}
-        onChangeVariant={onChangeVariant}
-        onRename={onRename}
-        onNavigateBack={onNavigateBack}
-        isStreaming={isStreaming}
-        onCompact={onCompact}
-        isCompacting={isCompacting}
-        canCompact={messagesWithParts.length >= 2}
-        selectedVariant={selectedVariant}
-        variants={variants}
-        onClaimControl={onClaimControl}
-        onReleaseControl={onReleaseControl}
-        onRequestTakeover={onRequestTakeover}
-        onRespondTakeover={onRespondTakeover}
-      />
-
       {/* Transcript area with floating auto-follow button */}
       <div className="relative flex flex-col flex-1 min-h-0">
         {/* Virtualized transcript - handles scrolling for messages only */}

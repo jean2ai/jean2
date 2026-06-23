@@ -115,8 +115,7 @@ export function SessionControlButton({
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 hover:bg-accent"
+            size="icon"
             aria-label={config.ariaLabel}
           >
             <Icon className={`size-4 ${config.iconClass}`} />
@@ -134,8 +133,7 @@ export function SessionControlButton({
           <DropdownMenuTrigger asChild>
             <Button
               variant={config.variant}
-              size="sm"
-              className="h-8 w-8 p-0 hover:bg-accent"
+              size="icon"
               aria-label={config.ariaLabel}
             >
               <Icon className={`size-4 ${config.iconClass}`} />

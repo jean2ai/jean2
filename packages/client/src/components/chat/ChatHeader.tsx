@@ -147,10 +147,10 @@ export function ChatHeader({
   const contextWindow = currentModelInfo?.contextWindow;
 
   return (
-    <header className="flex flex-col border-b border-border bg-card">
+    <div className="flex-1 min-w-0 flex items-center justify-between gap-1">
       <TooltipProvider delayDuration={300}>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-1 gap-1">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1 w-full min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {session.parentId && onNavigateBack && (
               <Button
                 variant="ghost"
@@ -171,12 +171,12 @@ export function ChatHeader({
                 onChange={(e) => setEditTitle(e.target.value)}
                 onBlur={handleTitleSubmit}
                 onKeyDown={handleKeyDown}
-                className="text-base font-semibold bg-background border border-primary rounded px-2 py-0.5 outline-none min-w-0 flex-1"
+                className="text-base font-semibold leading-none bg-background border border-primary rounded px-2 py-1.5 outline-none min-w-0 flex-1"
                 autoFocus
               />
             ) : (
               <h2
-                className="text-base font-semibold cursor-pointer px-2 py-0.5 -mx-2 rounded hover:bg-accent transition-colors truncate min-w-0"
+                className="text-base font-semibold leading-none cursor-pointer px-2 py-1.5 -mx-2 rounded hover:bg-accent transition-colors truncate min-w-0"
                 onDoubleClick={handleTitleDoubleClick}
               >
                 {session.title || 'Untitled Session'}
@@ -200,8 +200,7 @@ export function ChatHeader({
             )}
           </div>
 
-          
-<div className="flex items-center gap-3 sm:gap-4 flex-wrap md:flex-nowrap shrink-0">
+          <div className="flex items-center gap-1 flex-wrap md:flex-nowrap shrink-0">
             <ModelVariantConfigSelector
               models={models}
               selectedModelId={selectedModel}
@@ -232,29 +231,26 @@ export function ChatHeader({
             )}
 
             {onCompact && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:bg-accent"
-                      onClick={onCompact}
-                      disabled={isStreaming || isCompacting || !canCompact}
-                    >
-                      <Minimize2 className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {isCompacting ? 'Compacting...' : 'Compact older messages'}
-                  </TooltipContent>
-                </Tooltip>
-              </>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onCompact}
+                    disabled={isStreaming || isCompacting || !canCompact}
+                  >
+                    <Minimize2 className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isCompacting ? 'Compacting...' : 'Compact older messages'}
+                </TooltipContent>
+              </Tooltip>
             )}
 
           </div>
         </div>
       </TooltipProvider>
-    </header>
+    </div>
   );
 }

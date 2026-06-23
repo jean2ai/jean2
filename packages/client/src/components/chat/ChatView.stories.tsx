@@ -33,6 +33,7 @@ import {
 } from '../../../.storybook/mocks/storeDecorators';
 
 const preconfigs = createPreconfigList();
+void preconfigs;
 const models = createModelList().map((m) => ({
   id: m.id,
   name: m.name,
@@ -53,12 +54,14 @@ const models = createModelList().map((m) => ({
       }
     : undefined,
 }));
+void models;
 
 const defaultUsage = {
   promptTokens: 2500,
   completionTokens: 1800,
   totalTokens: 4300,
 };
+void defaultUsage;
 
 const session = createSession({ title: 'Refactoring the auth module' });
 
@@ -81,22 +84,12 @@ const meta = {
     session,
     messagesWithParts: createTypicalConversation(session.id),
     queuedMessages: [],
-    preconfigs,
     prompts: [],
-    models,
-    defaultModel: 'claude-3.5-sonnet',
     onSendMessage: () => {},
     onRemoveFromQueue: () => {},
-    onChangePreconfig: () => {},
-    onChangeModel: () => {},
-    onChangeVariant: () => {},
     pendingAskRequests: [],
     onAskResponse: () => {},
-    onRename: () => {},
-    usage: defaultUsage,
-    modelName: 'Claude 3.5 Sonnet',
     modelSupportsImage: true,
-    selectedVariant: null,
   },
 } satisfies Meta<typeof ChatView>;
 
@@ -121,7 +114,6 @@ export const LongConversation: Story = {
       { user: 'Can you add unit tests too?', assistant: 'Absolutely. I will write unit tests covering all the new functionality and edge cases.' },
       { user: 'Great, let me review the changes.', assistant: 'Sounds good! All changes are ready for your review. Let me know if you want me to adjust anything.' },
     ], session.id),
-    usage: { promptTokens: 15000, completionTokens: 12000, totalTokens: 27000 },
   },
 };
 
@@ -288,23 +280,6 @@ export const WithCompactionDivider: Story = {
   },
 };
 
-export const HighTokenUsage: Story = {
-  args: {
-    usage: {
-      promptTokens: 92000,
-      completionTokens: 6000,
-      totalTokens: 98000,
-    },
-  },
-};
+export const HighTokenUsage: Story = {};
 
-export const WithVariants: Story = {
-  args: {
-    variants: {
-      low: { providerOptions: { temperature: 0.1 } },
-      medium: { providerOptions: { temperature: 0.5 } },
-      high: { providerOptions: { temperature: 0.9 } },
-    },
-    selectedVariant: 'medium',
-  },
-};
+export const WithVariants: Story = {};

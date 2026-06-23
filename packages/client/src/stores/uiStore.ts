@@ -33,6 +33,7 @@ interface DialogState {
   showTools: boolean;
   showMCPDialog: boolean;
   showWorkspacePermissions: boolean;
+  showWorkspaceSettings: boolean;
 }
 
 interface DialogActions {
@@ -41,6 +42,7 @@ interface DialogActions {
   setShowTools: (show: boolean) => void;
   setShowMCPDialog: (show: boolean) => void;
   setShowWorkspacePermissions: (show: boolean) => void;
+  setShowWorkspaceSettings: (show: boolean) => void;
 }
 
 // --- File Preview ---
@@ -62,7 +64,6 @@ interface FilePreviewActions {
 // --- Settings ---
 const CHAT_FINISH_SOUND_KEY = 'jean2_sound_chat_finish_enabled';
 const PERMISSION_SOUND_KEY = 'jean2_sound_permission_enabled';
-const EXPANDED_TOOLBAR_KEY = 'jean2_expanded_toolbar';
 
 const getStoredBoolean = (key: string, fallback: boolean): boolean => {
   if (typeof window === 'undefined') return fallback;
@@ -73,13 +74,11 @@ const getStoredBoolean = (key: string, fallback: boolean): boolean => {
 interface SettingsState {
   chatFinishSoundEnabled: boolean;
   permissionSoundEnabled: boolean;
-  expandedToolbar: boolean;
 }
 
 interface SettingsActions {
   setChatFinishSoundEnabled: (enabled: boolean) => void;
   setPermissionSoundEnabled: (enabled: boolean) => void;
-  setExpandedToolbar: (expanded: boolean) => void;
 }
 
 // --- Auto-Approve Severity ---
@@ -120,6 +119,7 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   showTools: false,
   showMCPDialog: false,
   showWorkspacePermissions: false,
+  showWorkspaceSettings: false,
 
   // Open the unified settings dialog (preference or server section)
   setShowSettings: (show: boolean) => set({ showConfiguration: show, showSettings: show }),
@@ -127,6 +127,7 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   setShowTools: (show) => set({ showTools: show }),
   setShowMCPDialog: (show) => set({ showMCPDialog: show }),
   setShowWorkspacePermissions: (show) => set({ showWorkspacePermissions: show }),
+  setShowWorkspaceSettings: (show) => set({ showWorkspaceSettings: show }),
 
   // --- Configuration Section ---
   configurationSection: 'providers',
@@ -147,16 +148,6 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
       localStorage.setItem(PERMISSION_SOUND_KEY, String(enabled));
     }
     set({ permissionSoundEnabled: enabled });
-  },
-
-  // --- Toolbar ---
-  expandedToolbar: getStoredBoolean(EXPANDED_TOOLBAR_KEY, false),
-
-  setExpandedToolbar: (expanded) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(EXPANDED_TOOLBAR_KEY, String(expanded));
-    }
-    set({ expandedToolbar: expanded });
   },
 
   // --- File Preview ---

@@ -1,67 +1,99 @@
-import { FolderOpen, PanelLeft, Settings2, ChevronsRight, ChevronsLeft, Ellipsis } from 'lucide-react';
-import { useState } from 'react';
+import { FolderOpen, PanelLeft } from 'lucide-react';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useSidebar } from '@/components/ui/sidebar';
 import { platform } from '@/platform';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { WorkspaceSettingsDialog } from '@/components/modals/WorkspaceSettingsDialog';
+import { ChatHeader } from '@/components/chat/ChatHeader';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
-import { isWindows } from '@/lib/platform';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useConnectionStore } from '@/stores/connectionStore';
 
-interface WorkspaceHeaderProps {
-  onUpdateWorkspacePaths?: (workspaceId: string, additionalPaths: string[]) => void;
-  onUpdateWorkspaceSettings?: (workspaceId: string, settings: import('@jean2/sdk').WorkspaceSettings) => void;
-  sdkClient?: import('@jean2/sdk').Jean2Client | null;
-}
-
-export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSettings, sdkClient }: WorkspaceHeaderProps) {
+export function WorkspaceHeader() {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
-  const expandedToolbar = useUIStore((s) => s.expandedToolbar);
-  const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
+  const preconfigs = useServerDataStore((s) => s.preconfigs);
+  const models = useServerDataStore((s) => s.models);
+  const defaultModel = useServerDataStore((s) => s.defaultModel);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const sessionManager = useSessionManager();
-  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false);
 
-  const isMobile = useIsMobile();
-  const showExpanded = expandedToolbar && !isMobile;
+  // Chat data for the merged ChatHeader
+  const currentSession = useSessionStore((s) => s.currentSession);
+  const sessionUsage = useSessionStore((s) => s.sessionUsage);
+  const streamingSessionIds = useConnectionStore((s) => s.streamingSessionIds);
+  const messagesWithParts = sessionManager.messagesWithParts;
+
+  const currentModel = sessionManager.currentModel;
+  const selectedVariant = sessionManager.selectedVariant;
+  const isCompacting = sessionManager.isCompacting;
+
+  const hasSession = !!currentSession;
+  const currentModelInfo = models.find((m) => m.id === currentModel);
 
   return (
-    <div className="h-9 px-3 flex items-center shrink-0">
-      <TooltipProvider>
-        <div className="flex items-center gap-1 md:gap-2 w-full justify-between">
+    <TooltipProvider delayDuration={300}>
+      <div className="h-10 flex items-stretch shrink-0 border-b border-border bg-card">
+        {/* Left: Sidebar toggle section */}
+        <div className={`flex items-center px-1 shrink-0 ${sidebarState === 'expanded' ? 'bg-muted' : ''}`}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={toggleSidebar}
-                className={sidebarState === 'expanded' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
               >
                 <PanelLeft className="w-4 h-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{sidebarState === 'expanded' ? 'Hide Sessions' : 'Show Sessions'}</TooltipContent>
           </Tooltip>
-          {activeWorkspace && (
-            <div className="flex items-center gap-1 md:gap-2">
+        </div>
+
+        <div className="w-px bg-border shrink-0" />
+
+        {/* Center: Merged ChatHeader content — fills space even when empty */}
+        <div className="flex-1 flex items-center min-w-0 px-2">
+          {hasSession && currentSession && (
+            <ChatHeader
+              session={currentSession}
+              preconfigs={preconfigs}
+              models={models}
+              defaultModel={defaultModel}
+              usage={sessionUsage}
+              modelName={currentModel}
+              onChangePreconfig={sessionManager.updateSessionPreconfig}
+              onChangeModel={sessionManager.updateSessionModel}
+              onChangeVariant={sessionManager.updateSessionVariant}
+              onRename={sessionManager.handleRenameSession}
+              onNavigateBack={sessionManager.handleNavigateBack}
+              isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
+              onCompact={messagesWithParts.length >= 2 ? () => sessionManager.compactSession(currentSession.id) : undefined}
+              isCompacting={isCompacting}
+              canCompact={messagesWithParts.filter((m) => m.message.role !== 'system').length >= 2}
+              selectedVariant={selectedVariant}
+              variants={currentModelInfo?.variants}
+              onClaimControl={sessionManager.claimControl}
+              onReleaseControl={sessionManager.releaseControl}
+              onRequestTakeover={sessionManager.requestTakeover}
+              onRespondTakeover={sessionManager.respondTakeover}
+            />
+          )}
+        </div>
+
+        {/* Right: Files / Explorer toggle section */}
+        {activeWorkspace && (
+          <>
+            <div className="w-px bg-border shrink-0" />
+            <div className={`flex items-center px-1 shrink-0 ${showFilesPanel ? 'bg-muted' : ''}`}>
               {platform.capabilities.explorer ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => platform.showExplorer?.()}
                     >
                       <FolderOpen className="w-4 h-4" />
@@ -74,9 +106,8 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon"
                       onClick={() => setShowFilesPanel(!showFilesPanel)}
-                      className={showFilesPanel ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}
                     >
                       <FolderOpen className="w-4 h-4" />
                     </Button>
@@ -84,74 +115,10 @@ export function WorkspaceHeader({ onUpdateWorkspacePaths, onUpdateWorkspaceSetti
                   <TooltipContent>{showFilesPanel ? 'Hide Files' : 'Show Files'}</TooltipContent>
                 </Tooltip>
               )}
-
-              {showExpanded && onUpdateWorkspaceSettings && (
-                <>
-                  <div className="w-px h-5 bg-border mx-1" />
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-sm" onClick={() => setShowWorkspaceSettings(true)}>
-                        <Settings2 className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side={isWindows() ? 'bottom' : undefined}>Workspace Settings</TooltipContent>
-                  </Tooltip>
-                </>
-              )}
-              {!showExpanded && (
-                <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <Ellipsis className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent align="end" className="min-w-48">
-                    {onUpdateWorkspaceSettings && (
-                      <DropdownMenuItem onClick={() => setShowWorkspaceSettings(true)}>
-                        <Settings2 className="w-4 h-4" />
-                        Workspace Settings
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {!isMobile && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setExpandedToolbar(!expandedToolbar)}>
-                      {expandedToolbar ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{expandedToolbar ? 'Collapse Toolbar' : 'Expand Toolbar'}</TooltipContent>
-                </Tooltip>
-              )}
             </div>
-          )}
-        </div>
-      </TooltipProvider>
-      {onUpdateWorkspaceSettings && activeWorkspace && (
-        <WorkspaceSettingsDialog
-          open={showWorkspaceSettings}
-          onOpenChange={setShowWorkspaceSettings}
-          workspace={activeWorkspace}
-          onSave={onUpdateWorkspaceSettings}
-          sdkClient={sdkClient ?? null}
-          permissions={sessionManager.permissions}
-          onRefreshPermissions={sessionManager.refreshPermissions}
-          onRevokePermission={sessionManager.revokePermission}
-          onRevokeAllPermissions={() => {
-            if (activeWorkspace.id) {
-              sessionManager.revokeAllPermissions(activeWorkspace.id);
-            }
-          }}
-          onUpdateWorkspacePaths={onUpdateWorkspacePaths ?? (() => {})}
-        />
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

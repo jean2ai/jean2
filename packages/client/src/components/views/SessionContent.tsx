@@ -21,11 +21,6 @@ export default function SessionContent() {
     sendChatMessage,
     handleAskResponse,
     handleInterruptSession,
-    updateSessionPreconfig,
-    updateSessionModel,
-    updateSessionVariant,
-    handleNavigateBack,
-    handleRenameSession,
     setCompactionSuccess,
   } = sessionManager;
 
@@ -47,13 +42,8 @@ export default function SessionContent() {
       onLogout={sessionManager.handleLogout}
       onSendMessage={sendChatMessage}
       onRemoveFromQueue={removeFromQueue}
-      onChangePreconfig={updateSessionPreconfig}
-      onChangeModel={updateSessionModel}
-      onChangeVariant={updateSessionVariant}
       onAskResponse={handleAskResponse}
-      onRename={handleRenameSession}
       onNavigateToSubagent={resumeSession}
-      onNavigateBack={handleNavigateBack}
       onInterrupt={handleInterruptSession}
       onRevert={revertSession}
       onFork={forkSession}
@@ -61,10 +51,6 @@ export default function SessionContent() {
       onClearCompactionSuccess={() => setCompactionSuccess(false)}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
-      onClaimControl={sessionManager.claimControl}
-      onReleaseControl={sessionManager.releaseControl}
-      onRequestTakeover={sessionManager.requestTakeover}
-      onRespondTakeover={sessionManager.respondTakeover}
     />
   );
 }

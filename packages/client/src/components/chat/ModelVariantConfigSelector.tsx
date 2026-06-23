@@ -356,13 +356,13 @@ export function ModelVariantConfigSelector({
         <PopoverTrigger asChild>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             role="combobox"
             aria-expanded={open}
             aria-label="Select model, variant, and config"
             disabled={disabled}
           >
-            <Cpu className="size-4 text-muted-foreground" />
+            <Cpu className="size-4" />
           </Button>
         </PopoverTrigger>
         {popoverContent}
@@ -377,11 +377,11 @@ export function ModelVariantConfigSelector({
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size="default"
           role="combobox"
           aria-expanded={open}
           aria-label="Select model, variant, and config"
-          className="h-8 gap-1.5 px-2 text-muted-foreground hover:bg-accent"
+          className="px-2 text-muted-foreground"
           disabled={disabled}
         >
           <span className={cn('truncate', maxWidth)}>

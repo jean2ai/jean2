@@ -1,4 +1,4 @@
-import { Settings, Ellipsis, LayoutGrid, LayoutList, Check, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { Settings, Settings2, Ellipsis, LayoutGrid, LayoutList, Check } from 'lucide-react';
 import { useRouter, useParams, useLocation } from '@tanstack/react-router';
 import { isWindows } from '@/lib/platform';
 import { platform, hasCapability } from '@/platform';
@@ -13,14 +13,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ServerSwitcher } from '@/components/layout/ServerSwitcher';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 
 export function AppHeader() {
   const router = useRouter();
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const connected = useConnectionStore((s) => s.connected);
   const setShowSettings = useUIStore((s) => s.setShowSettings);
-  const expandedToolbar = useUIStore((s) => s.expandedToolbar);
-  const setExpandedToolbar = useUIStore((s) => s.setExpandedToolbar);
+  const setShowWorkspaceSettings = useUIStore((s) => s.setShowWorkspaceSettings);
+  const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
   const location = useLocation();
   const isOverview = location.pathname.includes('/overview');
 
@@ -77,6 +78,12 @@ export function AppHeader() {
                 <TooltipContent>More</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48 min-w-48">
+                {activeWorkspace && (
+                  <DropdownMenuItem onClick={() => setShowWorkspaceSettings(true)}>
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    Workspace Settings
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => setShowSettings(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
@@ -140,46 +147,24 @@ export function AppHeader() {
               </Tooltip>
             </>
             )}
-            {expandedToolbar && (
-              <>
-                <div className="w-px h-5 bg-border mx-1" />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setShowSettings(true)}>
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>Settings</TooltipContent>
-                </Tooltip>
-              </>
-            )}
-            {!expandedToolbar && (
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
-                        <Ellipsis className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side={isWindows() ? 'bottom' : undefined}>More</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="end" className="w-48 min-w-48">
-                  <DropdownMenuItem onClick={() => setShowSettings(true)}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <div className="w-px h-5 bg-border mx-1" />
+            {activeWorkspace && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" onClick={() => setShowWorkspaceSettings(true)}>
+                    <Settings2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side={isWindows() ? 'bottom' : undefined}>Workspace Settings</TooltipContent>
+              </Tooltip>
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => setExpandedToolbar(!expandedToolbar)}>
-                  {expandedToolbar ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+                <Button variant="ghost" size="icon-sm" onClick={() => setShowSettings(true)}>
+                  <Settings className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side={isWindows() ? 'bottom' : undefined}>{expandedToolbar ? 'Collapse Toolbar' : 'Expand Toolbar'}</TooltipContent>
+              <TooltipContent side={isWindows() ? 'bottom' : undefined}>Settings</TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>

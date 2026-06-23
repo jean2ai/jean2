@@ -27,13 +27,8 @@ export interface AppMainContentProps {
   onLogout: () => void;
   onSendMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   onRemoveFromQueue: (queueItemId: string) => void;
-  onChangePreconfig: (preconfigId: string) => void;
-  onChangeModel: (modelId: string, providerId: string) => void;
-  onChangeVariant: (variant: string | null) => void;
   onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
-  onRename: (sessionId: string, title: string) => void;
   onNavigateToSubagent: (sessionId: string) => void;
-  onNavigateBack: () => void;
   onInterrupt: () => void;
   onRevert: (sessionId: string, messageId: string) => void;
   onFork: (sessionId: string, messageId: string) => void;
@@ -41,10 +36,6 @@ export interface AppMainContentProps {
   onClearCompactionSuccess: () => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
-  onClaimControl?: (sessionId: string) => void;
-  onReleaseControl?: (sessionId: string) => void;
-  onRequestTakeover?: (sessionId: string) => void;
-  onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
 }
 
 export function AppMainContent({
@@ -56,13 +47,8 @@ export function AppMainContent({
   onLogout,
   onSendMessage,
   onRemoveFromQueue,
-  onChangePreconfig,
-  onChangeModel,
-  onChangeVariant,
   onAskResponse,
-  onRename,
   onNavigateToSubagent,
-  onNavigateBack,
   onInterrupt,
   onRevert,
   onFork,
@@ -70,10 +56,6 @@ export function AppMainContent({
   onClearCompactionSuccess,
   scrollToBottomRef,
   autoFollowToggleRef,
-  onClaimControl,
-  onReleaseControl,
-  onRequestTakeover,
-  onRespondTakeover,
 }: AppMainContentProps) {
   // Read from stores
   const connected = useConnectionStore(s => s.connected);
@@ -85,15 +67,11 @@ export function AppMainContent({
 
   const currentSession = useSessionStore(s => s.currentSession);
   const queuedMessages = useSessionStore(s => s.queuedMessages);
-  const sessionUsage = useSessionStore(s => s.sessionUsage);
   const currentModel = useSessionStore(s => s.currentModel);
-  const selectedVariant = useSessionStore(s => s.selectedVariant);
   const compactionSuccess = useSessionStore(s => s.compactionSuccess);
 
-  const preconfigs = useServerDataStore(s => s.preconfigs);
   const prompts = useServerDataStore(s => s.prompts);
   const models = useServerDataStore(s => s.models) as ModelInfo[];
-  const defaultModel = useServerDataStore(s => s.defaultModel);
 
   const pendingAskRequests = useAskStore(s => s.pendingRequests) as PendingAskRequest[];
   const navigationIntent = useSessionStore(s => s.navigationIntent);
@@ -127,17 +105,7 @@ export function AppMainContent({
     clearTargetMessageIntent();
   }, [clearTargetMessageIntent]);
 
-  const primaryPreconfigs = preconfigs.filter(p => p.mode !== 'subagent');
-  const isPrimarySession = !currentSession?.parentId;
   const isCompacting = currentSession?.compacting ?? false;
-
-  const handleChangePreconfig = (preconfigId: string) => {
-    onChangePreconfig(preconfigId);
-  };
-
-  const handleChangeVariant = (variant: string | null) => {
-    onChangeVariant(variant);
-  };
 
   const handleInterrupt = () => {
     onInterrupt();
@@ -196,25 +164,13 @@ export function AppMainContent({
       session={currentSession}
       messagesWithParts={messagesWithParts}
       queuedMessages={queuedMessages[currentSession.id] || []}
-      preconfigs={isPrimarySession ? primaryPreconfigs : preconfigs}
       prompts={prompts}
-      models={models}
-      defaultModel={defaultModel}
       onSendMessage={onSendMessage}
       onRemoveFromQueue={onRemoveFromQueue}
-      onChangePreconfig={handleChangePreconfig}
-      onChangeModel={onChangeModel}
-      onChangeVariant={handleChangeVariant}
-      selectedVariant={selectedVariant}
-      variants={currentModelInfo?.variants}
       pendingAskRequests={pendingAskRequests}
       onAskResponse={onAskResponse}
-      onRename={onRename}
-      usage={sessionUsage}
-      modelName={currentModel}
       modelSupportsImage={currentModelInfo?.capabilities?.input?.image ?? false}
       onNavigateToSubagent={onNavigateToSubagent}
-      onNavigateBack={onNavigateBack}
       isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
       onInterrupt={handleInterrupt}
       onRevert={onRevert}
@@ -227,10 +183,6 @@ export function AppMainContent({
       sdkClient={sdkClient}
       scrollToBottomRef={scrollToBottomRef}
       autoFollowToggleRef={autoFollowToggleRef}
-      onClaimControl={onClaimControl}
-      onReleaseControl={onReleaseControl}
-      onRequestTakeover={onRequestTakeover}
-      onRespondTakeover={onRespondTakeover}
       pinnedMessageIds={pinnedMessageIds}
       onTogglePinMessage={handleTogglePinMessage}
       targetMessageId={targetMessageId}
