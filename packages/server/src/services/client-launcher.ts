@@ -6,7 +6,6 @@ import { getClientDir } from '@/paths';
 import {
   createArborist,
   fetchPackageMetadata,
-  checkVersionAge,
   extractIntegrity,
 } from '@/services/npm-utils';
 
@@ -91,22 +90,7 @@ async function fetchLatestVersion(): Promise<string | null> {
   const metadata = await fetchPackageMetadata(CLIENT_PACKAGE);
   if (!metadata) return null;
 
-  const latest = metadata.distTags.latest;
-  if (!latest) return null;
-
-  const age = await checkVersionAge(CLIENT_PACKAGE, latest);
-  if (!age.ok) {
-    const ageHours = Math.round(
-      (Date.now() - new Date(age.publishedAt || Date.now()).getTime()) / (1000 * 60 * 60),
-    );
-    console.log(
-      `[client] @jean2/client@${latest} was published ${ageHours}h ago ` +
-      `(minimum: ${age.minAgeHours}h) — skipping auto-update`,
-    );
-    return null;
-  }
-
-  return latest;
+  return metadata.distTags.latest ?? null;
 }
 
 function isNewerVersion(latest: string, current: string): boolean {
