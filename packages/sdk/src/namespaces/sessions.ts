@@ -58,6 +58,10 @@ export class SessionsNamespace {
     this.send({ type: 'session.fork', sessionId, messageId, title });
   }
 
+  editMessage(sessionId: string, messageId: string, content: string): void {
+    this.send({ type: 'session.edit_message', sessionId, messageId, content });
+  }
+
   interrupt(
     sessionId: string,
     reason?: 'user_request' | 'timeout' | 'error',

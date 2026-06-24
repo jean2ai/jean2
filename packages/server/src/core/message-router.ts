@@ -8,6 +8,9 @@ import {
   deleteSession,
   createMessage,
   updateMessage,
+  getMessage,
+  getPartsByMessage,
+  updatePart,
   createPart,
   listMessagesWithParts,
   buildEffectiveContextHistory,
@@ -218,30 +221,37 @@ async function runSingleChatTurn(
   session: NonNullable<ReturnType<typeof getSession>>,
   attachments?: Array<{ id: string; kind: string }>,
   responseFormat?: import('@jean2/sdk').ResponseFormat,
+  existingUserMessageId?: string,
 ): Promise<ChatTurnResult> {
-  const userMsgId = crypto.randomUUID();
+  let userMsgId: string;
 
-  const userMessage = {
-    id: userMsgId,
-    sessionId,
-    role: 'user' as const,
-    createdAt: Date.now(),
-  };
-  createMessage(userMessage);
+  if (existingUserMessageId) {
+    userMsgId = existingUserMessageId;
+  } else {
+    userMsgId = crypto.randomUUID();
 
-  const textPartId = crypto.randomUUID();
-  const textPart = {
-    id: textPartId,
-    messageId: userMsgId,
-    createdAt: Date.now(),
-    type: 'text' as const,
-    text: content,
-  };
-  createPart(textPart, sessionId);
+    const userMessage = {
+      id: userMsgId,
+      sessionId,
+      role: 'user' as const,
+      createdAt: Date.now(),
+    };
+    createMessage(userMessage);
 
-  ctx.broadcastToSession(sessionId, { type: 'message.created', message: userMessage });
-  ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: textPart });
-  void regenerateSessionTitle(ctx, sessionId);
+    const textPartId = crypto.randomUUID();
+    const textPart = {
+      id: textPartId,
+      messageId: userMsgId,
+      createdAt: Date.now(),
+      type: 'text' as const,
+      text: content,
+    };
+    createPart(textPart, sessionId);
+
+    ctx.broadcastToSession(sessionId, { type: 'message.created', message: userMessage });
+    ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: textPart });
+    void regenerateSessionTitle(ctx, sessionId);
+  }
 
   if (attachments && attachments.length > 0) {
     for (const attachment of attachments) {
@@ -856,6 +866,117 @@ async function handleSessionFork(
   }
 }
 
+async function handleSessionEditMessage(
+  ctx: RouterContext,
+  ws: ServerWebSocket,
+  msg: { sessionId: string; messageId: string; content: string },
+) {
+  try {
+    const session = getSession(msg.sessionId);
+    if (!session) {
+      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      return;
+    }
+
+    if (session.status === 'closed') {
+      ctx.send(ws, { type: 'error', code: 'session_closed', message: 'Cannot edit messages in an archived session.' });
+      return;
+    }
+
+    if (interruptManager.isSessionActive(msg.sessionId)) {
+      ctx.send(ws, { type: 'error', code: 'session_busy', message: 'Cannot edit while the session is streaming.' });
+      return;
+    }
+
+    const target = getMessage(msg.messageId);
+    if (!target || target.sessionId !== msg.sessionId || target.role !== 'user') {
+      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Only user messages can be edited.' });
+      return;
+    }
+
+    // 1. Update the user message's text part in place
+    const parts = getPartsByMessage(msg.messageId);
+    const textPart = parts.find((p) => p.type === 'text');
+    if (!textPart || textPart.type !== 'text') {
+      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Message has no editable text.' });
+      return;
+    }
+    const updatedPart = updatePart(textPart.id, { text: msg.content });
+    if (updatedPart) {
+      ctx.broadcastToSession(msg.sessionId, {
+        type: 'part.updated',
+        sessionId: msg.sessionId,
+        part: updatedPart,
+      });
+    }
+
+    // 2. Destructively truncate everything after the edited message
+    await revertToStep({
+      sessionId: msg.sessionId,
+      targetMessageId: msg.messageId,
+    });
+
+    // Broadcast the truncated state to all clients
+    const currentState = listMessagesWithParts(msg.sessionId);
+    ctx.broadcastToSession(msg.sessionId, {
+      type: 'session.state',
+      sessionId: msg.sessionId,
+      messages: currentState,
+    });
+
+    // 3. Regenerate the assistant reply from this point,
+    //    reusing the existing user message (no new message created)
+    const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;
+    const workspacePath = workspace?.path;
+    const additionalPaths = workspace?.additionalPaths;
+
+    const preconfig = session.preconfigId
+      ? await getPreconfig(session.preconfigId)
+      : await getDefaultPreconfig();
+    if (!preconfig) {
+      ctx.send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found' });
+      return;
+    }
+
+    const config = getModelsConfig();
+    const modelId = session.selectedModel || preconfig.model || config.defaultModel;
+
+    function findProviderFromModel(m: string): string {
+      const modelInfo = findModel(m);
+      if (modelInfo) return modelInfo.providerId;
+      if (m.includes('/')) return 'openrouter';
+      if (m.startsWith('claude-')) return 'anthropic';
+      if (m.startsWith('gemini-')) return 'google';
+      if (m.startsWith('deepseek-')) return 'deepseek';
+      return 'openai';
+    }
+
+    const provider =
+      session.selectedProvider ||
+      (preconfig.model ? findProviderFromModel(preconfig.model) : null) ||
+      config.defaultProvider;
+
+    await runSingleChatTurn(
+      ctx,
+      ws,
+      msg.sessionId,
+      msg.content,
+      preconfig,
+      modelId,
+      provider,
+      workspacePath,
+      additionalPaths,
+      session,
+      undefined,
+      undefined,
+      msg.messageId,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Edit failed';
+    ctx.send(ws, { type: 'error', code: 'edit_error', message });
+  }
+}
+
 // ── Main message dispatcher ────────────────────────────────────
 
 export async function handleClientMessage(
@@ -1219,6 +1340,13 @@ export async function handleClientMessage(
 
     case 'session.fork': {
       await handleSessionFork(ctx, ws, msg);
+      break;
+    }
+
+    case 'session.edit_message': {
+      const gateEdit = checkControllerGate(msg.sessionId, 'chat.message', ws);
+      if (gateEdit) { sendGateRejection(ctx, ws, gateEdit); break; }
+      await handleSessionEditMessage(ctx, ws, msg);
       break;
     }
 

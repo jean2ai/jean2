@@ -148,6 +148,17 @@ export interface SessionForkMessage {
 }
 
 // =============================================================================
+// Edit Message Messages
+// =============================================================================
+
+export interface SessionEditMessageMessage {
+  type: 'session.edit_message';
+  sessionId: string;
+  messageId: string;
+  content: string;
+}
+
+// =============================================================================
 // Interrupt Messages
 // =============================================================================
 
@@ -297,6 +308,7 @@ export type ClientMessage =
   | SessionCompactMessage
   | SessionRevertMessage
   | SessionForkMessage
+  | SessionEditMessageMessage
   | SessionInterruptMessage
   | QueueAddMessage
   | QueueRemoveMessage

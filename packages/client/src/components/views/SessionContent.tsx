@@ -16,6 +16,7 @@ export default function SessionContent() {
     resumeSession,
     revertSession,
     forkSession,
+    editMessage,
     compactSession,
     removeFromQueue,
     sendChatMessage,
@@ -47,6 +48,7 @@ export default function SessionContent() {
       onInterrupt={handleInterruptSession}
       onRevert={revertSession}
       onFork={forkSession}
+      onEditMessage={editMessage}
       onCompact={compactSession}
       onClearCompactionSuccess={() => setCompactionSuccess(false)}
       scrollToBottomRef={scrollToBottomRef}

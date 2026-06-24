@@ -89,6 +89,7 @@ export interface UseServerSessionManagerReturn {
   regenerateSessionTitle: (sessionId: string) => void;
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
+  editMessage: (sessionId: string, messageId: string, content: string) => void;
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
@@ -787,6 +788,7 @@ export function useServerSessionManager({
     regenerateSessionTitle,
     revertSession,
     forkSession,
+    editMessage,
     compactSession,
     removeFromQueue,
     sendChatMessage,
@@ -886,6 +888,7 @@ export function useServerSessionManager({
     regenerateSessionTitle,
     revertSession,
     forkSession,
+    editMessage,
     compactSession,
     removeFromQueue,
     sendChatMessage,

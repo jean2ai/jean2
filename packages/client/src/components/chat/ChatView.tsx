@@ -32,6 +32,7 @@ interface ChatViewProps {
   onInterrupt?: () => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
   onFork?: (sessionId: string, messageId: string) => void;
+  onEditMessage?: (sessionId: string, messageId: string, content: string) => void;
   onCompact?: () => void;
   isCompacting?: boolean;
   compactionSuccess?: boolean;
@@ -133,6 +134,7 @@ export function ChatView({
   onInterrupt,
   onRevert: _onRevert,
   onFork: _onFork,
+  onEditMessage: _onEditMessage,
   onCompact,
   isCompacting,
   compactionSuccess,
@@ -249,6 +251,7 @@ export function ChatView({
           onRemoveFromQueue={onRemoveFromQueue}
           onRevert={_onRevert}
           onFork={_onFork}
+          onEditMessage={_onEditMessage}
           onCompact={onCompact}
           isMainActiveSession={isMainActiveSession}
           autoFollow={autoFollow}

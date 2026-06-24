@@ -32,6 +32,7 @@ export interface AppMainContentProps {
   onInterrupt: () => void;
   onRevert: (sessionId: string, messageId: string) => void;
   onFork: (sessionId: string, messageId: string) => void;
+  onEditMessage: (sessionId: string, messageId: string, content: string) => void;
   onCompact: (sessionId: string) => void;
   onClearCompactionSuccess: () => void;
   scrollToBottomRef?: React.RefObject<(() => void) | null>;
@@ -52,6 +53,7 @@ export function AppMainContent({
   onInterrupt,
   onRevert,
   onFork,
+  onEditMessage,
   onCompact,
   onClearCompactionSuccess,
   scrollToBottomRef,
@@ -175,6 +177,7 @@ export function AppMainContent({
       onInterrupt={handleInterrupt}
       onRevert={onRevert}
       onFork={onFork}
+      onEditMessage={onEditMessage}
       onCompact={canCompact ? () => onCompact(currentSession.id) : undefined}
       isCompacting={isCompacting}
       compactionSuccess={compactionSuccess}

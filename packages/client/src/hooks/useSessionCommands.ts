@@ -48,6 +48,7 @@ interface UseSessionCommandsReturn {
   regenerateSessionTitle: (sessionId: string) => void;
   revertSession: (sessionId: string, messageId: string) => void;
   forkSession: (sessionId: string, messageId: string) => void;
+  editMessage: (sessionId: string, messageId: string, content: string) => void;
   compactSession: (sessionId: string) => void;
   addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
@@ -164,6 +165,13 @@ export function useSessionCommands({
     const client = clientRef.current;
     if (client && client.connected) {
       client.sessions.fork(sessionId, messageId);
+    }
+  }, [clientRef]);
+
+  const editMessage = useCallback((sessionId: string, messageId: string, content: string) => {
+    const client = clientRef.current;
+    if (client && client.connected) {
+      client.sessions.editMessage(sessionId, messageId, content);
     }
   }, [clientRef]);
 
@@ -366,6 +374,7 @@ export function useSessionCommands({
     regenerateSessionTitle,
     revertSession,
     forkSession,
+    editMessage,
     compactSession,
     addToQueue,
     removeFromQueue,

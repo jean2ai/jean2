@@ -43,6 +43,7 @@ interface VirtualizedTranscriptProps {
   onRemoveFromQueue: (queueId: string) => void;
   onRevert?: (sessionId: string, stepPartId: string) => void;
   onFork?: (sessionId: string, messageId: string) => void;
+  onEditMessage?: (sessionId: string, messageId: string, content: string) => void;
   onCompact?: () => void;
   isMainActiveSession?: boolean;
   isCompacting?: boolean;
@@ -370,6 +371,7 @@ interface MessageRowProps {
   isMainActiveSession?: boolean;
   isCompacting?: boolean;
   onCompact?: () => void;
+  onEditMessage?: (sessionId: string, messageId: string, content: string) => void;
   serverUrl?: string;
   isPinned?: boolean;
   canPin?: boolean;
@@ -386,6 +388,7 @@ const MessageRow = memo(function MessageRow({
   onRemoveFromQueue,
   onRevert,
   onFork,
+  onEditMessage,
   isMainActiveSession = false,
   isCompacting = false,
   onCompact,
@@ -440,6 +443,8 @@ const MessageRow = memo(function MessageRow({
       onRevert={revertMessageId ? () => onRevert?.(sessionId, revertMessageId) : undefined}
       canFork={canRevert && revertMessageId !== null}
       onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
+      canEdit={canRevert && !item.isQueued}
+      onEdit={onEditMessage ? (content) => onEditMessage(sessionId, item.message.id, content) : undefined}
       isClearAll={isClearAll}
       isPinned={isPinned}
       canPin={canPin}
@@ -497,6 +502,7 @@ export function VirtualizedTranscript({
   onRemoveFromQueue,
   onRevert,
   onFork,
+  onEditMessage,
   onCompact,
   isMainActiveSession = false,
   autoFollow = true,
@@ -726,6 +732,7 @@ export function VirtualizedTranscript({
         onRemoveFromQueue={onRemoveFromQueue}
         onRevert={onRevert}
         onFork={onFork}
+        onEditMessage={onEditMessage}
         isMainActiveSession={isMainActiveSession}
         isCompacting={isCompacting}
         onCompact={onCompact}
@@ -748,6 +755,7 @@ export function VirtualizedTranscript({
     onRemoveFromQueue,
     onRevert,
     onFork,
+    onEditMessage,
     isMainActiveSession,
     isCompacting,
     onCompact,

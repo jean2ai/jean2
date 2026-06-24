@@ -1,7 +1,8 @@
-import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch, Pin, PinOff } from 'lucide-react';
-import { useState } from 'react';
+import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch, Pin, PinOff, Pencil, X as XIcon } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import type { Message } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { cn } from '@/lib/utils';
 
@@ -15,22 +16,26 @@ interface MessageBubbleProps {
   canRevert?: boolean;
   onFork?: () => void;
   canFork?: boolean;
+  onEdit?: (content: string) => void;
+  canEdit?: boolean;
   isClearAll?: boolean;
   isPinned?: boolean;
   onTogglePin?: () => void;
   canPin?: boolean;
 }
 
-export function MessageBubble({ 
-  message, 
-  textContent, 
-  children, 
+export function MessageBubble({
+  message,
+  textContent,
+  children,
   isQueued = false,
   onRemove,
   onRevert,
   canRevert = false,
   onFork,
   canFork = false,
+  onEdit,
+  canEdit = false,
   isClearAll = false,
   isPinned = false,
   onTogglePin,
@@ -39,7 +44,23 @@ export function MessageBubble({
   const [copied, setCopied] = useState(false);
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
   const [showForkConfirm, setShowForkConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === 'user';
+
+  useEffect(() => {
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      editTextareaRef.current.setSelectionRange(
+        editTextareaRef.current.value.length,
+        editTextareaRef.current.value.length,
+      );
+      const textarea = editTextareaRef.current;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 250)}px`;
+    }
+  }, [isEditing]);
 
   const handleCopy = async () => {
     const text = textContent || '';
@@ -48,7 +69,42 @@ export function MessageBubble({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleStartEdit = () => {
+    setEditText(textContent || '');
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditText('');
+  };
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || !onEdit) return;
+    setIsEditing(false);
+    onEdit(trimmed);
+  };
+
+  const handleEditKeydown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancelEdit();
+    }
+  };
+
+  const handleEditTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditText(e.target.value);
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 250)}px`;
+  };
+
   const showPinButton = canPin && onTogglePin && !isQueued;
+  const showEditButton = canEdit && onEdit && !isQueued && isUser;
 
   return (
     <div
@@ -87,6 +143,17 @@ export function MessageBubble({
                     title="Fork from this point"
                   >
                     <GitBranch className="size-3" />
+                  </Button>
+                )}
+                {showEditButton && !isEditing && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleStartEdit}
+                    className="size-5 text-muted-foreground hover:text-foreground"
+                    title="Edit and resubmit"
+                  >
+                    <Pencil className="size-3" />
                   </Button>
                 )}
                 <Button
@@ -146,39 +213,75 @@ export function MessageBubble({
         )}
       </div>
 
-      <div
-        className={cn(
-          'relative group min-w-0 overflow-hidden',
-          isUser
-            ? isQueued
-              ? 'rounded-2xl px-4 py-3 max-w-[90%] bg-muted text-foreground border-2 border-dashed border-muted-foreground/30 opacity-80 rounded-br-md'
-              : 'rounded-2xl px-4 py-3 max-w-[90%] bg-primary text-primary-foreground rounded-br-md'
-            : 'w-full overflow-visible'
-        )}
-      >
-        {isQueued && (
-          <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-muted-foreground/20">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="size-3 animate-pulse" />
-              <span>Pending</span>
-            </div>
-            {onRemove && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onRemove}
-                className="size-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                title="Remove from queue"
-              >
-                <X className="size-3" />
-              </Button>
-            )}
+      {isEditing && isUser ? (
+        <div className="w-full max-w-[90%] self-end">
+          <div className="flex items-center gap-1.5 text-xs text-primary mb-1.5 mr-3 justify-end">
+            <Pencil className="size-3" />
+            Editing
           </div>
-        )}
-        <div className="min-w-0">
-          {children}
+          <Textarea
+            ref={editTextareaRef}
+            value={editText}
+            onChange={handleEditTextChange}
+            onKeyDown={handleEditKeydown}
+            className="rounded-2xl rounded-br-md bg-background border-2 border-primary/40 text-foreground resize-none min-h-[60px] shadow-lg shadow-primary/5 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
+          />
+          <div className="flex items-center justify-end gap-2 mt-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelEdit}
+              className="h-7 text-xs gap-1"
+            >
+              <XIcon className="size-3" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveEdit}
+              disabled={!editText.trim()}
+              className="h-7 text-xs gap-1"
+            >
+              <Check className="size-3" />
+              Send
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className={cn(
+            'relative group min-w-0 overflow-hidden',
+            isUser
+              ? isQueued
+                ? 'rounded-2xl px-4 py-3 max-w-[90%] bg-muted text-foreground border-2 border-dashed border-muted-foreground/30 opacity-80 rounded-br-md'
+                : 'rounded-2xl px-4 py-3 max-w-[90%] bg-primary text-primary-foreground rounded-br-md'
+              : 'w-full overflow-visible'
+          )}
+        >
+          {isQueued && (
+            <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-muted-foreground/20">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="size-3 animate-pulse" />
+                <span>Pending</span>
+              </div>
+              {onRemove && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onRemove}
+                  className="size-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  title="Remove from queue"
+                >
+                  <X className="size-3" />
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="min-w-0">
+            {children}
+          </div>
+        </div>
+      )}
 
       <ConfirmationDialog
         open={showRevertConfirm}
