@@ -4,6 +4,7 @@ import type { Jean2Client } from '@jean2/sdk';
 interface UseFilePreviewOptions {
   workspaceId: string | undefined;
   path: string | undefined;
+  root?: string;
   sdkClient: Jean2Client | null;
   enabled: boolean;
 }
@@ -18,6 +19,7 @@ interface UseFilePreviewResult {
 export function useFilePreview({
   workspaceId,
   path,
+  root,
   sdkClient,
   enabled,
 }: UseFilePreviewOptions): UseFilePreviewResult {
@@ -25,6 +27,7 @@ export function useFilePreview({
     sdkClient,
     workspaceId,
     path,
+    root,
     enabled,
   );
 

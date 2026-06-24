@@ -6,7 +6,7 @@ export function useFileBrowseQuery(
   sdkClient: Jean2Client | null,
   workspaceId: string | undefined,
   path?: string,
-  opts?: { showHidden?: boolean },
+  opts?: { showHidden?: boolean; root?: string },
   enabledOverride?: boolean,
 ) {
   return useQuery({
@@ -53,11 +53,12 @@ export function useFilePreviewQuery(
   sdkClient: Jean2Client | null,
   workspaceId: string | undefined,
   path: string | undefined,
+  root: string | undefined,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: queryKeys.files.preview(workspaceId ?? '', path ?? ''),
-    queryFn: () => sdkClient!.http.files.preview(workspaceId!, path!),
+    queryKey: queryKeys.files.preview(workspaceId ?? '', path ?? '', root),
+    queryFn: () => sdkClient!.http.files.preview(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
     staleTime: 0,
   });
@@ -67,12 +68,27 @@ export function useFileGitDiffQuery(
   sdkClient: Jean2Client | null,
   workspaceId: string | undefined,
   path: string | undefined,
+  root: string | undefined,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? ''),
-    queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!),
+    queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? '', root),
+    queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
+    staleTime: 0,
+  });
+}
+
+export function useGitStatusQuery(
+  sdkClient: Jean2Client | null,
+  workspaceId: string | undefined,
+  root: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.files.gitStatus(workspaceId ?? '', root),
+    queryFn: () => sdkClient!.http.files.gitStatus(workspaceId!, { root }),
+    enabled: !!sdkClient && !!workspaceId && enabled,
     staleTime: 0,
   });
 }

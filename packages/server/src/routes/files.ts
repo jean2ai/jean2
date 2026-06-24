@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { accessSync, constants } from 'fs';
 import { homedir } from 'os';
-import { join, dirname, resolve, isAbsolute } from 'path';
+import { join, dirname, resolve, isAbsolute, relative, sep } from 'path';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
@@ -14,6 +14,27 @@ function expandPath(path: string): string {
   return path;
 }
 
+/**
+ * Resolves an optional `root` query param to an allowed absolute root path.
+ * When `root` is provided it must exactly match either the workspace.path or
+ * one of additionalPaths. Falls back to workspace.path when missing/invalid.
+ * Returns the selected root and a boolean indicating whether it is the main
+ * workspace path.
+ */
+function resolveRoot(
+  workspace: { path: string; additionalPaths: string[] },
+  rootQuery?: string,
+): { root: string; isMain: boolean } {
+  const main = resolve(workspace.path);
+  if (!rootQuery) return { root: main, isMain: true };
+  const resolved = resolve(rootQuery);
+  if (resolved === main) return { root: main, isMain: true };
+  for (const p of workspace.additionalPaths) {
+    if (resolve(p) === resolved) return { root: resolved, isMain: false };
+  }
+  return { root: main, isMain: true };
+}
+
 export function registerFileRoutes(app: Hono): void {
   app.get('/api/workspaces/:id/files', async (c) => {
     const workspaceId = c.req.param('id');
@@ -21,20 +42,23 @@ export function registerFileRoutes(app: Hono): void {
     const search = c.req.query('search');
     const limit = parseInt(c.req.query('limit') || '20', 10);
     const showHidden = c.req.query('showHidden') !== 'false';
+    const rootQuery = c.req.query('root');
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
+    const { root, isMain } = resolveRoot(workspace, rootQuery);
+
     try {
       if (search) {
-        const files = await searchFiles(workspace.path, search, limit, showHidden, c.req.raw.signal);
+        const files = await searchFiles(root, search, limit, showHidden, c.req.raw.signal);
         if (c.req.raw.signal.aborted) return new Response(null, { status: 499 });
-        return c.json({ files, currentPath: '', mode: 'search' });
+        return c.json({ files, currentPath: '', mode: 'search', root, isMain });
       }
 
-      const fullPath = join(workspace.path, path);
+      const fullPath = join(root, path);
 
       if (!isPathWithinWorkspace(fullPath, workspace.path, workspace.additionalPaths)) {
         return c.json({ error: 'Forbidden', message: 'Path outside workspace' }, 403);
@@ -44,7 +68,7 @@ export function registerFileRoutes(app: Hono): void {
 
       let gitStatus;
       try {
-        gitStatus = await getGitStatus(workspace.path);
+        gitStatus = await getGitStatus(root);
       } catch {
         gitStatus = null;
       }
@@ -57,6 +81,8 @@ export function registerFileRoutes(app: Hono): void {
         files: filesWithGit,
         currentPath: path,
         mode: 'browse',
+        root,
+        isMain,
         git: gitStatus?.availability,
       });
     } catch (_err: unknown) {
@@ -65,9 +91,57 @@ export function registerFileRoutes(app: Hono): void {
     }
   });
 
+  app.get('/api/workspaces/:id/git/status', async (c) => {
+    const workspaceId = c.req.param('id');
+    const rootQuery = c.req.query('root');
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+    }
+
+    const { root } = resolveRoot(workspace, rootQuery);
+
+    try {
+      const gitStatus = await getGitStatus(root);
+      const resolvedRoot = resolve(root);
+      const gitRoot = gitStatus.availability.root;
+
+      const files = Array.from(gitStatus.files.entries())
+        .filter(([, summary]) => summary.status !== 'ignored')
+        .flatMap(([filePath, summary]) => {
+          // Convert repo-relative path to selected-root-relative path.
+          let rootRelative: string | null = filePath;
+          if (gitRoot) {
+            const abs = resolve(gitRoot, filePath.split('/').join(sep));
+            const rel = relative(resolvedRoot, abs);
+            // Skip files outside the selected root.
+            if (rel.startsWith('..') || isAbsolute(rel)) rootRelative = null;
+            else rootRelative = rel.split(sep).join('/');
+          }
+          if (rootRelative === null) return [];
+          return [{ path: rootRelative, git: summary }];
+        })
+        .sort((a, b) => a.path.localeCompare(b.path));
+
+      return c.json({
+        availability: gitStatus.availability,
+        files,
+        root,
+      });
+    } catch (_err: unknown) {
+      return c.json({
+        availability: { available: false, reason: 'git_error' as const },
+        files: [],
+        root,
+      });
+    }
+  });
+
   app.get('/api/workspaces/:id/file-preview', async (c) => {
     const workspaceId = c.req.param('id');
     const path = c.req.query('path');
+    const rootQuery = c.req.query('root');
 
     if (!path) {
       return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
@@ -78,8 +152,10 @@ export function registerFileRoutes(app: Hono): void {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
+    const { root } = resolveRoot(workspace, rootQuery);
+
     try {
-      const preview = await getFilePreview(workspace.path, path, workspace.additionalPaths);
+      const preview = await getFilePreview(root, path, workspace.additionalPaths);
       return c.json(preview);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -99,6 +175,7 @@ export function registerFileRoutes(app: Hono): void {
   app.get('/api/workspaces/:id/git/diff', async (c) => {
     const workspaceId = c.req.param('id');
     const path = c.req.query('path');
+    const rootQuery = c.req.query('root');
 
     if (!path) {
       return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
@@ -109,7 +186,8 @@ export function registerFileRoutes(app: Hono): void {
       return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
     }
 
-    const diff = await getGitFileDiff(workspace.path, path, workspace.additionalPaths);
+    const { root } = resolveRoot(workspace, rootQuery);
+    const diff = await getGitFileDiff(root, path, workspace.additionalPaths);
     return c.json(diff);
   });
 

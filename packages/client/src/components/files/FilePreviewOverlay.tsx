@@ -38,6 +38,7 @@ export default function FilePreviewOverlay({
   const { data, loading, error, reload } = useFilePreview({
     workspaceId,
     path: target?.path,
+    root: target?.root,
     sdkClient,
     enabled: open && !!target && !!workspaceId,
   });
@@ -46,6 +47,7 @@ export default function FilePreviewOverlay({
     sdkClient,
     workspaceId,
     target?.path,
+    target?.root,
     open && !!target && !!workspaceId,
   );
 

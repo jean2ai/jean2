@@ -13,6 +13,7 @@ interface FileTreeProps {
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
   width?: number;
+  root?: string;
 }
 
 export interface FileTreeHandle {
@@ -21,14 +22,14 @@ export interface FileTreeHandle {
 }
 
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
-  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width }, ref) => {
+  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const { data, isLoading, error, refetch } = useFileBrowseQuery(
       sdkClient,
       workspaceId,
       undefined,
-      { showHidden },
+      { showHidden, root },
     );
 
     const files = data?.files ?? [];
@@ -172,6 +173,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                   onFileSelect={onFileSelect}
                   showHidden={showHidden}
                   sdkClient={sdkClient}
+                  root={root}
                 />
               ))}
             </div>

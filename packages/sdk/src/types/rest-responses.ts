@@ -1,4 +1,4 @@
-import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability, GitFileDiffResponse } from '../shared';
+import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability, GitDiffSummary, GitFileDiffResponse } from '../shared';
 
 /**
  * GET /api/sessions
@@ -376,6 +376,20 @@ export type PreviewFileResponse = FilePreviewResponse;
  * GET /api/workspaces/:id/git/diff
  */
 export type GitDiffFileResponse = GitFileDiffResponse;
+
+/**
+ * GET /api/workspaces/:id/git/status
+ */
+export interface GitStatusFile {
+  path: string;
+  git: GitDiffSummary;
+}
+
+export interface GitStatusResponse {
+  availability: GitAvailability;
+  files: GitStatusFile[];
+  root: string;
+}
 
 /**
  * GET /api/fs/browse

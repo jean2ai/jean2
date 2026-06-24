@@ -15,6 +15,7 @@ interface FileTreeNodeProps {
   onFileSelect?: (file: FileEntry) => void;
   showHidden?: boolean;
   sdkClient?: Jean2Client | null;
+  root?: string;
 }
 
 const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
@@ -36,6 +37,7 @@ export function FileTreeNode({
   onFileSelect,
   showHidden = true,
   sdkClient,
+  root,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -46,7 +48,7 @@ export function FileTreeNode({
     sdkClient ?? null,
     workspaceId,
     fullPath,
-    { showHidden },
+    { showHidden, root },
     isDirectory && isOpen,
   );
 
@@ -139,6 +141,7 @@ export function FileTreeNode({
             onFileSelect={onFileSelect}
             showHidden={showHidden}
             sdkClient={sdkClient}
+            root={root}
           />
         ))}
       </CollapsibleContent>

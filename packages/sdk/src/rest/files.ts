@@ -4,6 +4,7 @@ import type {
   SearchFilesResponse,
   PreviewFileResponse,
   GitDiffFileResponse,
+  GitStatusResponse,
   BrowseFsResponse,
   FsParentResponse,
   ListDrivesResponse,
@@ -13,12 +14,14 @@ interface BrowseOptions {
   path?: string;
   showHidden?: boolean;
   limit?: number;
+  root?: string;
   signal?: AbortSignal;
 }
 
 interface SearchOptions {
   limit?: number;
   showHidden?: boolean;
+  root?: string;
   signal?: AbortSignal;
 }
 
@@ -53,6 +56,9 @@ export class FilesRestNamespace {
     if (options?.limit !== undefined) {
       params.limit = String(options.limit);
     }
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
 
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/files`, {
       params: Object.keys(params).length > 0 ? params : undefined,
@@ -71,6 +77,9 @@ export class FilesRestNamespace {
     if (options?.showHidden !== undefined) {
       params.showHidden = String(options.showHidden);
     }
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
 
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/files`, {
       params,
@@ -78,9 +87,13 @@ export class FilesRestNamespace {
     });
   }
 
-  async preview(workspaceId: string, path: string, options?: PreviewOptions): Promise<PreviewFileResponse> {
+  async preview(workspaceId: string, path: string, options?: PreviewOptions & { root?: string }): Promise<PreviewFileResponse> {
+    const params: Record<string, string> = { path };
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/file-preview`, {
-      params: { path },
+      params,
       signal: options?.signal,
     });
   }
@@ -88,10 +101,28 @@ export class FilesRestNamespace {
   async gitDiff(
     workspaceId: string,
     path: string,
-    options?: { signal?: AbortSignal },
+    options?: { root?: string; signal?: AbortSignal },
   ): Promise<GitDiffFileResponse> {
+    const params: Record<string, string> = { path };
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/git/diff`, {
-      params: { path },
+      params,
+      signal: options?.signal,
+    });
+  }
+
+  async gitStatus(
+    workspaceId: string,
+    options?: { root?: string; signal?: AbortSignal },
+  ): Promise<GitStatusResponse> {
+    const params: Record<string, string> = {};
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/git/status`, {
+      params: Object.keys(params).length > 0 ? params : undefined,
       signal: options?.signal,
     });
   }

@@ -50,6 +50,7 @@ export interface FilePreviewTarget {
   workspaceId: string;
   path: string;
   name: string;
+  root?: string;
 }
 
 interface FilePreviewState {

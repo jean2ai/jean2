@@ -10,11 +10,17 @@ import {
   saveFilesPanelWidth,
 } from '@/config/panelStorage';
 
+export type FilesPanelTab = 'project' | 'changes';
+export type GitChangesMode = 'grouped' | 'flat';
+
 interface ChatLayoutState {
   showFilesPanel: boolean;
   showTerminalPanel: boolean;
   sessionsPanelWidth: number;
   filesPanelWidth: number;
+  filesPanelTab: FilesPanelTab;
+  filesPanelRoot: string | null;
+  filesPanelGitMode: GitChangesMode;
 }
 
 interface ChatLayoutActions {
@@ -22,6 +28,9 @@ interface ChatLayoutActions {
   setShowTerminalPanel: (show: boolean) => void;
   setSessionsPanelWidth: (width: number) => void;
   setFilesPanelWidth: (width: number) => void;
+  setFilesPanelTab: (tab: FilesPanelTab) => void;
+  setFilesPanelRoot: (root: string | null) => void;
+  setFilesPanelGitMode: (mode: GitChangesMode) => void;
 }
 
 type ChatLayoutStore = ChatLayoutState & ChatLayoutActions;
@@ -39,6 +48,9 @@ export const useChatLayoutStore = create<ChatLayoutStore>((set) => ({
   showTerminalPanel: false,
   sessionsPanelWidth: getInitialSessionsPanelWidth(),
   filesPanelWidth: getInitialFilesPanelWidth(),
+  filesPanelTab: 'project',
+  filesPanelRoot: null,
+  filesPanelGitMode: 'grouped',
 
   setShowFilesPanel: (show) => set({ showFilesPanel: show }),
   setShowTerminalPanel: (show) => set({ showTerminalPanel: show }),
@@ -52,4 +64,7 @@ export const useChatLayoutStore = create<ChatLayoutStore>((set) => ({
     saveFilesPanelWidth(clampedWidth);
     set({ filesPanelWidth: clampedWidth });
   },
+  setFilesPanelTab: (tab) => set({ filesPanelTab: tab }),
+  setFilesPanelRoot: (root) => set({ filesPanelRoot: root }),
+  setFilesPanelGitMode: (mode) => set({ filesPanelGitMode: mode }),
 }));

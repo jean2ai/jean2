@@ -24,15 +24,17 @@ export const queryKeys = {
     status: (workspaceId: string) => ['mcp', 'status', workspaceId] as const,
   },
   files: {
-    browse: (workspaceId: string, path?: string, opts?: { showHidden?: boolean }) =>
+    browse: (workspaceId: string, path?: string, opts?: { showHidden?: boolean; root?: string }) =>
       ['files', 'browse', workspaceId, path ?? '.', opts] as const,
     browseFs: (path: string) => ['files', 'browseFs', path] as const,
     drives: ['files', 'drives'] as const,
     parent: (path: string) => ['files', 'parent', path] as const,
-    preview: (workspaceId: string, path: string) =>
-      ['files', 'preview', workspaceId, path] as const,
-    gitDiff: (workspaceId: string, path: string) =>
-      ['files', 'git-diff', workspaceId, path] as const,
+    preview: (workspaceId: string, path: string, root?: string) =>
+      ['files', 'preview', workspaceId, path, root] as const,
+    gitDiff: (workspaceId: string, path: string, root?: string) =>
+      ['files', 'git-diff', workspaceId, path, root] as const,
+    gitStatus: (workspaceId: string, root?: string) =>
+      ['files', 'git-status', workspaceId, root] as const,
   },
   serverInfo: ['serverInfo'] as const,
   pinnedMessages: {
