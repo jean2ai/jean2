@@ -29,7 +29,7 @@ The Electron desktop app provides a native experience with system tray, notifica
 
 ## Browser Extension
 
-The [Jean2Browser](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) extension lets the agent control a Chrome browser — navigate pages, read content, and click elements. Install it from the Chrome Web Store, then connect it to your Jean2 server from the extension popup.
+The [Jean2Browser](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) extension lets the agent control a Chrome browser: navigate pages, read content, and click elements. Install it from the Chrome Web Store, then connect it to your Jean2 server from the extension popup.
 
 ## Connecting to a Remote Server
 
@@ -40,9 +40,9 @@ The client opens a connection finder automatically. You can also:
 3. If auth is enabled, enter the token
 
 Jean2 works over:
-- **Local network** — `http://192.168.1.x:8742`
-- **Tailscale / VPN** — `http://jean2-server:8742`
-- **Public internet** — requires TLS and auth. Set up a reverse proxy (nginx, Caddy) with HTTPS, then point the client at the domain.
+- **Local network**: `http://192.168.1.x:8742`
+- **Tailscale / VPN**: `http://jean2-server:8742`
+- **Public internet**: requires TLS and auth. Set up a reverse proxy (nginx, Caddy) with HTTPS, then point the client at the domain.
 
 ## Client Features
 
@@ -51,6 +51,8 @@ Once connected, the client provides:
 ### Chat
 - Message input with file mentions (`@filename`)
 - Model and reasoning variant selector
+- **Goal Mode** - Autonomous multi-turn loops with evaluator-verified completion
+- **Preconfig switching** - Swap model, tools, prompt, and skills mid-session
 - Auto-approve toggle for non-destructive tool calls
 - Session control (interrupt, fork, revert)
 - Token usage meter
@@ -67,10 +69,12 @@ Once connected, the client provides:
 
 ### Configuration
 - Model management (via Configuration dialog)
-- MCP server management
+- **MCP server management** - Connect, configure, monitor status
+- **Preconfig editor** - System prompts, tool sets, skills scoping, subagent rules
 - Provider credential management
-- Preconfig/prompt editors
-- Workspace permission controls
+- **Workspace capabilities** - Toggle memory, skills, workflow, session search
+- **Workspace permissions** - View and revoke tool grants
+- **OAuth** - Connect ChatGPT subscription plan
 
 ### Sessions
 - Fork any session at any message

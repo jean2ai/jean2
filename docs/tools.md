@@ -1,10 +1,10 @@
 # Tools
 
-Tools give the agent the ability to interact with your filesystem, run commands, search the web, and more. They are TypeScript modules that implement a `ToolDefinition` and `execute` function.
+Tools give the agent the ability to interact with your filesystem, run commands, search the web, and more. Some tools are installed TypeScript modules. Others are built into the server and gated by workspace capabilities.
 
-## Available Tools
+## Installed Tools
 
-Jean2 ships with 24 tools, installable via `jean2 tools install`. Tools are **not managed by npm** — they download from a GitHub releases registry.
+Jean2 ships with 24 installable tools. Tools are **not managed by npm** - they download from a GitHub releases registry. Install them with `jean2 tools install`.
 
 ### File Tools
 
@@ -66,10 +66,30 @@ Requires a Tavily API key:
 | **tavily-extract** | Extract clean content from URLs |
 | **tavily-map** | Map/discover URLs from a domain |
 
+## Capability Tools
+
+These tools are built into the server and appear only when their corresponding workspace capability is enabled. They are not installed via `jean2 tools install`.
+
+| Tool | Capability | Description |
+|------|------------|-------------|
+| **memory** | Memory | Save and manage persistent facts across sessions in `.jean2/USER.md` and `.jean2/MEMORY.md` |
+| **session_search** | Session Search | Search past sessions by text, list recent sessions, or read context around a specific message |
+| **workflow** | Workflow | Decompose a task into parallel subtasks, fan out concurrent subagents (max 5), and synthesize results |
+| **skill_manage** | Skills | Create, update, patch, and delete SKILL.md files. Lets the agent program its own workflows |
+| **skill** | (always available) | Load a specific skill's instructions on demand |
+
+See [Workspaces & Sessions](./workspaces.md#workspace-capabilities) for how to enable capabilities.
+
+## MCP Tools
+
+When you connect an MCP server to a workspace, its tools appear alongside built-in and installed tools. The agent calls them identically. No adapters, no wrappers.
+
+MCP tools are configured per-workspace in `<workspace>/.jean2/mcp.json`. See [Configuration](./configuration.md#mcp-configuration) for the config format.
+
 ## Installing Tools
 
 ```bash
-# Interactive — browse and pick tools
+# Interactive: browse and pick tools
 jean2 tools install
 
 # Install specific tools
@@ -106,15 +126,15 @@ Tools are stored in `~/.jean2/tools/` (or your custom `JEAN2_TOOLS_PATH`).
 
 ## The Ask Protocol
 
-Every tool gets a `ToolContext` with an `ask()` method. This is how tools request permissions, ask questions, or get user input. The client handles the UI — the tool just awaits a typed response.
+Every tool gets a `ToolContext` with an `ask()` method. This is how tools request permissions, ask questions, or get user input. The client handles the UI. The tool just awaits a typed response.
 
 ### Permission asks
 
 Tool calls that modify files, run commands, or access the network go through the permission system. The user can:
 
-- **Approve once** — Allow this specific call
-- **Approve always** — Auto-approve future calls with the same parameters
-- **Deny** — Block this call
+- **Approve once**: Allow this specific call
+- **Approve always**: Auto-approve future calls with the same parameters
+- **Deny**: Block this call
 
 The permission state persists per workspace and per tool.
 
@@ -176,9 +196,9 @@ export const definition: ToolDefinition = {
 export async function execute(input: Input, ctx: ToolContext): Promise<ToolResult> {
   try {
     // Do work here. ctx has:
-    //   ctx.fs    — filesystem access (scoped to workspace)
-    //   ctx.ask() — permission and question requests
-    //   ctx.env   — safe environment variables
+    //   ctx.fs    = filesystem access (scoped to workspace)
+    //   ctx.ask() = permission and question requests
+    //   ctx.env   = safe environment variables
 
     const result = `Processed: ${input.message}`;
     return { success: true, result };

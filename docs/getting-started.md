@@ -68,7 +68,7 @@ jean2 init --force                # Re-initialize (overwrites config)
 
 ## 3. Add an API Key
 
-You can set API keys directly in the client while the server is running — no need to edit config files manually.
+You can set API keys directly in the client while the server is running: no need to edit config files manually.
 
 1. Open the client (`http://localhost:3774`)
 2. Click the **three dots (top right) → Configuration → Credentials** to set API keys, or **OAuth** to connect your ChatGPT subscription plan
@@ -149,11 +149,13 @@ The client is a Progressive Web App. Open it in your browser, tap "Add to Home S
 3. Pick a **model** from the dropdown
 4. Start chatting
 
-The agent can read files, edit code, run shell commands, search the web, and more — depending on which tools you have installed and which permissions you grant.
+The agent can read files, edit code, run shell commands, search the web, and more, depending on which tools you have installed and which permissions you grant.
+
+For advanced features, enable **workspace capabilities** (memory, skills, workflow, session search) from **Workspace Settings > Capabilities**. See [Workspaces & Sessions](./workspaces.md#workspace-capabilities) for details.
 
 ## Next Steps
 
 - [Set up more LLM providers](./configuration.md)
 - [Learn about available tools](./tools.md)
-- [Understand workspaces and sessions](./workspaces.md)
+- [Understand workspaces, sessions, and capabilities](./workspaces.md)
 - [Enable authentication](./auth.md)

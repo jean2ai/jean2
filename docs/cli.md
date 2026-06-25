@@ -178,7 +178,7 @@ Print the full help text.
 
 All server behavior is configured via environment variables. See [Configuration](./configuration.md) for the complete reference.
 
-- `~/.jean2/.env` — Server reads this automatically on startup
+- `~/.jean2/.env`: Server reads this automatically on startup
 - System environment variables take precedence over `.env`
 - Changes to `.env` require a server restart
 
