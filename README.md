@@ -3,13 +3,12 @@
 </p>
 
 <p align="center">
-  <strong>Your AI agent. One server. Any device. No baked-in behavior.</strong>
+  <strong>Your AI agent. One server. Any device. Built to work without you.</strong>
 </p>
 
 <p align="center">
-  A coding assistant, a research agent, a personal automation. Same binary, different configuration.<br>
-  Run Claude, GPT, or Gemini against your codebase, your browser, your terminal with no vendor lock-in.<br>
-  <strong>One server. Any LLM. Every device. Nothing leaves your machine.</strong>
+  Jean2 is a persistent AI agent server. It runs on your machine, connects to any LLM,<br>
+  and works autonomously until the job is done. Close your laptop. The agent never stops.
 </p>
 
 <p align="center">
@@ -23,16 +22,14 @@
 <p align="center">
   <a href="docs/getting-started.md">Get Started</a> ·
   <a href="docs/">Docs</a> ·
-  <a href="https://github.com/jean2ai/jean2">GitHub</a> ·
+  <a href="https://jean2.ai">Website</a> ·
   <a href="https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj">Chrome Extension</a> ·
   <a href="https://discord.com/invite/38sUKnUNPQ">Discord</a>
 </p>
 
 ---
 
-## Quick Start
-
-### Install
+## Install
 
 **macOS / Linux:**
 ```bash
@@ -44,22 +41,31 @@ curl -fsSL https://jean2.ai/install.sh | bash
 irm https://jean2.ai/install.ps1 | iex
 ```
 
-### Run
-
+**Run:**
 ```bash
 jean2 init
 jean2 start
-```
-
-Connect a client:
-
-```bash
 jean2 open
 ```
 
-The server automatically serves the client on `http://localhost:3774`. Run `jean2 open` to open it in your browser.
+The server serves the client at `http://localhost:3774`. Desktop app (macOS Electron) and PWA (any device) also available. See the [Getting Started guide](docs/getting-started.md).
 
-> Desktop app for macOS (Electron), plus a PWA client that runs on any device - phone, tablet, or desktop. See the [Getting Started guide](docs/getting-started.md) for all options.
+---
+
+## Features
+
+| | |
+|---|---|
+| **Goal Mode** | Set a completion condition. A separate evaluator inspects real tool output every turn. It loops until tests pass. |
+| **Persistent Memory** | Tell it "we use pnpm" once. Two weeks later, in a new session, it already knows. |
+| **Self-Programming Skills** | The agent notices patterns and writes its own `SKILL.md` files. It programs itself. |
+| **Parallel Workflows** | Decompose, fan out 5 concurrent subagents, synthesize one answer. Minutes become seconds. |
+| **Browser Automation** | Jean2Browser gives the agent real hands on Chrome: read, click, fill, navigate. Same interface as files and shell. |
+| **Preconfigs** | Swap model, tools, prompt, and skills mid-session. A coder becomes a reviewer. Same thread, different brain. |
+| **Any Model** | Anthropic, OpenAI, Google, DeepSeek, OpenRouter, or any OpenAI-compatible endpoint. Bring your own keys. |
+| **MCP Integration** | Connect any MCP server. Full OAuth handled server-side. Tools appear alongside built-in tools. |
+| **Server-First** | Persistent 24/7 server. PWA on any device. Close your laptop. Open your phone. The agent never stops. |
+| **Open Source** | Apache 2.0. No telemetry. No lock-in. Prompts, tools, skills, and memory are files on disk. |
 
 ---
 
@@ -67,198 +73,59 @@ The server automatically serves the client on `http://localhost:3774`. Run `jean
 
 You already have Cursor, Copilot, and Claude Code. Why run your own agent server?
 
-**You bring the keys, you keep the data.** Jean2 runs on your machine, connects to any LLM you pay for, and stores everything locally - no telemetry, no vendor lock-in, no subscription to a single AI company. Swap models mid-conversation. Use budget models for routine tasks, premium for hard problems. Nobody sees your prompts but you.
-
-**Tools, not prompts.** Instead of writing mega-prompts, give your agent real capabilities - file operations, shell commands, web browsing, API calls. Tools are TypeScript. You can read them, modify them, and write your own in minutes.
-
-**One server, every device.** Desktop, phone, tablet - same sessions, same workspaces. Works over Tailscale, VPN, or local network.
-
----
-
-## What Sets It Apart
-
-### 🧠 Use any model, anytime
-
-Connect Anthropic, OpenAI, Google, OpenRouter, DeepSeek, or any OpenAI-compatible endpoint. Switch providers and models per-session. Use GPT-5.5 for architecture, DeepSeek for routine refactors, Claude for code review. No lock-in - you're always one click away from a better model.
-
-### 🔧 Tools in TypeScript. No ceremony.
-
-Give your agent real capabilities. A tool is a directory with a `tool.ts` and a `package.json` - Bun compiles it on the fly, no build step. Export a `definition` and an `execute` function, and the agent discovers it automatically. Need your agent to query Jira, deploy to Vercel, or check CI status? Write it in 20 lines.
-
-### 🛡️ You're always in control
-
-Every tool interaction flows through a unified Ask protocol. Permissions, confirmations, questions, forms - the agent asks, you decide. Auto-approve the safe stuff, require confirmation for the rest. Workspace-level permissions mean project A can be locked down while project B runs freely.
-
-### 🔌 Connect everything
-
-Hook into any MCP server (local or remote, with OAuth). Define reusable Skills as `SKILL.md` instruction sets. Connect per workspace - your work project gets Kubernetes access, your side project stays sandboxed.
-
-### 🧩 Browser Extension
-
-Give your agent eyes on the web. The [Jean2Browser extension](https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj) lets the agent navigate pages, read content, and click elements - install it directly from the Chrome Web Store.
-
-### 🤖 Delegate complex work
-
-Agents spawn hierarchical subagents for complex tasks. Ask it to "audit the codebase for security issues" and it spins up researcher subagents, each exploring a different area. Isolated sessions, shared workspace context, cascading interrupts. Stop the parent, stop them all.
-
-### 🌐 One server, every device
-
-REST + WebSocket under the hood. Desktop, phone, tablet, browser - all connect the same way. Start a session on your laptop, pick it up on your phone. Works over localhost, Tailscale, VPN, or a reverse proxy.
-
-### 🎯 Your rules, not ours
-
-System prompts, tools, and skills are all files on disk. Edit them, add them, remove them. No hidden behavior, no "safety" filters you can't turn off. Your agent does what you tell it to.
-
----
-
-## Use Cases
-
-| Use Case | Description                                                                                                                               |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| **AI-Powered Coding** | Connect Claude, GPT-5.5, or Gemini to your codebase. Subagents explore, refactor, and implement with isolated sessions and shared workspace context.            |
-| **Research & Analysis** | Give your agent tools to query APIs, scrape pages, and process documents. Isolated workspaces keep contexts separate.                     |
-| **Deployment & Ops** | Connect MCP servers for Kubernetes, AWS, or Terraform. Multi-step deployment pipelines via subagent orchestration.                        |
-| **Automation Workflows** | Create agent personalities for repetitive tasks. Skills let agents follow domain-specific workflows. Queue sessions for batch processing. |
-
----
-
-## Tools
-
-A set of built-in tools to get started with `jean2 init` - or pick what you need and write your own in TypeScript.
-
-| Tool | Description |
-|------|-------------|
-| **apply-patch** | Apply unified diff patches to files atomically |
-| **edit** | String replacements in files with fuzzy matching |
-| **glob** | Find files matching glob patterns |
-| **read-file** | Read files and directory listings |
-| **write-file** | Write content to files |
-| **grep** | Search files with regex patterns |
-| **question** | Ask users structured questions (forms, selects, confirmations) |
-
-[+17 more tools available](docs/tools.md) · [Explore all tools](docs/tools.md)
-
-> Tools are TypeScript modules (`tool.ts` + `package.json`) that implement the `ToolModule` interface from `@jean2/sdk`. They can use the Ask protocol (`ctx.ask()`) for permissions and user interaction.
+- **You bring the keys, you keep the data.** Runs on your machine. No telemetry, no vendor lock-in, no subscription to a single AI company.
+- **Tools, not prompts.** Give your agent real capabilities: file operations, shell commands, web browsing, API calls. Tools are TypeScript. Write your own in minutes.
+- **Your agent, your rules.** System prompts, tools, skills, and memory are files on disk. Version control them, share them, delete them. No hidden behavior.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Client Layer                              │
-│    ┌───────────────────┐  ┌─────────────────────────────────┐   │
-│    │ Desktop (Electron)│  │ Web / PWA (jean2 open)          │   │
-│    └────────┬──────────┘  └────────────────┬────────────────┘   │
-│             └──────────────────────────────┘                    │
-│                          │                                      │
-│              WebSocket + REST (any network)                     │
-│              local · Tailscale · VPN · public                   │
-└──────────────────────────┬──────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                      Client Layer                         │
+│   Desktop (Electron) · Web/PWA · Browser Extension        │
+│              WebSocket + REST (any network)               │
+└──────────────────────────┬────────────────────────────────┘
                            │
-┌──────────────────────────┴─────────────────────────────────────┐
-│                    Server (@jean2/server)                      │
-│                                                                │
-│  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐          │
-│  │ Agent Loop  │  │ Tool     │  │ MCP Manager       │          │
-│  │ (AI SDK v6) │  │ Executor │  │ (stdio + remote)  │          │
-│  └──────┬──────┘  └────┬─────┘  └────────┬──────────┘          │
-│         └──────────────┼─────────────────┘                     │
-│               ┌────────┴───────────┐                           │
-│               │   ~/.jean2/tools/  │                           │
-│               │   (TypeScript)     │                           │
-│               └────────────────────┘                           │
-│         ┌────────────────────────────────────────┐             │
-│         │         Ask Protocol                   │             │
-│         │  Permissions · Questions · Forms       │             │
-│         │  User interaction · Client capabilities│             │
-│         └────────────────────────────────────────┘             │
-│                     ┌──────────────┐                           │
-│                     │ Subagent     │                           │
-│                     │ Orchestrator │                           │
-│                     └──────┬───────┘                           │
-│               ┌────────────┴────────────┐                      │
-│               │     SQLite Store        │                      │
-│               │ Sessions · Messages     │                      │
-│               │ Permissions · History   │                      │
-│               └─────────────────────────┘                      │
-│                                                                │
-│              Workspaces → directories on your machine          │
-└──────────────────────────┴─────────────────────────────────────┘
+┌──────────────────────────┴────────────────────────────────┐
+│                   Server (@jean2/server)                  │
+│                                                           │
+│   Agent Loop (AI SDK v6) · Tool Executor                  │
+│   Goal Loop + Evaluator · Workflow Orchestrator           │
+│   MCP Manager (stdio + OAuth) · Subagent Orchestrator     │
+│   Memory · Skills Registry · Session Search (FTS)         │
+│   Ask Protocol (Permissions, Questions, Forms)            │
+│   SQLite Store · Compaction Engine                        │
+│                                                           │
+│   ~/.jean2/          (data, tools, preconfigs, models)    │
+│   <workspace>/.jean2/          (memory, mcp.json)         │
+│   <workspace>/.agents/skills/  (SKILL.md files)           │
+└───────────────────────────────────────────────────────────┘
+                           │
+              LLM Providers (Anthropic, OpenAI, Google,
+                DeepSeek, OpenRouter, MiniMax, Zhipu)
 ```
-
-### Packages
-
-| Package | Description |
-|---------|-------------|
-| [`@jean2/server`](packages/server/) | Agent loop, tool execution, REST + WebSocket API, SQLite, daemon mode |
-| [`@jean2/client`](packages/client/) | React 19 + Vite 8 UI - chat, file browser, permissions, multi-server |
-| [`@jean2/sdk`](packages/sdk/) | Shared TypeScript types, WebSocket protocol, transport layer, REST clients |
-| [`@jean2/client-electron`](packages/client-electron/) | Electron desktop app - macOS |
-
-### Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Runtime | [Bun](https://bun.sh/) |
-| Server | [Hono](https://hono.dev/), AI SDK v6, SQLite |
-| Client | React 19, Vite 8, TypeScript |
-| UI | Tailwind CSS v4, shadcn/ui, Radix UI |
-| Desktop | [Electron](https://www.electronjs.org/) |
-| PWA | PWA - works on any device with a browser |
-| LLM | Vercel AI SDK v6, MCP SDK |
 
 ---
 
-## Sessions
+## Documentation
 
-- **Compact** - LLM-powered conversation summarization
-- **Fork** - Branch any session at any message
-- **Revert** - Undo to any previous point
-- **Interrupt** - Cancel generation with automatic cascade to subagents
-- **Queue** - Queue messages while the agent is busy
-- **Remote Terminal** - Full PTY terminal with multi-tab support
+All docs live in [`docs/`](docs/). Key pages:
 
----
+| | |
+|---|---|
+| [Getting Started](docs/getting-started.md) | Install, initialize, first session |
+| [Workspaces & Sessions](docs/workspaces.md) | Capabilities, Goal Mode, MCP, Skills, Memory, Workflows |
+| [Configuration](docs/configuration.md) | API keys, models, env vars, MCP config |
+| [Tools](docs/tools.md) | Installed tools, capability tools, writing your own |
+| [Security & Auth](docs/auth.md) | Auth tokens, TLS, permissions |
 
-## Security & Auth
-
-Authentication is **off by default**. No tokens are generated automatically. To enable auth, set a single environment variable:
-
-```bash
-# In ~/.jean2/.env or your shell environment
-JEAN2_AUTH_TOKEN=your-secret-token
-```
-
-When set, all API and WebSocket endpoints require the token via `Authorization: Bearer <token>` header or `?token=<token>` query parameter. When not set, all requests pass through without authentication.
+Full documentation site: [jean2.ai/docs](https://jean2.ai/docs/get-started/installation)
 
 ---
 
-## Configuration
-
-All configuration lives in `~/.jean2/` - model definitions, API keys, tools, preconfigs, and workspace data. See the [configuration guide](docs/configuration.md) for the full reference.
-
----
-
-## Ready to try it?
-
-**macOS / Linux:**
-```bash
-curl -fsSL https://jean2.ai/install.sh | bash
-jean2 init
-jean2 start
-jean2 open
-```
-
-**Windows:**
-```powershell
-irm https://jean2.ai/install.ps1 | iex
-jean2 init
-jean2 start
-jean2 open
-```
-
-Three commands to your first AI agent. [Get started →](docs/getting-started.md)
+## Community
 
 [Join the Discord](https://discord.com/invite/38sUKnUNPQ) to follow development, share what you're building, or ask for help.
 
