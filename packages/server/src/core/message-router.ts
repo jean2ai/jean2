@@ -914,6 +914,7 @@ async function handleSessionEditMessage(
     await revertToStep({
       sessionId: msg.sessionId,
       targetMessageId: msg.messageId,
+      keepTarget: true,
     });
 
     // Broadcast the truncated state to all clients

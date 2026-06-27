@@ -18,10 +18,12 @@ interface RevertResult {
 interface RevertOptions {
   sessionId: string;
   targetMessageId: string;
+  /** When true, always keep the target message (delete only messages after it). */
+  keepTarget?: boolean;
 }
 
 export async function revertToStep(options: RevertOptions): Promise<RevertResult> {
-  const { sessionId, targetMessageId } = options;
+  const { sessionId, targetMessageId, keepTarget = false } = options;
 
   const allMessages = listMessagesWithParts(sessionId);
   const targetIndex = allMessages.findIndex(m => m.message.id === targetMessageId);
@@ -32,7 +34,7 @@ export async function revertToStep(options: RevertOptions): Promise<RevertResult
 
   let messagesToDelete: typeof allMessages;
 
-  if (targetIndex === 0) {
+  if (targetIndex === 0 && !keepTarget) {
     // Clear all: delete everything including the target message
     messagesToDelete = allMessages;
   } else {
@@ -59,10 +61,12 @@ export async function revertToStep(options: RevertOptions): Promise<RevertResult
     }
   }
 
+  const clearedAll = targetIndex === 0 && !keepTarget;
+
   return {
     revertedTo: {
-      messageId: targetIndex === 0 ? null : targetMessageId,
-      messageCount: targetIndex === 0 ? 0 : targetIndex,
+      messageId: clearedAll ? null : targetMessageId,
+      messageCount: clearedAll ? 0 : targetIndex,
     },
     removed: {
       messageIds: removedMessageIds,

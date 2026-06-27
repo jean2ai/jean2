@@ -173,4 +173,26 @@ describe('revertToStep', () => {
     const remaining = listMessagesWithParts(sessionId);
     expect(remaining).toHaveLength(2);
   });
+
+  test('keeps target message when keepTarget is true and target is first', async () => {
+    createUserMsg('msg1', 1000);
+    addTextPart('msg1', 'Hello');
+    createAssistantMsg('msg2', {}, 2000);
+    addTextPart('msg2', 'Hi');
+    createUserMsg('msg3', 3000);
+    addTextPart('msg3', 'More');
+
+    const result = await revertToStep({ sessionId, targetMessageId: 'msg1', keepTarget: true });
+
+    // Should keep msg1, delete only msg2 and msg3
+    expect(result.removed.messageIds).toHaveLength(2);
+    expect(result.removed.messageIds).toContain('msg2');
+    expect(result.removed.messageIds).toContain('msg3');
+    expect(result.revertedTo.messageId).toBe('msg1');
+    expect(result.revertedTo.messageCount).toBe(0);
+
+    const remaining = listMessagesWithParts(sessionId);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].message.id).toBe('msg1');
+  });
 });
