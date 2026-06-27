@@ -69,6 +69,7 @@ export function WorkspaceSessionContent({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [archiveTagDialog, setArchiveTagDialog] = useState<string | null>(null);
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -112,6 +113,15 @@ export function WorkspaceSessionContent({
     }
     setDeleteAllDialogOpen(false);
   }, [archivedSessions, onBulkDeleteSessions]);
+
+  const handleArchiveAllInTag = useCallback((tagName: string) => {
+    const sessions = tagGroups.get(tagName) ?? [];
+    const ids = new Set(sessions.map(s => s.id));
+    if (ids.size > 0) {
+      onBulkCloseSessions(ids);
+    }
+    setArchiveTagDialog(null);
+  }, [tagGroups, onBulkCloseSessions]);
 
   useEffect(() => {
     if (!selectionMode) return;
@@ -241,6 +251,24 @@ export function WorkspaceSessionContent({
                           </button>
                         </CollapsibleTrigger>
                         <Badge variant="secondary" className="ml-auto text-[10px]">{sessions.length}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={e => e.stopPropagation()}
+                              className="p-0.5 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-opacity opacity-0 group-hover/tag-collapsible:opacity-100"
+                              title="Tag actions"
+                            >
+                              <MoreHorizontal className="size-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-48">
+                            <DropdownMenuItem onClick={e => { e.stopPropagation(); setArchiveTagDialog(tagName); }}>
+                              <Archive className="size-4" />
+                              Archive all
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                       <CollapsibleContent>
                         <SidebarMenu>
@@ -372,6 +400,18 @@ export function WorkspaceSessionContent({
         confirmLabel="Delete all"
         variant="destructive"
         onConfirm={handleDeleteAllArchived}
+      />
+
+      <ConfirmationDialog
+        open={archiveTagDialog !== null}
+        onOpenChange={(open) => { if (!open) setArchiveTagDialog(null); }}
+        title={`Archive all sessions in "${archiveTagDialog ?? ''}"?`}
+        description={(() => {
+          const count = archiveTagDialog ? (tagGroups.get(archiveTagDialog)?.length ?? 0) : 0;
+          return `This will archive ${count} session${count === 1 ? '' : 's'} with the tag "${archiveTagDialog ?? ''}".`;
+        })()}
+        confirmLabel="Archive all"
+        onConfirm={() => archiveTagDialog && handleArchiveAllInTag(archiveTagDialog)}
       />
     </>
   );
