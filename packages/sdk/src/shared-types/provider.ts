@@ -8,6 +8,8 @@ export interface ProviderDescriptor {
   description?: string;
   authType: AuthType;
   connectable: boolean;
+  /** Whether this provider supplies LLM models ('llm') or is a data/action service ('service'). */
+  kind?: 'llm' | 'service';
 }
 
 export interface ProviderStatus {
@@ -40,4 +42,10 @@ export interface OAuthTokenConfig {
 export interface CodexProviderConfig extends OAuthTokenConfig {
   provider: 'codex';
   accountId?: string;
+}
+
+/** Gmail-specific provider config — stores the user's email address. */
+export interface GmailProviderConfig extends OAuthTokenConfig {
+  provider: 'gmail';
+  email?: string;
 }

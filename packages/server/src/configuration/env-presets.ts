@@ -35,14 +35,6 @@ export const ENV_PRESETS: EnvPreset[] = [
       url: 'https://console.cloud.google.com/apis/credentials',
     },
   },
-  {
-    key: 'JEAN2_GMAIL_REDIRECT_URI',
-    description: 'OAuth redirect URI registered in Google Cloud Console',
-    category: 'Gmail OAuth',
-    sensitive: false,
-    example: 'http://localhost:1455/auth/callback',
-  },
-
 ];
 
 const presetKeySet = new Set(ENV_PRESETS.map(p => p.key));

@@ -1,4 +1,5 @@
 import './codex';
+import './gmail';
 
 export {
   registerProvider,

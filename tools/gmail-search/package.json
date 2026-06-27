@@ -1,0 +1,9 @@
+{
+  "name": "@jean2/tool-gmail-search",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@jean2/sdk": "^0.9.0"
+  }
+}

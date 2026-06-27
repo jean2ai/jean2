@@ -31,8 +31,16 @@ const pendingFlows = new Map<string, PendingFlow>();
 /** Completion callbacks per provider, keyed by providerId. */
 const completionCallbacks = new Map<string, (success: boolean, error?: string) => void>();
 
-/** Localhost callback servers, keyed by port. */
-const localServers = new Map<number, ReturnType<typeof Bun.serve>>();
+interface LocalServerEntry {
+  server: ReturnType<typeof Bun.serve>;
+  /** Registered callback paths (e.g. "/auth/callback", "/oauth/gmail/callback"). */
+  paths: Set<string>;
+  /** Reference count of active flows using this server. */
+  activeFlows: number;
+}
+
+/** Localhost callback servers, keyed by port. Multiple providers can share a port if they use different paths. */
+const localServers = new Map<number, LocalServerEntry>();
 
 function generateRandomString(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -97,28 +105,41 @@ function ensureLocalServer(redirectUri: string): void {
   const port = parseInt(parsed.port, 10);
   if (!port || isNaN(port)) return;
 
-  if (localServers.has(port)) return;
-
   const path = parsed.pathname;
+  const existing = localServers.get(port);
+
+  if (existing) {
+    existing.paths.add(path);
+    existing.activeFlows++;
+    return;
+  }
+
+  const paths = new Set<string>([path]);
   const server = Bun.serve({
     port,
     fetch(req) {
       const url = new URL(req.url);
-
-      if (url.pathname === path) {
+      if (paths.has(url.pathname)) {
         return handleLocalhostCallback(url);
       }
-
       return new Response('Not found', { status: 404 });
     },
   });
 
-  localServers.set(port, server);
+  localServers.set(port, { server, paths, activeFlows: 1 });
 }
 
-function stopLocalServers(): void {
-  for (const [port, server] of localServers) {
-    server.stop();
+function stopLocalServerForPath(redirectUri: string): void {
+  const parsed = new URL(redirectUri);
+  const port = parseInt(parsed.port, 10);
+  if (!port || isNaN(port)) return;
+
+  const entry = localServers.get(port);
+  if (!entry) return;
+
+  entry.activeFlows--;
+  if (entry.activeFlows <= 0) {
+    entry.server.stop();
     localServers.delete(port);
   }
 }
@@ -175,7 +196,7 @@ async function handleLocalhostCallback(url: URL): Promise<Response> {
     const flow = pendingFlows.get(matchedFlowId);
     const redirectUri = flow?.redirectUri ?? '';
     const result = await completeOAuthFlow(matchedFlowId, code, state, redirectUri);
-    stopLocalServers();
+    stopLocalServerForPath(redirectUri);
     void result;
     return new Response(HTML_SUCCESS, {
       headers: { 'Content-Type': 'text/html' },
@@ -365,14 +386,19 @@ export async function refreshTokens(
     throw new Error(`No OAuth configuration for provider: ${providerId}`);
   }
 
+  const refreshParams: Record<string, string> = {
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: config.clientId,
+  };
+  if (config.clientSecret) {
+    refreshParams.client_secret = config.clientSecret;
+  }
+
   const response = await fetch(config.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: config.clientId,
-    }).toString(),
+    body: new URLSearchParams(refreshParams).toString(),
   });
 
   if (!response.ok) {
@@ -389,16 +415,21 @@ async function exchangeCodeForTokens(
   redirectUri: string,
   pkce: PkceCodes,
 ): Promise<TokenResponse> {
+  const exchangeParams: Record<string, string> = {
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+    client_id: config.clientId,
+    code_verifier: pkce.verifier,
+  };
+  if (config.clientSecret) {
+    exchangeParams.client_secret = config.clientSecret;
+  }
+
   const response = await fetch(config.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redirectUri,
-      client_id: config.clientId,
-      code_verifier: pkce.verifier,
-    }).toString(),
+    body: new URLSearchParams(exchangeParams).toString(),
   });
 
   if (!response.ok) {

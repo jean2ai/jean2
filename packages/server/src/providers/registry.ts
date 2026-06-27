@@ -42,7 +42,11 @@ export interface ConnectableProvider {
    */
   onTokensReceived(tokens: TokenResponse): Promise<void>;
 
-  createModel(options: ModelFactoryOptions): Promise<ModelFactoryResult>;
+  /**
+   * Creates an LLM model instance from the stored OAuth credentials.
+   * Only required for LLM providers (kind: 'llm'). Service providers can omit this.
+   */
+  createModel?(options: ModelFactoryOptions): Promise<ModelFactoryResult>;
 
   onConnectComplete?: (callback: (success: boolean, error?: string) => void) => void;
 }
@@ -98,6 +102,9 @@ export async function createModelForProvider(options: ModelFactoryOptions): Prom
   const provider = providers.get(options.providerId);
   if (!provider) {
     throw new Error(`Unknown connectable provider: ${options.providerId}`);
+  }
+  if (!provider.createModel) {
+    throw new Error(`Provider '${options.providerId}' does not support creating models (kind: 'service')`);
   }
   return provider.createModel(options);
 }

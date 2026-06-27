@@ -23,6 +23,8 @@ export type OAuthRedirectStrategy =
 export interface OAuthProviderConfig {
   /** OAuth 2.0 client ID registered with the provider. */
   clientId: string;
+  /** OAuth 2.0 client secret (required by some providers like Google). */
+  clientSecret?: string;
   /** OAuth 2.0 authorization endpoint. */
   authorizeUrl: string;
   /** OAuth 2.0 token endpoint. */
