@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
@@ -6,20 +7,30 @@ import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { AppPanels } from '@/components/app/AppPanels';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useOverviewSessions } from '@/hooks/useOverviewSessions';
+import { useInvalidateWorkspaceTags } from '@/hooks/queries';
+import { useSessionStore } from '@/stores/sessionStore';
 import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
 
 export default function OverviewView() {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
   const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
+  const updateSession = useSessionStore(s => s.updateSession);
+  const invalidateWorkspaceTags = useInvalidateWorkspaceTags();
 
-  const { sessionsByWorkspace } = useOverviewSessions({
+  const {
+    sessionsByWorkspace,
+    tagGroupsByWorkspace,
+    orderedTagNamesByWorkspace,
+    allWorkspaceTagsByWorkspace,
+  } = useOverviewSessions({
     sdkClient: sessionManager.sdkClient,
     workspaceIds: sidebarData.favoritedWorkspaceIds,
     connected: sidebarData.connected,
   });
 
   const {
+    sdkClient,
     resumeSession,
     closeSession,
     reopenSession,
@@ -29,9 +40,27 @@ export default function OverviewView() {
     createSessionInWorkspace,
   } = sessionManager;
 
+  const handleAddTag = useCallback(async (sessionId: string, tag: string) => {
+    if (!sdkClient) return;
+    const newTags = [tag];
+    const { session } = await sdkClient.http.sessions.update(sessionId, { tags: newTags });
+    updateSession(session);
+    invalidateWorkspaceTags(session.workspaceId);
+  }, [sdkClient, updateSession, invalidateWorkspaceTags]);
+
+  const handleRemoveTag = useCallback(async (sessionId: string, _tag: string) => {
+    if (!sdkClient) return;
+    const { session } = await sdkClient.http.sessions.update(sessionId, { tags: [] });
+    updateSession(session);
+    invalidateWorkspaceTags(session.workspaceId);
+  }, [sdkClient, updateSession, invalidateWorkspaceTags]);
+
   const sidebarContent = (
     <WorkspaceOverview
       sessionsByWorkspace={sessionsByWorkspace}
+      tagGroupsByWorkspace={tagGroupsByWorkspace}
+      orderedTagNamesByWorkspace={orderedTagNamesByWorkspace}
+      allWorkspaceTagsByWorkspace={allWorkspaceTagsByWorkspace}
       childrenMap={sidebarData.childrenMap}
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSession={sidebarData.currentSession}
@@ -46,6 +75,8 @@ export default function OverviewView() {
       onRenameSession={handleRenameSession}
       onRegenerateSessionTitle={regenerateSessionTitle}
       onCreateSessionInWorkspace={createSessionInWorkspace}
+      onAddTag={handleAddTag}
+      onRemoveTag={handleRemoveTag}
       connected={sidebarData.connected}
     />
   );

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Folder, Box, ChevronRight, Plus } from 'lucide-react';
+import React, { useMemo, useState, useCallback } from 'react';
+import { Folder, Box, ChevronRight, Plus, Tag, Archive, MoreHorizontal } from 'lucide-react';
 import type { Session, Workspace } from '@jean2/sdk';
 import {
   SidebarGroup,
@@ -16,10 +16,21 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { useTagCollapseState } from '@/hooks/useTagCollapseState';
 
 interface WorkspaceOverviewProps {
   sessionsByWorkspace: Record<string, Session[]>;
+  tagGroupsByWorkspace: Record<string, Map<string, Session[]>>;
+  orderedTagNamesByWorkspace: Record<string, string[]>;
+  allWorkspaceTagsByWorkspace: Record<string, string[]>;
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSession: Session | null;
@@ -34,11 +45,16 @@ interface WorkspaceOverviewProps {
   onRenameSession: (sessionId: string, title: string) => void;
   onRegenerateSessionTitle?: (sessionId: string) => void;
   onCreateSessionInWorkspace: (workspaceId: string) => void;
+  onAddTag?: (sessionId: string, tag: string) => void;
+  onRemoveTag?: (sessionId: string, tag: string) => void;
   connected: boolean;
 }
 
 export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   sessionsByWorkspace,
+  tagGroupsByWorkspace,
+  orderedTagNamesByWorkspace,
+  allWorkspaceTagsByWorkspace,
   childrenMap,
   sessionDerivedValues,
   currentSession,
@@ -53,14 +69,45 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   onRenameSession,
   onRegenerateSessionTitle,
   onCreateSessionInWorkspace,
+  onAddTag,
+  onRemoveTag,
   connected,
 }: WorkspaceOverviewProps) {
+  const { isTagOpen, toggleTag } = useTagCollapseState();
+  const [archiveTagDialog, setArchiveTagDialog] = useState<{ workspaceId: string; tagName: string } | null>(null);
+
   const favoritedWorkspaces = useMemo(() => {
     const workspaceMap = new Map(workspaces.map((w) => [w.id, w]));
     return favoritedWorkspaceIds
       .map((id) => workspaceMap.get(id))
       .filter((w): w is Workspace => w !== undefined);
   }, [workspaces, favoritedWorkspaceIds]);
+
+  const handleArchiveAllInTag = useCallback((workspaceId: string, tagName: string) => {
+    const sessions = tagGroupsByWorkspace[workspaceId]?.get(tagName) ?? [];
+    sessions.forEach(s => onCloseSession(s.id));
+    setArchiveTagDialog(null);
+  }, [tagGroupsByWorkspace, onCloseSession]);
+
+  const renderSessionButton = (session: Session, workspaceId: string) => (
+    <SessionMenuButton
+      key={session.id}
+      session={session}
+      childrenMap={childrenMap}
+      sessionDerivedValues={sessionDerivedValues}
+      isActive={currentSession?.id === session.id}
+      currentSessionId={currentSessionId}
+      onResumeSession={onResumeSession}
+      onCloseSession={onCloseSession}
+      onReopenSession={onReopenSession}
+      onDeleteSession={onDeleteSession}
+      onRename={onRenameSession}
+      onRegenerateTitle={onRegenerateSessionTitle}
+      allWorkspaceTags={allWorkspaceTagsByWorkspace[workspaceId]}
+      onAddTag={onAddTag}
+      onRemoveTag={onRemoveTag}
+    />
+  );
 
   if (favoritedWorkspaces.length === 0) {
     return (
@@ -81,6 +128,10 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
         const isActiveWorkspace = workspace.id === activeWorkspace?.id;
         const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
         const activeSessions = sessionsByWorkspace[workspace.id] || [];
+        const tagGroups = tagGroupsByWorkspace[workspace.id] ?? new Map<string, Session[]>();
+        const orderedTagNames = orderedTagNamesByWorkspace[workspace.id] ?? [];
+        const ungroupedSessions = tagGroups.get('__ungrouped__') ?? [];
+        const hasTags = orderedTagNames.length > 0;
 
         return (
           <Collapsible
@@ -118,38 +169,83 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
                     </SidebarMenuItem>
                   </SidebarMenu>
                   <SidebarSeparator />
-                  <SidebarMenu>
-                    {activeSessions.length === 0 ? (
-                      <div className="px-2 py-1 text-xs text-muted-foreground">
-                        (no active sessions)
-                      </div>
-                    ) : (
-                      activeSessions.map((session) => {
+                  {activeSessions.length === 0 ? (
+                    <div className="px-2 py-1 text-xs text-muted-foreground">
+                      (no active sessions)
+                    </div>
+                  ) : hasTags ? (
+                    <>
+                      {orderedTagNames.map(tagName => {
+                        const sessions = tagGroups.get(tagName) ?? [];
                         return (
-                          <SessionMenuButton
-                            key={session.id}
-                            session={session}
-                            childrenMap={childrenMap}
-                            sessionDerivedValues={sessionDerivedValues}
-                            isActive={currentSession?.id === session.id}
-                            currentSessionId={currentSessionId}
-                            onResumeSession={onResumeSession}
-                            onCloseSession={onCloseSession}
-                            onReopenSession={onReopenSession}
-                            onDeleteSession={onDeleteSession}
-                            onRename={onRenameSession}
-                            onRegenerateTitle={onRegenerateSessionTitle}
-                          />
+                          <Collapsible key={tagName} open={isTagOpen(tagName)} onOpenChange={(open) => toggleTag(tagName, open)} className="group/tag-collapsible">
+                            <div className="flex items-center px-2 py-1 text-xs font-medium text-muted-foreground">
+                              <CollapsibleTrigger asChild>
+                                <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                                  <ChevronRight className="size-3 transition-transform group-data-[state=open]/tag-collapsible:rotate-90" />
+                                  <Tag className="size-3" />
+                                  {tagName}
+                                </button>
+                              </CollapsibleTrigger>
+                              <Badge variant="secondary" className="ml-auto text-[10px]">{sessions.length}</Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={e => e.stopPropagation()}
+                                    className="p-0.5 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-opacity opacity-0 group-hover/tag-collapsible:opacity-100"
+                                    title="Tag actions"
+                                  >
+                                    <MoreHorizontal className="size-3.5" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-48">
+                                  <DropdownMenuItem onClick={e => { e.stopPropagation(); setArchiveTagDialog({ workspaceId: workspace.id, tagName }); }}>
+                                    <Archive className="size-4" />
+                                    Archive all
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            <CollapsibleContent>
+                              <SidebarMenu>
+                                {sessions.map(session => renderSessionButton(session, workspace.id))}
+                              </SidebarMenu>
+                            </CollapsibleContent>
+                          </Collapsible>
                         );
-                      })
-                    )}
-                  </SidebarMenu>
+                      })}
+                      {ungroupedSessions.length > 0 && (
+                        <SidebarMenu>
+                          {ungroupedSessions.map(session => renderSessionButton(session, workspace.id))}
+                        </SidebarMenu>
+                      )}
+                    </>
+                  ) : (
+                    <SidebarMenu>
+                      {activeSessions.map(session => renderSessionButton(session, workspace.id))}
+                    </SidebarMenu>
+                  )}
                 </SidebarGroupContent>
               </CollapsibleContent>
             </SidebarGroup>
           </Collapsible>
         );
       })}
+
+      <ConfirmationDialog
+        open={archiveTagDialog !== null}
+        onOpenChange={(open) => { if (!open) setArchiveTagDialog(null); }}
+        title={`Archive all sessions in "${archiveTagDialog?.tagName ?? ''}"?`}
+        description={(() => {
+          const count = archiveTagDialog
+            ? (tagGroupsByWorkspace[archiveTagDialog.workspaceId]?.get(archiveTagDialog.tagName)?.length ?? 0)
+            : 0;
+          return `This will archive ${count} session${count === 1 ? '' : 's'} with the tag "${archiveTagDialog?.tagName ?? ''}".`;
+        })()}
+        confirmLabel="Archive all"
+        onConfirm={() => archiveTagDialog && handleArchiveAllInTag(archiveTagDialog.workspaceId, archiveTagDialog.tagName)}
+      />
     </>
   );
 });
