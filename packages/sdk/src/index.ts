@@ -63,6 +63,8 @@ export { ConfigRestNamespace } from './rest/config';
 export { ConfigModelsNamespace, ConfigPromptsNamespace } from './rest/config';
 export { ResponseFormatsRestNamespace } from './rest/response-formats';
 export type { CreateResponseFormatRequest, UpdateResponseFormatRequest } from './rest/response-formats';
+export { SchedulerRestNamespace } from './rest/scheduler';
+export type { ListScheduledJobsResponse, GetScheduledJobResponse } from './rest/scheduler';
 export { HttpNamespace } from './rest/http-namespace';
 export type { LoadAllResult } from './rest/http-namespace';
 

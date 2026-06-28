@@ -370,8 +370,50 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_pinned_messages_workspace_created ON pinned_messages(workspace_id, created_at DESC)');
   db.run('CREATE INDEX IF NOT EXISTS idx_pinned_messages_session ON pinned_messages(session_id)');
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS scheduled_jobs (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      schedule_kind TEXT NOT NULL,
+      schedule_config TEXT NOT NULL,
+      schedule_display TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'active',
+      repeat_limit INTEGER,
+      run_count INTEGER NOT NULL DEFAULT 0,
+      next_run_at INTEGER,
+      last_run_at INTEGER,
+      last_run_session_id TEXT,
+      last_error TEXT,
+      reuse_session INTEGER NOT NULL DEFAULT 0,
+      include_history INTEGER NOT NULL DEFAULT 0,
+      preconfig_id TEXT,
+      origin_session_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_workspace ON scheduled_jobs(workspace_id)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next_run ON scheduled_jobs(state, next_run_at)');
+
   // Seed built-in response formats
   seedBuiltinResponseFormats(db);
+
+  // Migrate: add reuse_session column to scheduled_jobs if missing
+  try {
+    db.run('ALTER TABLE scheduled_jobs ADD COLUMN reuse_session INTEGER NOT NULL DEFAULT 0');
+  } catch {
+    // Column already exists
+  }
+
+  // Migrate: add include_history column to scheduled_jobs if missing
+  try {
+    db.run('ALTER TABLE scheduled_jobs ADD COLUMN include_history INTEGER NOT NULL DEFAULT 0');
+  } catch {
+    // Column already exists
+  }
 
   // Migrate: add structured_output column to messages if missing
   try {
@@ -434,3 +476,6 @@ export * from './pinned-messages';
 // Re-export cleanup
 export { cleanupOrphanedData } from './cleanup';
 export type { CleanupStats } from './cleanup';
+
+// Re-export scheduled jobs
+export * from './scheduled-jobs';

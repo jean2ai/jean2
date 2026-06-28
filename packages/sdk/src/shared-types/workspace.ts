@@ -20,11 +20,17 @@ export interface WorkspaceWorkflowSettings {
   enabled: boolean;
 }
 
+export interface WorkspaceSchedulingSettings {
+  enabled: boolean;
+  permissionRisk: PermissionRiskLevel;
+}
+
 export interface WorkspaceSettings {
   memory?: WorkspaceMemorySettings;
   skills?: WorkspaceSkillSettings;
   sessionSearch?: WorkspaceSessionSearchSettings;
   workflow?: WorkspaceWorkflowSettings;
+  scheduling?: WorkspaceSchedulingSettings;
 }
 
 export interface Workspace {

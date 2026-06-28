@@ -40,4 +40,7 @@ export const queryKeys = {
   pinnedMessages: {
     byWorkspace: (workspaceId: string) => ['pinnedMessages', 'workspace', workspaceId] as const,
   },
+  scheduledJobs: {
+    byWorkspace: (workspaceId: string) => ['scheduledJobs', 'workspace', workspaceId] as const,
+  },
 } as const;

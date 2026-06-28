@@ -13,6 +13,7 @@ import {
   cleanupSessionsOutputDirs,
   listPinnedMessagesByWorkspace,
   pinMessage,
+  deleteScheduledJobsByWorkspace,
   unpinMessage,
   PinnedMessageError,
 } from '@/store';
@@ -226,14 +227,17 @@ export function registerWorkspaceRoutes(app: Hono): void {
     // 3. Destroy terminal sessions for that workspace
     getTerminalManager().destroySessionsForWorkspace(workspace.path);
 
-    // 4. Delete the workspace DB row (cascades to sessions, messages, etc.)
+    // 4. Delete scheduled jobs for that workspace
+    deleteScheduledJobsByWorkspace(id);
+
+    // 5. Delete the workspace DB row (cascades to sessions, messages, etc.)
     const deleted = deleteWorkspace(id);
 
     if (!deleted) {
       return c.json({ error: 'Internal Server Error', message: 'Failed to delete workspace' }, 500);
     }
 
-    // 5. Delete session-related temp/output directories for the workspace's sessions
+    // 6. Delete session-related temp/output directories for the workspace's sessions
     // Use pre-collected session IDs since the DB cascade delete has already removed the sessions
     cleanupSessionsOutputDirs(sessionIds);
 

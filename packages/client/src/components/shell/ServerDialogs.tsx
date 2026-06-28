@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { ConfigurationDialog } from '@/components/modals/ConfigurationDialog';
 import { WorkspaceSettingsDialog } from '@/components/modals/WorkspaceSettingsDialog';
+import { SchedulerJobModal } from '@/components/modals/SchedulerJobModal';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 
 interface ServerDialogsProps {
@@ -40,12 +41,18 @@ export function ServerDialogs({
     setShowConfiguration,
     showWorkspaceSettings,
     setShowWorkspaceSettings,
+    showSchedulerJob,
+    editingSchedulerJob,
+    setShowSchedulerJob,
   } = useUIStore(
     useShallow((s) => ({
       showConfiguration: s.showConfiguration,
       setShowConfiguration: s.setShowConfiguration,
       showWorkspaceSettings: s.showWorkspaceSettings,
       setShowWorkspaceSettings: s.setShowWorkspaceSettings,
+      showSchedulerJob: s.showSchedulerJob,
+      editingSchedulerJob: s.editingSchedulerJob,
+      setShowSchedulerJob: s.setShowSchedulerJob,
     })),
   );
 
@@ -86,6 +93,14 @@ export function ServerDialogs({
           onUpdateWorkspacePaths={onUpdateWorkspacePaths}
         />
       )}
+
+      <SchedulerJobModal
+        open={showSchedulerJob}
+        onOpenChange={(open) => setShowSchedulerJob(open)}
+        sdkClient={sdkClient}
+        workspaceId={activeWorkspace?.id ?? null}
+        editingJob={editingSchedulerJob}
+      />
 
       <FilePreviewOverlay
         workspaceId={activeWorkspace?.id}

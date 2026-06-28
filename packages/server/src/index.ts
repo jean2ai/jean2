@@ -43,6 +43,7 @@ import {
 } from '@/env';
 import { activateSandbox } from '@/sandbox';
 import { createClientLauncher, type ClientLauncher } from '@/services/client-launcher';
+import { startScheduler, stopScheduler } from '@/scheduler';
 
 interface WsData {
   path: string;
@@ -423,6 +424,9 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     }
   }, GRACE_SWEEP_INTERVAL_MS);
 
+  // Start the scheduler tick loop (catches jobs that became due while offline)
+  startScheduler();
+
   let clientLauncher: ClientLauncher | undefined;
 
   if (getClientEnabled()) {
@@ -475,6 +479,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   const cleanup = () => {
     clearInterval(heartbeatInterval);
     clearInterval(graceSweepInterval);
+    stopScheduler();
     clientLauncher?.stop();
     server.stop();
     getTerminalManager().destroyAllSessions();

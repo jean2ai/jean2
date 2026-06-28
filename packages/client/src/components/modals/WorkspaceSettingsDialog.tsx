@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink } from 'lucide-react';
+import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock } from 'lucide-react';
 import type { Workspace, WorkspaceSettings, PermissionRiskLevel, PermissionGrant, Jean2Client } from '@jean2/sdk';
 import {
   Dialog,
@@ -22,11 +22,12 @@ import { MemoryPanel } from './configuration/MemoryPanel';
 import { SkillsPanel } from './configuration/SkillsPanel';
 import { SessionSearchPanel } from './configuration/SessionSearchPanel';
 import { WorkflowPanel } from './configuration/WorkflowPanel';
+import { SchedulingPanel } from './configuration/SchedulingPanel';
 import { MCPServersPanel } from './configuration/MCPServersPanel';
 import { PermissionsPanel } from './configuration/PermissionsPanel';
 import { AdditionalPathsPanel } from './configuration/AdditionalPathsPanel';
 
-type Section = 'mcp' | 'permissions' | 'paths' | 'memory' | 'skills' | 'search' | 'workflow';
+type Section = 'mcp' | 'permissions' | 'paths' | 'memory' | 'skills' | 'search' | 'workflow' | 'scheduling';
 
 interface SectionDef {
   value: Section;
@@ -43,6 +44,7 @@ const SECTIONS: SectionDef[] = [
   { value: 'skills', label: 'Skills', icon: Wrench, group: 'capabilities' },
   { value: 'search', label: 'Session Search', icon: Search, group: 'capabilities' },
   { value: 'workflow', label: 'Workflow', icon: Workflow, group: 'capabilities' },
+  { value: 'scheduling', label: 'Scheduling', icon: Clock, group: 'capabilities' },
 ];
 
 const CAPABILITY_SECTIONS = SECTIONS.filter((s) => s.group === 'capabilities');
@@ -79,6 +81,7 @@ export function WorkspaceSettingsDialog({
   const [skills, setSkills] = useState({ enabled: false, permissionRisk: 'medium' as PermissionRiskLevel });
   const [search, setSearch] = useState({ enabled: false, permissionRisk: 'medium' as PermissionRiskLevel, includeToolResults: false });
   const [workflow, setWorkflow] = useState(false);
+  const [scheduling, setScheduling] = useState({ enabled: false, permissionRisk: 'medium' as PermissionRiskLevel });
 
   useEffect(() => {
     if (open) {
@@ -91,10 +94,11 @@ export function WorkspaceSettingsDialog({
         includeToolResults: s?.sessionSearch?.includeToolResults ?? false,
       });
       setWorkflow(s?.workflow?.enabled ?? false);
+      setScheduling({ enabled: s?.scheduling?.enabled ?? false, permissionRisk: s?.scheduling?.permissionRisk ?? 'medium' });
     }
   }, [open, workspace.settings]);
 
-  const isCapability = section === 'memory' || section === 'skills' || section === 'search' || section === 'workflow';
+  const isCapability = section === 'memory' || section === 'skills' || section === 'search' || section === 'workflow' || section === 'scheduling';
 
   const handleSave = () => {
     onSave(workspace.id, {
@@ -107,6 +111,7 @@ export function WorkspaceSettingsDialog({
         includeToolResults: search.includeToolResults,
       },
       workflow: { enabled: workflow },
+      scheduling: { enabled: scheduling.enabled, permissionRisk: scheduling.permissionRisk },
     });
     onOpenChange(false);
   };
@@ -227,6 +232,13 @@ export function WorkspaceSettingsDialog({
               <WorkflowPanel
                 enabled={workflow}
                 onChange={setWorkflow}
+              />
+            </TabsContent>
+            <TabsContent value="scheduling" className="mt-0">
+              <SchedulingPanel
+                enabled={scheduling.enabled}
+                permissionRisk={scheduling.permissionRisk}
+                onChange={setScheduling}
               />
             </TabsContent>
           </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronRight, CheckSquare, X, Archive, MoreHorizontal, Trash2, Tag } from 'lucide-react';
-import type { Session } from '@jean2/sdk';
+import type { Session, ScheduledJob } from '@jean2/sdk';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -21,12 +21,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
+import { ScheduledJobsSection } from './ScheduledJobsSection';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useTagCollapseState } from '@/hooks/useTagCollapseState';
 
 interface WorkspaceSessionContentProps {
   activeSessions: Session[];
   archivedSessions: Session[];
+  scheduledJobs: ScheduledJob[];
+  scheduledSessionsByJob: Map<string, Session[]>;
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSessionId: string | null;
@@ -43,11 +46,19 @@ interface WorkspaceSessionContentProps {
   allWorkspaceTags: string[];
   onAddTag: (sessionId: string, tag: string) => void;
   onRemoveTag: (sessionId: string, tag: string) => void;
+  onCreateScheduledJob: () => void;
+  onEditScheduledJob: (job: ScheduledJob) => void;
+  onPauseScheduledJob: (jobId: string) => void;
+  onResumeScheduledJob: (jobId: string) => void;
+  onTriggerScheduledJob: (jobId: string) => void;
+  onDeleteScheduledJob: (jobId: string) => void;
 }
 
 export function WorkspaceSessionContent({
   activeSessions,
   archivedSessions,
+  scheduledJobs,
+  scheduledSessionsByJob,
   childrenMap,
   sessionDerivedValues,
   currentSessionId,
@@ -64,6 +75,12 @@ export function WorkspaceSessionContent({
   allWorkspaceTags,
   onAddTag,
   onRemoveTag,
+  onCreateScheduledJob,
+  onEditScheduledJob,
+  onPauseScheduledJob,
+  onResumeScheduledJob,
+  onTriggerScheduledJob,
+  onDeleteScheduledJob,
 }: WorkspaceSessionContentProps) {
   const { isTagOpen, toggleTag } = useTagCollapseState();
   const [selectionMode, setSelectionMode] = useState(false);
@@ -298,6 +315,20 @@ export function WorkspaceSessionContent({
   return (
     <>
       {renderActiveSection()}
+
+      {/* Scheduled Jobs */}
+      <ScheduledJobsSection
+        jobs={scheduledJobs}
+        sessionsByJob={scheduledSessionsByJob}
+        currentSessionId={currentSessionId}
+        onCreateJob={onCreateScheduledJob}
+        onEditJob={onEditScheduledJob}
+        onPauseJob={onPauseScheduledJob}
+        onResumeJob={onResumeScheduledJob}
+        onTriggerJob={onTriggerScheduledJob}
+        onDeleteJob={onDeleteScheduledJob}
+        onOpenSession={onResumeSession}
+      />
 
       {/* Archived Sessions */}
       {archivedSessions.length > 0 && (

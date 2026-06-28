@@ -6,8 +6,14 @@ const FILE_MUTATING_TOOLS = new Set([
   'edit', 'multiedit', 'write-file', 'apply-patch', 'shell',
 ]);
 
+const SCHEDULER_TOOLS = new Set(['scheduler']);
+
 function invalidateFileQueries(): void {
   queryClient.invalidateQueries({ queryKey: ['files'] });
+}
+
+function invalidateSchedulerQueries(): void {
+  queryClient.invalidateQueries({ queryKey: ['scheduledJobs'] });
 }
 
 export function handleMessageCreated(
@@ -185,10 +191,18 @@ export function handlePartUpdated(
     if (
       FILE_MUTATING_TOOLS.has(toolPart.name) &&
       (toolPart.state.status === 'completed' ||
-       toolPart.state.status === 'error' ||
-       toolPart.state.status === 'interrupted')
+        toolPart.state.status === 'error' ||
+        toolPart.state.status === 'interrupted')
     ) {
       invalidateFileQueries();
+    }
+    if (
+      SCHEDULER_TOOLS.has(toolPart.name) &&
+      (toolPart.state.status === 'completed' ||
+        toolPart.state.status === 'error' ||
+        toolPart.state.status === 'interrupted')
+    ) {
+      invalidateSchedulerQueries();
     }
   }
 }

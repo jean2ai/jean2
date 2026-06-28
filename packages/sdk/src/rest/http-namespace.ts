@@ -13,6 +13,7 @@ import { TerminalsRestNamespace } from './terminals';
 import { McpRestNamespace } from './mcp';
 import { ConfigRestNamespace } from './config';
 import { ResponseFormatsRestNamespace } from './response-formats';
+import { SchedulerRestNamespace } from './scheduler';
 
 /**
  * Result of loading all initial server data.
@@ -46,6 +47,7 @@ export class HttpNamespace {
   readonly mcp: McpRestNamespace;
   readonly config: ConfigRestNamespace;
   readonly responseFormats: ResponseFormatsRestNamespace;
+  readonly scheduler: SchedulerRestNamespace;
 
   constructor(http: HttpClient) {
     this.sessions = new SessionsRestNamespace(http);
@@ -61,6 +63,7 @@ export class HttpNamespace {
     this.mcp = new McpRestNamespace(http);
     this.config = new ConfigRestNamespace(http);
     this.responseFormats = new ResponseFormatsRestNamespace(http);
+    this.scheduler = new SchedulerRestNamespace(http);
   }
 
   /**

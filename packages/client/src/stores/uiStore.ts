@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PermissionRiskLevel } from '@jean2/sdk';
+import type { PermissionRiskLevel, ScheduledJob } from '@jean2/sdk';
 import type { UseBoundStore, StoreApi } from 'zustand';
 
 // --- Configuration Section (deep-linking) ---
@@ -62,6 +62,16 @@ interface FilePreviewActions {
   closeFilePreview: () => void;
 }
 
+// --- Scheduler Modal ---
+interface SchedulerModalState {
+  showSchedulerJob: boolean;
+  editingSchedulerJob: ScheduledJob | null;
+}
+
+interface SchedulerModalActions {
+  setShowSchedulerJob: (show: boolean, job?: ScheduledJob | null) => void;
+}
+
 // --- Settings ---
 const CHAT_FINISH_SOUND_KEY = 'jean2_sound_chat_finish_enabled';
 const PERMISSION_SOUND_KEY = 'jean2_sound_permission_enabled';
@@ -111,7 +121,7 @@ interface AutoApproveActions {
 }
 
 // --- Combined Store ---
-type UIStore = DialogState & DialogActions & ConfigurationSectionState & ConfigurationSectionActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions & AutoApproveState & AutoApproveActions;
+type UIStore = DialogState & DialogActions & ConfigurationSectionState & ConfigurationSectionActions & SettingsState & SettingsActions & FilePreviewState & FilePreviewActions & AutoApproveState & AutoApproveActions & SchedulerModalState & SchedulerModalActions;
 
 export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set) => ({
   // --- Dialogs ---
@@ -171,4 +181,10 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   getAutoApproveMaxSeverity: (sessionId): PermissionRiskLevel | 'off' | null => {
     return useUIStore.getState().autoApproveBySession[sessionId] ?? null;
   },
+
+  // --- Scheduler Modal ---
+  showSchedulerJob: false,
+  editingSchedulerJob: null,
+
+  setShowSchedulerJob: (show, job = null) => set({ showSchedulerJob: show, editingSchedulerJob: show ? job : null }),
 }));

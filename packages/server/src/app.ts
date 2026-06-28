@@ -25,6 +25,7 @@ import { registerMcpRoutes } from '@/routes/mcp';
 import { registerConfigRoutes } from '@/routes/config';
 import { registerSandboxRoutes } from '@/sandbox/routes';
 import { registerResponseFormatRoutes } from '@/routes/response-formats';
+import { registerSchedulerRoutes } from '@/routes/scheduler';
 
 export function createApp() {
   // Ensure prompts directory exists
@@ -109,6 +110,7 @@ export function createApp() {
   registerMcpRoutes(app);
   registerConfigRoutes(app);
   registerResponseFormatRoutes(app);
+  registerSchedulerRoutes(app);
   if (process.env.JEAN2_SANDBOX === 'true') {
     registerSandboxRoutes(app);
   }

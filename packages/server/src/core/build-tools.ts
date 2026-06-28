@@ -9,12 +9,13 @@ import { broadcastEvent, type BroadcastFn } from './broadcast';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
 import { executeWorkflow, getWorkflowToolDefinition } from './workflow';
-import type { WorkflowInput, WorkflowResult } from '@jean2/sdk';
+import type { WorkflowInput, WorkflowResult, PermissionRiskLevel } from '@jean2/sdk';
 import { createSkillTool, skillManageToolDefinition, executeSkillManageTool, buildSkillManageToolDescription } from '@/skills';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { getSession, getWorkspace } from '@/store';
 import { memoryToolDefinition, executeMemoryTool } from '@/memory';
 import { sessionSearchToolDefinition, executeSessionSearchTool } from '@/session-search';
+import { schedulerToolDefinition, executeSchedulerTool } from '@/scheduler/scheduler-tool';
 
 export interface BuildToolsOptions {
   toolNames: string[];
@@ -352,6 +353,53 @@ export async function buildAiSdkTools(
             interruptManager.unregisterToolExecution(sessionId, toolCallId);
             rejectPendingAsksByToolCallId(toolCallId);
           }
+        },
+      });
+    }
+  }
+
+  // Scheduler tool (if enabled for this workspace)
+  if (workspaceId) {
+    const ws = getWorkspace(workspaceId);
+    const schedulingSettings = ws?.settings?.scheduling;
+    if (schedulingSettings?.enabled) {
+      const schedulingRisk: PermissionRiskLevel = schedulingSettings.permissionRisk ?? 'none';
+      tools['scheduler'] = tool({
+        description: schedulerToolDefinition.description,
+        inputSchema: jsonSchema(schedulerToolDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const _toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          let result;
+          try {
+            const askFactory = (tcId: string) =>
+              broadcastFn
+                ? createAskApi(sessionId, tcId, 'scheduler', broadcastFn, workspaceId, rootSessionId)
+                : undefined as unknown as import('@jean2/sdk').AskApi;
+            const askApi = askFactory(toolCallId);
+
+            result = await executeSchedulerTool(
+              args,
+              workspaceId!,
+              sessionId,
+              schedulingRisk,
+              async (ask) => askApi(ask),
+            );
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+            rejectPendingAsksByToolCallId(toolCallId);
+          }
+
+          if (!result.success) {
+            return { error: result.error ?? 'Scheduler operation failed' };
+          }
+
+          return {
+            action: result.action,
+            title: result.title,
+            ...(result.job && { job: result.job }),
+            ...(result.jobs && { jobs: result.jobs }),
+            ...(result.jobId && { jobId: result.jobId }),
+          };
         },
       });
     }

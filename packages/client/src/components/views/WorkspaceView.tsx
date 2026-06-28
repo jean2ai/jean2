@@ -6,7 +6,9 @@ import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useWorkspaceSessions } from '@/hooks/useWorkspaceSessions';
 import { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from '@/hooks/queries';
+import { useScheduledJobs, usePauseScheduledJob, useResumeScheduledJob, useTriggerScheduledJob, useDeleteScheduledJob } from '@/hooks/queries';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
@@ -58,6 +60,16 @@ export default function WorkspaceView() {
   const { data: tagsData } = useWorkspaceTagsQuery(sdkClient, sidebarData.activeWorkspace?.id ?? null);
   const allWorkspaceTags = tagsData?.tags ?? [];
   const invalidateWorkspaceTags = useInvalidateWorkspaceTags();
+
+  // Scheduled jobs
+  const workspaceIdForJobs = sidebarData.activeWorkspace?.id ?? null;
+  const { data: scheduledJobs } = useScheduledJobs(sdkClient, workspaceIdForJobs);
+  const pauseJobMutation = usePauseScheduledJob(sdkClient, workspaceIdForJobs);
+  const resumeJobMutation = useResumeScheduledJob(sdkClient, workspaceIdForJobs);
+  const triggerJobMutation = useTriggerScheduledJob(sdkClient, workspaceIdForJobs);
+  const deleteJobMutation = useDeleteScheduledJob(sdkClient, workspaceIdForJobs);
+
+  const setShowSchedulerJob = useUIStore(s => s.setShowSchedulerJob);
 
   const updateSession = useSessionStore(s => s.updateSession);
 
@@ -126,6 +138,8 @@ export default function WorkspaceView() {
     <WorkspaceSessionContent
       activeSessions={activeSessions}
       archivedSessions={archivedSessions}
+      scheduledJobs={scheduledJobs ?? []}
+      scheduledSessionsByJob={sidebarData.scheduledSessionsByJob}
       childrenMap={sidebarData.childrenMap}
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSessionId={sidebarData.currentSessionId}
@@ -142,6 +156,12 @@ export default function WorkspaceView() {
       allWorkspaceTags={allWorkspaceTags}
       onAddTag={handleAddTag}
       onRemoveTag={handleRemoveTag}
+      onCreateScheduledJob={() => setShowSchedulerJob(true)}
+      onEditScheduledJob={(job) => setShowSchedulerJob(true, job)}
+      onPauseScheduledJob={(jobId) => pauseJobMutation.mutate(jobId)}
+      onResumeScheduledJob={(jobId) => resumeJobMutation.mutate(jobId)}
+      onTriggerScheduledJob={(jobId) => triggerJobMutation.mutate(jobId)}
+      onDeleteScheduledJob={(jobId) => deleteJobMutation.mutate(jobId)}
     />
   );
 

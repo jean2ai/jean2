@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { MessageWithParts, Part, TextPart, Preconfig, UserMessage, ResponseFormat, StructuredOutputData } from '@jean2/sdk';
-import { listMessages as storeListMessages, createPart, createMessage, updateMessage, getSession, updateSession } from '@/store';
+import { createPart, createMessage, updateMessage, getSession, updateSession, buildEffectiveContextHistory } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
 import { broadcastEvent, sendToControllerEvent, sendToAskTargetsEvent, type BroadcastFn } from './broadcast';
 import type { AskBroadcastFn } from '@/tools/ask-user-api';
@@ -36,12 +36,10 @@ export async function executeChildSession(options: {
   let messages: MessageWithParts[];
 
   if (resumeFromHistory) {
-    const existingMessages = storeListMessages(childSessionId);
-    messages = existingMessages.map((msg) => ({
-      message: msg,
-      parts: [],
-    }));
+    // Load full history with parts (same function handleChat uses)
+    const { messages: historyMessages } = buildEffectiveContextHistory(childSessionId);
 
+    // Create the new user message
     const newMsgId = randomUUID();
     const newMessage: UserMessage = {
       id: newMsgId,
@@ -56,7 +54,7 @@ export async function executeChildSession(options: {
       type: 'text',
       text: prompt,
     };
-    messages.push({ message: newMessage, parts: [textPart] });
+    messages = [...historyMessages, { message: newMessage, parts: [textPart] }];
     createPart(textPart, childSessionId);
   } else {
     const msgId = randomUUID();

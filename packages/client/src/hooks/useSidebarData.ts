@@ -33,6 +33,7 @@ export interface UseSidebarDataReturn {
   sessions: Session[];
   activeSessions: Session[];
   archivedSessions: Session[];
+  scheduledSessionsByJob: Map<string, Session[]>;
   tagGroups: Map<string, Session[]>;
   orderedTagNames: string[];
 
@@ -135,12 +136,27 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     return derived;
   }, [allSessions, streamingSessionIds, pendingAskRequests, currentSessionId]);
 
-  // Separate active and archived sessions (only root sessions, no parent)
-  const { activeSessions, archivedSessions } = useMemo(() => {
+  // Separate active, archived, and scheduled sessions (only root sessions, no parent)
+  const { activeSessions, archivedSessions, scheduledSessionsByJob } = useMemo(() => {
     const rootSessions = sessions.filter((s) => !s.parentId);
+    const scheduled = rootSessions.filter((s) => s.metadata?.scheduledJobId);
+    const scheduledJobIds = new Set(scheduled.map((s) => s.metadata?.scheduledJobId as string));
+
+    // Group scheduled sessions by job ID
+    const byJob = new Map<string, Session[]>();
+    for (const s of scheduled) {
+      const jobId = s.metadata?.scheduledJobId as string;
+      const existing = byJob.get(jobId) ?? [];
+      existing.push(s);
+      byJob.set(jobId, existing);
+    }
+
     return {
-      activeSessions: rootSessions.filter((s) => s.status === 'active'),
+      activeSessions: rootSessions.filter(
+        (s) => s.status === 'active' && !scheduledJobIds.has(s.metadata?.scheduledJobId as string),
+      ),
       archivedSessions: rootSessions.filter((s) => s.status === 'closed'),
+      scheduledSessionsByJob: byJob,
     };
   }, [sessions]);
 
@@ -226,6 +242,7 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     sessions,
     activeSessions,
     archivedSessions,
+    scheduledSessionsByJob,
     tagGroups,
     orderedTagNames,
     isWorkspaceFavorited,
