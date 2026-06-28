@@ -56,8 +56,40 @@
       "description": "Converts files to Markdown format. Supports PDF, Microsoft Office (.docx, .xlsx, .pptx), LibreOffice (.odt, .ods, .odp), and ZIP archives. Does not support .7z archives."
     },
     {
+      "name": "git-worktree",
+      "description": "Manage git worktrees for parallel development across multiple sessions. Create, list, check status, or remove worktrees."
+    },
+    {
       "name": "glob",
       "description": "Find files matching a glob pattern. Returns matching file paths sorted by modification time."
+    },
+    {
+      "name": "gmail-draft",
+      "description": "Create a Gmail draft (saved in Drafts folder) for the user to review before sending."
+    },
+    {
+      "name": "gmail-labels",
+      "description": "List all labels in the connected Gmail account, including system labels (INBOX, UNREAD, STARRED, etc.) and user-created labels."
+    },
+    {
+      "name": "gmail-labels-manage",
+      "description": "Create, rename, or delete Gmail labels. Use this to set up a label structure for organizing emails."
+    },
+    {
+      "name": "gmail-modify",
+      "description": "Modify labels on Gmail messages: archive, mark read/unread, star, apply custom labels, or trash."
+    },
+    {
+      "name": "gmail-read",
+      "description": "Read the full content of a Gmail message or an entire email thread."
+    },
+    {
+      "name": "gmail-search",
+      "description": "Search and list emails from the connected Gmail account by keyword, sender, date, or other criteria."
+    },
+    {
+      "name": "gmail-send",
+      "description": "Send an email from the connected Gmail account immediately. Supports recipients, CC, BCC, and reply threading."
     },
     {
       "name": "grep",
