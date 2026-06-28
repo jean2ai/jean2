@@ -235,7 +235,25 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     const handleRefresh = useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ['files'] });
-    }, []);
+
+      if (sdkClient && workspaceId) {
+        void sdkClient.http.workspaces
+          .get(workspaceId)
+          .then(({ workspace: updatedWorkspace }) => {
+            const store = useServerDataStore.getState();
+            store.setWorkspaces(
+              store.workspaces.map((w) => (w.id === updatedWorkspace.id ? updatedWorkspace : w)),
+            );
+            if (store.activeWorkspace?.id === updatedWorkspace.id) {
+              store.setActiveWorkspace(updatedWorkspace);
+            }
+          })
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('Failed to refresh workspace:', message);
+          });
+      }
+    }, [sdkClient, workspaceId]);
 
     const focus = useCallback(() => {
       setShowFilesPanel(true);
