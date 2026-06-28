@@ -224,6 +224,9 @@ export function createMockContext(vfs: VirtualFS, overrides: MockContextOverride
     isBlockedPath(path: string): boolean {
       return ['/etc/', '/usr/', '/bin/', '/sbin/'].some(p => path.startsWith(p));
     },
+
+    addWorkspacePath: mock(async (_path: string) => true),
+    removeWorkspacePath: mock(async (_path: string) => true),
   };
 }
 

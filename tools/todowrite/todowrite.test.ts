@@ -39,6 +39,8 @@ beforeEach(() => {
     isWithinWorkspace: () => true,
     isSensitivePath: () => false,
     isBlockedPath: () => false,
+    addWorkspacePath: async () => true,
+    removeWorkspacePath: async () => true,
   };
 });
 

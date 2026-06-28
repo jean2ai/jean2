@@ -3,6 +3,7 @@ import { homedir, tmpdir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, DirEntry, FileStat, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
 import { getJean2EnvValue } from '@/env';
+import { getWorkspace, updateWorkspace } from '@/store';
 
 const BLOCKED_PATHS = [
   '/etc/', '/usr/', '/bin/', '/sbin/', '/boot/', '/dev/',
@@ -206,6 +207,38 @@ function createLogger(toolName: string, sessionId: string): ToolLogger {
   };
 }
 
+function createWorkspacePathManager(workspaceId: string | undefined) {
+  async function addWorkspacePath(path: string): Promise<boolean> {
+    if (!workspaceId) return false;
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) return false;
+
+    const resolved = resolve(path);
+    if (workspace.additionalPaths.includes(resolved)) return true;
+
+    updateWorkspace(workspaceId, {
+      additionalPaths: [...workspace.additionalPaths, resolved],
+    });
+    return true;
+  }
+
+  async function removeWorkspacePath(path: string): Promise<boolean> {
+    if (!workspaceId) return false;
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) return false;
+
+    const resolved = resolve(path);
+    if (!workspace.additionalPaths.includes(resolved)) return true;
+
+    updateWorkspace(workspaceId, {
+      additionalPaths: workspace.additionalPaths.filter(p => p !== resolved),
+    });
+    return true;
+  }
+
+  return { addWorkspacePath, removeWorkspacePath };
+}
+
 export async function executeTool(options: ExecuteToolOptions): Promise<ToolResult> {
   const {
     tool,
@@ -244,6 +277,7 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
     logger: createLogger(tool.definition.name, sessionId),
     fetch: globalThis.fetch.bind(globalThis),
     ...pathHelpers,
+    ...createWorkspacePathManager(options.workspaceId),
   };
 
   const executePromise = tool.execute(args, ctx);

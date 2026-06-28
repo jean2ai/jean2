@@ -110,6 +110,25 @@ export interface ToolContext {
   isWithinWorkspace(path: string): boolean;
   isSensitivePath(path: string): boolean;
   isBlockedPath(path: string): boolean;
+
+  /**
+   * Add a path to the current workspace's additionalPaths. This makes the
+   * path accessible to all subsequent tool calls within this workspace without
+   * requiring per-call permission approval.
+   *
+   * Used by tools like git-worktree to register isolated working directories.
+   * Returns false if no workspace is associated with this session.
+   */
+  addWorkspacePath(path: string): Promise<boolean>;
+
+  /**
+   * Remove a path from the current workspace's additionalPaths.
+   *
+   * The inverse of addWorkspacePath. Used to clean up when a worktree is
+   * removed or its lifecycle ends.
+   * Returns false if no workspace is associated with this session.
+   */
+  removeWorkspacePath(path: string): Promise<boolean>;
 }
 
 // ===========================================

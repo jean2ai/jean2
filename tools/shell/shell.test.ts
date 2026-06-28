@@ -127,6 +127,9 @@ function createMockContext(overrides: Partial<ToolContext> = {}): ToolContext {
       return ['/etc/', '/usr/', '/bin/', '/sbin/'].some(p => path.startsWith(p));
     },
 
+    addWorkspacePath: async () => true,
+    removeWorkspacePath: async () => true,
+
     ...overrides,
   };
 }
