@@ -32,6 +32,22 @@
       "description": "Manage browser tabs: list all tabs, create a new tab, close a tab, or switch to a tab."
     },
     {
+      "name": "discord-list-channels",
+      "description": "List channels in a Discord server (guild). Returns channel IDs, names, types, and categories."
+    },
+    {
+      "name": "discord-list-guilds",
+      "description": "List Discord servers (guilds) the bot is a member of. Returns guild IDs, names, and icon URLs."
+    },
+    {
+      "name": "discord-read-messages",
+      "description": "Read message history from a Discord channel. Supports pagination and full-text search with snippets."
+    },
+    {
+      "name": "discord-send-message",
+      "description": "Send a message to a Discord channel via bot token. Supports plain text and rich embeds. HIGH RISK action."
+    },
+    {
       "name": "edit",
       "description": "Performs string replacements in files with fuzzy matching support."
     },

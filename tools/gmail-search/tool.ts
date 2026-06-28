@@ -35,6 +35,10 @@ export const definition: ToolDefinition = {
     '- "newer_than:7d" - emails from the last 7 days\n' +
     '- "has:attachment" - emails with attachments\n' +
     '- "label:work" - emails with a specific label\n' +
+    '- "category:primary" - only primary inbox\n' +
+    '- "-category:promotions" - exclude promotions\n' +
+    '- "category:social" - social updates only\n' +
+    '- "in:inbox category:updates" - inbox updates tab\n' +
     '- "" (empty) - all recent emails\n\n' +
     'Requires: Gmail account connected via Settings > OAuth Providers.',
   inputSchema: {
