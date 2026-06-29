@@ -9,26 +9,142 @@
 const MAX_TEXT_LENGTH = 50_000;
 const TRUNCATION_SUFFIX = '\n\n[... text truncated]';
 
+// ── Deep DOM Traversal (Shadow DOM + Iframe) ────────────────
+
+function deepQuerySelectorAll(selector: string): Element[] {
+  const results: Element[] = [];
+  const visited = new Set<Node>();
+
+  function traverse(root: Document | ShadowRoot): void {
+    if (visited.has(root)) return;
+    visited.add(root);
+
+    for (const el of Array.from(root.querySelectorAll(selector))) {
+      results.push(el);
+    }
+
+    for (const el of Array.from(root.querySelectorAll('*'))) {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.shadowRoot) {
+        traverse(htmlEl.shadowRoot);
+      }
+      if (htmlEl.tagName === 'IFRAME') {
+        try {
+          const doc = (htmlEl as HTMLIFrameElement).contentDocument;
+          if (doc) traverse(doc);
+        } catch {
+          // Cross-origin iframe - skip
+        }
+      }
+    }
+  }
+
+  traverse(document);
+  return results;
+}
+
+function deepQuerySelector(selector: string): Element | null {
+  return deepQuerySelectorAll(selector)[0] ?? null;
+}
+
+// ── Visibility & Position Helpers ───────────────────────────
+
+function isElementVisible(el: HTMLElement): boolean {
+  const style = getComputedStyle(el);
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  if (parseFloat(style.opacity) === 0) {
+    return false;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) {
+    return false;
+  }
+  if (el.offsetParent === null && style.position !== 'fixed') {
+    return false;
+  }
+  return true;
+}
+
+function isElementInViewport(rect: DOMRect): boolean {
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  return rect.top < vh && rect.bottom > 0 && rect.left < vw && rect.right > 0;
+}
+
+function getFixedHeaderHeight(): number {
+  let maxBottom = 0;
+  const candidates = document.querySelectorAll(
+    'header, nav, [role="banner"], [class*="header"], [class*="nav"], [class*="sticky"], [style*="fixed"]',
+  );
+  for (const el of candidates) {
+    const htmlEl = el as HTMLElement;
+    const style = getComputedStyle(htmlEl);
+    if (
+      (style.position === 'fixed' || style.position === 'sticky') &&
+      style.visibility !== 'hidden' &&
+      style.display !== 'none'
+    ) {
+      const rect = htmlEl.getBoundingClientRect();
+      if (rect.top <= 0 && rect.bottom > 0) {
+        maxBottom = Math.max(maxBottom, rect.bottom);
+      }
+    }
+  }
+  return maxBottom;
+}
+
+interface BoundingRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+function computeBoundingRect(rect: DOMRect): BoundingRect {
+  return {
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top),
+    right: Math.round(rect.right),
+    bottom: Math.round(rect.bottom),
+    left: Math.round(rect.left),
+  };
+}
+
 // ── Element Resolution ──────────────────────────────────────
 
 function resolveElement(selector: string): Element | null {
-  return document.querySelector(selector);
+  return deepQuerySelector(selector);
 }
 
-function resolveElements(selector: string): Element[] {
-  return Array.from(document.querySelectorAll(selector));
+function escapeXPathString(str: string): string {
+  if (!str.includes("'")) {
+    return `'${str}'`;
+  }
+  if (!str.includes('"')) {
+    return `"${str}"`;
+  }
+  const parts = str.split("'").map((part) => `'${part}'`);
+  return `concat(${parts.join(", \"'\", ")})`;
 }
 
-// Find an element by its visible text content (case-insensitive substring match)
 function findElementByText(text: string, tag?: string): HTMLElement | null {
+  const escapedText = escapeXPathString(text.toLowerCase());
   const xpath = tag
-    ? `//${tag}[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${text.toLowerCase()}')]`
-    : `//*[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${text.toLowerCase()}')]`;
+    ? `//${tag}[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), ${escapedText})]`
+    : `//*[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), ${escapedText})]`;
   const result = document.evaluate(xpath, document.body, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
   return result.singleNodeValue as HTMLElement | null;
 }
 
-// Find the closest clickable ancestor (or the element itself)
 function findClickable(element: HTMLElement): HTMLElement | null {
   let current: HTMLElement | null = element;
   while (current) {
@@ -43,7 +159,6 @@ function findClickable(element: HTMLElement): HTMLElement | null {
     ) {
       return current;
     }
-    // Check for pointer cursor
     if (getComputedStyle(current).cursor === 'pointer') {
       return current;
     }
@@ -70,26 +185,47 @@ interface DomActionResult {
   elementFound?: boolean;
   currentValue?: string;
   pageChanged?: boolean;
+  scrollX?: number;
+  scrollY?: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
 }
 
 function simulateClick(element: HTMLElement): void {
+  const rect = element.getBoundingClientRect();
+  const clientX = rect.left + rect.width / 2;
+  const clientY = rect.top + rect.height / 2;
+
   const events = ['pointerdown', 'mousedown', 'mouseup', 'pointerup', 'click'];
   for (const eventType of events) {
+    const isDown = eventType === 'pointerdown' || eventType === 'mousedown';
     const event = new MouseEvent(eventType, {
       bubbles: true,
       cancelable: true,
       view: window,
+      clientX,
+      clientY,
+      screenX: clientX,
+      screenY: clientY,
+      button: 0,
+      buttons: isDown ? 1 : 0,
+      detail: 1,
     });
     element.dispatchEvent(event);
   }
 }
 
 function simulateInput(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-  // Focus
   element.focus();
   element.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
 
-  // Set value
+  element.dispatchEvent(new InputEvent('beforeinput', {
+    bubbles: true,
+    cancelable: true,
+    inputType: 'insertText',
+    data: value,
+  }));
+
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     'value',
@@ -104,8 +240,12 @@ function simulateInput(element: HTMLInputElement | HTMLTextAreaElement, value: s
     element.value = value;
   }
 
-  // Dispatch input events
-  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new InputEvent('input', {
+    bubbles: true,
+    cancelable: true,
+    inputType: 'insertText',
+    data: value,
+  }));
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
@@ -131,7 +271,7 @@ function simulateKeyDown(element: HTMLElement, key: string): void {
   element.dispatchEvent(upEvent);
 }
 
-async function executeDomAction(params: DomActionParams): Promise<DomActionResult> {
+async function executeDomActionInner(params: DomActionParams): Promise<DomActionResult> {
   const { action, selector, text, value, x, y, delay } = params;
   const waitMs = delay ?? 100;
 
@@ -168,7 +308,6 @@ async function executeDomAction(params: DomActionParams): Promise<DomActionResul
       if (selector) {
         input = resolveElement(selector) as HTMLElement | null;
       } else if (text) {
-        // text param here is used as a label to find the input
         input = findElementByText(text, 'label');
         if (input) {
           const forAttr = input.getAttribute('for');
@@ -244,16 +383,23 @@ async function executeDomAction(params: DomActionParams): Promise<DomActionResul
     }
 
     case 'scroll': {
-      const scrollX = x ?? 0;
-      const scrollY = y ?? 0;
-
       if (selector) {
         const element = resolveElement(selector) as HTMLElement | null;
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const rect = element.getBoundingClientRect();
+          const headerHeight = getFixedHeaderHeight();
+          const viewportHeight = window.innerHeight;
+
+          if (rect.top < headerHeight || rect.bottom > viewportHeight || rect.bottom < 0) {
+            const targetScroll = window.scrollY + rect.top - headerHeight - 20;
+            window.scrollTo({
+              top: Math.max(0, targetScroll),
+              behavior: 'smooth',
+            });
+          }
         }
       } else {
-        window.scrollBy({ left: scrollX, top: scrollY, behavior: 'smooth' });
+        window.scrollBy({ left: x ?? 0, top: y ?? 0, behavior: 'smooth' });
       }
 
       await wait(waitMs + 300);
@@ -277,11 +423,15 @@ async function executeDomAction(params: DomActionParams): Promise<DomActionResul
       }
 
       const rect = element.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
       const eventInit = {
         bubbles: true,
         cancelable: true,
-        clientX: rect.left + rect.width / 2,
-        clientY: rect.top + rect.height / 2,
+        clientX,
+        clientY,
+        screenX: clientX,
+        screenY: clientY,
       };
       element.dispatchEvent(new MouseEvent('mouseover', eventInit));
       element.dispatchEvent(new MouseEvent('mouseenter', eventInit));
@@ -293,7 +443,6 @@ async function executeDomAction(params: DomActionParams): Promise<DomActionResul
 
     case 'press_enter': {
       if (!selector) {
-        // Press Enter on the currently focused element
         const focused = document.activeElement as HTMLElement | null;
         if (focused) {
           simulateKeyDown(focused, 'Enter');
@@ -318,6 +467,17 @@ async function executeDomAction(params: DomActionParams): Promise<DomActionResul
   }
 }
 
+async function executeDomAction(params: DomActionParams): Promise<DomActionResult> {
+  const result = await executeDomActionInner(params);
+  return {
+    ...result,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+  };
+}
+
 // ── Element Discovery ───────────────────────────────────────
 
 interface ElementInfo {
@@ -332,6 +492,9 @@ interface ElementInfo {
   selector: string;
   role?: string;
   ariaLabel?: string;
+  boundingRect?: BoundingRect;
+  isVisible?: boolean;
+  isInViewport?: boolean;
 }
 
 function discoverInteractiveElements(): ElementInfo[] {
@@ -346,75 +509,77 @@ function discoverInteractiveElements(): ElementInfo[] {
     '[role="tab"]',
     '[onclick]',
     '[contenteditable]',
-  ];
+  ].join(', ');
 
   const seen = new Set<Element>();
   const results: ElementInfo[] = [];
 
-  for (const sel of interactiveSelectors) {
-    for (const el of resolveElements(sel)) {
-      if (seen.has(el)) continue;
-      seen.add(el);
+  for (const el of deepQuerySelectorAll(interactiveSelectors)) {
+    if (seen.has(el)) continue;
+    seen.add(el);
 
-      const htmlEl = el as HTMLElement;
-      const tag = htmlEl.tagName.toLowerCase();
-      const text = htmlEl.textContent?.trim().slice(0, 100) ?? '';
-      const id = htmlEl.id || undefined;
-      const className = htmlEl.className && typeof htmlEl.className === 'string'
-        ? htmlEl.className.split(/\s+/).filter(Boolean).slice(0, 3).join(' ')
-        : undefined;
+    const htmlEl = el as HTMLElement;
+    const tag = htmlEl.tagName.toLowerCase();
+    const text = htmlEl.textContent?.trim().slice(0, 100) ?? '';
+    const id = htmlEl.id || undefined;
+    const className = htmlEl.className && typeof htmlEl.className === 'string'
+      ? htmlEl.className.split(/\s+/).filter(Boolean).slice(0, 3).join(' ')
+      : undefined;
 
-      // Build a unique selector
-      let selector: string;
-      if (htmlEl.id) {
-        selector = `#${CSS.escape(htmlEl.id)}`;
+    let selector: string;
+    if (htmlEl.id) {
+      selector = `#${CSS.escape(htmlEl.id)}`;
+    } else {
+      const name = htmlEl.getAttribute('name');
+      if (name) {
+        selector = `${tag}[name="${CSS.escape(name)}"]`;
       } else {
-        // Try name attribute
-        const name = htmlEl.getAttribute('name');
-        if (name) {
-          selector = `${tag}[name="${CSS.escape(name)}"]`;
+        const parent = htmlEl.parentElement;
+        if (parent) {
+          const siblings = Array.from(parent.children).filter(c => c.tagName === htmlEl.tagName);
+          const index = siblings.indexOf(htmlEl) + 1;
+          selector = `${tag}:nth-of-type(${index})`;
         } else {
-          // Use nth-of-type
-          const parent = htmlEl.parentElement;
-          if (parent) {
-            const siblings = Array.from(parent.children).filter(c => c.tagName === htmlEl.tagName);
-            const index = siblings.indexOf(htmlEl) + 1;
-            selector = `${tag}:nth-of-type(${index})`;
-          } else {
-            selector = tag;
-          }
+          selector = tag;
         }
       }
-
-      const info: ElementInfo = {
-        tag,
-        selector,
-        text: text || undefined,
-      };
-
-      if (id) info.id = id;
-      if (className) info.className = className;
-      if (htmlEl.getAttribute('role')) info.role = htmlEl.getAttribute('role') ?? undefined;
-      if (htmlEl.getAttribute('aria-label')) info.ariaLabel = htmlEl.getAttribute('aria-label') ?? undefined;
-
-      if (tag === 'input') {
-        const input = htmlEl as HTMLInputElement;
-        info.type = input.type || undefined;
-        info.placeholder = input.placeholder || undefined;
-        info.value = input.value || undefined;
-      } else if (tag === 'textarea') {
-        const ta = htmlEl as HTMLTextAreaElement;
-        info.placeholder = ta.placeholder || undefined;
-        info.value = ta.value || undefined;
-      } else if (tag === 'select') {
-        const sel2 = htmlEl as HTMLSelectElement;
-        info.value = sel2.value || undefined;
-      } else if (tag === 'a') {
-        info.href = (htmlEl as HTMLAnchorElement).href || undefined;
-      }
-
-      results.push(info);
     }
+
+    const domRect = htmlEl.getBoundingClientRect();
+    const visible = isElementVisible(htmlEl);
+    const inViewport = visible && isElementInViewport(domRect);
+
+    const info: ElementInfo = {
+      tag,
+      selector,
+      text: text || undefined,
+      boundingRect: computeBoundingRect(domRect),
+      isVisible: visible,
+      isInViewport: inViewport,
+    };
+
+    if (id) info.id = id;
+    if (className) info.className = className;
+    if (htmlEl.getAttribute('role')) info.role = htmlEl.getAttribute('role') ?? undefined;
+    if (htmlEl.getAttribute('aria-label')) info.ariaLabel = htmlEl.getAttribute('aria-label') ?? undefined;
+
+    if (tag === 'input') {
+      const input = htmlEl as HTMLInputElement;
+      info.type = input.type || undefined;
+      info.placeholder = input.placeholder || undefined;
+      info.value = input.value || undefined;
+    } else if (tag === 'textarea') {
+      const ta = htmlEl as HTMLTextAreaElement;
+      info.placeholder = ta.placeholder || undefined;
+      info.value = ta.value || undefined;
+    } else if (tag === 'select') {
+      const sel2 = htmlEl as HTMLSelectElement;
+      info.value = sel2.value || undefined;
+    } else if (tag === 'a') {
+      info.href = (htmlEl as HTMLAnchorElement).href || undefined;
+    }
+
+    results.push(info);
   }
 
   return results;

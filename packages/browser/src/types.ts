@@ -18,12 +18,27 @@ export interface DomActionParams {
   delay?: number;
 }
 
+export interface BoundingRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface DomActionResult {
   success: boolean;
   error?: string;
   elementFound?: boolean;
   currentValue?: string;
   pageChanged?: boolean;
+  scrollX?: number;
+  scrollY?: number;
+  viewportWidth?: number;
+  viewportHeight?: number;
 }
 
 export interface NavigateParams {
@@ -55,6 +70,9 @@ export interface ElementInfo {
   selector: string;
   role?: string;
   ariaLabel?: string;
+  boundingRect?: BoundingRect;
+  isVisible?: boolean;
+  isInViewport?: boolean;
 }
 
 export interface ScreenshotResult {

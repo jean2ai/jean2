@@ -4,8 +4,10 @@ export const definition: ToolDefinition = {
   name: 'browser_discover_elements',
   description:
     'Discover all interactive elements (buttons, links, inputs, selects, etc.) on the active browser tab. ' +
-    'Returns a list of elements with their CSS selectors, text content, and attributes. ' +
-    'Use this before browser_dom_action to find the correct selectors for interacting with the page. ' +
+    'Returns a list of elements with their CSS selectors, text content, attributes, ' +
+    'bounding rectangles (x, y, width, height, top, right, bottom, left), ' +
+    'visibility flags (isVisible, isInViewport), and viewport dimensions. ' +
+    'Use this before browser_dom_action to find the correct selectors and understand element layout. ' +
     'Requires a connected Jean2Browser extension.',
   inputSchema: {
     type: 'object',

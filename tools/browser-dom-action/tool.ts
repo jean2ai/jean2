@@ -15,7 +15,9 @@ export const definition: ToolDefinition = {
   description:
     'Perform a DOM interaction on the active browser tab. Supports: click (by selector or text), type into inputs, select dropdown options, clear inputs, scroll, hover, press Enter, check/uncheck checkboxes. ' +
     'Requires a connected Jean2Browser extension. ' +
-    'Use browser_read_active_tab first to understand the page, then use browser_dom_action to interact with it.',
+    'Use browser_read_active_tab first to understand the page, then use browser_dom_action to interact with it. ' +
+    'All actions return scrollX, scrollY, viewportWidth, and viewportHeight for orientation context. ' +
+    'Clicks dispatch with real element coordinates (clientX/clientY) for compatibility with position-aware handlers.',
   inputSchema: {
     type: 'object',
     properties: {
