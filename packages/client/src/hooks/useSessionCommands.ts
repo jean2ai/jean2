@@ -10,6 +10,7 @@ import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { ResumeSessionOptions } from '@/stores/sessionStore';
+import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 
 interface UseSessionCommandsParams {
   clientRef: React.RefObject<Jean2Client | null>;
@@ -35,7 +36,7 @@ interface UseSessionCommandsParams {
   skipFinishSoundSessionIdsRef: React.RefObject<Set<string>>;
   navigate: (opts: { to: string; params?: Record<string, string> }) => void;
   serverId: string;
-  viewPath: '/workspace' | '/overview';
+  viewPath: string;
 }
 
 interface UseSessionCommandsReturn {
@@ -308,16 +309,19 @@ export function useSessionCommands({
 
   const createSessionInWorkspace = useCallback((workspaceId: string) => {
     const client = clientRef.current;
-    setActiveWorkspace(workspaces.find(w => w.id === workspaceId) || null);
+    const ws = workspaces.find(w => w.id === workspaceId) || null;
+    setActiveWorkspace(ws);
     pendingSessionCreateRef.current = true;
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
       partAppendRafRef.current = null;
     }
     pendingPartAppendsRef.current.clear();
-    const primary = primaryPreconfigs[0]?.id;
+    const defaultId = ws
+      ? getWorkspaceDefaultPreconfigId(ws, primaryPreconfigs)
+      : primaryPreconfigs[0]?.id;
     if (client && client.connected) {
-      client.sessions.create({ preconfigId: primary, workspaceId });
+      client.sessions.create({ preconfigId: defaultId, workspaceId });
     }
     setCompactionSuccess(false);
   }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);

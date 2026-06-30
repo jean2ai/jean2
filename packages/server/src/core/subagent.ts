@@ -1,6 +1,8 @@
 import type { ToolDefinition, TextPart, Session, ResponseFormat } from '@jean2/sdk';
-import { getPreconfig, listSubagentPreconfigs } from './preconfig';
+import { listSubagentPreconfigs } from './preconfig';
+import { getPreconfigOrAgent } from '@/agents/storage';
 import { createSession, getSession, updateSession } from '@/store';
+import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { executeChildSession } from './child-session';
 import { getModelsConfig, findModel } from '@/config';
 import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, broadcastToSessionEvent, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
@@ -196,7 +198,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
   // Resolve parent's actual model using same fallback chain as main chat:
   // session > parent preconfig > config default
   const parentPreconfig = parentSession?.preconfigId
-    ? await getPreconfig(parentSession.preconfigId)
+    ? await getPreconfigOrAgent(parentSession.preconfigId)
     : null;
   const config = getModelsConfig();
 
@@ -243,7 +245,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
   };
 
   try {
-    const subagentPreconfig = await getPreconfig(subagent_type);
+    const subagentPreconfig = await getPreconfigOrAgent(subagent_type);
     if (!subagentPreconfig) {
       const available = await listSubagentPreconfigs();
       const availableNames = available.map((s) => s.id).join(', ');
@@ -292,6 +294,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
           ? subagentPreconfig.provider
           : parentProviderId,
         selectedVariant: subagentPreconfig.variant ?? null,
+        autoApproveSeverity: getWorkspaceAutoApproveSeverity(workspaceId || ''),
       });
 
       broadcastSessCreated(childSession);

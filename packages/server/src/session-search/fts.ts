@@ -19,12 +19,21 @@ export function initializeFts(db: ReturnType<typeof getDatabase>): void {
       message_id UNINDEXED,
       session_id UNINDEXED,
       workspace_id UNINDEXED,
+      agent_id UNINDEXED,
       role UNINDEXED,
       content,
       tool_name,
       tokenize = 'unicode61'
     )
   `);
+}
+
+export function migrateFtsForAgents(db: ReturnType<typeof getDatabase>): void {
+  const cols = db.prepare("PRAGMA table_info(messages_fts)").all() as { name: string }[];
+  if (!cols.some(c => c.name === 'agent_id')) {
+    db.run('DROP TABLE IF EXISTS messages_fts');
+    initializeFts(db);
+  }
 }
 
 const BACKFILL_BATCH_SIZE = 500;
@@ -61,6 +70,7 @@ function batchBackfill(db: ReturnType<typeof getDatabase>, batchSize: number): n
           m.id as message_id,
           m.session_id,
           s.workspace_id,
+          s.agent_id,
           m.role,
           m.created_at,
           GROUP_CONCAT(
@@ -88,6 +98,7 @@ function batchBackfill(db: ReturnType<typeof getDatabase>, batchSize: number): n
         message_id: string;
         session_id: string;
         workspace_id: string;
+        agent_id: string | null;
         role: string;
         created_at: number;
         content: string | null;
@@ -95,8 +106,8 @@ function batchBackfill(db: ReturnType<typeof getDatabase>, batchSize: number): n
       }>;
 
       const insertStmt = db.prepare(`
-        INSERT INTO messages_fts (message_id, session_id, workspace_id, role, content, tool_name)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO messages_fts (message_id, session_id, workspace_id, agent_id, role, content, tool_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (const row of rows) {
@@ -105,6 +116,7 @@ function batchBackfill(db: ReturnType<typeof getDatabase>, batchSize: number): n
           row.message_id,
           row.session_id,
           row.workspace_id,
+          row.agent_id,
           row.role,
           row.content ?? '',
           row.tool_name ?? '',
@@ -130,6 +142,7 @@ export function indexMessage(
   role: string,
   content: string,
   toolName: string,
+  agentId?: string | null,
 ): void {
   const db = getDatabase();
   if (!content && !toolName) return;
@@ -140,8 +153,8 @@ export function indexMessage(
   );
 
   db.run(
-    'INSERT INTO messages_fts (message_id, session_id, workspace_id, role, content, tool_name) VALUES (?, ?, ?, ?, ?, ?)',
-    [messageId, sessionId, workspaceId, role, content, toolName],
+    'INSERT INTO messages_fts (message_id, session_id, workspace_id, agent_id, role, content, tool_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [messageId, sessionId, workspaceId, agentId ?? null, role, content, toolName],
   );
 }
 
@@ -157,7 +170,8 @@ export function removeSessionFromFts(sessionId: string): void {
 
 export interface SearchOptions {
   query: string;
-  workspaceId: string;
+  workspaceId?: string;
+  agentId?: string;
   sessionId?: string;
   roleFilter: string[];
   limit: number;
@@ -166,59 +180,48 @@ export interface SearchOptions {
 
 export function searchMessages(options: SearchOptions): FtsSearchResult[] {
   const db = getDatabase();
-  const { query, workspaceId, sessionId, roleFilter, limit, sort } = options;
+  const { query, workspaceId, agentId, sessionId, roleFilter, limit, sort } = options;
 
   const ftsQuery = sanitizeFtsQuery(query);
   if (!ftsQuery) return [];
 
   const rolePlaceholders = roleFilter.map(() => '?').join(', ');
-  let sql: string;
-  let params: (string | number)[];
+  const conditions: string[] = ['messages_fts MATCH ?'];
+  const params: (string | number)[] = [ftsQuery];
 
-  if (sessionId) {
-    sql = `
-      SELECT
-        fts.message_id,
-        fts.session_id,
-        fts.workspace_id,
-        fts.role,
-        snippet(messages_fts, 4, '...', '...', '...', 32) as snippet,
-        m.created_at as timestamp,
-        s.title as session_title,
-        rank
-      FROM messages_fts fts
-      JOIN messages m ON m.id = fts.message_id
-      JOIN sessions s ON s.id = fts.session_id
-      WHERE messages_fts MATCH ?
-        AND fts.workspace_id = ?
-        AND fts.session_id = ?
-        AND fts.role IN (${rolePlaceholders})
-      ${sort === 'newest' ? 'ORDER BY m.created_at DESC' : sort === 'oldest' ? 'ORDER BY m.created_at ASC' : 'ORDER BY rank'}
-      LIMIT ?
-    `;
-    params = [ftsQuery, workspaceId, sessionId, ...roleFilter, limit];
-  } else {
-    sql = `
-      SELECT
-        fts.message_id,
-        fts.session_id,
-        fts.workspace_id,
-        fts.role,
-        snippet(messages_fts, 4, '...', '...', '...', 32) as snippet,
-        m.created_at as timestamp,
-        s.title as session_title,
-        rank
-      FROM messages_fts fts
-      JOIN messages m ON m.id = fts.message_id
-      JOIN sessions s ON s.id = fts.session_id
-      WHERE messages_fts MATCH ?
-        AND fts.workspace_id = ?
-        AND fts.role IN (${rolePlaceholders})
-      ${sort === 'newest' ? 'ORDER BY m.created_at DESC' : sort === 'oldest' ? 'ORDER BY m.created_at ASC' : 'ORDER BY rank'}
-      LIMIT ?
-    `;
-    params = [ftsQuery, workspaceId, ...roleFilter, limit];
+  if (workspaceId) {
+    conditions.push('fts.workspace_id = ?');
+    params.push(workspaceId);
   }
+  if (agentId) {
+    conditions.push('fts.agent_id = ?');
+    params.push(agentId);
+  }
+  if (sessionId) {
+    conditions.push('fts.session_id = ?');
+    params.push(sessionId);
+  }
+  conditions.push(`fts.role IN (${rolePlaceholders})`);
+  params.push(...roleFilter);
+
+  const sql = `
+    SELECT
+      fts.message_id,
+      fts.session_id,
+      fts.workspace_id,
+      fts.role,
+      snippet(messages_fts, 5, '...', '...', '...', 32) as snippet,
+      m.created_at as timestamp,
+      s.title as session_title,
+      rank
+    FROM messages_fts fts
+    JOIN messages m ON m.id = fts.message_id
+    JOIN sessions s ON s.id = fts.session_id
+    WHERE ${conditions.join(' AND ')}
+    ${sort === 'newest' ? 'ORDER BY m.created_at DESC' : sort === 'oldest' ? 'ORDER BY m.created_at ASC' : 'ORDER BY rank'}
+    LIMIT ?
+  `;
+  params.push(limit);
 
   try {
     const rows = db.query(sql).all(...params) as Array<{

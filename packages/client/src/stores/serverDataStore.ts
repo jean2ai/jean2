@@ -5,6 +5,7 @@ import type {
   PromptInfo,
   ModelWithStatus,
   ProviderStatus,
+  Agent,
 } from '@jean2/sdk';
 
 interface ServerDataState {
@@ -17,6 +18,7 @@ interface ServerDataState {
   defaultModel: string;
   defaultProvider: string;
   providers: ProviderStatus[];
+  agents: Agent[];
 }
 
 interface ServerDataActions {
@@ -28,11 +30,13 @@ interface ServerDataActions {
     defaultModel: string;
     defaultProvider: string;
     providers: ProviderStatus[];
+    agents: Agent[];
   }) => void;
   updateModels: (models: ModelWithStatus[], defaultModel: string, defaultProvider: string) => void;
   updatePreconfigs: (preconfigs: Preconfig[]) => void;
   updatePrompts: (prompts: PromptInfo[]) => void;
   updateProviders: (providers: ProviderStatus[]) => void;
+  updateAgents: (agents: Agent[]) => void;
   setWorkspaces: (workspaces: Workspace[]) => void;
   setActiveWorkspace: (workspace: Workspace | null) => void;
   clearAll: () => void;
@@ -48,6 +52,7 @@ export const useServerDataStore = create<ServerDataState & ServerDataActions>((s
   defaultModel: 'gpt-4o',
   defaultProvider: 'openai',
   providers: [],
+  agents: [],
 
   hydrate: (serverId, data) => set({
     serverId,
@@ -63,6 +68,7 @@ export const useServerDataStore = create<ServerDataState & ServerDataActions>((s
   updatePreconfigs: (preconfigs) => set({ preconfigs }),
   updatePrompts: (prompts) => set({ prompts }),
   updateProviders: (providers) => set({ providers }),
+  updateAgents: (agents) => set({ agents }),
   setWorkspaces: (workspaces) => set({ workspaces }),
   setActiveWorkspace: (workspace) => set({ activeWorkspace: workspace }),
 
@@ -76,5 +82,6 @@ export const useServerDataStore = create<ServerDataState & ServerDataActions>((s
     defaultModel: 'gpt-4o',
     defaultProvider: 'openai',
     providers: [],
+    agents: [],
   }),
 }));

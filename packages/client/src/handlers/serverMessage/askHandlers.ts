@@ -1,4 +1,4 @@
-import type { Ask, AskAuthority } from '@jean2/sdk';
+import type { Ask, AskAuthority, AskResponse } from '@jean2/sdk';
 import type { SessionHandlersContext } from './types';
 import type { PendingAskRequest } from '@/stores/askStore';
 
@@ -98,7 +98,7 @@ export function handleAskPendingSync(
   },
   ctx: SessionHandlersContext,
 ): void {
-  const { replacePendingPermissionRequests } = ctx;
+  const { replacePendingPermissionRequests, runAskHandlers, sendAskResponse, addPendingAskRequest } = ctx;
 
   // Convert server requests to PendingAskRequest format
   const requests: PendingAskRequest[] = msg.requests.map((r) => ({
@@ -110,9 +110,45 @@ export function handleAskPendingSync(
     requestId: r.requestId,
   }));
 
-  // Atomically replace all local permission asks with the authoritative server set.
-  // This clears any stale entries from timeouts that the client missed (e.g., during disconnect).
-  replacePendingPermissionRequests(requests);
+  // Run auto-approve handlers on permission asks before showing them in the UI.
+  // Without this, switching back to a session with auto-approve configured would
+  // re-prompt for permissions that should have been auto-approved.
+  const autoApprovePromises: Array<{ request: PendingAskRequest; promise: Promise<AskResponse | undefined> }> = [];
+  const toShowInUI: PendingAskRequest[] = [];
+
+  for (const request of requests) {
+    if (request.ask.type === 'permission') {
+      const result = runAskHandlers('permission', request);
+      if (result !== undefined) {
+        autoApprovePromises.push({ request, promise: result });
+      } else {
+        toShowInUI.push(request);
+      }
+    } else {
+      toShowInUI.push(request);
+    }
+  }
+
+  // Immediately show only the requests that need user input.
+  // Atomically replace stale local entries with the filtered set.
+  replacePendingPermissionRequests(toShowInUI);
+
+  // Process auto-approve results asynchronously.
+  // If a handler resolves with a value, send the response to the server.
+  // If it resolves without a value or errors, fall back to showing in UI.
+  for (const { request, promise } of autoApprovePromises) {
+    promise
+      .then((result) => {
+        if (result !== undefined) {
+          sendAskResponse(request.toolCallId, result, request.requestId);
+        } else {
+          addPendingAskRequest(request);
+        }
+      })
+      .catch(() => {
+        addPendingAskRequest(request);
+      });
+  }
 }
 
 export function handleAskResponseRejected(

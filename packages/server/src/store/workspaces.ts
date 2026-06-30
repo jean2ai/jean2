@@ -1,5 +1,5 @@
 import { getDatabase } from './index';
-import type { Workspace, WorkspaceSettings } from '@jean2/sdk';
+import type { Workspace, WorkspaceSettings, AutoApproveSeverity } from '@jean2/sdk';
 
 interface WorkspaceRow {
   id: string;
@@ -20,7 +20,13 @@ export interface CreateWorkspaceInput {
   settings?: WorkspaceSettings;
 }
 
-const DEFAULT_SETTINGS: WorkspaceSettings = {};
+const DEFAULT_SETTINGS: WorkspaceSettings = { autoApproveSeverity: 'low' };
+
+/** Resolve the auto-approve severity for a workspace, defaulting to 'low'. */
+export function getWorkspaceAutoApproveSeverity(workspaceId: string): AutoApproveSeverity {
+  const workspace = getWorkspace(workspaceId);
+  return workspace?.settings.autoApproveSeverity ?? 'low';
+}
 
 function parseSettings(raw: string | null): WorkspaceSettings {
   if (!raw) return { ...DEFAULT_SETTINGS };
@@ -98,7 +104,17 @@ export function getWorkspace(id: string): Workspace | null {
 export function listWorkspaces(): Workspace[] {
   const db = getDatabase();
   const rows = db.query('SELECT * FROM workspaces ORDER BY created_at DESC').all() as WorkspaceRow[];
-  return rows.map(mapRowToWorkspace);
+  return rows
+    .map(mapRowToWorkspace)
+    .filter(w => !w.settings?.isAgentHome);
+}
+
+export function listAgentHomeWorkspaces(): Workspace[] {
+  const db = getDatabase();
+  const rows = db.query('SELECT * FROM workspaces ORDER BY created_at DESC').all() as WorkspaceRow[];
+  return rows
+    .map(mapRowToWorkspace)
+    .filter(w => w.settings?.isAgentHome === true);
 }
 
 export function updateWorkspace(

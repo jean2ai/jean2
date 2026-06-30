@@ -1,3 +1,5 @@
+import type { AutoApproveSeverity } from './session';
+
 export type ScheduleKind = 'once' | 'interval' | 'daily' | 'weekly';
 
 export type ScheduledJobState = 'active' | 'paused' | 'completed';
@@ -48,6 +50,7 @@ export interface ScheduledJob {
   includeHistory: boolean;
   preconfigId: string | null;
   originSessionId: string | null;
+  autoApproveSeverity: AutoApproveSeverity | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +65,7 @@ export interface CreateScheduledJobInput {
   includeHistory?: boolean;
   preconfigId?: string | null;
   originSessionId?: string | null;
+  autoApproveSeverity?: AutoApproveSeverity | null;
 }
 
 export interface UpdateScheduledJobInput {
@@ -73,5 +77,6 @@ export interface UpdateScheduledJobInput {
   reuseSession?: boolean;
   includeHistory?: boolean;
   preconfigId?: string | null;
+  autoApproveSeverity?: AutoApproveSeverity | null;
   state?: ScheduledJobState;
 }

@@ -9,16 +9,19 @@ import { ChatHeader } from '@/components/chat/ChatHeader';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { getWorkspacePreconfigs } from '@/lib/workspacePreconfigs';
 
 export function WorkspaceHeader() {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
-  const preconfigs = useServerDataStore((s) => s.preconfigs);
+  const allPreconfigs = useServerDataStore((s) => s.preconfigs);
   const models = useServerDataStore((s) => s.models);
   const defaultModel = useServerDataStore((s) => s.defaultModel);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const sessionManager = useSessionManager();
+
+  const preconfigs = getWorkspacePreconfigs(activeWorkspace, allPreconfigs);
 
   // Chat data for the merged ChatHeader
   const currentSession = useSessionStore((s) => s.currentSession);

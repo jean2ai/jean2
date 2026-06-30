@@ -349,5 +349,64 @@ describe('session_search tool', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('not found');
     });
+
+    test('agent can read cross-workspace session owned by same agent', async () => {
+      const otherWsId = 'agent-other-workspace';
+      createWorkspace({
+        id: otherWsId,
+        name: 'Agent Other WS',
+        path: '/agent-other',
+        isVirtual: false,
+        additionalPaths: [],
+        settings: {},
+      });
+      const agentSessionId = 'agent-foreign-session';
+      const agentId = 'agent-123';
+      createSession(createTestSession({ id: agentSessionId, workspaceId: otherWsId, agentId }));
+      seedMessages(agentSessionId, 3);
+
+      const result = await executeSessionSearchTool(
+        { action: 'read', sessionId: agentSessionId },
+        workspaceId,
+        currentSessionId,
+        false,
+        'none',
+        undefined,
+        agentId,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.mode).toBe('read');
+      expect(result.messages).toBeDefined();
+      expect(result.messages!.length).toBeGreaterThan(0);
+    });
+
+    test('agent cannot read cross-workspace session owned by different agent', async () => {
+      const otherWsId = 'agent-other-workspace-2';
+      createWorkspace({
+        id: otherWsId,
+        name: 'Agent Other WS 2',
+        path: '/agent-other-2',
+        isVirtual: false,
+        additionalPaths: [],
+        settings: {},
+      });
+      const otherAgentSessionId = 'other-agent-session';
+      createSession(createTestSession({ id: otherAgentSessionId, workspaceId: otherWsId, agentId: 'different-agent' }));
+      seedMessages(otherAgentSessionId, 3);
+
+      const result = await executeSessionSearchTool(
+        { action: 'read', sessionId: otherAgentSessionId },
+        workspaceId,
+        currentSessionId,
+        false,
+        'none',
+        undefined,
+        'agent-123',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('workspace');
+    });
   });
 });

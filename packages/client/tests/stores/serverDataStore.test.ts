@@ -61,6 +61,7 @@ describe('serverDataStore', () => {
         defaultModel: 'claude-3',
         defaultProvider: 'anthropic',
         providers: [mockProvider],
+        agents: [],
       });
 
       const state = useServerDataStore.getState();
@@ -137,6 +138,7 @@ describe('serverDataStore', () => {
         defaultModel: 'claude',
         defaultProvider: 'anthropic',
         providers: [mockProvider],
+        agents: [],
       });
       useServerDataStore.getState().setActiveWorkspace(mockWorkspace);
 

@@ -2,7 +2,7 @@ import type { Hono } from 'hono';
 import { mkdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join, resolve } from 'path';
-import type { SessionStatus, WorkspaceSettings, PermissionRiskLevel } from '@jean2/sdk';
+import type { SessionStatus, WorkspaceSettings, PermissionRiskLevel, AutoApproveSeverity } from '@jean2/sdk';
 import {
   listWorkspaces,
   getWorkspace,
@@ -178,6 +178,27 @@ export function registerWorkspaceRoutes(app: Hono): void {
         }
         if (typeof settings.sessionSearch.includeToolResults !== 'boolean') {
           return c.json({ error: 'Bad Request', message: 'sessionSearch.includeToolResults must be a boolean' }, 400);
+        }
+      }
+      if (settings.autoApproveSeverity !== undefined && settings.autoApproveSeverity !== null) {
+        const validSeverities: AutoApproveSeverity[] = ['off', 'none', 'low', 'medium', 'high'];
+        if (!validSeverities.includes(settings.autoApproveSeverity)) {
+          return c.json({ error: 'Bad Request', message: 'autoApproveSeverity must be a valid severity level' }, 400);
+        }
+      }
+      if (settings.preconfigs !== undefined && settings.preconfigs !== null) {
+        if (typeof settings.preconfigs !== 'object' || settings.preconfigs === null) {
+          return c.json({ error: 'Bad Request', message: 'preconfigs settings must be an object' }, 400);
+        }
+        if (settings.preconfigs.selectedIds !== undefined && settings.preconfigs.selectedIds !== null) {
+          if (!Array.isArray(settings.preconfigs.selectedIds) || !settings.preconfigs.selectedIds.every((id: unknown) => typeof id === 'string')) {
+            return c.json({ error: 'Bad Request', message: 'preconfigs.selectedIds must be an array of strings or null' }, 400);
+          }
+        }
+        if (settings.preconfigs.defaultId !== undefined && settings.preconfigs.defaultId !== null) {
+          if (typeof settings.preconfigs.defaultId !== 'string') {
+            return c.json({ error: 'Bad Request', message: 'preconfigs.defaultId must be a string or null' }, 400);
+          }
         }
       }
     }

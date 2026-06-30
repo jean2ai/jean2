@@ -66,6 +66,7 @@ export function hydrateStores(options: HydrateStoresOptions = {}): void {
     defaultModel: 'claude-3.5-sonnet',
     defaultProvider: 'anthropic',
     providers: createProviderList(),
+    agents: [],
   });
   serverDataStore.setActiveWorkspace(workspace);
 

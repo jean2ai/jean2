@@ -10,8 +10,9 @@ export async function buildSkillToolDefinition(
   workspacePath: string,
   allowedSkills: string[] | null | undefined,
   _sessionId: string,
+  agentSkillsDir?: string,
 ): Promise<ToolDefinition | null> {
-  const skills = await getAvailableSkills(workspacePath, allowedSkills);
+  const skills = await getAvailableSkills(workspacePath, allowedSkills, agentSkillsDir);
   
   // If no skills available, return null to indicate tool should not be added
   if (skills.length === 0) {
@@ -69,9 +70,10 @@ export async function executeSkillTool(
   workspacePath: string,
   allowedSkills: string[] | null | undefined,
   _sessionId: string,
+  agentSkillsDir?: string,
 ): Promise<{ success: boolean; result?: unknown; error?: string }> {
   // Check if skills are allowed
-  const availableSkills = await getAvailableSkills(workspacePath, allowedSkills);
+  const availableSkills = await getAvailableSkills(workspacePath, allowedSkills, agentSkillsDir);
   
   if (availableSkills.length === 0) {
     return {
@@ -81,7 +83,7 @@ export async function executeSkillTool(
   }
   
   // Get the requested skill
-  const skill = await getSkill(skillName, workspacePath);
+  const skill = await getSkill(skillName, workspacePath, agentSkillsDir);
   
   if (!skill) {
     const available = availableSkills.map(s => s.name).join(', ');
@@ -134,16 +136,17 @@ export async function createSkillTool(
   workspacePath: string,
   allowedSkills: string[] | null | undefined,
   sessionId: string,
+  agentSkillsDir?: string,
 ): Promise<{ name: string; tool: Tool } | null> {
-  const definition = await buildSkillToolDefinition(workspacePath, allowedSkills, sessionId);
-  
+  const definition = await buildSkillToolDefinition(workspacePath, allowedSkills, sessionId, agentSkillsDir);
+
   if (!definition) {
     return null;
   }
-  
+
   // Dynamic import to avoid circular dependencies
   const { tool, jsonSchema } = await import('ai');
-  
+
   return {
     name: 'skill',
     tool: tool({
@@ -151,7 +154,7 @@ export async function createSkillTool(
       inputSchema: jsonSchema(definition.inputSchema),
       execute: async (args: Record<string, unknown>) => {
         const skillName = args.name as string;
-        return executeSkillTool(skillName, workspacePath, allowedSkills, sessionId);
+        return executeSkillTool(skillName, workspacePath, allowedSkills, sessionId, agentSkillsDir);
       },
     }),
   };

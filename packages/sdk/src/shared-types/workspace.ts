@@ -1,4 +1,5 @@
 import type { PermissionRiskLevel } from './permission';
+import type { AutoApproveSeverity } from './session';
 
 export interface WorkspaceMemorySettings {
   enabled: boolean;
@@ -25,12 +26,23 @@ export interface WorkspaceSchedulingSettings {
   permissionRisk: PermissionRiskLevel;
 }
 
+export interface WorkspacePreconfigSettings {
+  /** Preconfig IDs that are selected/visible for this workspace. Null/undefined means all primary preconfigs. */
+  selectedIds: string[] | null;
+  /** Default preconfig ID for this workspace (used by New Chat). Null means use first primary preconfig. */
+  defaultId: string | null;
+}
+
 export interface WorkspaceSettings {
   memory?: WorkspaceMemorySettings;
   skills?: WorkspaceSkillSettings;
   sessionSearch?: WorkspaceSessionSearchSettings;
   workflow?: WorkspaceWorkflowSettings;
   scheduling?: WorkspaceSchedulingSettings;
+  autoApproveSeverity?: AutoApproveSeverity | null;
+  preconfigs?: WorkspacePreconfigSettings;
+  isAgentHome?: boolean;
+  agentId?: string;
 }
 
 export interface Workspace {

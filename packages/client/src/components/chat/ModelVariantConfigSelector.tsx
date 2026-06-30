@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Check, ChevronsUpDown, Cpu, Brain, Settings } from 'lucide-react';
+import { Check, ChevronsUpDown, Cpu, Brain, Bot, Cog } from 'lucide-react';
 import type { Preconfig } from '@jean2/sdk';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -44,6 +45,7 @@ interface ModelVariantConfigSelectorProps {
   selectedPreconfigId: string | null | undefined;
   onChangePreconfig: (preconfigId: string) => void;
   disabled?: boolean;
+  lockPreconfig?: boolean;
   compact?: boolean;
   iconOnly?: boolean;
 }
@@ -89,10 +91,13 @@ export function ModelVariantConfigSelector({
   disabled,
   compact = false,
   iconOnly = false,
+  lockPreconfig = false,
 }: ModelVariantConfigSelectorProps) {
   const [open, setOpen] = useState(false);
   const [openSection, setOpenSection] = useState<Section | null>(null);
   const isMobile = useIsMobile();
+  const agents = useServerDataStore((s) => s.agents);
+  const isAgentPreconfig = (id: string) => agents.some(a => a.id === id);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
@@ -153,8 +158,11 @@ export function ModelVariantConfigSelector({
           {' (' + capitalizeVariant(selectedVariant) + ')'}
         </span>
       )}
-      {selectedPreconfig && (
-        <span className="text-muted-foreground">
+      {selectedPreconfig && !lockPreconfig && (
+        <span className={cn(
+          'text-muted-foreground',
+          isAgentPreconfig(selectedPreconfig.id) && 'text-primary font-medium',
+        )}>
           · {selectedPreconfig.name}
         </span>
       )}
@@ -230,13 +238,17 @@ export function ModelVariantConfigSelector({
 
   const configItems = (
     <>
-      {preconfigs.map((preconfig) => (
+      {preconfigs.map((preconfig) => {
+        const isAgent = isAgentPreconfig(preconfig.id);
+        const Icon = isAgent ? Bot : Cog;
+        return (
         <CommandItem
           key={preconfig.id}
           value={preconfig.id + ' ' + preconfig.name}
           showCheck={false}
           onSelect={() => handleSelectPreconfig(preconfig.id)}
         >
+          <Icon className={cn('mr-2 size-4 shrink-0', isAgent ? 'text-primary' : 'text-muted-foreground')} />
           <span>
             {preconfig.name}
             {preconfig.isDefault && (
@@ -252,7 +264,8 @@ export function ModelVariantConfigSelector({
             )}
           />
         </CommandItem>
-      ))}
+        );
+      })}
     </>
   );
 
@@ -322,8 +335,12 @@ export function ModelVariantConfigSelector({
     ...(hasVariants
       ? [{ icon: <Brain className="size-3.5" />, label: 'Variant', value: selectedVariant ? capitalizeVariant(selectedVariant) : 'Default', section: 'variant' as const }]
       : []),
-    ...(preconfigs.length > 0
-      ? [{ icon: <Settings className="size-3.5" />, label: 'Config', value: selectedPreconfig?.name || 'None', section: 'config' as const }]
+    ...(preconfigs.length > 0 && !lockPreconfig
+      ? [{ icon: (() => {
+            const isSelectedAgent = selectedPreconfig ? isAgentPreconfig(selectedPreconfig.id) : false;
+            const Icon = isSelectedAgent ? Bot : Cog;
+            return <Icon className={cn('size-3.5', isSelectedAgent && 'text-primary')} />;
+          })(), label: 'Config', value: selectedPreconfig?.name || 'None', section: 'config' as const }]
       : []),
   ];
 

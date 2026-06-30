@@ -34,13 +34,10 @@ function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; 
 }
 
 /**
- * Scan for skills in the workspace's .agents/skills directory.
- * Skills are discovered from SKILL.md files in subdirectories.
- * Always reads fresh from disk so newly created skills are immediately discoverable.
+ * Scan a single skills directory for SKILL.md files.
+ * Returns discovered skills with parsed frontmatter.
  */
-export async function scanSkills(workspacePath: string): Promise<SkillInfo[]> {
-  const skillsDir = join(workspacePath, '.agents', 'skills');
-
+export async function scanSkillsDir(skillsDir: string): Promise<SkillInfo[]> {
   if (!existsSync(skillsDir)) {
     return [];
   }
@@ -86,18 +83,55 @@ export async function scanSkills(workspacePath: string): Promise<SkillInfo[]> {
 }
 
 /**
+ * Alias for scanSkillsDir for use by skill-manage-tool which receives
+ * a pre-resolved skills directory path.
+ */
+export async function scanSkillsFromDir(skillsDir: string): Promise<SkillInfo[]> {
+  return scanSkillsDir(skillsDir);
+}
+
+/**
+ * Scan for skills in the workspace's .agents/skills directory.
+ * If additionalSkillsDir is provided, also scans that directory and merges results.
+ * Workspace skills take precedence on name collision (scanned first).
+ * Always reads fresh from disk so newly created skills are immediately discoverable.
+ */
+export async function scanSkills(workspacePath: string, additionalSkillsDir?: string): Promise<SkillInfo[]> {
+  const workspaceSkillsDir = join(workspacePath, '.agents', 'skills');
+  const skills: SkillInfo[] = [];
+
+  // Scan workspace skills
+  const wsSkills = await scanSkillsDir(workspaceSkillsDir);
+  skills.push(...wsSkills);
+
+  // Scan agent skills (if provided)
+  if (additionalSkillsDir) {
+    const agentSkills = await scanSkillsDir(additionalSkillsDir);
+    // Only add agent skills whose name isn't already present (workspace wins)
+    const existingNames = new Set(skills.map(s => s.name));
+    for (const skill of agentSkills) {
+      if (!existingNames.has(skill.name)) {
+        skills.push(skill);
+      }
+    }
+  }
+
+  return skills;
+}
+
+/**
  * Get a specific skill by name.
  */
-export async function getSkill(name: string, workspacePath: string): Promise<SkillInfo | null> {
-  const skills = await scanSkills(workspacePath);
+export async function getSkill(name: string, workspacePath: string, additionalSkillsDir?: string): Promise<SkillInfo | null> {
+  const skills = await scanSkills(workspacePath, additionalSkillsDir);
   return skills.find(s => s.name === name) || null;
 }
 
 /**
  * Get all available skills for a workspace.
  */
-export async function listSkills(workspacePath: string): Promise<SkillInfo[]> {
-  return scanSkills(workspacePath);
+export async function listSkills(workspacePath: string, additionalSkillsDir?: string): Promise<SkillInfo[]> {
+  return scanSkills(workspacePath, additionalSkillsDir);
 }
 
 /**
@@ -108,9 +142,10 @@ export async function listSkills(workspacePath: string): Promise<SkillInfo[]> {
  */
 export async function getAvailableSkills(
   workspacePath: string,
-  allowedSkills: string[] | null | undefined
+  allowedSkills: string[] | null | undefined,
+  additionalSkillsDir?: string,
 ): Promise<SkillInfo[]> {
-  const allSkills = await scanSkills(workspacePath);
+  const allSkills = await scanSkills(workspacePath, additionalSkillsDir);
 
   // undefined or null = all available
   if (allowedSkills === undefined || allowedSkills === null) {

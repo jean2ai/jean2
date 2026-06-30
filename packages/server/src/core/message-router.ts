@@ -24,11 +24,12 @@ import {
   getAttachment,
   getResponseFormat,
 } from '@/store';
-import { getWorkspace } from '@/store/workspaces';
+import { getWorkspace, getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { getWorkspaceGrants, revokeGrant, revokeAllWorkspaceGrants } from '@/store/permissions';
 import { streamChatWithRetry } from '@/core/retry';
 import { getModelsConfig, findModel } from '@/config';
 import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
+import { getPreconfigOrAgent } from '@/agents/storage';
 import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
 import { forkSession } from '@/core/fork';
@@ -585,7 +586,7 @@ async function handleChat(
   const additionalPaths = workspace?.additionalPaths;
 
   const preconfig = session.preconfigId
-    ? await getPreconfig(session.preconfigId)
+    ? await getPreconfigOrAgent(session.preconfigId)
     : await getDefaultPreconfig();
 
   if (!preconfig) {
@@ -932,7 +933,7 @@ async function handleSessionEditMessage(
     const additionalPaths = workspace?.additionalPaths;
 
     const preconfig = session.preconfigId
-      ? await getPreconfig(session.preconfigId)
+      ? await getPreconfigOrAgent(session.preconfigId)
       : await getDefaultPreconfig();
     if (!preconfig) {
       ctx.send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found' });
@@ -1058,6 +1059,7 @@ export async function handleClientMessage(
 
     case 'session.create': {
       const sessionId = crypto.randomUUID();
+      const workspaceAutoApprove = getWorkspaceAutoApproveSeverity(msg.workspaceId || '');
       const session = createSession({
         id: sessionId,
         workspaceId: msg.workspaceId || '',
@@ -1067,16 +1069,19 @@ export async function handleClientMessage(
         metadata: null,
         parentId: null,
         agentName: null,
+        autoApproveSeverity: workspaceAutoApprove,
       });
       ctx.clients.set(ws, { sessionId: session.id, missedPings: 0 });
 
       if (msg.preconfigId) {
-        const preconfig = await getPreconfig(msg.preconfigId);
+        const preconfig = await getPreconfigOrAgent(msg.preconfigId);
         if (preconfig) {
-          const updates: { selectedModel?: string; selectedProvider?: string; selectedVariant?: string | null } = {};
+          const updates: { selectedModel?: string; selectedProvider?: string; selectedVariant?: string | null; agentId?: string | null } = {};
           if (preconfig.model) updates.selectedModel = preconfig.model;
           if (preconfig.provider) updates.selectedProvider = preconfig.provider;
           updates.selectedVariant = preconfig.variant ?? null;
+          const { isAgentSync } = await import('@/agents/storage');
+          updates.agentId = isAgentSync(msg.preconfigId) ? msg.preconfigId : null;
           const updated = updateSession(sessionId, updates);
           ctx.send(ws, { type: 'session.created', session: updated! });
           broadcastSessionCreatedExclude(updated!, ws);
@@ -1214,15 +1219,17 @@ export async function handleClientMessage(
       }
       const gateUpdate = checkControllerGate(msg.sessionId, 'session.update', ws);
       if (gateUpdate) { sendGateRejection(ctx, ws, gateUpdate); break; }
-      const updates: { preconfigId?: string; selectedVariant?: string | null } = {};
+      const updates: { preconfigId?: string; selectedVariant?: string | null; agentId?: string | null } = {};
       if (msg.preconfigId !== undefined) {
         updates.preconfigId = msg.preconfigId;
-        const preconfig = await getPreconfig(msg.preconfigId);
+        const preconfig = await getPreconfigOrAgent(msg.preconfigId);
         if (preconfig?.variant) {
           updates.selectedVariant = preconfig.variant;
         } else {
           updates.selectedVariant = null;
         }
+        const { isAgentSync } = await import('@/agents/storage');
+        updates.agentId = isAgentSync(msg.preconfigId) ? msg.preconfigId : null;
       }
       const updated = updateSession(msg.sessionId, updates);
       ctx.send(ws, { type: 'session.updated', session: updated! });

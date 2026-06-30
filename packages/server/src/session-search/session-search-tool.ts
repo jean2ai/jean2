@@ -1,6 +1,6 @@
 import { searchMessages, getMessageContentForFts } from './fts';
-import { getDatabase, getSession, getWorkspace, listSessionsByWorkspace } from '@/store';
-import type { PermissionRiskLevel, PermissionAsk } from '@jean2/sdk';
+import { getDatabase, getSession, getWorkspace, listSessionsByWorkspace, getSessionsByAgent } from '@/store';
+import type { PermissionRiskLevel, PermissionAsk, Session } from '@jean2/sdk';
 
 export const sessionSearchToolDefinition = {
   name: 'session_search',
@@ -26,12 +26,12 @@ Typical workflow: list sessions → read a session's latest context → search f
       },
       scope: {
         type: 'string' as const,
-        enum: ['current_session', 'workspace'],
-        description: 'Search scope. "current_session" searches only the current session archive. "workspace" searches all sessions in the workspace. Defaults to "workspace".',
+        enum: ['current_session', 'workspace', 'agent'],
+        description: 'Search scope. "current_session" searches only the current session archive. "workspace" searches all sessions in the workspace. "agent" searches YOUR past sessions across ALL workspaces. Defaults to "workspace".',
       },
       sessionId: {
         type: 'string' as const,
-        description: 'Session ID for read-around mode. Use "list" action first to discover session IDs. The target session must belong to the current workspace.',
+        description: 'Session ID for read-around mode. Use "list" action first to discover session IDs. Must belong to the current workspace or (for agents) be an agent-owned session.',
       },
       aroundMessageId: {
         type: 'string' as const,
@@ -112,6 +112,7 @@ export async function executeSessionSearchTool(
   includeToolResults: boolean,
   permissionRisk: PermissionRiskLevel,
   askFn?: (ask: PermissionAsk) => Promise<unknown>,
+  agentId?: string | null,
 ): Promise<SessionSearchResult> {
   const workspace = getWorkspace(workspaceId);
   if (!workspace) {
@@ -127,7 +128,7 @@ export async function executeSessionSearchTool(
 
   // `list` is read-only metadata — no message content exposed
   if (action === 'list') {
-    return executeList(workspaceId, currentSessionId, input);
+    return executeList(workspaceId, currentSessionId, input, scope, agentId);
   }
 
   if (permissionRisk !== 'none' && askFn) {
@@ -148,11 +149,11 @@ export async function executeSessionSearchTool(
   }
 
   if (query) {
-    return executeSearch(query, scope, workspaceId, currentSessionId, includeToolResults, input);
+    return executeSearch(query, scope, workspaceId, currentSessionId, includeToolResults, input, agentId);
   }
 
   if (sessionId) {
-    return executeReadAround(sessionId, aroundMessageId, workspaceId, input);
+    return executeReadAround(sessionId, aroundMessageId, workspaceId, input, agentId);
   }
 
   return { success: false, mode: 'search', title: 'Invalid arguments', error: 'Provide "action": "list" to enumerate sessions, "query" for search mode, or "sessionId" for read-around mode.' };
@@ -162,12 +163,23 @@ function executeList(
   workspaceId: string,
   currentSessionId: string,
   input: Record<string, unknown>,
+  scope: string,
+  agentId?: string | null,
 ): SessionSearchResult {
   const limit = Math.min(Math.max((input.limit as number) || 10, 1), 20);
   const db = getDatabase();
 
-  // Get root sessions (exclude subagent child sessions) ordered by most recently updated
-  const sessions = listSessionsByWorkspace(workspaceId, { rootOnly: true });
+  let sessions: Session[];
+  let scopeLabel: string;
+
+  if (scope === 'agent' && agentId) {
+    sessions = getSessionsByAgent(agentId, undefined, limit);
+    scopeLabel = 'agent sessions (cross-workspace)';
+  } else {
+    sessions = listSessionsByWorkspace(workspaceId, { rootOnly: true });
+    scopeLabel = scope === 'current_session' ? 'current session' : 'workspace';
+  }
+
   const limited = sessions.slice(0, limit);
 
   if (limited.length === 0) {
@@ -196,7 +208,7 @@ function executeList(
   return {
     success: true,
     mode: 'list',
-    title: `${sessions.length} session${sessions.length === 1 ? '' : 's'} in workspace`,
+    title: `${sessions.length} session${sessions.length === 1 ? '' : 's'} (${scopeLabel})`,
     sessions: entries,
   };
 }
@@ -208,6 +220,7 @@ function executeSearch(
   currentSessionId: string,
   includeToolResults: boolean,
   input: Record<string, unknown>,
+  agentId?: string | null,
 ): SessionSearchResult {
   const limit = Math.min(Math.max((input.limit as number) || 5, 1), 20);
   const sort = (input.sort as string) || 'relevance';
@@ -223,10 +236,13 @@ function executeSearch(
   }
 
   const targetSessionId = scope === 'current_session' ? currentSessionId : undefined;
+  const searchWorkspaceId = scope === 'agent' ? undefined : workspaceId;
+  const searchAgentId = scope === 'agent' ? (agentId ?? undefined) : undefined;
 
   const results = searchMessages({
     query,
-    workspaceId,
+    workspaceId: searchWorkspaceId,
+    agentId: searchAgentId,
     sessionId: targetSessionId,
     roleFilter,
     limit,
@@ -271,7 +287,7 @@ function executeSearch(
   return {
     success: true,
     mode: 'search',
-    title: `Searched ${scope === 'current_session' ? 'current session' : 'workspace sessions'}`,
+    title: `Searched ${scope === 'current_session' ? 'current session' : scope === 'agent' ? 'agent sessions (cross-workspace)' : 'workspace sessions'}`,
     query,
     scope,
     results: mappedResults,
@@ -283,6 +299,7 @@ function executeReadAround(
   anchorMessageId: string | undefined,
   workspaceId: string,
   input: Record<string, unknown>,
+  agentId?: string | null,
 ): SessionSearchResult {
   const db = getDatabase();
 
@@ -291,8 +308,11 @@ function executeReadAround(
     return { success: false, mode: 'read', title: 'Session not found', error: 'Session not found' };
   }
 
-  if (session.workspaceId !== workspaceId) {
-    return { success: false, mode: 'read', title: 'Access denied', error: 'Session does not belong to current workspace' };
+  // Allow read if session is in the same workspace, or if this is an agent reading its own session
+  const sameWorkspace = session.workspaceId === workspaceId;
+  const agentOwned = agentId && session.agentId === agentId;
+  if (!sameWorkspace && !agentOwned) {
+    return { success: false, mode: 'read', title: 'Access denied', error: 'Session does not belong to current workspace or agent' };
   }
 
   // If no anchor provided, infer the latest message in the session

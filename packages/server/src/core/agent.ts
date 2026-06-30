@@ -20,6 +20,9 @@ import { loadMemoryInstructions, MEMORY_GUIDANCE } from '@/memory';
 import { SKILL_MANAGE_GUIDANCE } from '@/skills';
 import { SESSION_SEARCH_GUIDANCE } from '@/session-search';
 import { getWorkspace } from '@/store';
+import { getAgentDirectory } from '@/agents/storage';
+import { readAgentMemoryFile } from '@/agents/memory';
+import { join } from 'path';
 import {
   getLLMTemperature,
   getLLMMaxSteps,
@@ -108,6 +111,13 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   const toolNames = preconfig.tools || [];
   const resolvedProviderId = providerId;
+
+  // Inject agent home directory as additional path if this is an agent
+  const agentDir = await getAgentDirectory(preconfig.id);
+  const effectiveAdditionalPaths = agentDir
+    ? [...(options.additionalPaths || []), join(agentDir, 'home')]
+    : options.additionalPaths;
+
   const aiTools = await buildAiSdkTools({
     toolNames,
     workspacePath,
@@ -118,11 +128,37 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     canSpawnSubagents: preconfig.canSpawnSubagents,
     allowedSkills: preconfig.skills,
     broadcastFn: options.broadcastFn,
-    additionalPaths: options.additionalPaths,
+    additionalPaths: effectiveAdditionalPaths,
+    agentId: preconfig.id,
   });
 
   // Build system message with workspace context
   let systemMessage = preconfig.systemPrompt || '';
+
+  // Inject agent memory layers if this is an agent
+  if (agentDir) {
+    const agentUserMemory = await readAgentMemoryFile(preconfig.id, 'USER.md');
+    if (agentUserMemory) {
+      systemMessage = `<agent_user_preferences>\n${agentUserMemory}\n</agent_user_preferences>\n\n` + systemMessage;
+    }
+    const agentMemory = await readAgentMemoryFile(preconfig.id, 'MEMORY.md');
+    if (agentMemory) {
+      systemMessage = `<agent_memory>\n${agentMemory}\n</agent_memory>\n\n` + systemMessage;
+    }
+
+    systemMessage = systemMessage + '\n\n' + `You have personal memory and skills that travel with you across all workspaces.
+
+MEMORY:
+- Use "memory" (workspace) for facts about THIS project (repo conventions, build commands, project-specific patterns).
+- Use "agent_memory" (personal) for cross-project knowledge: reusable patterns, techniques, pitfalls, and user preferences that apply everywhere.
+- Save to agent_memory when: you complete a complex multi-step task, the user corrects your approach, you discover a pattern useful beyond this project, or you debug through errors.
+
+SKILLS:
+- Use "skill_manage" for procedures specific to THIS workspace.
+- Use "agent_skill_manage" for personal workflows you've refined across projects.
+
+Before saving, use list to check existing entries and avoid duplicates.`;
+  }
 
   // Add instructions (global first, then project)
   const instructions = await loadInstructions(workspacePath);
@@ -133,7 +169,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
   // Add workspace context
   if (workspacePath) {
-    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath, options.additionalPaths);
+    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath, effectiveAdditionalPaths);
     systemMessage = systemMessage + '\n\n' + workspaceContext;
   }
 

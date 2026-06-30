@@ -172,7 +172,13 @@ export function useServerSessionManager({
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const sessionIdFromUrl = params?.sessionId as string | undefined;
   const currentPathname = useRouterState({ select: (s) => s.location.pathname });
-  const viewPath = currentPathname.includes('/overview') ? '/overview' as const : '/workspace' as const;
+  const agentId = params?.agentId as string | undefined;
+  let viewPath = '/workspace';
+  if (agentId) {
+    viewPath = `/agent/${agentId}`;
+  } else if (currentPathname.includes('/overview')) {
+    viewPath = '/overview';
+  }
   const currentSession = useMemo(
     () => sessionIdFromUrl ? sessions.find(s => s.id === sessionIdFromUrl) ?? null : null,
     [sessionIdFromUrl, sessions],

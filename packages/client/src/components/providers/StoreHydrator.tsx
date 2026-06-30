@@ -29,6 +29,7 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
       defaultModel: data.defaultModel || 'gpt-4o',
       defaultProvider: data.defaultProvider || 'openai',
       providers: data.providers,
+      agents: data.agents || [],
     });
 
     const pendingWorkspaceId = localStorage.getItem('activeWorkspaceId');

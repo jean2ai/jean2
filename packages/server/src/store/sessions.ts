@@ -29,6 +29,7 @@ interface SessionRow {
   compacting: number;
   tags: string;
   auto_approve_severity: string | null;
+  agent_id: string | null;
 }
 
 export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string }): Session {
@@ -42,8 +43,8 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
   };
   
   db.run(`
-    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting, tags, auto_approve_severity)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, workspace_id, preconfig_id, title, status, created_at, updated_at, metadata, selected_model, selected_provider, selected_variant, prompt_tokens, completion_tokens, total_tokens, parent_id, agent_name, subagent_status, running_at, compacting, tags, auto_approve_severity, agent_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     s.id,
     s.workspaceId,
@@ -63,6 +64,7 @@ export function createSession(session: Omit<Session, 'createdAt' | 'updatedAt'> 
     s.compacting ?? false,
     JSON.stringify(s.tags ?? []),
     s.autoApproveSeverity ?? null,
+    s.agentId ?? null,
   ]);
   
   return s;
@@ -98,7 +100,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags' | 'autoApproveSeverity'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags' | 'autoApproveSeverity' | 'agentId'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -172,6 +174,10 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.autoApproveSeverity !== undefined) {
     setClauses.push('auto_approve_severity = ?');
     values.push(updates.autoApproveSeverity ?? null);
+  }
+  if (updates.agentId !== undefined) {
+    setClauses.push('agent_id = ?');
+    values.push(updates.agentId ?? null);
   }
   
   values.push(id);
@@ -315,6 +321,7 @@ function mapRowToSession(row: SessionRow): Session {
     compacting: !!row.compacting,
     tags: row.tags ? JSON.parse(row.tags) : [],
     autoApproveSeverity: (row.auto_approve_severity as Session['autoApproveSeverity']) ?? null,
+    agentId: row.agent_id ?? null,
   };
 }
 
@@ -341,5 +348,19 @@ export function listTagsByWorkspace(workspaceId: string): string[] {
 export function getChildSessions(parentId: string): Session[] {
   const db = getDatabase();
   const rows = db.query('SELECT * FROM sessions WHERE parent_id = ? ORDER BY created_at ASC').all(parentId) as SessionRow[];
+  return rows.map(mapRowToSession);
+}
+
+export function getSessionsByAgent(agentId: string, sinceTimestamp?: number, limit?: number): Session[] {
+  const db = getDatabase();
+  const sinceIso = sinceTimestamp ? new Date(sinceTimestamp).toISOString() : undefined;
+  const conditions = ['agent_id = ?', 'parent_id IS NULL'];
+  const params: (string | number)[] = [agentId];
+  if (sinceIso) {
+    conditions.push('updated_at > ?');
+    params.push(sinceIso);
+  }
+  const sql = `SELECT * FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC${limit ? ` LIMIT ${limit}` : ''}`;
+  const rows = db.query(sql).all(...params) as SessionRow[];
   return rows.map(mapRowToSession);
 }

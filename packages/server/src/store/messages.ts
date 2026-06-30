@@ -707,7 +707,7 @@ function syncMessageToFts(messageId: string, sessionId: string, role: string): v
     if (!session?.workspaceId) return;
 
     const { content, toolName } = getMessageContentForFts(messageId);
-    ftsIndexMessage(messageId, sessionId, session.workspaceId, role, content, toolName);
+    ftsIndexMessage(messageId, sessionId, session.workspaceId, role, content, toolName, session.agentId);
   } catch {
     // FTS sync failure should not break message operations
   }
