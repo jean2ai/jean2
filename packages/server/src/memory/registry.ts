@@ -2,7 +2,6 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-const MEMORY_DIR = '.jean2';
 const USER_FILE = 'USER.md';
 const MEMORY_FILE = 'MEMORY.md';
 
@@ -24,9 +23,9 @@ export interface MemoryFile {
   charLimit: number;
 }
 
-function getFilePath(workspacePath: string, target: MemoryTarget): string {
+function getFilePath(basePath: string, target: MemoryTarget): string {
   const filename = target === 'user' ? USER_FILE : MEMORY_FILE;
-  return join(workspacePath, MEMORY_DIR, filename);
+  return join(basePath, filename);
 }
 
 function getCharLimit(target: MemoryTarget): number {
@@ -35,7 +34,7 @@ function getCharLimit(target: MemoryTarget): number {
 
 function getRelativePath(target: MemoryTarget): string {
   const filename = target === 'user' ? USER_FILE : MEMORY_FILE;
-  return `${MEMORY_DIR}/${filename}`;
+  return filename;
 }
 
 export function parseEntries(content: string): string[] {
@@ -50,10 +49,10 @@ export function entriesToContent(entries: string[]): string {
 }
 
 export async function loadMemoryFile(
-  workspacePath: string,
+  basePath: string,
   target: MemoryTarget,
 ): Promise<MemoryFile | null> {
-  const filePath = getFilePath(workspacePath, target);
+  const filePath = getFilePath(basePath, target);
   const charLimit = getCharLimit(target);
 
   if (!existsSync(filePath)) {
@@ -103,23 +102,18 @@ export interface MemoryActionResult {
   usage?: MemoryUsage;
 }
 
-/**
- * Format entries as a numbered list for display in tool results/errors.
- * Strips the leading `- ` so the index replaces the bullet.
- */
 export function formatEntriesForDisplay(entries: string[]): string[] {
   return entries.map((e, i) => `[${i}] ${e.replace(/^- /, '')}`);
 }
 
-async function ensureMemoryDir(workspacePath: string): Promise<void> {
-  const dir = join(workspacePath, MEMORY_DIR);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
+async function ensureMemoryDir(basePath: string): Promise<void> {
+  if (!existsSync(basePath)) {
+    await mkdir(basePath, { recursive: true });
   }
 }
 
 export async function addEntry(
-  workspacePath: string,
+  basePath: string,
   target: MemoryTarget,
   content: string,
 ): Promise<MemoryActionResult> {
@@ -129,7 +123,7 @@ export async function addEntry(
   }
 
   const entry = `- ${trimmed}`;
-  const filePath = getFilePath(workspacePath, target);
+  const filePath = getFilePath(basePath, target);
   const charLimit = getCharLimit(target);
 
   let existing: string[] = [];
@@ -160,7 +154,7 @@ export async function addEntry(
     };
   }
 
-  await ensureMemoryDir(workspacePath);
+  await ensureMemoryDir(basePath);
   await writeFile(filePath, newContent, 'utf-8');
 
   return {
@@ -176,7 +170,7 @@ export async function addEntry(
 }
 
 export async function replaceEntry(
-  workspacePath: string,
+  basePath: string,
   target: MemoryTarget,
   oldText: string,
   newContent: string,
@@ -186,7 +180,7 @@ export async function replaceEntry(
     return { success: false, error: 'New content cannot be empty.' };
   }
 
-  const filePath = getFilePath(workspacePath, target);
+  const filePath = getFilePath(basePath, target);
   const charLimit = getCharLimit(target);
 
   if (!existsSync(filePath)) {
@@ -249,11 +243,11 @@ export async function replaceEntry(
 }
 
 export async function removeEntry(
-  workspacePath: string,
+  basePath: string,
   target: MemoryTarget,
   oldText: string,
 ): Promise<MemoryActionResult> {
-  const filePath = getFilePath(workspacePath, target);
+  const filePath = getFilePath(basePath, target);
   const charLimit = getCharLimit(target);
 
   if (!existsSync(filePath)) {
@@ -305,11 +299,11 @@ export async function removeEntry(
 }
 
 export async function listEntries(
-  workspacePath: string,
+  basePath: string,
   target: MemoryTarget,
 ): Promise<MemoryActionResult> {
   const charLimit = getCharLimit(target);
-  const file = await loadMemoryFile(workspacePath, target);
+  const file = await loadMemoryFile(basePath, target);
 
   if (!file) {
     return {
@@ -337,11 +331,11 @@ export async function listEntries(
 }
 
 export async function loadMemoryInstructions(
-  workspacePath: string,
+  basePath: string,
 ): Promise<string | null> {
   const sections: string[] = [];
 
-  const userFile = await loadMemoryFile(workspacePath, 'user');
+  const userFile = await loadMemoryFile(basePath, 'user');
   if (userFile) {
     sections.push(
       formatMemorySection(
@@ -354,7 +348,7 @@ export async function loadMemoryInstructions(
     );
   }
 
-  const memoryFile = await loadMemoryFile(workspacePath, 'memory');
+  const memoryFile = await loadMemoryFile(basePath, 'memory');
   if (memoryFile) {
     sections.push(
       formatMemorySection(

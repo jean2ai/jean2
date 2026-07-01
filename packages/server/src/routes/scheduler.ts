@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import type { CreateScheduledJobInput, UpdateScheduledJobInput } from '@jean2/sdk';
+import type { CreateScheduledJobInput, UpdateScheduledJobInput, AutoApproveSeverity } from '@jean2/sdk';
 import {
   createScheduledJob,
   getScheduledJob,
@@ -59,6 +59,12 @@ export function registerSchedulerRoutes(app: Hono): void {
     }
 
     try {
+      if (body.autoApproveSeverity !== undefined && body.autoApproveSeverity !== null) {
+        const validSeverities: AutoApproveSeverity[] = ['off', 'none', 'low', 'medium', 'high'];
+        if (!validSeverities.includes(body.autoApproveSeverity)) {
+          return c.json({ error: 'Bad Request', message: 'autoApproveSeverity must be a valid severity level' }, 400);
+        }
+      }
       const job = createScheduledJob(workspaceId, {
         name: body.name.trim(),
         prompt: body.prompt.trim(),
@@ -69,6 +75,7 @@ export function registerSchedulerRoutes(app: Hono): void {
         originSessionId: body.originSessionId ?? null,
         reuseSession: body.reuseSession ?? false,
         includeHistory: body.includeHistory ?? false,
+        autoApproveSeverity: body.autoApproveSeverity ?? null,
       });
       return c.json({ job }, 201);
     } catch (err: unknown) {

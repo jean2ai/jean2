@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock } from 'lucide-react';
-import type { Workspace, WorkspaceSettings, PermissionRiskLevel, PermissionGrant, Jean2Client } from '@jean2/sdk';
+import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock, ShieldCheck, Cog } from 'lucide-react';
+import type { Workspace, WorkspaceSettings, WorkspacePreconfigSettings, PermissionRiskLevel, PermissionGrant, Jean2Client, AutoApproveSeverity } from '@jean2/sdk';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import {
   Dialog,
   DialogContent,
@@ -26,8 +27,10 @@ import { SchedulingPanel } from './configuration/SchedulingPanel';
 import { MCPServersPanel } from './configuration/MCPServersPanel';
 import { PermissionsPanel } from './configuration/PermissionsPanel';
 import { AdditionalPathsPanel } from './configuration/AdditionalPathsPanel';
+import { AutoApprovePanel } from './configuration/AutoApprovePanel';
+import { WorkspacePreconfigsPanel } from './configuration/WorkspacePreconfigsPanel';
 
-type Section = 'mcp' | 'permissions' | 'paths' | 'memory' | 'skills' | 'search' | 'workflow' | 'scheduling';
+type Section = 'mcp' | 'permissions' | 'paths' | 'autoApprove' | 'memory' | 'skills' | 'search' | 'workflow' | 'scheduling' | 'preconfigs';
 
 interface SectionDef {
   value: Section;
@@ -39,7 +42,9 @@ interface SectionDef {
 const SECTIONS: SectionDef[] = [
   { value: 'mcp', label: 'MCP Servers', icon: Server, group: 'general' },
   { value: 'permissions', label: 'Permissions', icon: Shield, group: 'general' },
+  { value: 'autoApprove', label: 'Auto-Approve', icon: ShieldCheck, group: 'general' },
   { value: 'paths', label: 'Additional Paths', icon: FolderSymlink, group: 'general' },
+  { value: 'preconfigs', label: 'Preconfigs', icon: Cog, group: 'general' },
   { value: 'memory', label: 'Memory', icon: Brain, group: 'capabilities' },
   { value: 'skills', label: 'Skills', icon: Wrench, group: 'capabilities' },
   { value: 'search', label: 'Session Search', icon: Search, group: 'capabilities' },
@@ -82,6 +87,9 @@ export function WorkspaceSettingsDialog({
   const [search, setSearch] = useState({ enabled: false, permissionRisk: 'medium' as PermissionRiskLevel, includeToolResults: false });
   const [workflow, setWorkflow] = useState(false);
   const [scheduling, setScheduling] = useState({ enabled: false, permissionRisk: 'medium' as PermissionRiskLevel });
+  const [autoApprove, setAutoApprove] = useState<AutoApproveSeverity>('low');
+  const [preconfigSettings, setPreconfigSettings] = useState<WorkspacePreconfigSettings>({ selectedIds: null, defaultId: null });
+  const allPreconfigs = useServerDataStore(s => s.preconfigs);
 
   useEffect(() => {
     if (open) {
@@ -95,10 +103,12 @@ export function WorkspaceSettingsDialog({
       });
       setWorkflow(s?.workflow?.enabled ?? false);
       setScheduling({ enabled: s?.scheduling?.enabled ?? false, permissionRisk: s?.scheduling?.permissionRisk ?? 'medium' });
+      setAutoApprove(s?.autoApproveSeverity ?? 'low');
+      setPreconfigSettings(s?.preconfigs ?? { selectedIds: null, defaultId: null });
     }
   }, [open, workspace.settings]);
 
-  const isCapability = section === 'memory' || section === 'skills' || section === 'search' || section === 'workflow' || section === 'scheduling';
+  const isCapability = section === 'memory' || section === 'skills' || section === 'search' || section === 'workflow' || section === 'scheduling' || section === 'autoApprove' || section === 'preconfigs';
 
   const handleSave = () => {
     onSave(workspace.id, {
@@ -112,6 +122,8 @@ export function WorkspaceSettingsDialog({
       },
       workflow: { enabled: workflow },
       scheduling: { enabled: scheduling.enabled, permissionRisk: scheduling.permissionRisk },
+      autoApproveSeverity: autoApprove,
+      preconfigs: preconfigSettings,
     });
     onOpenChange(false);
   };
@@ -206,6 +218,19 @@ export function WorkspaceSettingsDialog({
                 sdkClient={sdkClient}
               />
             </TabsContent>
+            <TabsContent value="preconfigs" className="mt-0">
+              <WorkspacePreconfigsPanel
+                preconfigs={allPreconfigs}
+                settings={preconfigSettings}
+                onChange={setPreconfigSettings}
+              />
+            </TabsContent>
+            <TabsContent value="autoApprove" className="mt-0">
+              <AutoApprovePanel
+                severity={autoApprove}
+                onChange={setAutoApprove}
+              />
+            </TabsContent>
             <TabsContent value="memory" className="mt-0">
               <MemoryPanel
                 enabled={memory.enabled}
@@ -241,8 +266,7 @@ export function WorkspaceSettingsDialog({
                 onChange={setScheduling}
               />
             </TabsContent>
-          </div>
-        </Tabs>
+            </div>        </Tabs>
 
         {/* Only show Save/Cancel footer for capability sections (they have a form) */}
         {isCapability && (

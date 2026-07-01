@@ -6,6 +6,7 @@ import {
   createPart,
   getSession,
 } from '@/store';
+import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 
 interface ForkOptions {
   sessionId: string;
@@ -90,6 +91,7 @@ export async function forkSession(options: ForkOptions): Promise<ForkResult> {
     promptTokens: sourceSession.promptTokens,
     completionTokens: sourceSession.completionTokens,
     totalTokens: sourceSession.totalTokens,
+    autoApproveSeverity: sourceSession.autoApproveSeverity ?? getWorkspaceAutoApproveSeverity(sourceSession.workspaceId),
   });
 
   const forkedMessages: MessageWithParts[] = [];

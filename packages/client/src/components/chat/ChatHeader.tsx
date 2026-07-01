@@ -8,6 +8,7 @@ import { TokenMeter } from './TokenMeter';
 import { ModelVariantConfigSelector } from './ModelVariantConfigSelector';
 import { SessionControlButton } from './SessionControlButton';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import {useIsCompact, useIsMobile} from '@/hooks/use-mobile';
 
@@ -98,6 +99,8 @@ export function ChatHeader({
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
+
+  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
 
   const controlState = useSessionControlStore((s) => s.controlBySessionId[session.id]);
   const myClientId = useClientIdentityStore((s) => s.clientId);
@@ -214,6 +217,7 @@ export function ChatHeader({
               selectedPreconfigId={session.preconfigId}
               onChangePreconfig={onChangePreconfig}
               disabled={session.status === 'closed' || !!session.parentId || isObserver}
+              lockPreconfig={!!activeWorkspace?.settings?.isAgentHome}
               iconOnly={isMobile}
               compact={isCompact}
             />

@@ -70,6 +70,7 @@ export default function VSCodeBootstrap({ children }: { children: ReactNode }) {
           defaultModel: data.defaultModel || 'gpt-4o',
           defaultProvider: data.defaultProvider || 'openai',
           providers: data.providers,
+          agents: data.agents || [],
         });
 
         if (workspace) {

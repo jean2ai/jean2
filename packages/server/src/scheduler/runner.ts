@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Preconfig, ScheduledJob } from '@jean2/sdk';
 import { createSession, getSession } from '@/store/sessions';
-import { getWorkspace } from '@/store/workspaces';
+import { getWorkspace, getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { markScheduledJobRun, markScheduledJobError } from '@/store/scheduled-jobs';
 import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
 import { getModelsConfig, findModel } from '@/config';
@@ -30,6 +30,9 @@ export async function runScheduledJob(job: ScheduledJob): Promise<void> {
     findProviderFromModel(modelId) ||
     config.defaultProvider;
 
+  // Resolve auto-approve severity: job override takes precedence, then workspace default
+  const autoApproveSeverity = job.autoApproveSeverity ?? getWorkspaceAutoApproveSeverity(job.workspaceId);
+
   // Determine whether to reuse an existing session or create a new one
   let sessionId: string;
   let resumeFromHistory = false;
@@ -54,6 +57,7 @@ export async function runScheduledJob(job: ScheduledJob): Promise<void> {
         selectedModel: modelId,
         selectedProvider: providerId,
         selectedVariant: preconfig.variant ?? null,
+        autoApproveSeverity,
       });
     }
   } else {
@@ -70,6 +74,7 @@ export async function runScheduledJob(job: ScheduledJob): Promise<void> {
       selectedModel: modelId,
       selectedProvider: providerId,
       selectedVariant: preconfig.variant ?? null,
+      autoApproveSeverity,
     });
   }
 

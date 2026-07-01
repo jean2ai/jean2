@@ -1,4 +1,4 @@
-import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability, GitDiffSummary, GitFileDiffResponse } from '../shared';
+import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability, GitDiffSummary, GitFileDiffResponse, Agent } from '../shared';
 
 /**
  * GET /api/sessions
@@ -482,6 +482,41 @@ export interface StartMcpAuthResponse {
  */
 export interface FinishMcpAuthResponse {
   status: McpStatus;
+}
+
+// =============================================================================
+// Agents Responses
+// =============================================================================
+
+/** GET /api/agents */
+export interface ListAgentsResponse {
+  agents: Agent[];
+}
+
+/** GET /api/agents/:id */
+export interface GetAgentResponse {
+  agent: Agent;
+}
+
+/** POST /api/agents/:id/promote */
+export interface PromoteAgentResponse {
+  agent: Agent;
+}
+
+/** DELETE /api/agents/:id */
+export interface DeleteAgentResponse {
+  success: boolean;
+}
+
+/** GET /api/agents/:id/memory */
+export interface GetAgentMemoryResponse {
+  user: string;
+  memory: string;
+}
+
+/** PATCH /api/agents/:id/memory */
+export interface UpdateAgentMemoryResponse {
+  success: boolean;
 }
 
 // =============================================================================

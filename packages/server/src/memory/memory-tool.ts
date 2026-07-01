@@ -55,7 +55,7 @@ export interface MemoryToolInput {
 
 export async function executeMemoryTool(
   input: Record<string, unknown>,
-  workspacePath: string,
+  basePath: string,
   permissionRisk: PermissionRiskLevel,
   askFn?: (ask: PermissionAsk) => Promise<unknown>,
 ): Promise<MemoryActionResult> {
@@ -74,7 +74,7 @@ export async function executeMemoryTool(
 
   // `list` is read-only and doesn't need permission
   if (action === 'list') {
-    return listEntries(workspacePath, target);
+    return listEntries(basePath, target);
   }
 
   // Request permission if a risk level is set and askFn is available
@@ -86,7 +86,7 @@ export async function executeMemoryTool(
       risk: permissionRisk,
       resource: 'file',
       action: 'write',
-      paths: [`.jean2/${target === 'user' ? 'USER.md' : 'MEMORY.md'}`],
+      paths: [target === 'user' ? 'USER.md' : 'MEMORY.md'],
     };
     const approved = await askFn(ask);
     if (!approved) {
@@ -99,7 +99,7 @@ export async function executeMemoryTool(
       if (!content) {
         return { success: false, error: 'Content is required for add action.' };
       }
-      return addEntry(workspacePath, target, content);
+      return addEntry(basePath, target, content);
     }
     case 'replace': {
       if (!oldText) {
@@ -108,13 +108,13 @@ export async function executeMemoryTool(
       if (!content) {
         return { success: false, error: 'Content is required for replace action.' };
       }
-      return replaceEntry(workspacePath, target, oldText, content);
+      return replaceEntry(basePath, target, oldText, content);
     }
     case 'remove': {
       if (!oldText) {
         return { success: false, error: 'oldText is required for remove action.' };
       }
-      return removeEntry(workspacePath, target, oldText);
+      return removeEntry(basePath, target, oldText);
     }
   }
 }

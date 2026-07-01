@@ -16,6 +16,8 @@ import { getSession, getWorkspace } from '@/store';
 import { memoryToolDefinition, executeMemoryTool } from '@/memory';
 import { sessionSearchToolDefinition, executeSessionSearchTool } from '@/session-search';
 import { schedulerToolDefinition, executeSchedulerTool } from '@/scheduler/scheduler-tool';
+import { getAgentDirectory } from '@/agents/storage';
+import { join } from 'path';
 
 export interface BuildToolsOptions {
   toolNames: string[];
@@ -29,6 +31,7 @@ export interface BuildToolsOptions {
   allowedSkills?: string[] | null;
   broadcastFn?: AskBroadcastFn;
   additionalPaths?: string[];
+  agentId?: string | null;
 }
 
 export async function buildAiSdkTools(
@@ -47,6 +50,7 @@ export async function buildAiSdkTools(
     allowedSkills,
     broadcastFn,
     additionalPaths,
+    agentId,
   } = options;
 
   // Resolve root session ID by walking up the parent chain
@@ -164,8 +168,12 @@ export async function buildAiSdkTools(
     });
   }
 
+  // Resolve agent directory and skills dir if this is an agent session
+  const agentDir = agentId ? await getAgentDirectory(agentId) : undefined;
+  const agentSkillsDir = agentDir ? join(agentDir, 'skills') : undefined;
+
   if (workspacePath) {
-    const skillTool = await createSkillTool(workspacePath, allowedSkills, sessionId);
+    const skillTool = await createSkillTool(workspacePath, allowedSkills, sessionId, agentSkillsDir);
     if (skillTool) {
       tools[skillTool.name] = skillTool.tool;
     }
@@ -200,7 +208,7 @@ export async function buildAiSdkTools(
 
             const result = await executeMemoryTool(
               args,
-              workspacePath!,
+              join(workspacePath!, '.jean2'),
               permissionRisk,
               async (ask) => askApi(ask),
             );
@@ -260,7 +268,7 @@ export async function buildAiSdkTools(
     const skillSettings = workspace?.settings?.skills;
     if (skillSettings?.managementEnabled) {
       const permissionRisk = skillSettings.permissionRisk;
-      const skillManageDescription = await buildSkillManageToolDescription(workspacePath!);
+      const skillManageDescription = await buildSkillManageToolDescription(join(workspacePath!, '.agents', 'skills'));
       tools['skill_manage'] = tool({
         description: skillManageDescription,
         inputSchema: jsonSchema(skillManageToolDefinition.inputSchema),
@@ -275,7 +283,7 @@ export async function buildAiSdkTools(
 
             const result = await executeSkillManageTool(
               args,
-              workspacePath!,
+              join(workspacePath!, '.agents', 'skills'),
               permissionRisk,
               async (ask) => askApi(ask),
             );
@@ -325,6 +333,7 @@ export async function buildAiSdkTools(
               includeToolResults,
               searchPermissionRisk,
               async (ask) => askApi(ask),
+              agentId,
             );
 
             if (!result.success) {
@@ -403,6 +412,62 @@ export async function buildAiSdkTools(
         },
       });
     }
+  }
+
+  // Agent-specific tools (auto-included for agent sessions)
+  if (agentDir) {
+    tools['agent_memory'] = tool({
+      description: `Persist your PERSONAL knowledge that travels with you across all workspaces.
+
+Use target="user" for cross-workspace user preferences (how this person likes to work).
+Use target="memory" for accumulated work knowledge (lessons, patterns, techniques from any project).
+
+This is YOUR personal memory. It is separate from the workspace memory tool.
+- Use "memory" (workspace) for project-specific facts about the current codebase.
+- Use "agent_memory" (this tool) for cross-project knowledge that applies everywhere.
+
+Actions:
+- list: Read current entries and char usage. Requires target only.
+- add: Append a new bullet entry. Requires content.
+- replace: Find an entry by oldText substring and replace it.
+- remove: Find an entry by oldText substring and remove it.
+
+Character limits: user=1500, memory=2500. Keep entries compact.`,
+      inputSchema: jsonSchema(memoryToolDefinition.inputSchema),
+      execute: async (args: Record<string, unknown>) => {
+        const result = await executeMemoryTool(args, agentDir, 'none');
+        if (!result.success) {
+          return { error: result.error ?? 'Agent memory operation failed' };
+        }
+        const r = result.result!;
+        return {
+          title: r.action === 'list' ? `Agent memory list (${r.target})` : 'Agent memory updated',
+          ...r,
+        };
+      },
+    });
+
+    const agentSkillsManageDir = join(agentDir, 'skills');
+    const agentSkillManageDescription = await buildSkillManageToolDescription(agentSkillsManageDir);
+    tools['agent_skill_manage'] = tool({
+      description: agentSkillManageDescription,
+      inputSchema: jsonSchema(skillManageToolDefinition.inputSchema),
+      execute: async (args: Record<string, unknown>) => {
+        const result = await executeSkillManageTool(args, agentSkillsManageDir, 'none');
+        if (!result.success) {
+          return { error: result.error ?? 'Agent skill management failed' };
+        }
+        return {
+          title: result.title,
+          action: result.action,
+          name: result.name,
+          description: result.description,
+          path: result.path,
+          summary: result.summary,
+          skills: result.skills,
+        };
+      },
+    });
   }
 
   return tools;

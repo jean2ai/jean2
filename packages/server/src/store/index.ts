@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs';
 
 import { resolveDatabasePath } from '@/config';
 import { seedBuiltinResponseFormats } from './response-formats';
-import { initializeFts } from '@/session-search/fts';
+import { initializeFts, migrateFtsForAgents } from '@/session-search/fts';
 
 /**
  * Database Singleton
@@ -415,6 +415,13 @@ export function initializeSchema(db: Database): void {
     // Column already exists
   }
 
+  // Migrate: add auto_approve_severity column to scheduled_jobs if missing
+  try {
+    db.run('ALTER TABLE scheduled_jobs ADD COLUMN auto_approve_severity TEXT');
+  } catch {
+    // Column already exists
+  }
+
   // Migrate: add structured_output column to messages if missing
   try {
     db.run('ALTER TABLE messages ADD COLUMN structured_output TEXT');
@@ -443,8 +450,16 @@ export function initializeSchema(db: Database): void {
     // Column already exists
   }
 
+  // Migrate: add agent_id column to sessions if missing
+  try {
+    db.run('ALTER TABLE sessions ADD COLUMN agent_id TEXT');
+  } catch {
+    // Column already exists
+  }
+
   // Initialize FTS table for session search
   initializeFts(db);
+  migrateFtsForAgents(db);
 }
 
 export { Database };

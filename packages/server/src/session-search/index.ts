@@ -10,9 +10,15 @@ Three modes:
 2. Search mode (provide "query"): Full-text search across messages.
 3. Read mode (provide "sessionId"): Read the latest context from a session. Optionally provide "aroundMessageId" to anchor at a specific message.
 
-Typical workflow: list sessions → read a session's latest context → search for specific keywords if needed.
+Search scopes:
+- scope="current_session": Search only this session archive.
+- scope="workspace": Search all sessions in the current workspace (default).
+- scope="agent": Search YOUR past sessions across ALL workspaces. Use this to recall work from other projects.
+
+Typical workflow: list sessions, then read a session's latest context, then search for specific keywords if needed.
 Prefer scope="current_session" when looking for details from earlier in this same conversation.
 Prefer scope="workspace" when looking for related previous sessions in this workspace.
+Use scope="agent" when you need to recall work from a different project.
 Do not ask the user to repeat information until you have searched likely prior context.
 Search results are snippets; use read mode with sessionId to get full surrounding context.
 Default search focuses on user/assistant messages. Include tool results only when exact tool output, commands, errors, or logs are relevant.`;

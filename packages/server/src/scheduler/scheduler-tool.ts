@@ -85,6 +85,11 @@ The prompt should be self-contained — it is the full instruction given to the 
         type: 'boolean' as const,
         description: 'When reuseSession is true, whether the agent sees previous run history. Default false.',
       },
+      autoApproveSeverity: {
+        type: 'string' as const,
+        enum: ['off', 'none', 'low', 'medium', 'high'],
+        description: 'Auto-approve severity for sessions created by this job. Omit or null to use workspace default.',
+      },
     },
     required: ['action'],
   },
@@ -109,7 +114,6 @@ export async function executeSchedulerTool(
   askFn?: (ask: PermissionAsk) => Promise<unknown>,
 ): Promise<SchedulerToolResult> {
   const action = input.action as string;
-  console.log(`[scheduler-tool] action="${action}" risk="${permissionRisk}" hasAskFn=${!!askFn}`);
 
   // "list" is read-only, no permission needed
   if (action !== 'list' && permissionRisk !== 'none' && askFn) {
@@ -136,16 +140,15 @@ export async function executeSchedulerTool(
 
     console.log(`[scheduler-tool] Requesting permission for "${verb}"...`);
     const approved = await askFn(ask);
-    console.log(`[scheduler-tool] Permission result: ${approved}`);
 
     if (!approved) {
       return { success: false, action, title: 'Permission denied', error: 'USER_REJECTION' };
     }
   }
 
-  console.log(`[scheduler-tool] Executing action "${action}"...`);
   let result: SchedulerToolResult;
-  switch (action) {
+  try {
+    switch (action) {
     case 'create':
       result = executeCreate(input, workspaceId, currentSessionId);
       break;
@@ -169,8 +172,11 @@ export async function executeSchedulerTool(
       break;
     default:
       result = { success: false, action, title: 'Invalid action', error: `Unknown action: ${action}` };
+    }
+  } catch (err) {
+    console.error(`[scheduler-tool] Action "${action}" failed:`, err);
+    return { success: false, action, title: 'Internal error', error: err instanceof Error ? err.message : String(err) };
   }
-  console.log(`[scheduler-tool] Action "${action}" result: success=${result.success} title="${result.title}"`);
   return result;
 }
 
@@ -247,6 +253,7 @@ function executeCreate(
     reuseSession: input.reuseSession as boolean | undefined,
     includeHistory: input.includeHistory as boolean | undefined,
     originSessionId: currentSessionId,
+    autoApproveSeverity: input.autoApproveSeverity as ScheduledJob['autoApproveSeverity'],
   });
   console.log(`[scheduler-tool] Job created: id=${job.id} state=${job.state} nextRunAt=${job.nextRunAt}`);
 
@@ -282,6 +289,7 @@ function executeUpdate(input: Record<string, unknown>): SchedulerToolResult {
   if (input.repeatLimit !== undefined) updates.repeatLimit = input.repeatLimit;
   if (input.reuseSession !== undefined) updates.reuseSession = input.reuseSession;
   if (input.includeHistory !== undefined) updates.includeHistory = input.includeHistory;
+  if (input.autoApproveSeverity !== undefined) updates.autoApproveSeverity = input.autoApproveSeverity;
 
   if (input.schedule) {
     const parsed = parseSchedule(input.schedule as Record<string, unknown>);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Jean2Client, ScheduledJob, ScheduleKind, ScheduleConfig } from '@jean2/sdk';
+import type { Jean2Client, ScheduledJob, ScheduleKind, ScheduleConfig, AutoApproveSeverity } from '@jean2/sdk';
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,7 @@ export function SchedulerJobModal({
   const [preconfigId, setPreconfigId] = useState<string>('__default__');
   const [reuseSession, setReuseSession] = useState(false);
   const [includeHistory, setIncludeHistory] = useState(false);
+  const [autoApproveSeverity, setAutoApproveSeverity] = useState<AutoApproveSeverity | null>(null);
 
   const createMutation = useCreateScheduledJob(sdkClient, workspaceId);
   const updateMutation = useUpdateScheduledJob(sdkClient, workspaceId);
@@ -94,6 +95,7 @@ export function SchedulerJobModal({
       setPreconfigId(editingJob.preconfigId ?? '__default__');
       setReuseSession(editingJob.reuseSession);
       setIncludeHistory(editingJob.includeHistory);
+      setAutoApproveSeverity(editingJob.autoApproveSeverity);
     } else {
       setName('');
       setPrompt('');
@@ -108,6 +110,7 @@ export function SchedulerJobModal({
       setPreconfigId('__default__');
       setReuseSession(false);
       setIncludeHistory(false);
+      setAutoApproveSeverity(null);
     }
   }, [open, editingJob]);
 
@@ -146,6 +149,7 @@ export function SchedulerJobModal({
           preconfigId: preconfigValue,
           reuseSession,
           includeHistory,
+          autoApproveSeverity,
         },
       });
     } else {
@@ -158,10 +162,11 @@ export function SchedulerJobModal({
         preconfigId: preconfigValue,
         reuseSession,
         includeHistory,
+        autoApproveSeverity,
       });
     }
     onOpenChange(false);
-  }, [workspaceId, name, prompt, buildScheduleConfig, repeatLimit, preconfigId, editingJob, scheduleKind, createMutation, updateMutation, onOpenChange]);
+  }, [workspaceId, name, prompt, buildScheduleConfig, repeatLimit, preconfigId, editingJob, scheduleKind, createMutation, updateMutation, onOpenChange, autoApproveSeverity, reuseSession, includeHistory]);
 
   const toggleDay = (day: number) => {
     setWeeklyDays(prev =>
@@ -339,6 +344,29 @@ export function SchedulerJobModal({
               </Label>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Auto-approve permissions</Label>
+            <p className="text-xs text-muted-foreground">
+              Controls what permissions are auto-approved for sessions created by this job. "Use workspace default" inherits from workspace settings.
+            </p>
+            <Select
+              value={autoApproveSeverity ?? '__workspace__'}
+              onValueChange={(v) => setAutoApproveSeverity(v === '__workspace__' ? null : v as AutoApproveSeverity)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__workspace__">Use workspace default</SelectItem>
+                <SelectItem value="off">Off</SelectItem>
+                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {editingJob && (
             <div className="rounded-md border p-3 space-y-1 text-sm">

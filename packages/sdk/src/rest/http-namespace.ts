@@ -1,4 +1,4 @@
-import type { Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus } from '../shared';
+import type { Workspace, Preconfig, PromptInfo, ModelWithStatus, ProviderStatus, Agent } from '../shared';
 import type { HttpClient } from '../transport/http';
 import { SessionsRestNamespace } from './sessions';
 import { WorkspacesRestNamespace } from './workspaces';
@@ -14,6 +14,7 @@ import { McpRestNamespace } from './mcp';
 import { ConfigRestNamespace } from './config';
 import { ResponseFormatsRestNamespace } from './response-formats';
 import { SchedulerRestNamespace } from './scheduler';
+import { AgentsRestNamespace } from './agents';
 
 /**
  * Result of loading all initial server data.
@@ -27,6 +28,7 @@ export interface LoadAllResult {
   defaultModel: string;
   defaultProvider: string;
   providers: ProviderStatus[];
+  agents: Agent[];
 }
 
 /**
@@ -48,6 +50,7 @@ export class HttpNamespace {
   readonly config: ConfigRestNamespace;
   readonly responseFormats: ResponseFormatsRestNamespace;
   readonly scheduler: SchedulerRestNamespace;
+  readonly agents: AgentsRestNamespace;
 
   constructor(http: HttpClient) {
     this.sessions = new SessionsRestNamespace(http);
@@ -64,6 +67,7 @@ export class HttpNamespace {
     this.config = new ConfigRestNamespace(http);
     this.responseFormats = new ResponseFormatsRestNamespace(http);
     this.scheduler = new SchedulerRestNamespace(http);
+    this.agents = new AgentsRestNamespace(http);
   }
 
   /**
@@ -71,12 +75,13 @@ export class HttpNamespace {
    * Useful for client initialization — replaces manual Promise.all() composition.
    */
   async loadAll(options?: { signal?: AbortSignal }): Promise<LoadAllResult> {
-    const [workspacesData, preconfigsData, promptsData, modelsData, providersData] = await Promise.all([
+    const [workspacesData, preconfigsData, promptsData, modelsData, providersData, agentsData] = await Promise.all([
       this.workspaces.list(options),
       this.preconfigs.list(options),
       this.prompts.list(options),
       this.models.list(options),
       this.providers.list(options),
+      this.agents.list(options),
     ]);
 
     return {
@@ -87,6 +92,7 @@ export class HttpNamespace {
       defaultModel: modelsData.defaultModel,
       defaultProvider: modelsData.defaultProvider,
       providers: providersData.providers,
+      agents: agentsData.agents,
     };
   }
 }

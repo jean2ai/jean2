@@ -2,6 +2,7 @@ import { generateText } from 'ai';
 import { randomUUID } from 'crypto';
 import type { TextPart, UserMessage, AssistantMessage } from '@jean2/sdk';
 import { createMessage, createPart, createSession, getSession, updateSession } from '@/store';
+import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { getModelsConfig } from '@/config';
 import { getModelWithMetadata } from '@/core/model-utils';
 import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, type BroadcastFn, type BroadcastSessionFn } from './broadcast';
@@ -81,6 +82,7 @@ export async function runOrchestratorSession(
     subagentStatus: 'running',
     selectedModel: modelId,
     selectedProvider: providerId,
+    autoApproveSeverity: getWorkspaceAutoApproveSeverity(parentSession?.workspaceId || ''),
   });
 
   broadcastSessCreated(session);

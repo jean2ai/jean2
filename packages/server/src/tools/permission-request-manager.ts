@@ -26,7 +26,7 @@ import {
   SHELL_FILESYSTEM_COMMANDS,
 } from '@jean2/sdk';
 import { getSession } from '@/store/sessions';
-import { getParticipantConnections } from '@/core/session-control-registry';
+
 
 // =============================================================================
 // Permission Request Manager
@@ -94,12 +94,8 @@ function tryServerAutoApprove(
 
   if (!isRiskAtOrBelow(risk, maxSeverity)) return false;
 
-  // Only auto-approve if no clients are connected for this session
-  const connections = getParticipantConnections(sessionId);
-  if (connections.length > 0) return false;
-
   console.log(
-    `[permissions] Server auto-approve (no client connected): risk=${risk} session=${sessionId}`,
+    `[permissions] Server auto-approve: risk=${risk} maxSeverity=${maxSeverity} session=${sessionId}`,
   );
 
   return true;

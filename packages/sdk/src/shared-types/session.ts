@@ -26,4 +26,5 @@ export interface Session {
   compacting?: boolean;  // Whether compaction is in progress
   tags?: string[];  // User-assigned tags for grouping (default: [])
   autoApproveSeverity?: AutoApproveSeverity | null;  // Auto-approve risk level for permissions
+  agentId?: string | null;  // Which agent ran this session. Null for non-agent sessions.
 }

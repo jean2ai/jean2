@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir, rm, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import type { PermissionRiskLevel, PermissionAsk } from '@jean2/sdk';
-import { scanSkills } from './registry';
+import { scanSkillsFromDir } from './registry';
 
 type SkillManageAction = 'list' | 'create' | 'update' | 'patch' | 'delete';
 
@@ -50,18 +50,17 @@ function buildFrontmatter(name: string, description: string): string {
   return `---\nname: ${name}\ndescription: ${description}\n---\n`;
 }
 
-function getSkillDir(workspacePath: string, safeName: string): string {
-  return join(workspacePath, '.agents', 'skills', safeName);
+function getSkillDir(skillsDir: string, safeName: string): string {
+  return join(skillsDir, safeName);
 }
 
-function getSkillMdPath(workspacePath: string, safeName: string): string {
-  return join(getSkillDir(workspacePath, safeName), 'SKILL.md');
+function getSkillMdPath(skillsDir: string, safeName: string): string {
+  return join(getSkillDir(skillsDir, safeName), 'SKILL.md');
 }
 
-async function ensureSkillsDir(workspacePath: string): Promise<void> {
-  const dir = join(workspacePath, '.agents', 'skills');
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
+async function ensureSkillsDir(skillsDir: string): Promise<void> {
+  if (!existsSync(skillsDir)) {
+    await mkdir(skillsDir, { recursive: true });
   }
 }
 
@@ -73,18 +72,17 @@ async function ensureSkillsDir(workspacePath: string): Promise<void> {
  */
 async function resolveSkillFolder(
   rawName: string,
-  workspacePath: string,
+  skillsDir: string,
 ): Promise<{ folderName: string; skillMdPath: string } | null> {
   const safeName = sanitizeSkillName(rawName);
 
   // Fast path: exact folder match
-  const directPath = getSkillMdPath(workspacePath, safeName);
+  const directPath = getSkillMdPath(skillsDir, safeName);
   if (existsSync(directPath)) {
     return { folderName: safeName, skillMdPath: directPath };
   }
 
   // Fallback: scan all skills and match case-insensitively by folder name or frontmatter name
-  const skillsDir = join(workspacePath, '.agents', 'skills');
   if (!existsSync(skillsDir)) {
     return null;
   }
@@ -131,8 +129,8 @@ async function resolveSkillFolder(
 /**
  * Get a short list of available skill names for error messages.
  */
-async function getAvailableSkillNames(workspacePath: string): Promise<string[]> {
-  const skills = await scanSkills(workspacePath);
+async function getAvailableSkillNames(skillsDir: string): Promise<string[]> {
+  const skills = await scanSkillsFromDir(skillsDir);
   return skills.map(s => s.name);
 }
 
@@ -142,9 +140,9 @@ async function getAvailableSkillNames(workspacePath: string): Promise<string[]> 
  * have to guess when calling update/patch/delete.
  */
 export async function buildSkillManageToolDescription(
-  workspacePath: string,
+  skillsDir: string,
 ): Promise<string> {
-  const skills = await scanSkills(workspacePath);
+  const skills = await scanSkillsFromDir(skillsDir);
 
   const lines = [
     'Create, update, patch, delete, or list workspace skills.',
@@ -235,7 +233,7 @@ Skill bodies should be procedural: When to Use, Procedure steps, Pitfalls, Verif
 
 export async function executeSkillManageTool(
   input: Record<string, unknown>,
-  workspacePath: string,
+  skillsDir: string,
   permissionRisk: PermissionRiskLevel,
   askFn?: (ask: PermissionAsk) => Promise<unknown>,
 ): Promise<SkillManageResult> {
@@ -252,7 +250,7 @@ export async function executeSkillManageTool(
 
   // `list` is read-only and doesn't need a name or permission
   if (action === 'list') {
-    const skills = await scanSkills(workspacePath);
+    const skills = await scanSkillsFromDir(skillsDir);
     if (skills.length === 0) {
       return {
         success: true,
@@ -282,7 +280,7 @@ export async function executeSkillManageTool(
     return { success: false, error: 'Skill name is invalid after normalization.' };
   }
 
-  const relativePath = `.agents/skills/${safeName}/SKILL.md`;
+  const relativePath = `${safeName}/SKILL.md`;
 
   // Request permission if risk level is set
   if (permissionRisk !== 'none' && askFn) {
@@ -310,13 +308,13 @@ export async function executeSkillManageTool(
         return { success: false, error: 'content is required for create action.' };
       }
 
-      const directPath = getSkillMdPath(workspacePath, safeName);
+      const directPath = getSkillMdPath(skillsDir, safeName);
       if (existsSync(directPath)) {
         return { success: false, error: `Skill "${safeName}" already exists. Use update or patch instead.` };
       }
 
-      await ensureSkillsDir(workspacePath);
-      const skillDir = getSkillDir(workspacePath, safeName);
+      await ensureSkillsDir(skillsDir);
+      const skillDir = getSkillDir(skillsDir, safeName);
       await mkdir(skillDir, { recursive: true });
 
       const fileContent = buildFrontmatter(safeName, description) + '\n' + content + '\n';
@@ -338,9 +336,9 @@ export async function executeSkillManageTool(
         return { success: false, error: 'content is required for update action.' };
       }
 
-      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      const resolved = await resolveSkillFolder(rawName, skillsDir);
       if (!resolved) {
-        const available = await getAvailableSkillNames(workspacePath);
+        const available = await getAvailableSkillNames(skillsDir);
         return {
           success: false,
           error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ' No skills exist yet. Use create first.'}`,
@@ -349,7 +347,7 @@ export async function executeSkillManageTool(
 
       // For update, if the LLM passes a different-cased name, use the resolved folder name
       const resolvedFolder = resolved.folderName;
-      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
+      const resolvedRelativePath = `${resolvedFolder}/SKILL.md`;
       const resolvedPath = resolved.skillMdPath;
 
       let existingContent: string;
@@ -397,9 +395,9 @@ export async function executeSkillManageTool(
         return { success: false, error: 'newString is required for patch action.' };
       }
 
-      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      const resolved = await resolveSkillFolder(rawName, skillsDir);
       if (!resolved) {
-        const available = await getAvailableSkillNames(workspacePath);
+        const available = await getAvailableSkillNames(skillsDir);
         return {
           success: false,
           error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ' No skills exist yet. Use create first.'}`,
@@ -408,7 +406,7 @@ export async function executeSkillManageTool(
 
       const resolvedPath = resolved.skillMdPath;
       const resolvedFolder = resolved.folderName;
-      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
+      const resolvedRelativePath = `${resolvedFolder}/SKILL.md`;
 
       let existingContent: string;
       try {
@@ -468,9 +466,9 @@ export async function executeSkillManageTool(
     }
 
     case 'delete': {
-      const resolved = await resolveSkillFolder(rawName, workspacePath);
+      const resolved = await resolveSkillFolder(rawName, skillsDir);
       if (!resolved) {
-        const available = await getAvailableSkillNames(workspacePath);
+        const available = await getAvailableSkillNames(skillsDir);
         return {
           success: false,
           error: `Skill "${rawName}" does not exist.${available.length ? ` Available skills: ${available.join(', ')}` : ''}`,
@@ -478,8 +476,8 @@ export async function executeSkillManageTool(
       }
 
       const resolvedFolder = resolved.folderName;
-      const resolvedRelativePath = `.agents/skills/${resolvedFolder}/SKILL.md`;
-      const skillDir = getSkillDir(workspacePath, resolvedFolder);
+      const resolvedRelativePath = `${resolvedFolder}/SKILL.md`;
+      const skillDir = getSkillDir(skillsDir, resolvedFolder);
       await rm(skillDir, { recursive: true, force: true });
 
       return {

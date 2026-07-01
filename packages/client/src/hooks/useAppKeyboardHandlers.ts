@@ -7,6 +7,7 @@ import {useServerDataStore} from '@/stores/serverDataStore';
 import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
 import type {Preconfig, Workspace} from '@jean2/sdk';
 import { platform, hasCapability } from '@/platform';
+import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -93,8 +94,9 @@ export function useAppKeyboardHandlers({
   }, [chatInputRef]);
 
   const handleNewSession = useCallback(() => {
-    if (activeWorkspace && primaryPreconfigs[0]) {
-      createSession(primaryPreconfigs[0].id);
+    if (activeWorkspace) {
+      const defaultId = getWorkspaceDefaultPreconfigId(activeWorkspace, primaryPreconfigs);
+      if (defaultId) createSession(defaultId);
     }
   }, [activeWorkspace, primaryPreconfigs, createSession]);
 

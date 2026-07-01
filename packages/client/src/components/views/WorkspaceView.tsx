@@ -8,6 +8,7 @@ import { useWorkspaceSessions } from '@/hooks/useWorkspaceSessions';
 import { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from '@/hooks/queries';
 import { useScheduledJobs, usePauseScheduledJob, useResumeScheduledJob, useTriggerScheduledJob, useDeleteScheduledJob } from '@/hooks/queries';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useServerDataStore } from '@/stores/serverDataStore';
 import { useUIStore } from '@/stores/uiStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
@@ -15,6 +16,7 @@ import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
 import { PinnedMessagesPanel } from '@/components/layout/PinnedMessagesPanel';
 import { AppPanels } from '@/components/app/AppPanels';
+import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 import { hasCapability } from '@/platform';
 import {
   SidebarHeader,
@@ -23,10 +25,19 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 
-export default function WorkspaceView() {
+export interface WorkspaceViewProps {
+  /** Optional override for the sidebar header switcher. Defaults to WorkspaceSwitcher. */
+  switcher?: React.ReactNode;
+  /** Optional override for the default preconfig used by the New Chat button. */
+  defaultPreconfigId?: string;
+}
+
+export default function WorkspaceView({ switcher, defaultPreconfigId }: WorkspaceViewProps = {}) {
   const sessionManager = useSessionManager();
   const sidebarData = useSidebarData();
   const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
+  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
+  const allPreconfigs = useServerDataStore(s => s.preconfigs);
 
   const {
     sdkClient,
@@ -45,6 +56,10 @@ export default function WorkspaceView() {
     renameWorkspace,
     updateWorkspacePaths,
   } = sessionManager;
+
+  const newChatPreconfigId = defaultPreconfigId
+    ?? getWorkspaceDefaultPreconfigId(activeWorkspace, allPreconfigs)
+    ?? primaryPreconfigs[0]?.id;
 
   useWorkspaceSessions({
     sdkClient,
@@ -94,7 +109,7 @@ export default function WorkspaceView() {
 
   const sidebarHeader = (
     <SidebarHeader>
-      {hasCapability('multiView') && (
+      {switcher ?? (hasCapability('multiView') && (
       <div className="p-2 space-y-2">
         <WorkspaceSwitcher
           workspaces={sidebarData.workspaces}
@@ -110,11 +125,11 @@ export default function WorkspaceView() {
           sdkClient={sdkClient}
         />
       </div>
-      )}
+      ))}
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
-            onClick={() => createSession(primaryPreconfigs[0]?.id)}
+            onClick={() => createSession(newChatPreconfigId)}
             disabled={!sidebarData.connected}
             className="w-full"
           >
