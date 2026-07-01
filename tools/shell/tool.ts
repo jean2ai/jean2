@@ -1,5 +1,7 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { ShellOutputVisualization } from '@jean2/sdk';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import {
   SHELL_DANGEROUS_COMMANDS,
   SHELL_FILESYSTEM_COMMANDS,
@@ -340,14 +342,10 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
 
     const cwd = input.cwd ? ctx.fs.resolve(input.cwd) : ctx.workspacePath;
 
-    let shell: string[];
     const platform = await detectPlatform();
-
-    if (platform === 'windows') {
-      shell = await detectWindowsShell(effectiveCommand, cwd);
-    } else {
-      shell = ['sh', '-c', effectiveCommand];
-    }
+    const shell = platform === 'windows'
+      ? ['cmd.exe', '/d', '/s', '/c', effectiveCommand]
+      : ['sh', '-c', effectiveCommand];
 
     const proc = Bun.spawn(shell, {
       cwd,
@@ -417,37 +415,20 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
   return 'unix';
 }
 
-export async function detectWindowsShell(command: string, cwd: string): Promise<string[]> {
-  const powershell = typeof Bun !== 'undefined' && Bun.which
-    ? Bun.which('powershell.exe') ?? Bun.which('powershell')
-    : 'powershell.exe';
-
-  if (!powershell) {
-    return ['cmd.exe', '/d', '/s', '/c', command];
+function resolveCmdExe(): string {
+  // Resolve cmd.exe to an absolute path so spawning does not depend on PATH
+  // being intact in the current environment. The server may hold a stale or
+  // stripped PATH snapshot (e.g. daemon-launched with a filtered env), in
+  // which case a bare 'cmd.exe' would fail with ENOENT.
+  if (process.env.ComSpec && existsSync(process.env.ComSpec)) {
+    return process.env.ComSpec;
   }
-
-  // Refresh PATH from the live registry (Machine + User scopes). The parent
-  // server process may hold a stale PATH snapshot (e.g. PHP added after launch),
-  // and cmd.exe cannot refresh its own PATH. PowerShell re-reads the registry
-  // here, and the Start-Process cmd.exe child inherits this refreshed PATH.
-  const script = [
-    `$mp = [System.Environment]::GetEnvironmentVariable('PATH','Machine'); $up = [System.Environment]::GetEnvironmentVariable('PATH','User'); $env:PATH = ($mp + ';' + $up).TrimEnd(';')`,
-    `$out = [System.IO.Path]::GetTempFileName()`,
-    `$err = [System.IO.Path]::GetTempFileName()`,
-    `$cmdExe = $env:ComSpec; if (-not $cmdExe) { $cmdExe = Join-Path $env:SystemRoot 'System32\\cmd.exe' }; if (-not $cmdExe -or -not (Test-Path -LiteralPath $cmdExe)) { $cmdExe = 'C:\\Windows\\System32\\cmd.exe' }`,
-    'try {',
-    `  $p = Start-Process -FilePath $cmdExe -ArgumentList @('/d','/s','/c', ${quotePowerShellString(command)}) -WorkingDirectory ${quotePowerShellString(cwd)} -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -Wait -PassThru`,
-    '  if (Test-Path -LiteralPath $out) { [Console]::Out.Write([System.IO.File]::ReadAllText($out)) }',
-    '  if (Test-Path -LiteralPath $err) { [Console]::Error.Write([System.IO.File]::ReadAllText($err)) }',
-    '  exit $p.ExitCode',
-    '} finally {',
-    '  Remove-Item -LiteralPath $out,$err -Force -ErrorAction SilentlyContinue',
-    '}',
-  ].join('; ');
-
-  return [powershell, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', script];
-}
-
-function quotePowerShellString(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
+  if (process.env.SystemRoot) {
+    const candidate = join(process.env.SystemRoot, 'System32', 'cmd.exe');
+    if (existsSync(candidate)) return candidate;
+  }
+  const fallback = join('C:\\Windows', 'System32', 'cmd.exe');
+  if (existsSync(fallback)) return fallback;
+  // Last resort: let the OS resolve it via PATH (may fail, but no better option)
+  return 'cmd.exe';
 }

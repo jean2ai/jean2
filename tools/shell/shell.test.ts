@@ -1,6 +1,6 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import type { ToolContext, PermissionAsk } from '@jean2/sdk';
-import { definition, detectWindowsShell, execute } from './tool';
+import { definition, execute } from './tool';
 
 // ── Mock Bun.spawn so NO real processes ever execute ─────────
 
@@ -180,50 +180,26 @@ describe('shell tool definition', () => {
   });
 });
 
-describe('windows shell wrapper', () => {
-  test('uses hidden PowerShell Start-Process wrapper when powershell is available', async () => {
-    const originalWhich = Bun.which;
-    Bun.which = (cmd: string) => cmd === 'powershell.exe' ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' : null;
+describe('windows shell selection', () => {
+  test('uses cmd.exe directly on windows (no PowerShell wrapper)', async () => {
+    const originalPlatform = process.platform;
+    // Simulate Windows so the cmd.exe branch is exercised regardless of
+    // the OS the test suite actually runs on.
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 
     try {
-      const shell = await detectWindowsShell('npm test', 'C:\\repo');
-      expect(shell[0]).toContain('powershell.exe');
-      expect(shell).toContain('-WindowStyle');
-      expect(shell).toContain('Hidden');
-      expect(shell).toContain('-Command');
-      const script = shell.at(-1) ?? '';
-      expect(script).toContain('Start-Process');
-      expect(script).toContain('-WindowStyle Hidden');
-      expect(script).toContain('-RedirectStandardOutput');
-      expect(script).toContain('-RedirectStandardError');
-      expect(script).toContain("@('/d','/s','/c', 'npm test')");
-      // ComSpec may be unset in non-native shells (Git Bash/MSYS/WSL);
-      // the script must resolve cmd.exe via a fallback chain rather than
-      // passing an empty $env:ComSpec directly to Start-Process -FilePath.
-      expect(script).toContain('$cmdExe');
-      expect(script).toContain("$env:ComSpec");
-      expect(script).toContain("$env:SystemRoot");
-      expect(script).toContain("'C:\\Windows\\System32\\cmd.exe'");
-      expect(script).toContain("-FilePath $cmdExe");
-      // The wrapper must refresh PATH from the live registry so child cmd.exe
-      // sees tools added after the server launched (stale PATH snapshot).
-      expect(script).toContain("[System.Environment]::GetEnvironmentVariable('PATH','Machine')");
-      expect(script).toContain("[System.Environment]::GetEnvironmentVariable('PATH','User')");
-      expect(script).toContain("$env:PATH");
+      const ctx = createMockContext({ ask: mock(async () => true) as unknown as ToolContext['ask'] });
+      await execute({ command: 'echo hello' }, ctx);
+      expect(spawnSyncCalls.length).toBe(1);
+      // cmd.exe inherits the server's environment directly; PATH/PATHEXT
+      // resolution happens natively without a PowerShell intermediary.
+      // resolveCmdExe() returns an absolute path when available, falling back
+      // to the bare 'cmd.exe' name otherwise.
+      const shellBin = spawnSyncCalls[0].shell[0];
+      expect(shellBin).toMatch(/cmd\.exe$/);
+      expect(spawnSyncCalls[0].shell.slice(1)).toEqual(['/d', '/s', '/c', 'echo hello']);
     } finally {
-      Bun.which = originalWhich;
-    }
-  });
-
-  test('falls back to cmd.exe when powershell is unavailable', async () => {
-    const originalWhich = Bun.which;
-    Bun.which = () => null;
-
-    try {
-      const shell = await detectWindowsShell('echo hello', 'C:\\repo');
-      expect(shell).toEqual(['cmd.exe', '/d', '/s', '/c', 'echo hello']);
-    } finally {
-      Bun.which = originalWhich;
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
     }
   });
 });

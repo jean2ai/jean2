@@ -189,6 +189,7 @@ export function getCompactionMaxPrunedToolCount(): number {
 }
 
 const TOOL_SAFE_ENV_BASE: string[] = [
+  // Cross-platform essentials
   'PATH',
   'HOME',
   'USER',
@@ -201,6 +202,24 @@ const TOOL_SAFE_ENV_BASE: string[] = [
   'LC_CTYPE',
   'TERM',
   'NODE_ENV',
+  // Windows-critical variables. These are absent on Unix (no-op), but
+  // essential on Windows: without PATHEXT the OS cannot resolve bare
+  // executable names like `git` -> `git.exe`, and without SYSTEMROOT many
+  // system DLLs / the C runtime fail to load. See getToolEnv().
+  'PATHEXT',
+  'SYSTEMROOT',
+  'WINDIR',
+  'COMSPEC',
+  'USERPROFILE',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'ProgramFiles',
+  'ProgramFiles(x86)',
+  'NUMBER_OF_PROCESSORS',
+  'PROCESSOR_ARCHITECTURE',
+  'OS',
 ];
 
 export function getToolEnv(allowedEnv?: string[]): NodeJS.ProcessEnv {
