@@ -3,12 +3,13 @@
 </p>
 
 <p align="center">
-  <strong>Your AI agent. One server. Any device. Built to work without you.</strong>
+  <strong>No baked-in behavior. You build the rest.</strong>
 </p>
 
 <p align="center">
-  Jean2 is a persistent AI agent server. It runs on your machine, connects to any LLM,<br>
-  and works autonomously until the job is done. Close your laptop. The agent never stops.
+  Jean2 is an open-source AI agent platform. It runs on your machine, connects to any LLM,<br>
+  and ships with no default system prompt, no default tools, no fixed personality.<br>
+  You opt in to each layer. Memory, skills, session search, workflows, agents. Your call.
 </p>
 
 <p align="center">
@@ -20,8 +21,8 @@
 </p>
 
 <p align="center">
-  <a href="docs/getting-started.md">Get Started</a> ·
-  <a href="docs/">Docs</a> ·
+  <a href="https://jean2.ai/docs/get-started/installation">Get Started</a> ·
+  <a href="https://jean2.ai/docs">Docs</a> ·
   <a href="https://jean2.ai">Website</a> ·
   <a href="https://chromewebstore.google.com/detail/jean2browser/jpahdfmmfmmnacapmkchljmcijoedcpj">Chrome Extension</a> ·
   <a href="https://discord.com/invite/38sUKnUNPQ">Discord</a>
@@ -48,20 +49,25 @@ jean2 start
 jean2 open
 ```
 
-The server serves the client at `http://localhost:3774`. Desktop app (macOS Electron) and PWA (any device) also available. See the [Getting Started guide](docs/getting-started.md).
+The server serves the client at `http://localhost:3774`. Desktop app (macOS Electron) and PWA (any device) also available. See the [Getting Started guide](https://jean2.ai/docs/get-started/installation).
 
 ---
 
 ## Features
 
+By default, Jean2 is as bare as Codex or OpenCode. A blank prompt. No memory. No skills. No session search. You opt in to each layer in **workspace settings**.
+
 | | |
 |---|---|
+| **Agents** | A preconfig that comes alive. Own home directory, own memory, own skills. Access to sessions across every workspace it's ever worked in. Persistent identity that carries context from task to task. |
 | **Goal Mode** | Set a completion condition. A separate evaluator inspects real tool output every turn. It loops until tests pass. |
-| **Persistent Memory** | Tell it "we use pnpm" once. Two weeks later, in a new session, it already knows. |
-| **Self-Programming Skills** | The agent notices patterns and writes its own `SKILL.md` files. It programs itself. |
-| **Parallel Workflows** | Decompose, fan out 5 concurrent subagents, synthesize one answer. Minutes become seconds. |
+| **Persistent Memory** | Tell it "we use pnpm" once. Two weeks later, in a new session, it already knows. Two scopes: workspace (shared context) and agent (identity). |
+| **Self-Programming Skills** | The agent notices patterns and writes its own `SKILL.md` files. It programs itself. Same two scopes as memory. |
+| **Session Search** | Full-text search over all past sessions, powered by SQLite FTS5. The agent searches its own history. Two scopes: workspace and agent. |
+| **Parallel Workflows** | Decompose, fan out 5 concurrent subagents, synthesize one answer. Only the final result lands in the main context window. |
+| **Scheduled Tasks** | Cron jobs that run as agent sessions. Daily code review, nightly dependency check, weekly changelog. No human in the loop. |
+| **Structured Responses** | Define a JSON schema, apply it to the next message. A yes/no question produces a yes/no answer. |
 | **Browser Automation** | Jean2Browser gives the agent real hands on Chrome: read, click, fill, navigate. Same interface as files and shell. |
-| **Preconfigs** | Swap model, tools, prompt, and skills mid-session. A coder becomes a reviewer. Same thread, different brain. |
 | **Any Model** | Anthropic, OpenAI, Google, DeepSeek, OpenRouter, or any OpenAI-compatible endpoint. Bring your own keys. |
 | **MCP Integration** | Connect any MCP server. Full OAuth handled server-side. Tools appear alongside built-in tools. |
 | **Server-First** | Persistent 24/7 server. PWA on any device. Close your laptop. Open your phone. The agent never stops. |
@@ -73,9 +79,15 @@ The server serves the client at `http://localhost:3774`. Desktop app (macOS Elec
 
 You already have Cursor, Copilot, and Claude Code. Why run your own agent server?
 
+- **No baked-in behavior.** Every AI coding agent ships with hidden system prompts you can't change. Claude Code has a long system prompt buried in the npm package. Cursor has behavior rules that override your preferences. Jean2 ships with none of that. The system prompt is composed from files you control. Every layer is visible and replaceable.
+
+- **Everything is opt-in.** By default, Jean2 is a blank slate. You build the agent you want, layer by layer. Turn on memory. Turn on skills. Turn on session search. Or don't. Your call.
+
 - **You bring the keys, you keep the data.** Runs on your machine. No telemetry, no vendor lock-in, no subscription to a single AI company.
-- **Tools, not prompts.** Give your agent real capabilities: file operations, shell commands, web browsing, API calls. Tools are TypeScript. Write your own in minutes.
-- **Your agent, your rules.** System prompts, tools, skills, and memory are files on disk. Version control them, share them, delete them. No hidden behavior.
+
+- **Files on disk.** System prompts, tools, skills, and memory are all files. Version control them, share them, delete them. No vector database, no embedding pipeline, no hidden layers.
+
+- **An agent that evolves.** Not through fine-tuning. Through taking notes. Memory, skills, and session search accumulate over time. Your agent on day 30 is smarter than your agent on day 1. The model didn't change. The files got richer.
 
 ---
 
@@ -95,12 +107,15 @@ You already have Cursor, Copilot, and Claude Code. Why run your own agent server
 │   Goal Loop + Evaluator · Workflow Orchestrator           │
 │   MCP Manager (stdio + OAuth) · Subagent Orchestrator     │
 │   Memory · Skills Registry · Session Search (FTS)         │
+│   Scheduled Tasks · Structured Responses                  │
 │   Ask Protocol (Permissions, Questions, Forms)            │
 │   SQLite Store · Compaction Engine                        │
 │                                                           │
-│   ~/.jean2/          (data, tools, preconfigs, models)    │
-│   <workspace>/.jean2/          (memory, mcp.json)         │
-│   <workspace>/.agents/skills/  (SKILL.md files)           │
+│   ~/.jean2/                    (data, tools, preconfigs)   │
+│   ~/.jean2/agents/<name>/      (agent home: memory,        │
+│                                 skills, sessions)          │
+│   <workspace>/.jean2/          (memory, mcp.json)          │
+│   <workspace>/.agents/skills/  (SKILL.md files)            │
 └───────────────────────────────────────────────────────────┘
                            │
               LLM Providers (Anthropic, OpenAI, Google,
@@ -111,17 +126,15 @@ You already have Cursor, Copilot, and Claude Code. Why run your own agent server
 
 ## Documentation
 
-All docs live in [`docs/`](docs/). Key pages:
+Full documentation site: [jean2.ai/docs](https://jean2.ai/docs/get-started/installation)
 
 | | |
 |---|---|
-| [Getting Started](docs/getting-started.md) | Install, initialize, first session |
-| [Workspaces & Sessions](docs/workspaces.md) | Capabilities, Goal Mode, MCP, Skills, Memory, Workflows |
-| [Configuration](docs/configuration.md) | API keys, models, env vars, MCP config |
-| [Tools](docs/tools.md) | Installed tools, capability tools, writing your own |
-| [Security & Auth](docs/auth.md) | Auth tokens, TLS, permissions |
-
-Full documentation site: [jean2.ai/docs](https://jean2.ai/docs/get-started/installation)
+| [Getting Started](https://jean2.ai/docs/get-started/installation) | Install, initialize, first session |
+| [Workspaces & Sessions](https://jean2.ai/docs/workspaces/overview) | Capabilities, Goal Mode, MCP, Skills, Memory, Workflows |
+| [Configuration](https://jean2.ai/docs/configuration/overview) | API keys, models, env vars, MCP config |
+| [Tools](https://jean2.ai/docs/reference/writing-tools) | Installed tools, capability tools, writing your own |
+| [Security & Auth](https://jean2.ai/docs/guides/auth) | Auth tokens, TLS, permissions |
 
 ---
 
