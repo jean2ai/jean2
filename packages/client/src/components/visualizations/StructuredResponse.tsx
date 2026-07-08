@@ -1,11 +1,36 @@
 import { memo, useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+
+const MARKDOWN_RE = /(?:\*\*|__|`|\[[^\]]+\]\(|^#{1,6}\s|^-\s|^\*\s|^\d+\.\s|^>\s|^\|)/m;
+
+function isMarkdown(text: string): boolean {
+  return MARKDOWN_RE.test(text);
+}
 
 interface StructuredResponseProps {
   formatName?: string;
   data: Record<string, unknown>;
   schema?: Record<string, unknown>;
+}
+
+function ObjectDefList({ data, depth = 1 }: { data: Record<string, unknown>; depth?: number }) {
+  const entries = Object.entries(data);
+  return (
+    <dl className="space-y-1.5">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex gap-3 items-start">
+          <dt className="text-xs font-medium text-muted-foreground shrink-0 w-28 pt-0.5">
+            {formatLabel(key)}
+          </dt>
+          <dd className="flex-1 min-w-0">
+            <HumanValue data={value} depth={depth + 1} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
@@ -29,6 +54,13 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
   }
 
   if (typeof data === 'string') {
+    if (isMarkdown(data)) {
+      return (
+        <div className="text-sm">
+          <MarkdownRenderer>{data}</MarkdownRenderer>
+        </div>
+      );
+    }
     if (data.includes('\n')) {
       return (
         <div className="text-sm leading-relaxed whitespace-pre-wrap">{data}</div>
@@ -72,16 +104,24 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
     }
 
     return (
-      <ul className="space-y-1.5">
+      <div className="space-y-2">
         {data.map((item, i) => (
-          <li key={i} className="flex gap-2 items-start">
-            <span className="text-muted-foreground select-none mt-0.5">•</span>
-            <div className="flex-1 min-w-0">
-              <HumanValue data={item} depth={depth + 1} />
+          <div key={i} className="rounded-md border border-border/60 bg-muted/20 p-2.5">
+            <div className="flex gap-2.5">
+              <span className="inline-flex items-center justify-center shrink-0 size-5 rounded bg-background text-[10px] font-semibold tabular-nums text-muted-foreground mt-0.5">
+                {i + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                {item !== null && typeof item === 'object' && !Array.isArray(item) ? (
+                  <ObjectDefList data={item as Record<string, unknown>} depth={depth + 1} />
+                ) : (
+                  <HumanValue data={item} depth={depth + 1} />
+                )}
+              </div>
             </div>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     );
   }
 
@@ -106,16 +146,7 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
       );
     }
 
-    return (
-      <div className={cn('space-y-2', depth === 1 && 'pl-3 border-l border-border')}>
-        {entries.map(([key, value]) => (
-          <div key={key}>
-            <div className="text-xs font-medium text-muted-foreground mb-0.5">{formatLabel(key)}</div>
-            <HumanValue data={value} depth={depth + 1} />
-          </div>
-        ))}
-      </div>
-    );
+    return <ObjectDefList data={data as Record<string, unknown>} depth={depth} />;
   }
 
   return <span className="text-sm">{String(data)}</span>;
