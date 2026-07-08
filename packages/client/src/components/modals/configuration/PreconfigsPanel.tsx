@@ -101,7 +101,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [, setDeleting] = useState(false);
   const [availableTools, setAvailableTools] = useState<{ name: string; description: string }[]>([]);
   const [customToolInput, setCustomToolInput] = useState('');
-  const [toolSelectorOpen, setToolSelectorOpen] = useState(false);
+  const [toolSearch, setToolSearch] = useState('');
   const [subagentInput, setSubagentInput] = useState('');
   const [skillInput, setSkillInput] = useState('');
 
@@ -301,7 +301,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
           <div className="grid grid-cols-1 gap-3">
             <div className="space-y-1">
               <Label className="text-sm">Model</Label>
-              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen} modal>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -322,7 +322,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
                 <PopoverContent className="w-[280px] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Search models..." />
-                    <CommandList className="max-h-[50vh] overflow-y-auto">
+                    <CommandList className="max-h-[300px] overflow-y-auto">
                       <CommandEmpty>No model found.</CommandEmpty>
                       <CommandGroup>
                         <CommandItem
@@ -414,88 +414,54 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
               {form.tools.length === 0 ? 'No tools selected — all available tools will be enabled' : `${form.tools.length} tool${form.tools.length !== 1 ? 's' : ''} selected`}
             </p>
 
-            {form.tools.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {form.tools.map(tool => {
-                  const known = availableTools.find(at => at.name === tool);
+            <Input
+              value={toolSearch}
+              onChange={(e) => setToolSearch(e.target.value)}
+              placeholder="Search tools..."
+              className="h-8 text-xs"
+            />
+
+            <div className="dialog-scrollbar max-h-[200px] overflow-y-auto rounded-md border">
+              {[...availableTools]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .filter(tool =>
+                  !toolSearch.trim()
+                  || tool.name.toLowerCase().includes(toolSearch.toLowerCase())
+                  || tool.description?.toLowerCase().includes(toolSearch.toLowerCase())
+                )
+                .map(tool => {
+                  const selected = form.tools.includes(tool.name);
                   return (
-                    <span
-                      key={tool}
+                    <button
+                      key={tool.name}
+                      type="button"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        tools: selected
+                          ? prev.tools.filter(t => t !== tool.name)
+                          : [...prev.tools, tool.name],
+                      }))}
                       className={cn(
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs border transition-colors',
-                        known
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-primary/10 border-primary/30',
+                        'flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-accent',
+                        selected && 'bg-primary/10',
                       )}
-                      title={known?.description}
                     >
-                      {tool}
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, tools: prev.tools.filter(t => t !== tool) }))}
-                        className="hover:text-destructive"
-                      >
-                        <X className="size-2.5" />
-                      </button>
-                    </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-mono text-xs truncate">{tool.name}</span>
+                        {tool.description && (
+                          <span className="text-[10px] text-muted-foreground truncate">{tool.description}</span>
+                        )}
+                      </div>
+                      <div className={cn(
+                        'flex size-4 shrink-0 items-center justify-center rounded border',
+                        selected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/30',
+                      )}>
+                        {selected && <Check className="size-3" />}
+                      </div>
+                    </button>
                   );
                 })}
-              </div>
-            )}
-
-            <Popover open={toolSelectorOpen} onOpenChange={setToolSelectorOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-between h-8 text-xs"
-                >
-                  <span className="text-muted-foreground">Search & toggle tools...</span>
-                  <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search tools..." />
-                  <CommandList className="max-h-[300px] overflow-y-auto">
-                    <CommandEmpty>No tool found.</CommandEmpty>
-                    <CommandGroup>
-                      {[...availableTools].sort((a, b) => a.name.localeCompare(b.name)).map(tool => {
-                        const selected = form.tools.includes(tool.name);
-                        return (
-                          <CommandItem
-                            key={tool.name}
-                            value={tool.name}
-                            onSelect={() => {
-                              setForm(prev => ({
-                                ...prev,
-                                tools: selected
-                                  ? prev.tools.filter(t => t !== tool.name)
-                                  : [...prev.tools, tool.name],
-                              }));
-                            }}
-                            className="justify-between"
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-mono text-xs truncate">{tool.name}</span>
-                              {tool.description && (
-                                <span className="text-[10px] text-muted-foreground truncate">{tool.description}</span>
-                              )}
-                            </div>
-                            <Check
-                              className={cn(
-                                'size-4 shrink-0',
-                                selected ? 'opacity-100' : 'opacity-0',
-                              )}
-                            />
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            </div>
 
             <div className="flex gap-1.5">
               <Input
