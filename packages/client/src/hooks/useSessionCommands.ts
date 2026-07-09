@@ -9,6 +9,7 @@ import type {
 import type { Jean2Client } from '@jean2/sdk';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import type { ResumeSessionOptions } from '@/stores/sessionStore';
 import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 
@@ -158,6 +159,7 @@ export function useSessionCommands({
   const revertSession = useCallback((sessionId: string, messageId: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'revert', sessionId, messageId, startedAt: Date.now() });
       client.sessions.revert(sessionId, messageId);
     }
   }, [clientRef]);
@@ -165,6 +167,7 @@ export function useSessionCommands({
   const forkSession = useCallback((sessionId: string, messageId: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'fork', sessionId, messageId, startedAt: Date.now() });
       client.sessions.fork(sessionId, messageId);
     }
   }, [clientRef]);
@@ -172,6 +175,7 @@ export function useSessionCommands({
   const editMessage = useCallback((sessionId: string, messageId: string, content: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'edit', sessionId, messageId, startedAt: Date.now() });
       client.sessions.editMessage(sessionId, messageId, content);
     }
   }, [clientRef]);
@@ -179,6 +183,7 @@ export function useSessionCommands({
   const compactSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'compact', sessionId, startedAt: Date.now() });
       client.sessions.compact(sessionId);
     }
   }, [clientRef]);
@@ -193,6 +198,7 @@ export function useSessionCommands({
   const permanentlyDeleteSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'delete', sessionId, startedAt: Date.now() });
       client.sessions.delete(sessionId);
     }
   }, [clientRef]);
@@ -228,6 +234,7 @@ export function useSessionCommands({
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'rename', sessionId, startedAt: Date.now() });
       client.sessions.rename(sessionId, title);
     }
   }, [clientRef]);
@@ -235,6 +242,7 @@ export function useSessionCommands({
   const regenerateSessionTitle = useCallback((sessionId: string) => {
     const client = clientRef.current;
     if (client && client.connected) {
+      usePendingOperationsStore.getState().startOperation({ type: 'regenerate_title', sessionId, startedAt: Date.now() });
       client.sessions.generateTitle(sessionId);
     }
   }, [clientRef]);

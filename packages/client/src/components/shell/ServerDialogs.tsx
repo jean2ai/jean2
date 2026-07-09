@@ -19,6 +19,7 @@ interface ServerDialogsProps {
   onRevokeAllPermissions: (workspaceId: string) => void;
   onUpdateWorkspacePaths: (workspaceId: string, additionalPaths: string[]) => void;
   onUpdateWorkspaceSettings: (workspaceId: string, settings: WorkspaceSettings) => void;
+  isUpdatingWorkspace?: Record<string, boolean>;
 }
 
 export function ServerDialogs({
@@ -33,6 +34,7 @@ export function ServerDialogs({
   onRevokeAllPermissions,
   onUpdateWorkspacePaths,
   onUpdateWorkspaceSettings,
+  isUpdatingWorkspace = {},
 }: ServerDialogsProps) {
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
@@ -91,6 +93,7 @@ export function ServerDialogs({
           onRevokePermission={onRevokePermission}
           onRevokeAllPermissions={() => onRevokeAllPermissions(activeWorkspace.id)}
           onUpdateWorkspacePaths={onUpdateWorkspacePaths}
+          isSaving={!!isUpdatingWorkspace[activeWorkspace.id]}
         />
       )}
 

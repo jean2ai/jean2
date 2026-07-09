@@ -1,6 +1,7 @@
 import type { Session, MessageWithParts, SessionControlState } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -234,6 +235,8 @@ export function handleSessionDeleted(
     }
   }
   sessionAccessTimesRef.current.delete(sessionId);
+  usePendingOperationsStore.getState().clearOperation(sessionId, 'delete');
+
   if (currentSessionIdRef.current === sessionId) {
     setCurrentSession(null);
     ctx.navigateToParent();
@@ -273,6 +276,9 @@ export function handleSessionRenamed(
   setSessions(prev => prev.map(s =>
     s.id === session.id ? session : s
   ));
+  usePendingOperationsStore.getState().clearOperation(session.id, 'rename');
+  usePendingOperationsStore.getState().clearOperation(session.id, 'regenerate_title');
+
   if (currentSessionIdRef.current === session.id) {
     setCurrentSession(session);
   }
@@ -342,6 +348,8 @@ export function handleSessionForked(
       });
     }
   }
+  usePendingOperationsStore.getState().clearSessionOperations(msg.originalSessionId);
+
   setCurrentSession(forkedSession);
   ctx.navigateToSession(forkedSession.id);
   ctx.resumeSessionAfterCreate(forkedSession.id);
@@ -405,6 +413,9 @@ export function handleSessionState(
   sessionAccessTimesRef.current.set(sessionId, Date.now());
   // Clear completion state when session state is refreshed
   clearCompletion(sessionId);
+
+  usePendingOperationsStore.getState().clearOperation(sessionId, 'revert');
+  usePendingOperationsStore.getState().clearOperation(sessionId, 'edit');
 }
 
 export const sessionHandlers = {

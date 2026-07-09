@@ -1,9 +1,10 @@
-import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch, Pin, PinOff, Pencil, X as XIcon } from 'lucide-react';
+import { Copy, Check, User, Bot, X, Clock, Undo2, GitBranch, Pin, PinOff, Pencil, X as XIcon, Loader2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { Message } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import { cn } from '@/lib/utils';
 
 interface MessageBubbleProps {
@@ -22,6 +23,7 @@ interface MessageBubbleProps {
   isPinned?: boolean;
   onTogglePin?: () => void;
   canPin?: boolean;
+  isPinningMessage?: boolean;
 }
 
 export function MessageBubble({
@@ -40,6 +42,7 @@ export function MessageBubble({
   isPinned = false,
   onTogglePin,
   canPin = false,
+  isPinningMessage = false,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
@@ -48,6 +51,17 @@ export function MessageBubble({
   const [editText, setEditText] = useState('');
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const isUser = message.role === 'user';
+
+  const sessionId = message.sessionId;
+  const isForking = usePendingOperationsStore((s) =>
+    s.operations.some((op) => op.sessionId === sessionId && op.type === 'fork' && op.messageId === message.id),
+  );
+  const isReverting = usePendingOperationsStore((s) =>
+    s.operations.some((op) => op.sessionId === sessionId && op.type === 'revert' && op.messageId === message.id),
+  );
+  const isEditingPending = usePendingOperationsStore((s) =>
+    s.operations.some((op) => op.sessionId === sessionId && op.type === 'edit' && op.messageId === message.id),
+  );
 
   useEffect(() => {
     if (isEditing && editTextareaRef.current) {
@@ -82,9 +96,14 @@ export function MessageBubble({
   const handleSaveEdit = () => {
     const trimmed = editText.trim();
     if (!trimmed || !onEdit) return;
-    setIsEditing(false);
     onEdit(trimmed);
   };
+
+  useEffect(() => {
+    if (isEditingPending) {
+      setIsEditing(false);
+    }
+  }, [isEditingPending]);
 
   const handleEditKeydown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -182,15 +201,18 @@ export function MessageBubble({
                 variant="ghost"
                 size="icon"
                 onClick={onTogglePin}
+                disabled={isPinningMessage}
                 className={cn(
                   'size-5',
                   isPinned
                     ? 'text-primary hover:text-primary/80'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
-                title={isPinned ? 'Unpin message' : 'Pin message'}
+                title={isPinningMessage ? 'Updating...' : isPinned ? 'Unpin message' : 'Pin message'}
               >
-                {isPinned ? (
+                {isPinningMessage ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : isPinned ? (
                   <PinOff className="size-3" />
                 ) : (
                   <Pin className="size-3" />
@@ -247,6 +269,11 @@ export function MessageBubble({
             </Button>
           </div>
         </div>
+      ) : isEditingPending ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground self-end mr-3 animate-fade-in">
+          <Loader2 className="size-3 animate-spin" />
+          Applying edit...
+        </div>
       ) : (
         <div
           className={cn(
@@ -284,8 +311,8 @@ export function MessageBubble({
       )}
 
       <ConfirmationDialog
-        open={showRevertConfirm}
-        onOpenChange={setShowRevertConfirm}
+        open={showRevertConfirm || isReverting}
+        onOpenChange={(open) => { if (!isReverting) setShowRevertConfirm(open); }}
         title={isClearAll ? 'Clear Conversation' : 'Revert Conversation'}
         description={
           isClearAll
@@ -298,11 +325,12 @@ export function MessageBubble({
           onRevert?.();
         }}
         variant="destructive"
+        loading={isReverting}
       />
 
       <ConfirmationDialog
-        open={showForkConfirm}
-        onOpenChange={setShowForkConfirm}
+        open={showForkConfirm || isForking}
+        onOpenChange={(open) => { if (!isForking) setShowForkConfirm(open); }}
         title="Fork Conversation"
         description="This will create a new session with messages up to and including this point. The original session will be unchanged."
         confirmLabel="Fork"
@@ -310,6 +338,7 @@ export function MessageBubble({
         onConfirm={() => {
           onFork?.();
         }}
+        loading={isForking}
       />
     </div>
   );

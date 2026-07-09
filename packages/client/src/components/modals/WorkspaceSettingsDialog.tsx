@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock, ShieldCheck, Cog } from 'lucide-react';
+import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock, ShieldCheck, Cog, Loader2 } from 'lucide-react';
 import type { Workspace, WorkspaceSettings, WorkspacePreconfigSettings, PermissionRiskLevel, PermissionGrant, Jean2Client, AutoApproveSeverity } from '@jean2/sdk';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import {
@@ -65,6 +65,7 @@ interface WorkspaceSettingsDialogProps {
   onRevokePermission: (permissionId: string) => void;
   onRevokeAllPermissions: () => void;
   onUpdateWorkspacePaths: (workspaceId: string, additionalPaths: string[]) => void;
+  isSaving?: boolean;
 }
 
 export function WorkspaceSettingsDialog({
@@ -78,6 +79,7 @@ export function WorkspaceSettingsDialog({
   onRevokePermission,
   onRevokeAllPermissions,
   onUpdateWorkspacePaths,
+  isSaving = false,
 }: WorkspaceSettingsDialogProps) {
   const [section, setSection] = useState<Section>('mcp');
 
@@ -271,8 +273,11 @@ export function WorkspaceSettingsDialog({
         {/* Only show Save/Cancel footer for capability sections (they have a form) */}
         {isCapability && (
           <DialogFooter className="shrink-0">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              {isSaving ? 'Saving...' : 'Save'}
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>

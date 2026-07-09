@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Archive, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Archive, Minimize2, Loader2 } from 'lucide-react';
 import type { Session, Preconfig } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -243,7 +243,11 @@ export function ChatHeader({
                     onClick={onCompact}
                     disabled={isStreaming || isCompacting || !canCompact}
                   >
-                    <Minimize2 className="size-4" />
+                    {isCompacting ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Minimize2 className="size-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>

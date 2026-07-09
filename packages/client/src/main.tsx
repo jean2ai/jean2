@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { ThemedToaster } from '@/components/providers/ThemedToaster';
 import { RouterApp } from './router';
 import { VSCodeEntry } from '@/components/shell/VSCodeBootstrap';
 import { platform } from '@/platform';
@@ -38,6 +39,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryProvider>
         <ThemeProvider defaultMode="system" defaultScheme="neutral">
           <App />
+          <ThemedToaster />
         </ThemeProvider>
       </QueryProvider>
     </ErrorBoundary>

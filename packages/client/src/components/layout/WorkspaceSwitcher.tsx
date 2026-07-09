@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
 import { useState, useEffect, useRef } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil, FolderSymlink } from 'lucide-react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil, FolderSymlink, Loader2 } from 'lucide-react';
 import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
@@ -40,6 +40,9 @@ interface WorkspaceSwitcherProps {
   onRenameWorkspace: (id: string, name: string) => void;
   onUpdateWorkspacePaths: (workspaceId: string, additionalPaths: string[]) => void;
   sdkClient: Jean2Client | null;
+  isCreatingWorkspace?: boolean;
+  deletingWorkspaceId?: string | null;
+  isUpdatingWorkspace?: Record<string, boolean>;
 }
 
 export function WorkspaceSwitcher({
@@ -54,6 +57,9 @@ export function WorkspaceSwitcher({
   onRenameWorkspace,
   onUpdateWorkspacePaths,
   sdkClient,
+  isCreatingWorkspace = false,
+  deletingWorkspaceId = null,
+  isUpdatingWorkspace = {},
 }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
@@ -237,7 +243,7 @@ export function WorkspaceSwitcher({
                   setOpen(false);
                 }}
               >
-                <Plus className="size-4" data-icon="inline-start" />
+                {isCreatingWorkspace ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" data-icon="inline-start" />}
                 Create virtual workspace
               </CommandItem>
               <CommandItem
@@ -270,6 +276,7 @@ export function WorkspaceSwitcher({
       workspace={editingPathsWorkspace ?? { id: '', name: '', path: '', isVirtual: false, additionalPaths: [], settings: {}, createdAt: '', updatedAt: '' }}
       onSave={onUpdateWorkspacePaths}
       sdkClient={sdkClient}
+      isSaving={editingPathsWorkspace ? !!isUpdatingWorkspace[editingPathsWorkspace.id] : false}
     />
     <ConfirmationDialog
       open={workspaceToDelete !== null}
@@ -282,10 +289,10 @@ export function WorkspaceSwitcher({
       }
       confirmLabel="Delete"
       variant="destructive"
+      loading={workspaceToDelete !== null && deletingWorkspaceId === workspaceToDelete.id}
       onConfirm={() => {
         if (workspaceToDelete) {
           onDeleteWorkspace(workspaceToDelete.id);
-          setWorkspaceToDelete(null);
         }
       }}
     />

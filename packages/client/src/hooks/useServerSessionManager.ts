@@ -28,6 +28,7 @@ import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 
+import { toast } from 'sonner';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
 import { useConnectionLifecycle } from '@/hooks/useConnectionLifecycle';
@@ -116,6 +117,9 @@ export interface UseServerSessionManagerReturn {
   handleCreateVirtualWorkspace: () => void;
   handleCreatePhysicalWorkspace: (path: string) => void;
   deleteWorkspace: (id: string) => void;
+  isCreatingWorkspace: boolean;
+  deletingWorkspaceId: string | null;
+  isUpdatingWorkspace: Record<string, boolean>;
 
   handleLogout: () => void;
   handleRetry: () => void;
@@ -536,6 +540,10 @@ export function useServerSessionManager({
     return workspace;
   };
 
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
+  const [isUpdatingWorkspace, setIsUpdatingWorkspace] = useState<Record<string, boolean>>({});
+
   const selectWorkspace = useCallback((workspace: Workspace) => {
     useServerDataStore.getState().setActiveWorkspace(workspace);
     localStorage.setItem('activeWorkspaceId', workspace.id);
@@ -547,6 +555,7 @@ export function useServerSessionManager({
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
 
+    setDeletingWorkspaceId(id);
     let deletedSessions: string[] = [];
     try {
       const data = await http.delete<{ deletedSessions: string[] }>(`/workspaces/${id}`);
@@ -554,6 +563,8 @@ export function useServerSessionManager({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to delete workspace:', message);
+      toast.error('Failed to delete workspace', { description: message });
+      setDeletingWorkspaceId(null);
       return;
     }
 
@@ -599,12 +610,14 @@ export function useServerSessionManager({
     }
 
     queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+    setDeletingWorkspaceId(null);
   };
 
   const renameWorkspace = async (id: string, name: string) => {
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
 
+    setIsUpdatingWorkspace(prev => ({ ...prev, [id]: true }));
     try {
       const data = await http.patch<{ workspace: Workspace }>(`/workspaces/${id}`, { name });
       const updatedWorkspace = data.workspace;
@@ -622,6 +635,9 @@ export function useServerSessionManager({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to rename workspace:', message);
+      toast.error('Failed to rename workspace', { description: message });
+    } finally {
+      setIsUpdatingWorkspace(prev => { const next = { ...prev }; delete next[id]; return next; });
     }
   };
 
@@ -629,6 +645,7 @@ export function useServerSessionManager({
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
 
+    setIsUpdatingWorkspace(prev => ({ ...prev, [id]: true }));
     try {
       const data = await http.patch<{ workspace: Workspace }>(`/workspaces/${id}`, { additionalPaths });
       const updatedWorkspace = data.workspace;
@@ -641,9 +658,13 @@ export function useServerSessionManager({
       if (useServerDataStore.getState().activeWorkspace?.id === id) {
         useServerDataStore.getState().setActiveWorkspace(updatedWorkspace);
       }
+      toast.success('Workspace paths updated');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to update workspace paths:', message);
+      toast.error('Failed to update workspace paths', { description: message });
+    } finally {
+      setIsUpdatingWorkspace(prev => { const next = { ...prev }; delete next[id]; return next; });
     }
   };
 
@@ -651,6 +672,7 @@ export function useServerSessionManager({
     const http = sdkClientRef.current?.httpClient;
     if (!http) return;
 
+    setIsUpdatingWorkspace(prev => ({ ...prev, [id]: true }));
     try {
       const data = await http.patch<{ workspace: Workspace }>(`/workspaces/${id}`, { settings });
       const updatedWorkspace = data.workspace;
@@ -663,21 +685,41 @@ export function useServerSessionManager({
       if (useServerDataStore.getState().activeWorkspace?.id === id) {
         useServerDataStore.getState().setActiveWorkspace(updatedWorkspace);
       }
+      toast.success('Workspace settings saved');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to update workspace settings:', message);
+      toast.error('Failed to update workspace settings', { description: message });
+    } finally {
+      setIsUpdatingWorkspace(prev => { const next = { ...prev }; delete next[id]; return next; });
     }
   };
 
   const handleCreateVirtualWorkspace = async () => {
     const name = `Workspace ${workspaces.length + 1}`;
     const path = `~/.jean2/workspaces/${crypto.randomUUID()}`;
-    await createWorkspace(name, path, true);
+    setIsCreatingWorkspace(true);
+    try {
+      await createWorkspace(name, path, true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error('Failed to create workspace', { description: message });
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
   };
 
   const handleCreatePhysicalWorkspace = async (path: string) => {
     const name = path.split('/').pop() || path.split('\\').pop() || 'Workspace';
-    await createWorkspace(name, path, false);
+    setIsCreatingWorkspace(true);
+    try {
+      await createWorkspace(name, path, false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error('Failed to create workspace', { description: message });
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
   };
 
   useLayoutEffect(() => {
@@ -921,6 +963,9 @@ export function useServerSessionManager({
     handleCreateVirtualWorkspace,
     handleCreatePhysicalWorkspace,
     deleteWorkspace,
+    isCreatingWorkspace,
+    deletingWorkspaceId,
+    isUpdatingWorkspace,
 
     handleLogout,
     handleRetry,

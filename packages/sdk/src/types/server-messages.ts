@@ -182,21 +182,24 @@ export interface SdkEventMap {
     requests: AskPendingSyncMessage['requests'],
   ];
 
-  'error': [code: ErrorMessage['code'], message: ErrorMessage['message']];
+  'error': [code: ErrorMessage['code'], message: ErrorMessage['message'], sessionId?: string];
   'error.rate_limit': [
     code: RateLimitErrorMessage['code'],
     message: RateLimitErrorMessage['message'],
     retryAfterMs: RateLimitErrorMessage['retryAfterMs'],
+    sessionId?: string,
   ];
   'error.server': [
     code: ServerErrorMessage['code'],
     message: ServerErrorMessage['message'],
     retryAfterMs: ServerErrorMessage['retryAfterMs'],
+    sessionId?: string,
   ];
   'error.timeout': [
     code: TimeoutErrorMessage['code'],
     message: TimeoutErrorMessage['message'],
     retryAfterMs: TimeoutErrorMessage['retryAfterMs'],
+    sessionId?: string,
   ];
   'error.auth': [code: AuthErrorMessage['code'], message: AuthErrorMessage['message']];
   'error.invalid_request': [
@@ -322,31 +325,31 @@ export function routeServerMessage(
       emitter.emit('ask.pending_sync', msg.sessionId, msg.requests);
       break;
     case 'error':
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.rate_limit':
       emitter.emit('error.rate_limit', msg.code, msg.message, msg.retryAfterMs);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.server':
-      emitter.emit('error.server', msg.code, msg.message, msg.retryAfterMs);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error.server', msg.code, msg.message, msg.retryAfterMs, msg.sessionId);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.timeout':
-      emitter.emit('error.timeout', msg.code, msg.message, msg.retryAfterMs);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error.timeout', msg.code, msg.message, msg.retryAfterMs, msg.sessionId);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.auth':
       emitter.emit('error.auth', msg.code, msg.message);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.invalid_request':
       emitter.emit('error.invalid_request', msg.code, msg.message);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'error.context_overflow':
       emitter.emit('error.context_overflow', msg.code, msg.message);
-      emitter.emit('error', msg.code, msg.message);
+      emitter.emit('error', msg.code, msg.message, msg.sessionId);
       break;
     case 'ping':
       // Handled at transport level — no event emission

@@ -76,6 +76,7 @@ export interface ErrorMessage {
   type: 'error';
   code: string;
   message: string;
+  sessionId?: string;
 }
 
 export interface SessionClosedMessage {
@@ -271,6 +272,7 @@ export interface RateLimitErrorMessage {
   code: 'rate_limit';
   message: string;
   retryAfterMs: number;
+  sessionId?: string;
 }
 
 export interface ServerErrorMessage {
@@ -278,6 +280,7 @@ export interface ServerErrorMessage {
   code: 'server_error';
   message: string;
   retryAfterMs?: number;
+  sessionId?: string;
 }
 
 export interface TimeoutErrorMessage {
@@ -285,24 +288,28 @@ export interface TimeoutErrorMessage {
   code: 'timeout';
   message: string;
   retryAfterMs?: number;
+  sessionId?: string;
 }
 
 export interface AuthErrorMessage {
   type: 'error.auth';
   code: 'authentication';
   message: string;
+  sessionId?: string;
 }
 
 export interface InvalidRequestErrorMessage {
   type: 'error.invalid_request';
   code: 'invalid_request';
   message: string;
+  sessionId?: string;
 }
 
 export interface ContextOverflowErrorMessage {
   type: 'error.context_overflow';
   code: 'context_overflow';
   message: string;
+  sessionId?: string;
 }
 
 export interface ProviderStatusMessage {

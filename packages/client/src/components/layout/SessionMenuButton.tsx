@@ -23,6 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useCompletionStore, selectCompletionRecord, COMPLETION_FLASH_DURATION_MS } from '@/stores/completionStore';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 
 export type ChildrenMap = Map<string, Session[]>;
 
@@ -65,6 +66,7 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   allWorkspaceTags,
   onAddTag,
   onRemoveTag,
+  sessionId,
 }: {
   isClosed: boolean;
   isEditing: boolean;
@@ -78,10 +80,18 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   allWorkspaceTags?: string[];
   onAddTag?: (tag: string) => void;
   onRemoveTag?: (tag: string) => void;
+  sessionId: string;
 }) {
   const [tagInputOpen, setTagInputOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const tagInputRef = useRef<HTMLInputElement>(null);
+
+  const isDeleting = usePendingOperationsStore((s) =>
+    s.operations.some((op) => op.sessionId === sessionId && op.type === 'delete'),
+  );
+  const isRegeneratingTitle = usePendingOperationsStore((s) =>
+    s.operations.some((op) => op.sessionId === sessionId && op.type === 'regenerate_title'),
+  );
 
   useEffect(() => {
     if (tagInputOpen && tagInputRef.current) {
@@ -129,9 +139,9 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
           Rename
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={onRegenerateTitle} disabled={!onRegenerateTitle}>
-          <Sparkles className="size-4" />
-          Regenerate title
+        <DropdownMenuItem onClick={onRegenerateTitle} disabled={!onRegenerateTitle || isRegeneratingTitle}>
+          {isRegeneratingTitle ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          {isRegeneratingTitle ? 'Generating...' : 'Regenerate title'}
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
@@ -214,10 +224,11 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onDelete}
+              disabled={isDeleting}
               className="text-destructive focus:text-destructive"
             >
-              <Trash2 className="size-4" />
-              Delete permanently
+              {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {isDeleting ? 'Deleting...' : 'Delete permanently'}
             </DropdownMenuItem>
           </>
         ) : (
@@ -474,6 +485,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               allWorkspaceTags={allWorkspaceTags}
               onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
               onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
+              sessionId={session.id}
             />
           </div>
         </SidebarMenuItem>
@@ -567,6 +579,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               allWorkspaceTags={allWorkspaceTags}
               onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
               onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
+              sessionId={session.id}
             />
           </div>
 

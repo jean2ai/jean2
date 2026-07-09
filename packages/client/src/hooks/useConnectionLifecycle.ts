@@ -6,6 +6,8 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAskStore } from '@/stores/askStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
+import { toast } from 'sonner';
 import { subscribeToServerEvents } from './subscribeToServerEvents';
 import { resolveClientDescriptor } from '@/config/client-identity';
 
@@ -112,6 +114,16 @@ export function useConnectionLifecycle({
 
       client.on('disconnected', (payload) => {
         useConnectionStore.getState().setConnected(false);
+
+        const pendingOps = usePendingOperationsStore.getState().operations;
+        if (pendingOps.length > 0) {
+          for (const op of pendingOps) {
+            toast.error('Connection lost', {
+              description: `${op.type} was interrupted and may not have completed.`,
+            });
+          }
+          usePendingOperationsStore.setState({ operations: [] });
+        }
 
         if (payload.code === 1008 || payload.code === 401) {
           handleLogout();
@@ -239,6 +251,13 @@ export function useConnectionLifecycle({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [serverUrl]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      usePendingOperationsStore.getState().cleanupStaleOperations();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return { clientRef, retry };
 }

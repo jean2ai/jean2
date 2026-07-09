@@ -44,6 +44,7 @@ interface ChatViewProps {
   autoFollowToggleRef?: React.RefObject<{ toggle: () => void } | null>;
   pinnedMessageIds?: Set<string>;
   onTogglePinMessage?: (message: Message) => void;
+  isPinningMessage?: boolean;
   targetMessageId?: string | null;
   navigationIntent?: SessionNavigationIntent;
   onTargetMessageHandled?: () => void;
@@ -146,6 +147,7 @@ export function ChatView({
   autoFollowToggleRef,
   pinnedMessageIds,
   onTogglePinMessage,
+  isPinningMessage,
   targetMessageId,
   navigationIntent = { mode: 'follow' },
   onTargetMessageHandled,
@@ -260,6 +262,7 @@ export function ChatView({
           serverUrl={serverUrl}
           pinnedMessageIds={pinnedMessageIds}
           onTogglePinMessage={onTogglePinMessage}
+          isPinningMessage={isPinningMessage}
           targetMessageId={targetMessageId}
           onTargetMessageHandled={onTargetMessageHandled}
         />

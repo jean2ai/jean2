@@ -55,6 +55,9 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
     deleteWorkspace,
     renameWorkspace,
     updateWorkspacePaths,
+    isCreatingWorkspace,
+    deletingWorkspaceId,
+    isUpdatingWorkspace,
   } = sessionManager;
 
   const newChatPreconfigId = defaultPreconfigId
@@ -123,6 +126,9 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
           onRenameWorkspace={renameWorkspace}
           onUpdateWorkspacePaths={updateWorkspacePaths}
           sdkClient={sdkClient}
+          isCreatingWorkspace={isCreatingWorkspace}
+          deletingWorkspaceId={deletingWorkspaceId}
+          isUpdatingWorkspace={isUpdatingWorkspace}
         />
       </div>
       ))}

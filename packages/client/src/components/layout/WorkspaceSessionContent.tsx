@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronRight, CheckSquare, X, Archive, MoreHorizontal, Trash2, Tag } from 'lucide-react';
 import type { Session, ScheduledJob } from '@jean2/sdk';
 import {
@@ -24,6 +24,7 @@ import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } fro
 import { ScheduledJobsSection } from './ScheduledJobsSection';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useTagCollapseState } from '@/hooks/useTagCollapseState';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 
 interface WorkspaceSessionContentProps {
   activeSessions: Session[];
@@ -87,6 +88,14 @@ export function WorkspaceSessionContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [archiveTagDialog, setArchiveTagDialog] = useState<string | null>(null);
+
+  const allPendingOps = usePendingOperationsStore((s) => s.operations);
+  const isBulkDeleting = useMemo(
+    () => allPendingOps.some(
+      (op) => op.type === 'delete' && archivedSessions.some((s) => s.id === op.sessionId),
+    ),
+    [allPendingOps, archivedSessions],
+  );
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -424,12 +433,13 @@ export function WorkspaceSessionContent({
       )}
 
       <ConfirmationDialog
-        open={deleteAllDialogOpen}
-        onOpenChange={setDeleteAllDialogOpen}
+        open={deleteAllDialogOpen || isBulkDeleting}
+        onOpenChange={(open) => { if (!isBulkDeleting) setDeleteAllDialogOpen(open); }}
         title="Delete all archived sessions?"
         description={`This will permanently delete ${archivedSessions.length} archived session${archivedSessions.length === 1 ? '' : 's'}. This action cannot be undone.`}
         confirmLabel="Delete all"
         variant="destructive"
+        loading={isBulkDeleting}
         onConfirm={handleDeleteAllArchived}
       />
 

@@ -139,8 +139,8 @@ export function subscribeToServerEvents(
     askHandlers['ask.pending_sync']({ type: 'ask.pending_sync', sessionId: sessionId as string, requests: requests as Array<{ sessionId: string; toolCallId: string; toolName: string; ask: Ask; requestId?: string; _originSessionId?: string; authority?: import('@jean2/sdk').AskAuthority }> }, ctx()!);
   });
 
-  add('error', (code: unknown, message: unknown) => {
-    messagePartHandlers['error']({ type: 'error', code: code as string, message: message as string }, ctx()!);
+  add('error', (code: unknown, message: unknown, sessionId: unknown) => {
+    messagePartHandlers['error']({ type: 'error', code: code as string, message: message as string, sessionId: sessionId as string | undefined }, ctx()!);
   });
 
   return () => {

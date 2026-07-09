@@ -114,6 +114,7 @@ export default function ServerShell() {
         onRevokeAllPermissions={sessionManager.revokeAllPermissions}
         onUpdateWorkspacePaths={sessionManager.updateWorkspacePaths}
         onUpdateWorkspaceSettings={sessionManager.updateWorkspaceSettings}
+        isUpdatingWorkspace={sessionManager.isUpdatingWorkspace}
       />
     </SidebarProvider>
   );

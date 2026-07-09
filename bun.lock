@@ -20,7 +20,7 @@
     },
     "packages/browser": {
       "name": "@jean2/browser",
-      "version": "0.3.0",
+      "version": "0.5.0",
       "dependencies": {
         "@jean2/sdk": "workspace:*",
       },
@@ -31,7 +31,7 @@
     },
     "packages/client": {
       "name": "@jean2/client",
-      "version": "1.0.6",
+      "version": "1.1.2",
       "bin": {
         "j2": "./dist/cli.mjs",
       },
@@ -55,6 +55,7 @@
         "react-markdown": "^10.1.0",
         "remark-gfm": "^4.0.1",
         "shadcn": "^4.0.5",
+        "sonner": "^2.0.7",
         "tailwind-merge": "^3.5.0",
         "tw-animate-css": "^1.4.0",
         "zustand": "^5.0.12",
@@ -84,7 +85,7 @@
     },
     "packages/client-electron": {
       "name": "@jean2/client-electron",
-      "version": "1.0.6",
+      "version": "1.1.2",
       "dependencies": {
         "electron-log": "^5.4.3",
         "electron-store": "^10.0.0",
@@ -111,11 +112,11 @@
     },
     "packages/sdk": {
       "name": "@jean2/sdk",
-      "version": "1.0.3",
+      "version": "1.1.0",
     },
     "packages/server": {
       "name": "@jean2/server",
-      "version": "1.0.6",
+      "version": "1.1.0",
       "bin": {
         "jean2": "./dist/bin/jean2",
       },
@@ -2815,6 +2816,8 @@
     "socks": ["socks@2.8.7", "", { "dependencies": { "ip-address": "^10.0.1", "smart-buffer": "^4.2.0" } }, "sha512-HLpt+uLy/pxB+bum/9DzAgiKS8CX1EvbWxI4zlmgGCExImLdiad2iCwXT5Z4c9c3Eq8rP2318mPW2c+QbtjK8A=="],
 
     "socks-proxy-agent": ["socks-proxy-agent@8.0.5", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "^4.3.4", "socks": "^2.8.3" } }, "sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw=="],
+
+    "sonner": ["sonner@2.0.7", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0 || ^19.0.0-rc", "react-dom": "^18.0.0 || ^19.0.0 || ^19.0.0-rc" } }, "sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w=="],
 
     "source-map": ["source-map@0.8.0-beta.0", "", { "dependencies": { "whatwg-url": "^7.0.0" } }, "sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA=="],
 

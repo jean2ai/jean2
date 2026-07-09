@@ -1,6 +1,8 @@
 import type { Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { queryClient } from '@/components/providers/QueryProvider';
+import { toast } from 'sonner';
+import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 
 const FILE_MUTATING_TOOLS = new Set([
   'edit', 'multiedit', 'write-file', 'apply-patch', 'shell',
@@ -268,16 +270,40 @@ export function handleCompactionComplete(
   const { sessionId } = msg;
   const { setCompactionSuccess, currentSessionIdRef } = ctx;
 
+  usePendingOperationsStore.getState().clearOperation(sessionId, 'compact');
+
   if (sessionId === currentSessionIdRef.current) {
     setCompactionSuccess(true);
   }
 }
 
 export function handleError(
-  msg: { type: 'error'; code: string; message: string },
+  msg: { type: 'error'; code: string; message: string; sessionId?: string },
   _ctx: SessionHandlersContext,
 ): void {
   console.error('Server error:', msg.code, msg.message);
+
+  if (msg.sessionId) {
+    const pendingOps = usePendingOperationsStore.getState().getSessionPendingOperations(msg.sessionId);
+    if (pendingOps.length > 0) {
+      const ERROR_CODE_LABELS: Record<string, string> = {
+        fork_error: 'Fork',
+        revert_error: 'Revert',
+        edit_error: 'Edit',
+        compaction_error: 'Compact',
+        title_generation_error: 'Title generation',
+        delete_error: 'Delete',
+        rename_error: 'Rename',
+      };
+      const label = ERROR_CODE_LABELS[msg.code] ?? 'Operation';
+      toast.error(`${label} failed`, { description: msg.message });
+      usePendingOperationsStore.getState().clearSessionOperations(msg.sessionId);
+    } else {
+      toast.error(msg.message);
+    }
+  } else {
+    toast.error(msg.message);
+  }
 }
 
 export const messagePartHandlers = {

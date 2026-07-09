@@ -233,7 +233,10 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
       }
     }, [activeWorkspace, filesPanelRoot, setFilesPanelRoot]);
 
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
     const handleRefresh = useCallback(() => {
+      setIsRefreshing(true);
       queryClient.invalidateQueries({ queryKey: ['files'] });
 
       if (sdkClient && workspaceId) {
@@ -251,7 +254,10 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
           .catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err);
             console.error('Failed to refresh workspace:', message);
-          });
+          })
+          .finally(() => setIsRefreshing(false));
+      } else {
+        setIsRefreshing(false);
       }
     }, [sdkClient, workspaceId]);
 
@@ -293,8 +299,8 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
             selectedRoot={selectedRoot}
             onSelect={setFilesPanelRoot}
           />
-          <Button variant="ghost" size="icon-sm" onClick={handleRefresh} className="shrink-0">
-            <RefreshCw className="size-4" />
+          <Button variant="ghost" size="icon-sm" onClick={handleRefresh} disabled={isRefreshing} className="shrink-0">
+            <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
           </Button>
           {isMobile && (
             <Button variant="ghost" size="icon-sm" onClick={() => setShowFilesPanel(false)} className="shrink-0">

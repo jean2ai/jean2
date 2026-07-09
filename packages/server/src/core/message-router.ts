@@ -251,7 +251,7 @@ async function runSingleChatTurn(
 
     ctx.broadcastToSession(sessionId, { type: 'message.created', message: userMessage });
     ctx.broadcastToSession(sessionId, { type: 'part.created', sessionId, part: textPart });
-    void regenerateSessionTitle(ctx, sessionId);
+    void regenerateSessionTitle(ctx, ws, sessionId);
   }
 
   if (attachments && attachments.length > 0) {
@@ -509,6 +509,7 @@ async function runSingleChatTurn(
 
 async function regenerateSessionTitle(
   ctx: RouterContext,
+  ws: ServerWebSocket,
   sessionId: string,
   options?: { force?: boolean },
 ): Promise<void> {
@@ -536,6 +537,7 @@ async function regenerateSessionTitle(
     const title = await generateSessionTitle(messages);
     if (!title) {
       console.warn('[session-title] Skipping title update: no title generated', sessionId);
+      ctx.send(ws, { type: 'error', code: 'title_generation_error', message: 'Could not generate a title from the conversation.', sessionId });
       return;
     }
     const updated = updateSession(sessionId, { title });
@@ -546,7 +548,7 @@ async function regenerateSessionTitle(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn('[session-title] Failed to generate session title', { sessionId, message });
-    return;
+    ctx.send(ws, { type: 'error', code: 'title_generation_error', message: `Title generation failed: ${message}`, sessionId });
   }
 }
 
@@ -780,7 +782,7 @@ async function handleSessionCompact(
 ) {
   const session = getSession(msg.sessionId);
   if (!session) {
-    ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+    ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
     return;
   }
 
@@ -794,9 +796,9 @@ async function handleSessionCompact(
     });
   } else {
     if (execResult.skipped) {
-      ctx.send(ws, { type: 'error', code: 'invalid_session', message: execResult.error });
+      ctx.send(ws, { type: 'error', code: 'invalid_session', message: execResult.error, sessionId: msg.sessionId });
     } else {
-      ctx.send(ws, { type: 'error', code: 'compaction_error', message: execResult.error });
+      ctx.send(ws, { type: 'error', code: 'compaction_error', message: execResult.error, sessionId: msg.sessionId });
     }
   }
 }
@@ -809,7 +811,7 @@ async function handleSessionRevert(
   try {
     const session = getSession(msg.sessionId);
     if (!session) {
-      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
       return;
     }
 
@@ -833,7 +835,7 @@ async function handleSessionRevert(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Revert failed';
-    ctx.send(ws, { type: 'error', code: 'revert_error', message });
+    ctx.send(ws, { type: 'error', code: 'revert_error', message, sessionId: msg.sessionId });
   }
 }
 
@@ -845,7 +847,7 @@ async function handleSessionFork(
   try {
     const session = getSession(msg.sessionId);
     if (!session) {
-      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
       return;
     }
 
@@ -863,7 +865,7 @@ async function handleSessionFork(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Fork failed';
-    ctx.send(ws, { type: 'error', code: 'fork_error', message });
+    ctx.send(ws, { type: 'error', code: 'fork_error', message, sessionId: msg.sessionId });
   }
 }
 
@@ -875,23 +877,23 @@ async function handleSessionEditMessage(
   try {
     const session = getSession(msg.sessionId);
     if (!session) {
-      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+      ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
       return;
     }
 
     if (session.status === 'closed') {
-      ctx.send(ws, { type: 'error', code: 'session_closed', message: 'Cannot edit messages in an archived session.' });
+      ctx.send(ws, { type: 'error', code: 'session_closed', message: 'Cannot edit messages in an archived session.', sessionId: msg.sessionId });
       return;
     }
 
     if (interruptManager.isSessionActive(msg.sessionId)) {
-      ctx.send(ws, { type: 'error', code: 'session_busy', message: 'Cannot edit while the session is streaming.' });
+      ctx.send(ws, { type: 'error', code: 'session_busy', message: 'Cannot edit while the session is streaming.', sessionId: msg.sessionId });
       return;
     }
 
     const target = getMessage(msg.messageId);
     if (!target || target.sessionId !== msg.sessionId || target.role !== 'user') {
-      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Only user messages can be edited.' });
+      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Only user messages can be edited.', sessionId: msg.sessionId });
       return;
     }
 
@@ -899,7 +901,7 @@ async function handleSessionEditMessage(
     const parts = getPartsByMessage(msg.messageId);
     const textPart = parts.find((p) => p.type === 'text');
     if (!textPart || textPart.type !== 'text') {
-      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Message has no editable text.' });
+      ctx.send(ws, { type: 'error', code: 'invalid_message', message: 'Message has no editable text.', sessionId: msg.sessionId });
       return;
     }
     const updatedPart = updatePart(textPart.id, { text: msg.content });
@@ -936,7 +938,7 @@ async function handleSessionEditMessage(
       ? await getPreconfigOrAgent(session.preconfigId)
       : await getDefaultPreconfig();
     if (!preconfig) {
-      ctx.send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found' });
+      ctx.send(ws, { type: 'error', code: 'no_preconfig', message: 'No preconfig found', sessionId: msg.sessionId });
       return;
     }
 
@@ -975,7 +977,7 @@ async function handleSessionEditMessage(
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Edit failed';
-    ctx.send(ws, { type: 'error', code: 'edit_error', message });
+    ctx.send(ws, { type: 'error', code: 'edit_error', message, sessionId: msg.sessionId });
   }
 }
 
@@ -1271,42 +1273,52 @@ export async function handleClientMessage(
     }
 
     case 'session.delete': {
-      const session = getSession(msg.sessionId);
-      if (!session) {
-        ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
-        break;
+      try {
+        const session = getSession(msg.sessionId);
+        if (!session) {
+          ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
+          break;
+        }
+        deleteSession(msg.sessionId);
+        ctx.send(ws, { type: 'session.deleted', sessionId: msg.sessionId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Delete failed';
+        ctx.send(ws, { type: 'error', code: 'delete_error', message, sessionId: msg.sessionId });
       }
-      deleteSession(msg.sessionId);
-      ctx.send(ws, { type: 'session.deleted', sessionId: msg.sessionId });
       break;
     }
 
     case 'session.rename': {
-      const session = getSession(msg.sessionId);
-      if (!session) {
-        ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
-        break;
+      try {
+        const session = getSession(msg.sessionId);
+        if (!session) {
+          ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
+          break;
+        }
+        const trimmedTitle = msg.title?.trim() ?? '';
+        if (!trimmedTitle) {
+          ctx.send(ws, { type: 'error', code: 'invalid_title', message: 'Title cannot be empty', sessionId: msg.sessionId });
+          break;
+        }
+        const updatedSession = updateSession(msg.sessionId, {
+          title: trimmedTitle,
+          metadata: markManualSessionTitle(session.metadata),
+        });
+        ctx.broadcastToSession(msg.sessionId, { type: 'session.renamed', session: updatedSession! });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Rename failed';
+        ctx.send(ws, { type: 'error', code: 'rename_error', message, sessionId: msg.sessionId });
       }
-      const trimmedTitle = msg.title?.trim() ?? '';
-      if (!trimmedTitle) {
-        ctx.send(ws, { type: 'error', code: 'invalid_title', message: 'Title cannot be empty' });
-        break;
-      }
-      const updatedSession = updateSession(msg.sessionId, {
-        title: trimmedTitle,
-        metadata: markManualSessionTitle(session.metadata),
-      });
-      ctx.broadcastToSession(msg.sessionId, { type: 'session.renamed', session: updatedSession! });
       break;
     }
 
     case 'session.generate_title': {
       const session = getSession(msg.sessionId);
       if (!session) {
-        ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
+        ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found', sessionId: msg.sessionId });
         break;
       }
-      void regenerateSessionTitle(ctx, msg.sessionId, { force: true });
+      void regenerateSessionTitle(ctx, ws, msg.sessionId, { force: true });
       break;
     }
 

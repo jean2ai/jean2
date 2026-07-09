@@ -55,6 +55,7 @@ interface VirtualizedTranscriptProps {
   serverUrl?: string;
   pinnedMessageIds?: Set<string>;
   onTogglePinMessage?: (message: Message) => void;
+  isPinningMessage?: boolean;
   targetMessageId?: string | null;
   onTargetMessageHandled?: () => void;
 }
@@ -376,6 +377,7 @@ interface MessageRowProps {
   isPinned?: boolean;
   canPin?: boolean;
   onTogglePin?: () => void;
+  isPinningMessage?: boolean;
 }
 
 const MessageRow = memo(function MessageRow({
@@ -396,6 +398,7 @@ const MessageRow = memo(function MessageRow({
   isPinned = false,
   canPin = false,
   onTogglePin,
+  isPinningMessage = false,
 }: MessageRowProps) {
   const compactionPart = item.parts.find(
     (p): p is CompactionPart => p.type === 'compaction'
@@ -449,6 +452,7 @@ const MessageRow = memo(function MessageRow({
       isPinned={isPinned}
       canPin={canPin}
       onTogglePin={onTogglePin}
+      isPinningMessage={isPinningMessage}
     >
       {item.parts.length === 0 ? (
         <span className="opacity-50">...</span>
@@ -511,6 +515,7 @@ export function VirtualizedTranscript({
   serverUrl,
   pinnedMessageIds,
   onTogglePinMessage,
+  isPinningMessage,
   targetMessageId,
   onTargetMessageHandled,
 }: VirtualizedTranscriptProps) {
@@ -744,6 +749,7 @@ export function VirtualizedTranscript({
             ? () => onTogglePinMessage?.(item.message)
             : undefined
         }
+        isPinningMessage={isPinningMessage}
       />
     </div>
   ), [
@@ -762,6 +768,7 @@ export function VirtualizedTranscript({
     serverUrl,
     pinnedMessageIds,
     onTogglePinMessage,
+    isPinningMessage,
     targetMessageId,
   ]);
 

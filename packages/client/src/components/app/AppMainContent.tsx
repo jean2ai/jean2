@@ -103,6 +103,9 @@ export function AppMainContent({
     }
   }, [activeWorkspace, pinnedMessageIds, pinMessageMutation, unpinMessageMutation]);
 
+  const isPinning = pinMessageMutation.isPending;
+  const isUnpinning = unpinMessageMutation.isPending;
+
   const handleTargetMessageHandled = useCallback(() => {
     clearTargetMessageIntent();
   }, [clearTargetMessageIntent]);
@@ -188,6 +191,7 @@ export function AppMainContent({
       autoFollowToggleRef={autoFollowToggleRef}
       pinnedMessageIds={pinnedMessageIds}
       onTogglePinMessage={handleTogglePinMessage}
+      isPinningMessage={isPinning || isUnpinning}
       targetMessageId={targetMessageId}
       navigationIntent={navigationIntent}
       onTargetMessageHandled={handleTargetMessageHandled}
