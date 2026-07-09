@@ -20,30 +20,17 @@ import {
 } from '@/store';
 import { existsSync, readFileSync } from 'fs';
 import { markManualSessionTitle } from '@/core/session-title';
+import { BadRequestError, NotFoundError, ForbiddenError, UnauthorizedError, PayloadTooLargeError } from '@/utils/http-errors';
 
 export function registerSessionRoutes(app: Hono): void {
-  // GET /api/sessions - List all sessions
   app.get('/api/sessions', async (c) => {
-    try {
-      const status = c.req.query('status') as SessionStatus | undefined;
-      const sessions = listSessions(status);
-      return c.json({ sessions });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      const stack = err instanceof Error ? err.stack : undefined;
-      console.log('\n');
-      console.log('========== SESSIONS ERROR ==========');
-      console.log('Error:', message);
-      console.log('Stack:', stack);
-      console.log('====================================\n');
-      return c.json({ error: 'Internal error', message }, 500);
-    }
+    const status = c.req.query('status') as SessionStatus | undefined;
+    const sessions = listSessions(status);
+    return c.json({ sessions });
   });
 
-  // POST /api/sessions - Create a new session
   app.post('/api/sessions', async (c) => {
     const body = await c.req.json().catch(() => ({}));
-
     const session = createSession({
       id: body.id || crypto.randomUUID(),
       workspaceId: body.workspaceId || '',
@@ -54,56 +41,47 @@ export function registerSessionRoutes(app: Hono): void {
       parentId: null,
       agentName: null,
     });
-
     return c.json({ session }, 201);
   });
 
-  // GET /api/sessions/grouped - List sessions grouped by workspace
   app.get('/api/sessions/grouped', async (c) => {
     const workspaceIdsParam = c.req.query('workspaceIds');
     if (!workspaceIdsParam) {
-      return c.json({ error: 'Bad Request', message: 'workspaceIds query parameter is required' }, 400);
+      throw new BadRequestError('workspaceIds query parameter is required');
     }
 
     const workspaceIds = workspaceIdsParam.split(',').filter(Boolean);
     if (workspaceIds.length === 0) {
-      return c.json({ error: 'Bad Request', message: 'At least one workspaceId is required' }, 400);
+      throw new BadRequestError('At least one workspaceId is required');
     }
 
     const status = c.req.query('status') as SessionStatus | undefined;
     const rootOnly = c.req.query('rootOnly') === 'true';
-
     const sessions = listSessionsGrouped(workspaceIds, { status, rootOnly });
     return c.json({ sessions });
   });
 
-  // GET /api/sessions/tags - List all tags for a workspace
   app.get('/api/sessions/tags', async (c) => {
     const workspaceId = c.req.query('workspaceId');
     if (!workspaceId) {
-      return c.json({ error: 'Bad Request', message: 'workspaceId query parameter is required' }, 400);
+      throw new BadRequestError('workspaceId query parameter is required');
     }
     const tags = listTagsByWorkspace(workspaceId);
     return c.json({ tags });
   });
 
-  // GET /api/sessions/:id - Get a session by ID
   app.get('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
     const session = getSession(id);
-
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
-
     return c.json({ session });
   });
 
-  // PUT /api/sessions/:id - Update a session
   app.put('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
     const body = await c.req.json().catch(() => ({}));
-
     const existing = getSession(id);
     const session = updateSession(id, {
       title: body.title,
@@ -114,46 +92,36 @@ export function registerSessionRoutes(app: Hono): void {
       tags: body.tags,
       autoApproveSeverity: body.autoApproveSeverity,
     });
-
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
-
     return c.json({ session });
   });
 
-  // DELETE /api/sessions/:id - Delete a session
   app.delete('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');
     const deleted = deleteSession(id);
-
     if (!deleted) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
-
     return c.json({ success: true });
   });
 
-  // GET /api/sessions/:id/messages - Get messages for a session
   app.get('/api/sessions/:id/messages', async (c) => {
     const sessionId = c.req.param('id');
-
-    // Verify session exists
     const session = getSession(sessionId);
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
-
     const messages = listMessages(sessionId);
     return c.json({ messages });
   });
 
-  // GET /api/sessions/:id/attachments - List attachments for a session
   app.get('/api/sessions/:id/attachments', async (c) => {
     const sessionId = c.req.param('id');
     const session = getSession(sessionId);
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
 
     const attachments = getAttachmentsForSession(sessionId);
@@ -169,35 +137,33 @@ export function registerSessionRoutes(app: Hono): void {
     });
   });
 
-  // POST /api/sessions/:id/attachments - Upload an attachment
   app.post('/api/sessions/:id/attachments', async (c) => {
     const sessionId = c.req.param('id');
     const session = getSession(sessionId);
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Session not found' }, 404);
+      throw new NotFoundError('Session not found');
     }
 
     const formData = await c.req.formData();
     const file = formData.get('file');
     if (!file || !(file instanceof File)) {
-      return c.json({ error: 'Bad Request', message: 'No file provided. Use multipart/form-data with field name "file".' }, 400);
+      throw new BadRequestError('No file provided. Use multipart/form-data with field name "file".');
     }
 
     const mimeType = file.type || 'application/octet-stream';
     const sizeBytes = file.size;
 
     if (sizeBytes > MAX_ATTACHMENT_SIZE) {
-      return c.json({ error: 'Payload Too Large', message: `File size (${Math.round(sizeBytes / 1024 / 1024)} MB) exceeds the 20 MB limit.` }, 413);
+      throw new PayloadTooLargeError(`File size (${Math.round(sizeBytes / 1024 / 1024)} MB) exceeds the 20 MB limit.`);
     }
 
     const kind = determineKind(mimeType);
-
     if (kind === 'image' && !validateImageMime(mimeType)) {
-      return c.json({ error: 'Bad Request', message: `Image type "${mimeType}" is not supported. Allowed: png, jpeg, webp, gif.` }, 400);
+      throw new BadRequestError(`Image type "${mimeType}" is not supported. Allowed: png, jpeg, webp, gif.`);
     }
 
     if (sizeBytes === 0) {
-      return c.json({ error: 'Bad Request', message: 'File is empty.' }, 400);
+      throw new BadRequestError('File is empty.');
     }
 
     const buffer = await file.arrayBuffer();
@@ -220,27 +186,26 @@ export function registerSessionRoutes(app: Hono): void {
     }, 201);
   });
 
-  // GET /api/sessions/:id/attachments/:attachmentId/content - Get attachment content
   app.get('/api/sessions/:id/attachments/:attachmentId/content', async (c) => {
     const sessionId = c.req.param('id');
     const attachmentId = c.req.param('attachmentId');
     const accessKey = c.req.query('key');
 
     if (!accessKey) {
-      return c.json({ error: 'Unauthorized', message: 'Missing access key' }, 401);
+      throw new UnauthorizedError('Missing access key');
     }
 
     const attachment = getAttachmentByKey(attachmentId, accessKey);
     if (!attachment) {
-      return c.json({ error: 'Not Found', message: 'Attachment not found' }, 404);
+      throw new NotFoundError('Attachment not found');
     }
 
     if (attachment.sessionId !== sessionId) {
-      return c.json({ error: 'Forbidden', message: 'Session mismatch' }, 403);
+      throw new ForbiddenError('Session mismatch');
     }
 
     if (!existsSync(attachment.absolutePath)) {
-      return c.json({ error: 'Not Found', message: 'Attachment file not found on disk' }, 404);
+      throw new NotFoundError('Attachment file not found on disk');
     }
 
     const fileBuffer = readFileSync(attachment.absolutePath);

@@ -7,6 +7,8 @@ import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/fi
 import { getFilePreview } from '@/services/filePreview';
 import { getGitStatus, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
 
+import { NotFoundError, BadRequestError, ForbiddenError } from '@/utils/http-errors';
+
 function expandPath(path: string): string {
   if (path.startsWith('~/')) {
     return path.replace('~', homedir());
@@ -46,7 +48,7 @@ export function registerFileRoutes(app: Hono): void {
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const { root, isMain } = resolveRoot(workspace, rootQuery);
@@ -61,7 +63,7 @@ export function registerFileRoutes(app: Hono): void {
       const fullPath = join(root, path);
 
       if (!isPathWithinWorkspace(fullPath, workspace.path, workspace.additionalPaths)) {
-        return c.json({ error: 'Forbidden', message: 'Path outside workspace' }, 403);
+        throw new ForbiddenError('Path outside workspace');
       }
 
       const files = await listDirectory(fullPath, showHidden);
@@ -86,8 +88,7 @@ export function registerFileRoutes(app: Hono): void {
         git: gitStatus?.availability,
       });
     } catch (_err: unknown) {
-      const _message = _err instanceof Error ? _err.message : 'Unknown error';
-      return c.json({ error: 'Not Found', message: 'Path not found' }, 404);
+      throw new NotFoundError('Path not found');
     }
   });
 
@@ -97,7 +98,7 @@ export function registerFileRoutes(app: Hono): void {
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const { root } = resolveRoot(workspace, rootQuery);
@@ -144,12 +145,12 @@ export function registerFileRoutes(app: Hono): void {
     const rootQuery = c.req.query('root');
 
     if (!path) {
-      return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
+      throw new BadRequestError('Path query parameter is required');
     }
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const { root } = resolveRoot(workspace, rootQuery);
@@ -159,16 +160,13 @@ export function registerFileRoutes(app: Hono): void {
       return c.json(preview);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-
       if (message === 'Cannot preview a directory') {
-        return c.json({ error: 'Bad Request', message }, 400);
+        throw new BadRequestError(message);
       }
-
       if (message === 'Path outside workspace') {
-        return c.json({ error: 'Forbidden', message }, 403);
+        throw new ForbiddenError(message);
       }
-
-      return c.json({ error: 'Not Found', message }, 404);
+      throw new NotFoundError(message);
     }
   });
 
@@ -178,12 +176,12 @@ export function registerFileRoutes(app: Hono): void {
     const rootQuery = c.req.query('root');
 
     if (!path) {
-      return c.json({ error: 'Bad Request', message: 'Path query parameter is required' }, 400);
+      throw new BadRequestError('Path query parameter is required');
     }
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const { root } = resolveRoot(workspace, rootQuery);

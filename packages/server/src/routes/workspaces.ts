@@ -15,11 +15,11 @@ import {
   pinMessage,
   deleteScheduledJobsByWorkspace,
   unpinMessage,
-  PinnedMessageError,
 } from '@/store';
 import { getWorkspacesDir } from '@/paths';
 import { getTerminalManager } from '@/services/terminal';
 import * as mcp from '@/mcp';
+import { NotFoundError, BadRequestError } from '@/utils/http-errors';
 
 function expandPath(path: string): string {
   let expanded = path;
@@ -113,15 +113,12 @@ export function registerWorkspaceRoutes(app: Hono): void {
     return c.json({ workspace }, 201);
   });
 
-  // GET /api/workspaces/:id - Get a workspace by ID
   app.get('/api/workspaces/:id', async (c) => {
     const id = c.req.param('id');
     const workspace = getWorkspace(id);
-
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
-
     return c.json({ workspace });
   });
 
@@ -133,71 +130,70 @@ export function registerWorkspaceRoutes(app: Hono): void {
     const { name, additionalPaths, settings } = body;
 
     if (!name && additionalPaths === undefined && settings === undefined) {
-      return c.json({ error: 'Bad Request', message: 'Name, additionalPaths, or settings is required' }, 400);
+      throw new BadRequestError('Name, additionalPaths, or settings is required');
     }
 
-    // Validate settings shape if provided
     if (settings !== undefined) {
       if (typeof settings !== 'object' || settings === null) {
-        return c.json({ error: 'Bad Request', message: 'Settings must be an object' }, 400);
+        throw new BadRequestError('Settings must be an object');
       }
       if (settings.memory !== undefined) {
         if (typeof settings.memory !== 'object' || settings.memory === null) {
-          return c.json({ error: 'Bad Request', message: 'Memory settings must be an object' }, 400);
+          throw new BadRequestError('Memory settings must be an object');
         }
         if (typeof settings.memory.enabled !== 'boolean') {
-          return c.json({ error: 'Bad Request', message: 'memory.enabled must be a boolean' }, 400);
+          throw new BadRequestError('memory.enabled must be a boolean');
         }
         const validRisks: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
         if (!validRisks.includes(settings.memory.permissionRisk)) {
-          return c.json({ error: 'Bad Request', message: 'memory.permissionRisk must be a valid risk level' }, 400);
+          throw new BadRequestError('memory.permissionRisk must be a valid risk level');
         }
       }
       if (settings.skills !== undefined) {
         if (typeof settings.skills !== 'object' || settings.skills === null) {
-          return c.json({ error: 'Bad Request', message: 'Skills settings must be an object' }, 400);
+          throw new BadRequestError('Skills settings must be an object');
         }
         if (typeof settings.skills.managementEnabled !== 'boolean') {
-          return c.json({ error: 'Bad Request', message: 'skills.managementEnabled must be a boolean' }, 400);
+          throw new BadRequestError('skills.managementEnabled must be a boolean');
         }
         const validRisks: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
         if (!validRisks.includes(settings.skills.permissionRisk)) {
-          return c.json({ error: 'Bad Request', message: 'skills.permissionRisk must be a valid risk level' }, 400);
+          throw new BadRequestError('skills.permissionRisk must be a valid risk level');
         }
       }
       if (settings.sessionSearch !== undefined) {
         if (typeof settings.sessionSearch !== 'object' || settings.sessionSearch === null) {
-          return c.json({ error: 'Bad Request', message: 'Session search settings must be an object' }, 400);
+          throw new BadRequestError('Session search settings must be an object');
         }
         if (typeof settings.sessionSearch.enabled !== 'boolean') {
-          return c.json({ error: 'Bad Request', message: 'sessionSearch.enabled must be a boolean' }, 400);
+          throw new BadRequestError('sessionSearch.enabled must be a boolean');
         }
         const validRisks: PermissionRiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];
         if (!validRisks.includes(settings.sessionSearch.permissionRisk)) {
-          return c.json({ error: 'Bad Request', message: 'sessionSearch.permissionRisk must be a valid risk level' }, 400);
+          throw new BadRequestError('sessionSearch.permissionRisk must be a valid risk level');
         }
         if (typeof settings.sessionSearch.includeToolResults !== 'boolean') {
-          return c.json({ error: 'Bad Request', message: 'sessionSearch.includeToolResults must be a boolean' }, 400);
+          throw new BadRequestError('sessionSearch.includeToolResults must be a boolean');
         }
       }
       if (settings.autoApproveSeverity !== undefined && settings.autoApproveSeverity !== null) {
         const validSeverities: AutoApproveSeverity[] = ['off', 'none', 'low', 'medium', 'high'];
         if (!validSeverities.includes(settings.autoApproveSeverity)) {
-          return c.json({ error: 'Bad Request', message: 'autoApproveSeverity must be a valid severity level' }, 400);
+          throw new BadRequestError('autoApproveSeverity must be a valid severity level');
         }
       }
       if (settings.preconfigs !== undefined && settings.preconfigs !== null) {
         if (typeof settings.preconfigs !== 'object' || settings.preconfigs === null) {
-          return c.json({ error: 'Bad Request', message: 'preconfigs settings must be an object' }, 400);
+          throw new BadRequestError('preconfigs settings must be an object');
         }
         if (settings.preconfigs.selectedIds !== undefined && settings.preconfigs.selectedIds !== null) {
           if (!Array.isArray(settings.preconfigs.selectedIds) || !settings.preconfigs.selectedIds.every((id: unknown) => typeof id === 'string')) {
-            return c.json({ error: 'Bad Request', message: 'preconfigs.selectedIds must be an array of strings or null' }, 400);
+            throw new BadRequestError('preconfigs.selectedIds must be an array of strings or null');
           }
         }
         if (settings.preconfigs.defaultId !== undefined && settings.preconfigs.defaultId !== null) {
           if (typeof settings.preconfigs.defaultId !== 'string') {
-            return c.json({ error: 'Bad Request', message: 'preconfigs.defaultId must be a string or null' }, 400);
+            throw new BadRequestError('preconfigs.defaultId must be a string or null');
           }
         }
       }
@@ -216,11 +212,9 @@ export function registerWorkspaceRoutes(app: Hono): void {
       additionalPaths: validatedPaths,
       settings: settings as WorkspaceSettings | undefined,
     });
-
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
-
     return c.json({ workspace });
   });
 
@@ -228,10 +222,9 @@ export function registerWorkspaceRoutes(app: Hono): void {
   app.delete('/api/workspaces/:id', async (c) => {
     const id = c.req.param('id');
 
-    // Check if workspace exists
     const workspace = getWorkspace(id);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     // 1. Gather all session IDs for the workspace before deleting
@@ -253,9 +246,8 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     // 5. Delete the workspace DB row (cascades to sessions, messages, etc.)
     const deleted = deleteWorkspace(id);
-
     if (!deleted) {
-      return c.json({ error: 'Internal Server Error', message: 'Failed to delete workspace' }, 500);
+      throw new NotFoundError('Workspace not found');
     }
 
     // 6. Delete session-related temp/output directories for the workspace's sessions
@@ -271,7 +263,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const sessions = getTerminalManager().listSessionsForWorkspace(workspace.path);
@@ -283,7 +275,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
     const workspaceId = c.req.param('id');
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const sessionId = getTerminalManager().createSessionDetached({
@@ -305,7 +297,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const session = getTerminalManager().getSession(sessionId);
     if (!session) {
-      return c.json({ error: 'Not Found', message: 'Terminal session not found' }, 404);
+      throw new NotFoundError('Terminal session not found');
     }
     return c.json(session);
   });
@@ -322,10 +314,9 @@ export function registerWorkspaceRoutes(app: Hono): void {
   app.get('/api/workspaces/:id/sessions', async (c) => {
     const workspaceId = c.req.param('id');
 
-    // Verify workspace exists
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const status = c.req.query('status') as SessionStatus | undefined;
@@ -340,7 +331,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     const pinnedMessages = listPinnedMessagesByWorkspace(workspaceId);
@@ -354,21 +345,11 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const { sessionId, messageId } = body;
     if (!sessionId || !messageId) {
-      return c.json({ error: 'Bad Request', message: 'sessionId and messageId are required' }, 400);
+      throw new BadRequestError('sessionId and messageId are required');
     }
 
-    try {
-      const pinnedMessage = pinMessage({ workspaceId, sessionId, messageId });
-      return c.json({ pinnedMessage }, 201);
-    } catch (err) {
-      if (err instanceof PinnedMessageError) {
-        if (err.code === 'message_not_assistant') {
-          return c.json({ error: 'Unprocessable Entity', message: err.message }, 422);
-        }
-        return c.json({ error: 'Not Found', message: err.message }, 404);
-      }
-      throw err;
-    }
+    const pinnedMessage = pinMessage({ workspaceId, sessionId, messageId });
+    return c.json({ pinnedMessage }, 201);
   });
 
   // DELETE /api/workspaces/:id/pinned-messages/:messageId - Unpin a message
@@ -378,7 +359,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const workspace = getWorkspace(workspaceId);
     if (!workspace) {
-      return c.json({ error: 'Not Found', message: 'Workspace not found' }, 404);
+      throw new NotFoundError('Workspace not found');
     }
 
     unpinMessage(workspaceId, messageId);

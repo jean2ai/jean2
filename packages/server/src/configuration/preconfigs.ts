@@ -8,9 +8,9 @@ import {
 } from '@/core/preconfig';
 import { getAllModels } from '@/config';
 import {
-  ConfigurationError,
   ConfigurationNotFoundError,
   ConfigurationValidationError,
+  ConfigurationPersistenceError,
   ForbiddenDeleteError,
 } from './errors';
 
@@ -82,7 +82,7 @@ export async function updateValidatedPreconfig(
 
   const updated = await updatePreconfig(id, updates);
   if (!updated) {
-    throw new ConfigurationError('Failed to update preconfig');
+    throw new ConfigurationPersistenceError('Failed to update preconfig');
   }
 
   return updated;

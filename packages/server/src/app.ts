@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
@@ -15,6 +16,7 @@ import { isAuthEnabled } from '@/auth/token';
 import { getClientEnabled } from '@/env';
 import { ensurePromptsDir } from '@/prompts/registry';
 import { VERSION } from '@/version';
+import { HttpError } from '@/utils/http-errors';
 
 // Route modules
 import { registerSessionRoutes } from '@/routes/sessions';
@@ -156,6 +158,17 @@ export function createApp() {
   });
 
   app.onError((err, c) => {
+    if (err instanceof HttpError) {
+      const body: Record<string, unknown> = {
+        error: err.code,
+        message: err.message,
+      };
+      if (err.details !== undefined) {
+        body.details = err.details;
+      }
+      return c.json(body, err.status as ContentfulStatusCode);
+    }
+
     console.log('\n');
     console.log('========== ERROR ==========');
     console.log('Message:', err.message);

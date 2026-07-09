@@ -1,41 +1,37 @@
-export class ConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConfigurationError';
+import { HttpError } from '@/utils/http-errors';
+
+export class ConfigurationError extends HttpError {
+  constructor(status: number, message: string, code: string, details?: unknown) {
+    super(status, message, code, details);
   }
 }
 
 export class ConfigurationValidationError extends ConfigurationError {
   constructor(message: string, public readonly details?: string[]) {
-    super(message);
-    this.name = 'ConfigurationValidationError';
+    super(400, message, 'bad_request', details);
   }
 }
 
 export class ConfigurationNotFoundError extends ConfigurationError {
   constructor(resource: string, id: string) {
-    super(`${resource} not found: ${id}`);
-    this.name = 'ConfigurationNotFoundError';
+    super(404, `${resource} not found: ${id}`, 'not_found');
   }
 }
 
 export class ConfigurationConflictError extends ConfigurationError {
   constructor(message: string) {
-    super(message);
-    this.name = 'ConfigurationConflictError';
+    super(409, message, 'conflict');
   }
 }
 
 export class ConfigurationPersistenceError extends ConfigurationError {
   constructor(message: string) {
-    super(message);
-    this.name = 'ConfigurationPersistenceError';
+    super(500, message, 'persistence_error');
   }
 }
 
 export class ForbiddenDeleteError extends ConfigurationError {
   constructor(message: string) {
-    super(message);
-    this.name = 'ForbiddenDeleteError';
+    super(403, message, 'forbidden');
   }
 }

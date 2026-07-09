@@ -1,22 +1,26 @@
 import { getDatabase } from './index';
 import type { PinnedMessage } from '@jean2/sdk';
+import { HttpError } from '@/utils/http-errors';
 
 // =============================================================================
 // Error Types
 // =============================================================================
 
-export class PinnedMessageError extends Error {
+export type PinnedMessageErrorCode =
+  | 'workspace_not_found'
+  | 'session_not_found'
+  | 'message_not_found'
+  | 'message_not_assistant'
+  | 'message_session_mismatch'
+  | 'session_workspace_mismatch';
+
+export class PinnedMessageError extends HttpError {
   constructor(
     message: string,
-    public code:
-      | 'workspace_not_found'
-      | 'session_not_found'
-      | 'message_not_found'
-      | 'message_not_assistant'
-      | 'message_session_mismatch'
-      | 'session_workspace_mismatch',
+    public code: PinnedMessageErrorCode,
   ) {
-    super(message);
+    const status = code === 'message_not_assistant' ? 422 : code.endsWith('_not_found') ? 404 : 400;
+    super(status, message, code);
   }
 }
 
