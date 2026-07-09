@@ -214,6 +214,195 @@
       "name": "Codex (ChatGPT)",
       "models": [
         {
+          "id": "gpt-5.6-sol",
+          "name": "GPT-5.6 Sol",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "standard",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "name": "GPT-5.6 Luna",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "budget",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
           "id": "gpt-5.5",
           "name": "GPT-5.5",
           "contextWindow": 1050000,
@@ -272,7 +461,7 @@
           "name": "GPT-5.4",
           "contextWindow": 1050000,
           "maxOutputTokens": 128000,
-          "tier": "premium",
+          "tier": "standard",
           "capabilities": {
             "input": {
               "text": true,
@@ -326,7 +515,7 @@
           "name": "GPT-5.4 Mini",
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
-          "tier": "premium",
+          "tier": "budget",
           "capabilities": {
             "input": {
               "text": true,
@@ -379,6 +568,195 @@
       "name": "OpenAI",
       "models": [
         {
+          "id": "gpt-5.6-sol",
+          "name": "GPT-5.6 Sol",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "premium",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "standard",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "name": "GPT-5.6 Luna",
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "tier": "budget",
+          "capabilities": {
+            "input": {
+              "text": true,
+              "image": true,
+              "file": [
+                "application/pdf"
+              ]
+            }
+          },
+          "variants": {
+            "low": {
+              "providerOptions": {
+                "reasoningEffort": "low",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "medium": {
+              "providerOptions": {
+                "reasoningEffort": "medium",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "high": {
+              "providerOptions": {
+                "reasoningEffort": "high",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "xhigh": {
+              "providerOptions": {
+                "reasoningEffort": "xhigh",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            },
+            "max": {
+              "providerOptions": {
+                "reasoningEffort": "max",
+                "reasoningSummary": "auto",
+                "include": [
+                  "reasoning.encrypted_content"
+                ]
+              }
+            }
+          }
+        },
+        {
           "id": "gpt-5.5",
           "name": "GPT-5.5",
           "contextWindow": 1050000,
@@ -437,7 +815,7 @@
           "name": "GPT-5.4",
           "contextWindow": 1050000,
           "maxOutputTokens": 128000,
-          "tier": "premium",
+          "tier": "standard",
           "capabilities": {
             "input": {
               "text": true,
@@ -491,7 +869,7 @@
           "name": "GPT-5.4 Mini",
           "contextWindow": 400000,
           "maxOutputTokens": 128000,
-          "tier": "premium",
+          "tier": "budget",
           "capabilities": {
             "input": {
               "text": true,
