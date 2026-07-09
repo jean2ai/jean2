@@ -116,3 +116,70 @@ export function cleanupOrphanedData(): CleanupStats {
 
   return stats;
 }
+
+export interface VacuumResult {
+  reclaimedBytes: number;
+  pageSizeBefore: number;
+  pageSizeAfter: number;
+  pageCountBefore: number;
+  pageCountAfter: number;
+}
+
+/**
+ * Reclaim free space in the database file.
+ *
+ * Runs cleanupOrphanedData() first, then VACUUM.
+ * WAL checkpoint is run before VACUUM to merge WAL contents into the main DB.
+ *
+ * VACUUM requires exclusive access (no concurrent writes), so this should
+ * be called during low-activity periods or via the maintenance route.
+ *
+ * @param options.dryRun - If true, only reports stats without running VACUUM
+ */
+export function vacuumDatabase(options?: { dryRun?: boolean }): VacuumResult {
+  const db = getDatabase();
+
+  if (!options?.dryRun) {
+    cleanupOrphanedData();
+  }
+
+  const sizeBefore = (db.query('PRAGMA page_count').get() as { page_count?: number })?.page_count ?? 0;
+  const pagesBefore = (db.query('PRAGMA page_size').get() as { page_size?: number })?.page_size ?? 4096;
+  const bytesBefore = sizeBefore * pagesBefore;
+
+  if (options?.dryRun) {
+    const freelist = (db.query('PRAGMA freelist_count').get() as { freelist_count?: number })?.freelist_count ?? 0;
+    return {
+      reclaimedBytes: freelist * pagesBefore,
+      pageSizeBefore: bytesBefore,
+      pageSizeAfter: bytesBefore,
+      pageCountBefore: sizeBefore,
+      pageCountAfter: sizeBefore,
+    };
+  }
+
+  // Merge WAL into main DB before vacuuming
+  db.run('PRAGMA wal_checkpoint(TRUNCATE)');
+
+  // Reclaim free pages
+  db.run('VACUUM');
+
+  const sizeAfter = (db.query('PRAGMA page_count').get() as { page_count?: number })?.page_count ?? 0;
+  const pagesAfter = (db.query('PRAGMA page_size').get() as { page_size?: number })?.page_size ?? 4096;
+  const bytesAfter = sizeAfter * pagesAfter;
+
+  return {
+    reclaimedBytes: Math.max(0, bytesBefore - bytesAfter),
+    pageSizeBefore: bytesBefore,
+    pageSizeAfter: bytesAfter,
+    pageCountBefore: sizeBefore,
+    pageCountAfter: sizeAfter,
+  };
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}

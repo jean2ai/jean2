@@ -2,6 +2,7 @@ import { getDatabase } from './index';
 import type { Session, SessionStatus, SubagentStatus, Workspace } from '@jean2/sdk';
 import { getWorkspace } from './workspaces';
 import { deleteAttachmentsForSession, deleteAttachmentsForWorkspace } from './attachments';
+import { removeSessionFromFts } from '@/session-search/fts';
 import { rmSync, existsSync } from 'fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -220,25 +221,34 @@ export function cleanupSessionsOutputDirs(sessionIds: string[]): void {
 export function deleteSession(id: string): boolean {
   const db = getDatabase();
 
-  deleteAttachmentsForSession(id);
+  removeSessionFromFts(id);
 
-  const result = db.run('DELETE FROM sessions WHERE id = ?', [id]);
+  const deleted = db.transaction(() => {
+    deleteAttachmentsForSession(id);
+    // FK ON DELETE CASCADE removes messages, parts, queued_messages,
+    // pending_asks, pinned_messages automatically.
+    const result = db.run('DELETE FROM sessions WHERE id = ?', [id]);
+    return result.changes > 0;
+  })();
 
-  if (result.changes > 0) {
+  if (deleted) {
     cleanupSessionOutputDir(id);
   }
 
-  return result.changes > 0;
+  return deleted;
 }
 
 export function deleteSessionsByWorkspace(workspaceId: string): void {
   const sessions = listSessionsByWorkspace(workspaceId);
-
-  deleteAttachmentsForWorkspace(workspaceId);
-
   const db = getDatabase();
-  db.run('DELETE FROM sessions WHERE workspace_id = ?', [workspaceId]);
+
+  db.transaction(() => {
+    deleteAttachmentsForWorkspace(workspaceId);
+    db.run('DELETE FROM sessions WHERE workspace_id = ?', [workspaceId]);
+  })();
+
   for (const session of sessions) {
+    removeSessionFromFts(session.id);
     cleanupSessionOutputDir(session.id);
   }
 }

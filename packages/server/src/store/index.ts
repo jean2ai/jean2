@@ -82,6 +82,7 @@ class DatabaseSingleton {
 
       const db = new Database(dbPath);
       db.run('PRAGMA journal_mode = WAL');
+      db.run('PRAGMA foreign_keys = ON');
       initializeSchema(db);
       this.dbDefault = db;
     }
@@ -489,8 +490,8 @@ export * from './response-formats';
 export * from './pinned-messages';
 
 // Re-export cleanup
-export { cleanupOrphanedData } from './cleanup';
-export type { CleanupStats } from './cleanup';
+export { cleanupOrphanedData, vacuumDatabase } from './cleanup';
+export type { CleanupStats, VacuumResult } from './cleanup';
 
 // Re-export scheduled jobs
 export * from './scheduled-jobs';

@@ -355,6 +355,38 @@ export function getPartsBySession(sessionId: string): Part[] {
 // Combined View
 // =============================================================================
 
+interface JoinedMessagePartRow extends MessageRow {
+  part_id: string | null;
+  part_message_id: string | null;
+  part_session_id: string | null;
+  part_type: string | null;
+  part_data: string | null;
+  part_created_at: number | null;
+}
+
+function groupJoinedRows(rows: JoinedMessagePartRow[]): MessageWithParts[] {
+  const byMessage = new Map<string, MessageWithParts>();
+  for (const row of rows) {
+    let entry = byMessage.get(row.id);
+    if (!entry) {
+      entry = { message: rowToMessage(row), parts: [] };
+      byMessage.set(row.id, entry);
+    }
+    if (row.part_id) {
+      const partRow: PartRow = {
+        id: row.part_id,
+        message_id: row.part_message_id!,
+        session_id: row.part_session_id!,
+        type: row.part_type!,
+        data: row.part_data!,
+        created_at: row.part_created_at!,
+      };
+      entry.parts.push(rowToPart(partRow));
+    }
+  }
+  return [...byMessage.values()];
+}
+
 export function getMessageWithParts(
   messageId: string,
 ): MessageWithParts | null {
@@ -366,11 +398,19 @@ export function getMessageWithParts(
 }
 
 export function listMessagesWithParts(sessionId: string): MessageWithParts[] {
-  const messages = listMessages(sessionId);
-  return messages.map((message) => ({
-    message,
-    parts: getPartsByMessage(message.id),
-  }));
+  const db = getDatabase();
+  const rows = db
+    .query(
+      `SELECT m.*, p.id AS part_id, p.message_id AS part_message_id,
+              p.session_id AS part_session_id, p.type AS part_type,
+              p.data AS part_data, p.created_at AS part_created_at
+       FROM messages m
+       LEFT JOIN parts p ON p.message_id = m.id
+       WHERE m.session_id = ?
+       ORDER BY m.created_at ASC, p.created_at ASC`,
+    )
+    .all(sessionId) as JoinedMessagePartRow[];
+  return groupJoinedRows(rows);
 }
 
 // =============================================================================
@@ -614,17 +654,7 @@ export function findOrphanedCompactionTriggers(sessionId: string): Message[] {
  * List all messages for a session (full history for UI inspection).
  */
 export function listMessagesForSession(sessionId: string): MessageWithParts[] {
-  const db = getDatabase();
-  const rows = db
-    .query(
-      `SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
-    )
-    .all(sessionId) as MessageRow[];
-
-  return rows.map((row) => ({
-    message: rowToMessage(row),
-    parts: getPartsByMessage(row.id),
-  }));
+  return listMessagesWithParts(sessionId);
 }
 
 /**

@@ -27,6 +27,7 @@ import {
   reconcileAllOrphanedToolCalls,
   findOrphanedCompactionTriggers,
   buildEffectiveContextHistory,
+  listMessagesForSession,
 } from '@/store/messages';
 import { createSession } from '@/store/sessions';
 import { createTestSession } from '#tests/factories';
@@ -723,6 +724,195 @@ describe('messages store', () => {
       } as Part, sessionId);
 
       expect(findOrphanedCompactionTriggers(sessionId)).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
+  // Optimized JOIN Queries (N+1 fix)
+  // ===========================================================================
+
+  describe('listMessagesWithParts optimized JOIN', () => {
+    test('correctly groups multiple parts per message', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'first' } as Part, sessionId);
+      createPart({ id: 'p2', messageId: 'msg1', createdAt: 200, type: 'text', text: 'second' } as Part, sessionId);
+      createPart({ id: 'p3', messageId: 'msg1', createdAt: 300, type: 'reasoning', text: 'thinking' } as Part, sessionId);
+      createPart({ id: 'p4', messageId: 'msg2', createdAt: 400, type: 'text', text: 'reply' } as Part, sessionId);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result).toHaveLength(2);
+
+      expect(result[0].message.id).toBe('msg1');
+      expect(result[0].parts).toHaveLength(3);
+      expect(result[0].parts.map((p) => p.id)).toEqual(['p1', 'p2', 'p3']);
+
+      expect(result[1].message.id).toBe('msg2');
+      expect(result[1].parts).toHaveLength(1);
+      expect(result[1].parts[0].id).toBe('p4');
+    });
+
+    test('handles messages with no parts (LEFT JOIN null)', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'only' } as Part, sessionId);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result).toHaveLength(2);
+      expect(result[0].message.id).toBe('msg1');
+      expect(result[0].parts).toHaveLength(1);
+      expect(result[1].message.id).toBe('msg2');
+      expect(result[1].parts).toHaveLength(0);
+    });
+
+    test('preserves message ordering by created_at ascending', () => {
+      createAssistantMsg('msg3', {}, 3000);
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result.map((r) => r.message.id)).toEqual(['msg1', 'msg2', 'msg3']);
+    });
+
+    test('preserves part ordering within each message', () => {
+      createUserMsg('msg1', 1000);
+      createPart({ id: 'p3', messageId: 'msg1', createdAt: 300, type: 'text', text: 'c' } as Part, sessionId);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'a' } as Part, sessionId);
+      createPart({ id: 'p2', messageId: 'msg1', createdAt: 200, type: 'text', text: 'b' } as Part, sessionId);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result[0].parts.map((p) => p.id)).toEqual(['p1', 'p2', 'p3']);
+    });
+
+    test('correctly maps assistant message fields through JOIN', () => {
+      createAssistantMsg('msg1', {
+        status: 'completed',
+        modelId: 'claude-4',
+        providerId: 'anthropic',
+        tokens: { prompt: 500, completion: 250 },
+        cost: 0.02,
+        agent: 'coder',
+      }, 1000);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result).toHaveLength(1);
+      const msg = result[0].message;
+      if (msg.role === 'assistant') {
+        expect(msg.status).toBe('completed');
+        expect(msg.modelId).toBe('claude-4');
+        expect(msg.providerId).toBe('anthropic');
+        expect(msg.tokens).toEqual({ prompt: 500, completion: 250 });
+        expect(msg.cost).toBe(0.02);
+        expect(msg.agent).toBe('coder');
+      }
+    });
+
+    test('correctly deserializes tool part data through JOIN', () => {
+      createAssistantMsg('msg1', { status: 'completed' });
+      const tool = createToolPartPending('msg1', 'call-1', 'read-file', { path: '/test' }, sessionId);
+      transitionToolToRunning(tool.id);
+      transitionToolToCompleted(tool.id, { content: 'file data' });
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result[0].parts).toHaveLength(1);
+      const part = result[0].parts[0];
+      expect(part.type).toBe('tool');
+      if (part.type === 'tool') {
+        expect(part.callId).toBe('call-1');
+        expect(part.name).toBe('read-file');
+        expect(part.state.status).toBe('completed');
+        expect(part.state.input).toEqual({ path: '/test' });
+        if (part.state.status === 'completed') {
+          expect(part.state.output).toEqual({ content: 'file data' });
+        }
+      }
+    });
+
+    test('handles large dataset correctly (50 messages with 3 parts each)', () => {
+      for (let i = 0; i < 50; i++) {
+        createUserMsg(`msg-${i}`, i * 1000);
+        for (let j = 0; j < 3; j++) {
+          createPart({
+            id: `p-${i}-${j}`,
+            messageId: `msg-${i}`,
+            createdAt: i * 1000 + j,
+            type: 'text',
+            text: `msg ${i} part ${j}`,
+          } as Part, sessionId);
+        }
+      }
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result).toHaveLength(50);
+      for (let i = 0; i < 50; i++) {
+        expect(result[i].message.id).toBe(`msg-${i}`);
+        expect(result[i].parts).toHaveLength(3);
+        expect(result[i].parts.map((p) => p.id)).toEqual([`p-${i}-0`, `p-${i}-1`, `p-${i}-2`]);
+      }
+    });
+
+    test('returns empty array for session with no messages', () => {
+      expect(listMessagesWithParts(sessionId)).toEqual([]);
+    });
+
+    test('does not leak parts from other sessions', () => {
+      const otherSessionId = 'other-session-id';
+      createSession(makeSession({ id: otherSessionId, workspaceId: 'ws1', title: 'Other', status: 'active' }));
+
+      createUserMsg('msg1', 1000);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'mine' } as Part, sessionId);
+
+      createMessage({ id: 'msg-other', sessionId: otherSessionId, role: 'user', createdAt: 2000 });
+      createPart({ id: 'p-other', messageId: 'msg-other', createdAt: 200, type: 'text', text: 'not mine' } as Part, otherSessionId);
+
+      const result = listMessagesWithParts(sessionId);
+      expect(result).toHaveLength(1);
+      expect(result[0].parts).toHaveLength(1);
+      expect(result[0].parts[0].id).toBe('p1');
+    });
+  });
+
+  describe('listMessagesForSession optimized (delegates to JOIN)', () => {
+    test('returns same results as listMessagesWithParts', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'hello' } as Part, sessionId);
+      createPart({ id: 'p2', messageId: 'msg2', createdAt: 200, type: 'text', text: 'world' } as Part, sessionId);
+
+      const viaList = listMessagesWithParts(sessionId);
+      const viaSession = listMessagesForSession(sessionId);
+
+      expect(viaSession).toHaveLength(2);
+      expect(viaSession[0].message.id).toBe('msg1');
+      expect(viaSession[0].parts).toHaveLength(1);
+      expect(viaSession[1].message.id).toBe('msg2');
+      expect(viaSession[1].parts).toHaveLength(1);
+
+      // Both should produce identical message IDs
+      expect(viaList.map((r) => r.message.id)).toEqual(viaSession.map((r) => r.message.id));
+      expect(viaList.map((r) => r.parts.map((p) => p.id)).flat()).toEqual(
+        viaSession.map((r) => r.parts.map((p) => p.id)).flat(),
+      );
+    });
+
+    test('handles empty session', () => {
+      expect(listMessagesForSession(sessionId)).toEqual([]);
+    });
+
+    test('handles messages with mixed parts and no parts', () => {
+      createUserMsg('msg1', 1000);
+      createUserMsg('msg2', 2000);
+      createUserMsg('msg3', 3000);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 100, type: 'text', text: 'a' } as Part, sessionId);
+      createPart({ id: 'p2', messageId: 'msg1', createdAt: 200, type: 'text', text: 'b' } as Part, sessionId);
+      // msg2 has no parts
+      createPart({ id: 'p3', messageId: 'msg3', createdAt: 300, type: 'text', text: 'c' } as Part, sessionId);
+
+      const result = listMessagesForSession(sessionId);
+      expect(result).toHaveLength(3);
+      expect(result[0].parts).toHaveLength(2);
+      expect(result[1].parts).toHaveLength(0);
+      expect(result[2].parts).toHaveLength(1);
     });
   });
 });

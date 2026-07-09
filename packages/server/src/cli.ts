@@ -17,10 +17,11 @@ import {
 } from '@/daemon';
 
 import { initJean2, type InitOptions } from '@/init';
-import { runMigrations } from '@/store';
+import { runMigrations, getDatabase } from '@/store';
 import { runToolsCommand, type ToolsCommandArgs } from '@/tools/tools-cli';
 import { performUpdate, type UpdateOptions } from '@/update';
 import { syncModels, type SyncResult } from '@/configuration/models-sync';
+import { cleanupOrphanedData, vacuumDatabase, formatBytes } from '@/store/cleanup';
 import { VERSION } from '@/version';
 
 import '@/tools/clack-utils';
@@ -132,6 +133,11 @@ Commands:
       --all               Remove all tools
     outdated            Check for available updates
 
+  db                   Database maintenance
+    stats               Show database size and reclaimable space
+    vacuum              Remove orphaned data and reclaim free space (VACUUM)
+    cleanup             Remove orphaned data only (no VACUUM)
+
   migrate              Run database migrations
 
   models               Model registry management
@@ -148,6 +154,9 @@ Commands:
   help                 Show this help
 
 Examples:
+  jean2 db stats                  Check database size and reclaimable space
+  jean2 db vacuum                 Reclaim disk space (run during low activity)
+  jean2 db cleanup                Remove orphaned rows only
   jean2 start                     Start server as daemon
   jean2 stop                      Stop the daemon
   jean2 status                    Check if daemon is running
@@ -335,6 +344,11 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'db': {
+      await runDbCommand(args.slice(1));
+      break;
+    }
+
     case 'migrate': {
       if (!isInitialized()) {
         console.error('Error: Jean2 is not initialized. Run `jean2 init` first.');
@@ -518,6 +532,103 @@ async function runToolsCommandFromCLI(args: string[]): Promise<void> {
   if (result.exitCode !== undefined) {
     process.exitCode = result.exitCode;
   } else if (!result.success) {
+    process.exit(1);
+  }
+}
+
+async function runDbCommand(dbArgs: string[]): Promise<void> {
+  if (!isInitialized()) {
+    console.error('Error: Jean2 is not initialized. Run `jean2 init` first.');
+    process.exit(1);
+  }
+
+  const subCommand = dbArgs[0];
+
+  if (subCommand === '--help' || subCommand === '-h') {
+    console.log(`
+jean2 db - Database maintenance
+
+Usage: jean2 db <command>
+
+Commands:
+  stats       Show database size and reclaimable space
+  vacuum      Remove orphaned data and reclaim free space (VACUUM)
+              Run this during low-activity periods. It requires exclusive
+              access to the database.
+  cleanup     Remove orphaned data only (no VACUUM)
+
+Examples:
+  jean2 db stats       Check how much space can be reclaimed
+  jean2 db vacuum      Reclaim disk space
+  jean2 db cleanup     Remove orphaned rows only
+`);
+    return;
+  }
+
+  // Trigger lazy DB initialization (applies FK pragma, schema, etc.)
+  getDatabase();
+
+  try {
+    if (subCommand === 'stats') {
+      const result = vacuumDatabase({ dryRun: true });
+      console.log('');
+      console.log('Database Statistics');
+      console.log('════════════════════════════════════════');
+      console.log(`  Current size:       ${formatBytes(result.pageSizeBefore)}`);
+      console.log(`  Reclaimable:        ${formatBytes(result.reclaimedBytes)}`);
+      console.log(`  Pages:              ${result.pageCountBefore.toLocaleString()}`);
+      console.log('');
+
+      if (result.reclaimedBytes > 0) {
+        console.log('  Run `jean2 db vacuum` to reclaim this space.');
+      } else {
+        console.log('  Database is well-compacted. Nothing to reclaim.');
+      }
+      console.log('');
+    } else if (subCommand === 'vacuum') {
+      console.log('info: Running orphan cleanup...');
+      const stats = cleanupOrphanedData();
+      const totalOrphaned = Object.values(stats).reduce((sum, v) => sum + v, 0);
+      if (totalOrphaned > 0) {
+        console.log(`info: Removed ${totalOrphaned} orphaned row(s)`);
+      }
+
+      console.log('info: Checkpointing WAL...');
+      console.log('info: Vacuuming database (this may take a moment)...');
+      const result = vacuumDatabase();
+      console.log('');
+      console.log('Vacuum complete');
+      console.log('════════════════════════════════════════');
+      console.log(`  Before:    ${formatBytes(result.pageSizeBefore)}`);
+      console.log(`  After:     ${formatBytes(result.pageSizeAfter)}`);
+      console.log(`  Reclaimed: ${formatBytes(result.reclaimedBytes)}`);
+      console.log('');
+    } else if (subCommand === 'cleanup') {
+      const stats = cleanupOrphanedData();
+      const totalOrphaned = Object.values(stats).reduce((sum, v) => sum + v, 0);
+      console.log('');
+      if (totalOrphaned > 0) {
+        console.log(`Cleanup complete: removed ${totalOrphaned} orphaned row(s)`);
+        for (const [key, value] of Object.entries(stats)) {
+          if (value > 0) {
+            const label = key.replace(/^orphaned/, '').replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+            console.log(`  ${label}: ${value}`);
+          }
+        }
+      } else {
+        console.log('Cleanup complete: no orphaned data found');
+      }
+      console.log('');
+      console.log('Note: Run `jean2 db vacuum` to reclaim the freed disk space.');
+      console.log('');
+    } else {
+      console.error(`Unknown db command: ${subCommand || '(none)'}`);
+      console.error('Run "jean2 db --help" for usage information');
+      process.exit(1);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Error:', message);
     process.exit(1);
   }
 }
