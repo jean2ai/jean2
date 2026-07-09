@@ -194,24 +194,30 @@ describe('cascade deletes and cleanup', () => {
   describe('cleanupOrphanedData', () => {
     test('removes orphaned messages (no matching session)', () => {
       const db = getDatabase();
+      // FK constraints prevent inserting orphans directly.
+      // Temporarily disable to simulate legacy orphaned data.
+      db.run('PRAGMA foreign_keys = OFF');
       db.run(
         'INSERT INTO messages (id, session_id, role, created_at) VALUES (?, ?, ?, ?)',
         ['orphan-msg', 'nonexistent-session', 'user', Date.now()],
       );
+      db.run('PRAGMA foreign_keys = ON');
 
       const stats = cleanupOrphanedData();
       expect(stats.orphanedMessages).toBeGreaterThan(0);
 
-      const stillExists = db.query('SELECT * FROM messages WHERE id = ?').get('orphan-msg');
-      expect(stillExists).toBeUndefined();
+      const stillExists = db.query('SELECT * FROM messages WHERE id = ?').get('orphan-msg') as unknown;
+      expect(stillExists).toBeFalsy();
     });
 
     test('removes orphaned parts', () => {
       const db = getDatabase();
+      db.run('PRAGMA foreign_keys = OFF');
       db.run(
         'INSERT INTO parts (id, message_id, session_id, type, data, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         ['orphan-part', 'nonexistent-msg', sessionId, 'text', '{"text":"x"}', Date.now()],
       );
+      db.run('PRAGMA foreign_keys = ON');
 
       const stats = cleanupOrphanedData();
       expect(stats.orphanedParts).toBeGreaterThan(0);
@@ -219,11 +225,13 @@ describe('cascade deletes and cleanup', () => {
 
     test('removes orphaned pending_asks', () => {
       const db = getDatabase();
+      db.run('PRAGMA foreign_keys = OFF');
       db.run(
         `INSERT INTO pending_asks (id, session_id, tool_call_id, tool_name, ask_json, created_at, status)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ['orphan-ask', 'nonexistent-session', 'call-x', 'tool', '{}', Date.now(), 'pending'],
       );
+      db.run('PRAGMA foreign_keys = ON');
 
       const stats = cleanupOrphanedData();
       expect(stats.orphanedPendingAsks).toBeGreaterThan(0);

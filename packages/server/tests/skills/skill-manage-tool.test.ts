@@ -7,14 +7,20 @@ import { executeSkillManageTool, buildSkillManageToolDescription } from '@/skill
 
 describe('skill_manage tool', () => {
   let testDir: string;
+  let skillsDir: string;
 
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), 'jean2-skill-manage-test-'));
+    skillsDir = join(testDir, '.agents', 'skills');
   });
 
   afterEach(() => {
     rmSync(testDir, { recursive: true, force: true });
   });
+
+  function skillPath(name: string) {
+    return join(skillsDir, name, 'SKILL.md');
+  }
 
   // ── Validation ───────────────────────────────────────────────
 
@@ -22,7 +28,7 @@ describe('skill_manage tool', () => {
     test('rejects invalid action', async () => {
       const result = await executeSkillManageTool(
         { action: 'invalid', name: 'test' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -32,7 +38,7 @@ describe('skill_manage tool', () => {
     test('rejects missing action', async () => {
       const result = await executeSkillManageTool(
         { name: 'test' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -41,7 +47,7 @@ describe('skill_manage tool', () => {
     test('rejects missing name for non-list action', async () => {
       const result = await executeSkillManageTool(
         { action: 'delete' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -51,7 +57,7 @@ describe('skill_manage tool', () => {
     test('rejects name with path separators', async () => {
       const result = await executeSkillManageTool(
         { action: 'delete', name: 'a/b' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -65,7 +71,7 @@ describe('skill_manage tool', () => {
     test('returns empty list when no skills exist', async () => {
       const result = await executeSkillManageTool(
         { action: 'list' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -74,17 +80,15 @@ describe('skill_manage tool', () => {
     });
 
     test('returns list of existing skills', async () => {
-      // Create a skill manually
-      const skillDir = join(testDir, '.agents', 'skills', 'my-skill');
-      mkdirSync(skillDir, { recursive: true });
+      mkdirSync(join(skillsDir, 'my-skill'), { recursive: true });
       writeFileSync(
-        join(skillDir, 'SKILL.md'),
+        skillPath('my-skill'),
         '---\nname: my-skill\ndescription: A test skill\n---\n\n# Body\n',
       );
 
       const result = await executeSkillManageTool(
         { action: 'list' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -98,7 +102,7 @@ describe('skill_manage tool', () => {
     test('list does not require name parameter', async () => {
       const result = await executeSkillManageTool(
         { action: 'list' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -111,15 +115,14 @@ describe('skill_manage tool', () => {
     test('creates a new skill successfully', async () => {
       const result = await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'A test skill', content: '# Body\n\nSteps here.' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
       expect(result.action).toBe('create');
       expect(result.name).toBe('my-skill');
 
-      // Verify file on disk
-      const content = readFileSync(join(testDir, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf-8');
+      const content = readFileSync(skillPath('my-skill'), 'utf-8');
       expect(content).toContain('name: my-skill');
       expect(content).toContain('description: A test skill');
       expect(content).toContain('# Body');
@@ -128,7 +131,7 @@ describe('skill_manage tool', () => {
     test('rejects create without description', async () => {
       const result = await executeSkillManageTool(
         { action: 'create', name: 'my-skill', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -138,7 +141,7 @@ describe('skill_manage tool', () => {
     test('rejects create without content', async () => {
       const result = await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'desc' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -148,13 +151,13 @@ describe('skill_manage tool', () => {
     test('rejects create if skill already exists', async () => {
       await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'desc', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
 
       const result = await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'desc', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -164,7 +167,7 @@ describe('skill_manage tool', () => {
     test('normalizes skill name to safe slug', async () => {
       const result = await executeSkillManageTool(
         { action: 'create', name: 'My Cool Skill!', description: 'desc', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -178,7 +181,7 @@ describe('skill_manage tool', () => {
     beforeEach(async () => {
       await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'Original desc', content: 'Original body' },
-        testDir,
+        skillsDir,
         'none',
       );
     });
@@ -186,13 +189,13 @@ describe('skill_manage tool', () => {
     test('updates skill body', async () => {
       const result = await executeSkillManageTool(
         { action: 'update', name: 'my-skill', content: 'New body content' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
       expect(result.action).toBe('update');
 
-      const content = readFileSync(join(testDir, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf-8');
+      const content = readFileSync(skillPath('my-skill'), 'utf-8');
       expect(content).toContain('New body content');
       expect(content).not.toContain('Original body');
     });
@@ -200,7 +203,7 @@ describe('skill_manage tool', () => {
     test('preserves existing description when not provided', async () => {
       const result = await executeSkillManageTool(
         { action: 'update', name: 'my-skill', content: 'New body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -210,7 +213,7 @@ describe('skill_manage tool', () => {
     test('updates description when provided', async () => {
       const result = await executeSkillManageTool(
         { action: 'update', name: 'my-skill', description: 'New desc', content: 'New body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -220,7 +223,7 @@ describe('skill_manage tool', () => {
     test('rejects update for non-existent skill with available names in error', async () => {
       const result = await executeSkillManageTool(
         { action: 'update', name: 'nope', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -231,12 +234,12 @@ describe('skill_manage tool', () => {
     test('case-insensitive name resolution', async () => {
       const result = await executeSkillManageTool(
         { action: 'update', name: 'MY-SKILL', content: 'Uppercase body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
 
-      const content = readFileSync(join(testDir, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf-8');
+      const content = readFileSync(skillPath('my-skill'), 'utf-8');
       expect(content).toContain('Uppercase body');
     });
   });
@@ -247,7 +250,7 @@ describe('skill_manage tool', () => {
     beforeEach(async () => {
       await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'A skill', content: 'Line one\nLine two\nLine three' },
-        testDir,
+        skillsDir,
         'none',
       );
     });
@@ -255,13 +258,13 @@ describe('skill_manage tool', () => {
     test('patches a unique string', async () => {
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'my-skill', oldString: 'Line two', newString: 'Line TWO' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
       expect(result.action).toBe('patch');
 
-      const content = readFileSync(join(testDir, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf-8');
+      const content = readFileSync(skillPath('my-skill'), 'utf-8');
       expect(content).toContain('Line TWO');
       expect(content).not.toContain('Line two');
     });
@@ -269,24 +272,24 @@ describe('skill_manage tool', () => {
     test('rejects patch with non-matching oldString with helpful hint', async () => {
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'my-skill', oldString: 'nonexistent text', newString: 'replacement' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
       expect(result.error).toContain('not found');
-      expect(result.error).toContain('skill'); // hints to load skill first
+      expect(result.error).toContain('skill');
     });
 
     test('rejects patch with multiple matches', async () => {
       await executeSkillManageTool(
         { action: 'update', name: 'my-skill', content: 'dup\ndup\n' },
-        testDir,
+        skillsDir,
         'none',
       );
 
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'my-skill', oldString: 'dup', newString: 'unique' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -296,7 +299,7 @@ describe('skill_manage tool', () => {
     test('rejects patch for non-existent skill with available names', async () => {
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'nope', oldString: 'x', newString: 'y' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -307,7 +310,7 @@ describe('skill_manage tool', () => {
     test('case-insensitive name resolution for patch', async () => {
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'MY-SKILL', oldString: 'Line two', newString: 'Patched' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -320,7 +323,7 @@ describe('skill_manage tool', () => {
     beforeEach(async () => {
       await executeSkillManageTool(
         { action: 'create', name: 'my-skill', description: 'A skill', content: 'body' },
-        testDir,
+        skillsDir,
         'none',
       );
     });
@@ -328,18 +331,18 @@ describe('skill_manage tool', () => {
     test('deletes an existing skill', async () => {
       const result = await executeSkillManageTool(
         { action: 'delete', name: 'my-skill' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
       expect(result.action).toBe('delete');
-      expect(existsSync(join(testDir, '.agents', 'skills', 'my-skill'))).toBe(false);
+      expect(existsSync(join(skillsDir, 'my-skill'))).toBe(false);
     });
 
     test('rejects delete for non-existent skill with available names', async () => {
       const result = await executeSkillManageTool(
         { action: 'delete', name: 'nope' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(false);
@@ -350,7 +353,7 @@ describe('skill_manage tool', () => {
     test('case-insensitive name resolution for delete', async () => {
       const result = await executeSkillManageTool(
         { action: 'delete', name: 'MY-SKILL' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
@@ -361,41 +364,37 @@ describe('skill_manage tool', () => {
 
   describe('frontmatter name divergence', () => {
     test('resolve by frontmatter name when folder name differs', async () => {
-      // Create a skill where the folder name and frontmatter name differ
-      const skillDir = join(testDir, '.agents', 'skills', 'custom-folder');
-      mkdirSync(skillDir, { recursive: true });
+      mkdirSync(join(skillsDir, 'custom-folder'), { recursive: true });
       writeFileSync(
-        join(skillDir, 'SKILL.md'),
+        skillPath('custom-folder'),
         '---\nname: pretty-name\ndescription: A skill with a custom name\n---\n\nBody here\n',
       );
 
-      // Should resolve by frontmatter name (case-insensitive)
       const result = await executeSkillManageTool(
         { action: 'patch', name: 'PRETTY-NAME', oldString: 'Body here', newString: 'Patched body' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
 
-      const content = readFileSync(join(skillDir, 'SKILL.md'), 'utf-8');
+      const content = readFileSync(skillPath('custom-folder'), 'utf-8');
       expect(content).toContain('Patched body');
     });
 
     test('delete resolves by frontmatter name', async () => {
-      const skillDir = join(testDir, '.agents', 'skills', 'custom-folder');
-      mkdirSync(skillDir, { recursive: true });
+      mkdirSync(join(skillsDir, 'custom-folder'), { recursive: true });
       writeFileSync(
-        join(skillDir, 'SKILL.md'),
+        skillPath('custom-folder'),
         '---\nname: pretty-name\ndescription: desc\n---\n\nbody\n',
       );
 
       const result = await executeSkillManageTool(
         { action: 'delete', name: 'pretty-name' },
-        testDir,
+        skillsDir,
         'none',
       );
       expect(result.success).toBe(true);
-      expect(existsSync(skillDir)).toBe(false);
+      expect(existsSync(join(skillsDir, 'custom-folder'))).toBe(false);
     });
   });
 
@@ -403,21 +402,20 @@ describe('skill_manage tool', () => {
 
   describe('buildSkillManageToolDescription', () => {
     test('includes skill names when skills exist', async () => {
-      const skillDir = join(testDir, '.agents', 'skills', 'debug-flow');
-      mkdirSync(skillDir, { recursive: true });
+      mkdirSync(join(skillsDir, 'debug-flow'), { recursive: true });
       writeFileSync(
-        join(skillDir, 'SKILL.md'),
+        skillPath('debug-flow'),
         '---\nname: debug-flow\ndescription: How to debug things\n---\n\nBody\n',
       );
 
-      const desc = await buildSkillManageToolDescription(testDir);
+      const desc = await buildSkillManageToolDescription(skillsDir);
       expect(desc).toContain('debug-flow');
       expect(desc).toContain('How to debug things');
       expect(desc).toContain('list');
     });
 
     test('shows hint when no skills exist', async () => {
-      const desc = await buildSkillManageToolDescription(testDir);
+      const desc = await buildSkillManageToolDescription(skillsDir);
       expect(desc).toContain('No skills exist yet');
     });
   });

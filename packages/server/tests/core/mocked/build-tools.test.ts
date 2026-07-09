@@ -103,6 +103,7 @@ async function setupMocks(opts: {
       inputSchema: { type: 'object', properties: {} },
     },
     executeSkillManageTool: mock(async () => ({ success: true, title: 'Mock' })),
+    buildSkillManageToolDescription: mock(async () => 'Mock skill manage description'),
   }));
 
   const { buildAiSdkTools } = await import('@/core/build-tools');

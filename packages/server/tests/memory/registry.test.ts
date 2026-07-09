@@ -28,21 +28,15 @@ describe('memory registry', () => {
     rmSync(testDir, { recursive: true, force: true });
   });
 
-  function memoryDir() {
-    return join(testDir, '.jean2');
-  }
-
   function userPath() {
-    return join(testDir, '.jean2', 'USER.md');
+    return join(testDir, 'USER.md');
   }
 
   function memoryPath() {
-    return join(testDir, '.jean2', 'MEMORY.md');
+    return join(testDir, 'MEMORY.md');
   }
 
   function writeMemoryFile(target: 'user' | 'memory', content: string) {
-    const dir = memoryDir();
-    mkdirSync(dir, { recursive: true });
     const file = target === 'user' ? userPath() : memoryPath();
     writeFileSync(file, content, 'utf-8');
   }
@@ -101,7 +95,7 @@ describe('memory registry', () => {
       const result = await loadMemoryFile(testDir, 'user');
 
       expect(result).not.toBeNull();
-      expect(result!.path).toBe('.jean2/USER.md');
+      expect(result!.path).toBe('USER.md');
       expect(result!.content).toBe('- Prefers concise answers.');
       expect(result!.entries).toEqual(['- Prefers concise answers.']);
       expect(result!.charCount).toBe('- Prefers concise answers.'.length);
@@ -113,7 +107,7 @@ describe('memory registry', () => {
       const result = await loadMemoryFile(testDir, 'memory');
 
       expect(result).not.toBeNull();
-      expect(result!.path).toBe('.jean2/MEMORY.md');
+      expect(result!.path).toBe('MEMORY.md');
       expect(result!.charLimit).toBe(MEMORY_CHAR_LIMIT);
     });
   });

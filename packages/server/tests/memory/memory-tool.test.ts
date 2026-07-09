@@ -367,7 +367,7 @@ describe('memory tool', () => {
   // ── File operations ──────────────────────────────────────────
 
   describe('file operations', () => {
-    test('creates .jean2 directory if missing', async () => {
+    test('creates directory if missing', async () => {
       const result = await executeMemoryTool(
         { action: 'add', target: 'memory', content: 'Fact' },
         testDir,
@@ -375,9 +375,8 @@ describe('memory tool', () => {
       );
 
       expect(result.success).toBe(true);
-      const dir = join(testDir, '.jean2');
       const { existsSync } = await import('fs');
-      expect(existsSync(dir)).toBe(true);
+      expect(existsSync(join(testDir, 'MEMORY.md'))).toBe(true);
     });
 
     test('writes to user file for user target', async () => {
@@ -387,7 +386,7 @@ describe('memory tool', () => {
         'none',
       );
 
-      const content = readFileSync(join(testDir, '.jean2', 'USER.md'), 'utf-8');
+      const content = readFileSync(join(testDir, 'USER.md'), 'utf-8');
       expect(content).toBe('- User pref');
     });
 
@@ -398,7 +397,7 @@ describe('memory tool', () => {
         'none',
       );
 
-      const content = readFileSync(join(testDir, '.jean2', 'MEMORY.md'), 'utf-8');
+      const content = readFileSync(join(testDir, 'MEMORY.md'), 'utf-8');
       expect(content).toBe('- Workspace fact');
     });
   });
