@@ -154,7 +154,7 @@ describe('API Routes', () => {
       expect(res.status).toBe(404);
 
       const body = await json(res);
-      expect(body.error).toBe('Not Found');
+      expect(body.error).toBe('not_found');
     });
 
     test('PUT /api/sessions/:id updates title', async () => {
@@ -221,7 +221,7 @@ describe('API Routes', () => {
       expect(res.status).toBe(400);
 
       const body = await json(res);
-      expect(body.error).toBe('Bad Request');
+      expect(body.error).toBe('bad_request');
     });
 
     test('GET /api/sessions/grouped returns grouped sessions', async () => {
@@ -245,7 +245,7 @@ describe('API Routes', () => {
 
       const body = await json(res);
       // Empty workspaceIds param triggers either validation message
-      expect(body.error).toBe('Bad Request');
+      expect(body.error).toBe('bad_request');
     });
   });
 
@@ -865,21 +865,65 @@ describe('API Routes', () => {
 
   describe('error handler', () => {
     test('malformed JSON body falls through to defaults', async () => {
-      // The .catch(() => ({})) in the POST handler catches JSON parse errors,
-      // producing an empty body. With empty workspaceId, the session is created
-      // but will fail due to foreign key constraint (no matching workspace).
-      // This exercises the full middleware chain including app.onError.
+      seedWorkspace({ id: 'ws1' });
+
       const res = await app.request('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: 'not-json',
       });
 
-      // Empty workspaceId causes FK constraint violation -> 500 via app.onError
+      // Empty body -> workspaceId defaults to '' -> no FK match -> 500
       expect(res.status).toBe(500);
 
       const body = await json(res);
       expect(body.error).toBe('Internal Server Error');
+    });
+  });
+
+  // ── Centralized HttpError Handling ─────────────────────────────
+
+  describe('centralized HttpError handling', () => {
+    test('NotFoundError returns 404 with code and message', async () => {
+      const res = await app.request('/api/sessions/nonexistent');
+      expect(res.status).toBe(404);
+
+      const body = await json(res);
+      expect(body.error).toBe('not_found');
+      expect(body.message).toBe('Session not found');
+    });
+
+    test('BadRequestError returns 400 with code and message', async () => {
+      const res = await app.request('/api/sessions/grouped');
+      expect(res.status).toBe(400);
+
+      const body = await json(res);
+      expect(body.error).toBe('bad_request');
+      expect(body.message).toContain('workspaceIds');
+    });
+
+    test('PinnedMessageError maps to correct status codes', async () => {
+      seedWorkspace({ id: 'ws1' });
+      seedSession('ws1', { id: 's1' });
+
+      // Pin a non-existent message -> message_not_found -> 404
+      const res = await app.request('/api/workspaces/ws1/pinned-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: 's1', messageId: 'nonexistent' }),
+      });
+
+      expect(res.status).toBe(404);
+      const body = await json(res);
+      expect(body.error).toBe('message_not_found');
+    });
+
+    test('HttpError responses do not include stack traces', async () => {
+      const res = await app.request('/api/sessions/nonexistent');
+      expect(res.status).toBe(404);
+
+      const body = await json(res);
+      expect(body.stack).toBeUndefined();
     });
   });
 });
