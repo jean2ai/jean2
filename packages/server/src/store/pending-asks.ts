@@ -161,31 +161,19 @@ function mapRowToPendingAsk(row: PendingAskRow): PendingAskRecord {
 export function listPendingAsksByRootSession(rootSessionId: string): PendingAskRecord[] {
   const db = getDatabase();
 
-  // Find all descendant session IDs (children, grandchildren, etc.) using BFS
-  const descendantIds: string[] = [];
-  const queue = [rootSessionId];
-  while (queue.length > 0) {
-    const currentParentId = queue.shift()!;
-    const children = db
-      .query('SELECT id FROM sessions WHERE parent_id = ?')
-      .all(currentParentId) as { id: string }[];
-    for (const child of children) {
-      descendantIds.push(child.id);
-      queue.push(child.id);
-    }
-  }
-
-  // Query pending asks for root + all descendants
-  const allIds = [rootSessionId, ...descendantIds];
-  if (allIds.length === 1) {
-    // Simple case - no descendants
-    return listPendingAsksBySession(rootSessionId);
-  }
-
-  const placeholders = allIds.map(() => '?').join(',');
   const rows = db
-    .query(`SELECT * FROM pending_asks WHERE session_id IN (${placeholders}) ORDER BY created_at ASC`)
-    .all(...allIds) as PendingAskRow[];
+    .query(
+      `WITH RECURSIVE descendants(id) AS (
+        SELECT id FROM sessions WHERE id = ?
+        UNION ALL
+        SELECT s.id FROM sessions s
+        INNER JOIN descendants d ON s.parent_id = d.id
+      )
+      SELECT pa.* FROM pending_asks pa
+      WHERE pa.session_id IN (SELECT id FROM descendants)
+      ORDER BY pa.created_at ASC`,
+    )
+    .all(rootSessionId) as PendingAskRow[];
   return rows.map(mapRowToPendingAsk);
 }
 

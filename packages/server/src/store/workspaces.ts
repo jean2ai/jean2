@@ -37,22 +37,36 @@ function parseSettings(raw: string | null): WorkspaceSettings {
   }
 }
 
-function mapRowToWorkspace(row: WorkspaceRow): Workspace {
-  const db = getDatabase();
-  const pathRows = db.query(
-    'SELECT path, label FROM workspace_paths WHERE workspace_id = ? ORDER BY rowid',
-  ).all(row.id) as { path: string; label: string | null }[];
-
+function mapRowToWorkspace(row: WorkspaceRow, additionalPaths?: string[]): Workspace {
   return {
     id: row.id,
     name: row.name,
     path: row.path,
     isVirtual: row.is_virtual === 1,
-    additionalPaths: pathRows.map(r => r.path),
+    additionalPaths: additionalPaths ?? [],
     settings: parseSettings(row.settings),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function batchLoadWorkspacePaths(workspaceIds: string[]): Map<string, string[]> {
+  const db = getDatabase();
+  const result = new Map<string, string[]>();
+  if (workspaceIds.length === 0) return result;
+  const placeholders = workspaceIds.map(() => '?').join(',');
+  const rows = db.query(
+    `SELECT workspace_id, path FROM workspace_paths WHERE workspace_id IN (${placeholders}) ORDER BY rowid`,
+  ).all(...workspaceIds) as { workspace_id: string; path: string }[];
+  for (const row of rows) {
+    let paths = result.get(row.workspace_id);
+    if (!paths) {
+      paths = [];
+      result.set(row.workspace_id, paths);
+    }
+    paths.push(row.path);
+  }
+  return result;
 }
 
 export function createWorkspace(input: CreateWorkspaceInput): Workspace {
@@ -98,22 +112,25 @@ export function getWorkspace(id: string): Workspace | null {
   const db = getDatabase();
   const row = db.query('SELECT * FROM workspaces WHERE id = ?').get(id) as WorkspaceRow | undefined;
   if (!row) return null;
-  return mapRowToWorkspace(row);
+  const pathMap = batchLoadWorkspacePaths([row.id]);
+  return mapRowToWorkspace(row, pathMap.get(row.id));
 }
 
 export function listWorkspaces(): Workspace[] {
   const db = getDatabase();
   const rows = db.query('SELECT * FROM workspaces ORDER BY created_at DESC').all() as WorkspaceRow[];
+  const pathMap = batchLoadWorkspacePaths(rows.map(r => r.id));
   return rows
-    .map(mapRowToWorkspace)
+    .map(row => mapRowToWorkspace(row, pathMap.get(row.id)))
     .filter(w => !w.settings?.isAgentHome);
 }
 
 export function listAgentHomeWorkspaces(): Workspace[] {
   const db = getDatabase();
   const rows = db.query('SELECT * FROM workspaces ORDER BY created_at DESC').all() as WorkspaceRow[];
+  const pathMap = batchLoadWorkspacePaths(rows.map(r => r.id));
   return rows
-    .map(mapRowToWorkspace)
+    .map(row => mapRowToWorkspace(row, pathMap.get(row.id)))
     .filter(w => w.settings?.isAgentHome === true);
 }
 
@@ -147,7 +164,10 @@ export function updateWorkspace(
     ]);
   }
 
-  return getWorkspace(id);
+  const row = db.query('SELECT * FROM workspaces WHERE id = ?').get(id) as WorkspaceRow | undefined;
+  if (!row) return null;
+  const pathMap = batchLoadWorkspacePaths([row.id]);
+  return mapRowToWorkspace(row, pathMap.get(row.id));
 }
 
 export function deleteWorkspace(id: string): boolean {

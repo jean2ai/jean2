@@ -171,6 +171,7 @@ export function initializeSchema(db: Database): void {
   `);
 
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_id)');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS messages (

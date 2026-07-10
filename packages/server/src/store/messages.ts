@@ -590,13 +590,23 @@ export function reconcileOrphanedToolCalls(sessionId: string): number {
 
 export function reconcileAllOrphanedToolCalls(): number {
   const db = getDatabase();
-  const allSessions = db.query('SELECT id FROM sessions').all() as { id: string }[];
+  const orphanedIds = db
+    .query(
+      `SELECT id FROM parts
+       WHERE type = 'tool'
+         AND (JSON_EXTRACT(data, '$.state.status') = 'pending'
+              OR JSON_EXTRACT(data, '$.state.status') = 'running')`,
+    )
+    .all() as { id: string }[];
+
   let totalReconciled = 0;
-  for (const session of allSessions) {
-    totalReconciled += reconcileOrphanedToolCalls(session.id);
+  for (const { id } of orphanedIds) {
+    if (transitionToolToInterrupted(id, 'error')) {
+      totalReconciled++;
+    }
   }
   if (totalReconciled > 0) {
-    console.log(`[tool-recovery] Reconciled ${totalReconciled} orphaned tool call(s) across ${allSessions.length} session(s)`);
+    console.log(`[tool-recovery] Reconciled ${totalReconciled} orphaned tool call(s)`);
   }
   return totalReconciled;
 }

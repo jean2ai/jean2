@@ -51,9 +51,37 @@ interface PinnedMessageWithDetailsRow extends PinnedMessageRow {
   message_created_at: number;
 }
 
-// =============================================================================
-// CRUD
-// =============================================================================
+function extractPreviewText(data: string): string {
+  try {
+    const parsed = JSON.parse(data);
+    return parsed.text ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function getTextPartsPreview(db: ReturnType<typeof getDatabase>, messageId: string): string {
+  const textParts = db
+    .query(`SELECT data FROM parts WHERE message_id = ? AND type = 'text' ORDER BY created_at ASC`)
+    .all(messageId) as { data: string }[];
+  return textParts.map(p => extractPreviewText(p.data)).join(' ');
+}
+
+function buildPinnedMessage(
+  row: PinnedMessageWithDetailsRow,
+  fullText: string,
+): PinnedMessage {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    sessionId: row.session_id,
+    messageId: row.message_id,
+    createdAt: row.created_at,
+    sessionTitle: row.session_title,
+    messageCreatedAt: row.message_created_at,
+    preview: createPreview(fullText),
+  };
+}
 
 export function listPinnedMessagesByWorkspace(workspaceId: string): PinnedMessage[] {
   const db = getDatabase();
@@ -78,34 +106,29 @@ export function listPinnedMessagesByWorkspace(workspaceId: string): PinnedMessag
     )
     .all(workspaceId) as PinnedMessageWithDetailsRow[];
 
-  return rows.map((row) => {
-    const textParts = db
-      .query(
-        `SELECT data FROM parts WHERE message_id = ? AND type = 'text' ORDER BY created_at ASC`,
-      )
-      .all(row.message_id) as { data: string }[];
+  if (rows.length === 0) return [];
 
-    const fullText = textParts
-      .map((p) => {
-        try {
-          const parsed = JSON.parse(p.data);
-          return parsed.text ?? '';
-        } catch {
-          return '';
-        }
-      })
-      .join(' ');
+  const messageIds = [...new Set(rows.map(r => r.message_id))];
+  const placeholders = messageIds.map(() => '?').join(',');
+  const textPartRows = db
+    .query(
+      `SELECT message_id, data FROM parts WHERE type = 'text' AND message_id IN (${placeholders}) ORDER BY created_at ASC`,
+    )
+    .all(...messageIds) as { message_id: string; data: string }[];
 
-    return {
-      id: row.id,
-      workspaceId: row.workspace_id,
-      sessionId: row.session_id,
-      messageId: row.message_id,
-      createdAt: row.created_at,
-      sessionTitle: row.session_title,
-      messageCreatedAt: row.message_created_at,
-      preview: createPreview(fullText),
-    };
+  const textMap = new Map<string, string[]>();
+  for (const row of textPartRows) {
+    let texts = textMap.get(row.message_id);
+    if (!texts) {
+      texts = [];
+      textMap.set(row.message_id, texts);
+    }
+    texts.push(extractPreviewText(row.data));
+  }
+
+  return rows.map(row => {
+    const fullText = (textMap.get(row.message_id) ?? []).join(' ');
+    return buildPinnedMessage(row, fullText);
   });
 }
 
@@ -128,8 +151,8 @@ export function pinMessage(input: {
 
   // Validate session exists
   const session = db
-    .query('SELECT id, workspace_id FROM sessions WHERE id = ?')
-    .get(sessionId) as { id: string; workspace_id: string } | undefined;
+    .query('SELECT id, workspace_id, title FROM sessions WHERE id = ?')
+    .get(sessionId) as { id: string; workspace_id: string; title: string | null } | undefined;
   if (!session) {
     throw new PinnedMessageError('Session not found', 'session_not_found');
   }
@@ -144,8 +167,8 @@ export function pinMessage(input: {
 
   // Validate message exists
   const message = db
-    .query('SELECT id, session_id, role FROM messages WHERE id = ?')
-    .get(messageId) as { id: string; session_id: string; role: string } | undefined;
+    .query('SELECT id, session_id, role, created_at FROM messages WHERE id = ?')
+    .get(messageId) as { id: string; session_id: string; role: string; created_at: number } | undefined;
   if (!message) {
     throw new PinnedMessageError('Message not found', 'message_not_found');
   }
@@ -172,39 +195,15 @@ export function pinMessage(input: {
     .get(workspaceId, messageId) as { id: string; created_at: number } | undefined;
 
   if (existing) {
-    const sessionTitle = (db
-      .query('SELECT title FROM sessions WHERE id = ?')
-      .get(sessionId) as { title: string | null } | undefined)?.title ?? null;
-
-    const messageCreatedAt = (db
-      .query('SELECT created_at FROM messages WHERE id = ?')
-      .get(messageId) as { created_at: number } | undefined)?.created_at ?? 0;
-
-    const textParts = db
-      .query(
-        `SELECT data FROM parts WHERE message_id = ? AND type = 'text' ORDER BY created_at ASC`,
-      )
-      .all(messageId) as { data: string }[];
-
-    const fullText = textParts
-      .map((p) => {
-        try {
-          const parsed = JSON.parse(p.data);
-          return parsed.text ?? '';
-        } catch {
-          return '';
-        }
-      })
-      .join(' ');
-
+    const fullText = getTextPartsPreview(db, messageId);
     return {
       id: existing.id,
       workspaceId,
       sessionId,
       messageId,
       createdAt: existing.created_at,
-      sessionTitle,
-      messageCreatedAt,
+      sessionTitle: session.title,
+      messageCreatedAt: message.created_at,
       preview: createPreview(fullText),
     };
   }
@@ -218,30 +217,7 @@ export function pinMessage(input: {
     [id, workspaceId, sessionId, messageId, createdAt],
   );
 
-  const sessionTitle = (db
-    .query('SELECT title FROM sessions WHERE id = ?')
-    .get(sessionId) as { title: string | null } | undefined)?.title ?? null;
-
-  const messageCreatedAt = (db
-    .query('SELECT created_at FROM messages WHERE id = ?')
-    .get(messageId) as { created_at: number } | undefined)?.created_at ?? 0;
-
-  const textParts = db
-    .query(
-      `SELECT data FROM parts WHERE message_id = ? AND type = 'text' ORDER BY created_at ASC`,
-    )
-    .all(messageId) as { data: string }[];
-
-  const fullText = textParts
-    .map((p) => {
-      try {
-        const parsed = JSON.parse(p.data);
-        return parsed.text ?? '';
-      } catch {
-        return '';
-      }
-    })
-    .join(' ');
+  const fullText = getTextPartsPreview(db, messageId);
 
   return {
     id,
@@ -249,8 +225,8 @@ export function pinMessage(input: {
     sessionId,
     messageId,
     createdAt,
-    sessionTitle,
-    messageCreatedAt,
+    sessionTitle: session.title,
+    messageCreatedAt: message.created_at,
     preview: createPreview(fullText),
   };
 }
