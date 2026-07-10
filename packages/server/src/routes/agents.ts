@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import {
   listAgents,
   getAgent,
@@ -7,6 +8,7 @@ import {
 } from '@/agents/storage';
 import { getAgentMemory, updateAgentMemory } from '@/agents/memory';
 import { NotFoundError } from '@/utils/http-errors';
+import { updateAgentMemorySchema } from './schemas';
 
 export function registerAgentRoutes(app: Hono): void {
   app.get('/api/agents', async (c) => {
@@ -35,9 +37,13 @@ export function registerAgentRoutes(app: Hono): void {
     return c.json(memory);
   });
 
-  app.patch('/api/agents/:id/memory', async (c) => {
-    const body = await c.req.json();
-    await updateAgentMemory(c.req.param('id'), body.target, body.content);
-    return c.json({ success: true });
-  });
+  app.patch(
+    '/api/agents/:id/memory',
+    zValidator('json', updateAgentMemorySchema),
+    async (c) => {
+      const { target, content } = c.req.valid('json');
+      await updateAgentMemory(c.req.param('id'), target, content);
+      return c.json({ success: true });
+    },
+  );
 }

@@ -10,6 +10,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
+import { ZodError } from 'zod';
 
 import { requireAuth, isPublicRoute } from '@/auth/middleware';
 import { isAuthEnabled } from '@/auth/token';
@@ -167,6 +168,14 @@ export function createApp() {
         body.details = err.details;
       }
       return c.json(body, err.status as ContentfulStatusCode);
+    }
+
+    if (err instanceof ZodError) {
+      const issues = err.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));
+      return c.json(
+        { error: 'bad_request', message: 'Validation failed', details: issues },
+        400 as ContentfulStatusCode,
+      );
     }
 
     console.log('\n');

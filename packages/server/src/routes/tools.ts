@@ -1,10 +1,12 @@
 import type { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { listTools, getTool } from '@/tools';
 import * as toolEnv from '@/configuration/tool-env';
 import {
   ConfigurationValidationError,
   ConfigurationPersistenceError,
 } from '@/configuration/errors';
+import { setToolEnvSchema } from './schemas';
 
 export function registerToolRoutes(app: Hono): void {
   // GET /api/tools - List all available tools
@@ -29,63 +31,37 @@ export function registerToolRoutes(app: Hono): void {
   });
 
   // PUT /api/tools/env/:key - Set a tool env var value
-  app.put('/api/tools/env/:key', async (c) => {
-    const key = c.req.param('key');
-    const body = await c.req.json().catch(() => ({}));
-    const { value } = body;
+  app.put(
+    '/api/tools/env/:key',
+    zValidator('json', setToolEnvSchema),
+    async (c) => {
+      const key = c.req.param('key');
+      const { value } = c.req.valid('json');
 
-    if (!value || typeof value !== 'string' || value.trim() === '') {
-      return c.json({ error: 'Bad Request', message: 'Value must be a non-empty string' }, 400);
-    }
+      try {
+        const result = await toolEnv.setToolEnvVar(key, value.trim());
+        return c.json({ envVar: result });
+      } catch (err: unknown) {
+        if (err instanceof ConfigurationValidationError) {
+          return c.json({ error: 'Bad Request', message: err.message }, 400);
+        }
+        if (err instanceof ConfigurationPersistenceError) {
+          return c.json({ error: 'Internal Server Error', message: err.message }, 500);
+        }
 
-    try {
-      const result = await toolEnv.setToolEnvVar(key, value.trim());
-      return c.json({ envVar: result });
-    } catch (err: unknown) {
-      if (err instanceof ConfigurationValidationError) {
-        return c.json({ error: 'Bad Request', message: err.message }, 400);
+        const message = err instanceof Error ? err.message : String(err);
+        return c.json({ error: 'Internal Server Error', message }, 500);
       }
-      if (err instanceof ConfigurationPersistenceError) {
-        return c.json({ error: 'Internal Server Error', message: err.message }, 500);
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: 'Failed to set tool env var', message }, 500);
-    }
-  });
+    },
+  );
 
-  // DELETE /api/tools/env/:key - Clear a tool env var
-  app.delete('/api/tools/env/:key', async (c) => {
-    const key = c.req.param('key');
-
-    try {
-      const result = await toolEnv.clearToolEnvVar(key);
-      return c.json({ envVar: result });
-    } catch (err: unknown) {
-      if (err instanceof ConfigurationValidationError) {
-        return c.json({ error: 'Bad Request', message: err.message }, 400);
-      }
-      if (err instanceof ConfigurationPersistenceError) {
-        return c.json({ error: 'Internal Server Error', message: err.message }, 500);
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: 'Failed to clear tool env var', message }, 500);
-    }
-  });
-
-  // GET /api/tools/:name - Get a specific tool by name
+  // GET /api/tools/:name - Get a specific tool definition
   app.get('/api/tools/:name', async (c) => {
     const name = c.req.param('name');
-
-    try {
-      const tool = await getTool(name);
-
-      if (!tool) {
-        return c.json({ error: 'Not Found', message: 'Tool not found' }, 404);
-      }
-
-      return c.json({ tool: tool.definition });
-    } catch (_error) {
-      return c.json({ error: 'Not Found', message: 'Tool not found' }, 404);
+    const tool = await getTool(name);
+    if (!tool) {
+      return c.json({ error: 'not_found', message: 'Tool not found' }, 404);
     }
+    return c.json({ tool });
   });
 }

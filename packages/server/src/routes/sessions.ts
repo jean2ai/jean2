@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import type { SessionStatus } from '@jean2/sdk';
 import {
   createSession,
@@ -21,6 +22,7 @@ import {
 import { existsSync, readFileSync } from 'fs';
 import { markManualSessionTitle } from '@/core/session-title';
 import { BadRequestError, NotFoundError, ForbiddenError, UnauthorizedError, PayloadTooLargeError } from '@/utils/http-errors';
+import { createSessionSchema, updateSessionSchema } from './schemas';
 
 export function registerSessionRoutes(app: Hono): void {
   app.get('/api/sessions', async (c) => {
@@ -29,20 +31,24 @@ export function registerSessionRoutes(app: Hono): void {
     return c.json({ sessions });
   });
 
-  app.post('/api/sessions', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const session = createSession({
-      id: body.id || crypto.randomUUID(),
-      workspaceId: body.workspaceId || '',
-      preconfigId: body.preconfigId || null,
-      title: body.title || 'New Session',
-      status: 'active',
-      metadata: body.metadata || null,
-      parentId: null,
-      agentName: null,
-    });
-    return c.json({ session }, 201);
-  });
+  app.post(
+    '/api/sessions',
+    zValidator('json', createSessionSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const session = createSession({
+        id: body.id || crypto.randomUUID(),
+        workspaceId: body.workspaceId || '',
+        preconfigId: body.preconfigId || null,
+        title: body.title || 'New Session',
+        status: 'active',
+        metadata: body.metadata || null,
+        parentId: null,
+        agentName: null,
+      });
+      return c.json({ session }, 201);
+    },
+  );
 
   app.get('/api/sessions/grouped', async (c) => {
     const workspaceIdsParam = c.req.query('workspaceIds');
@@ -79,24 +85,28 @@ export function registerSessionRoutes(app: Hono): void {
     return c.json({ session });
   });
 
-  app.put('/api/sessions/:id', async (c) => {
-    const id = c.req.param('id');
-    const body = await c.req.json().catch(() => ({}));
-    const existing = getSession(id);
-    const session = updateSession(id, {
-      title: body.title,
-      status: body.status,
-      metadata: body.title !== undefined
-        ? markManualSessionTitle(body.metadata ?? existing?.metadata)
-        : body.metadata,
-      tags: body.tags,
-      autoApproveSeverity: body.autoApproveSeverity,
-    });
-    if (!session) {
-      throw new NotFoundError('Session not found');
-    }
-    return c.json({ session });
-  });
+  app.put(
+    '/api/sessions/:id',
+    zValidator('json', updateSessionSchema),
+    async (c) => {
+      const id = c.req.param('id');
+      const body = c.req.valid('json');
+      const existing = getSession(id);
+      const session = updateSession(id, {
+        title: body.title,
+        status: body.status,
+        metadata: body.title !== undefined
+          ? markManualSessionTitle(body.metadata ?? existing?.metadata)
+          : body.metadata,
+        tags: body.tags,
+        autoApproveSeverity: body.autoApproveSeverity,
+      });
+      if (!session) {
+        throw new NotFoundError('Session not found');
+      }
+      return c.json({ session });
+    },
+  );
 
   app.delete('/api/sessions/:id', async (c) => {
     const id = c.req.param('id');

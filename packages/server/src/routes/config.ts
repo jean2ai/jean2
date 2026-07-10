@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import * as providerCredentials from '@/configuration/provider-credentials';
 import * as modelsConfig from '@/configuration/models';
 import * as modelsSync from '@/configuration/models-sync';
@@ -6,6 +7,17 @@ import * as promptsConfig from '@/configuration/prompts';
 import * as preconfigsConfig from '@/configuration/preconfigs';
 import * as providers from '@/providers';
 import { listPrompts } from '@/prompts/registry';
+import {
+  createPreconfigSchema,
+  updatePreconfigSchema,
+  providerConnectSchema,
+  oauthCallbackSchema,
+  providerCredentialsSchema,
+  modelsSyncSchema,
+  createPromptSchema,
+  updatePromptSchema,
+  looseObjectSchema,
+} from './schemas';
 
 export function registerConfigRoutes(app: Hono): void {
   // ============================================================================
@@ -17,26 +29,30 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json({ preconfigs });
   });
 
-  app.post('/api/preconfigs', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const format = body.format === 'md' ? 'md' : undefined;
-    const preconfig = await preconfigsConfig.createValidatedPreconfig({
-      id: body.id,
-      name: body.name || 'Custom Preconfig',
-      description: body.description || '',
-      systemPrompt: body.systemPrompt || '',
-      tools: body.tools ?? null,
-      model: body.model ?? null,
-      provider: body.provider ?? null,
-      variant: body.variant ?? null,
-      settings: body.settings ?? null,
-      isDefault: false,
-      mode: body.mode,
-      canSpawnSubagents: body.canSpawnSubagents,
-      skills: body.skills ?? null,
-    }, format);
-    return c.json({ preconfig }, 201);
-  });
+  app.post(
+    '/api/preconfigs',
+    zValidator('json', createPreconfigSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const format = body.format === 'md' ? 'md' : undefined;
+      const preconfig = await preconfigsConfig.createValidatedPreconfig({
+        id: body.id,
+        name: body.name || 'Custom Preconfig',
+        description: body.description || '',
+        systemPrompt: body.systemPrompt || '',
+        tools: body.tools ?? null,
+        model: body.model ?? null,
+        provider: body.provider ?? null,
+        variant: body.variant ?? null,
+        settings: body.settings ?? null,
+        isDefault: false,
+        mode: body.mode as 'primary' | 'subagent' | 'both' | undefined,
+        canSpawnSubagents: body.canSpawnSubagents as boolean | string[] | undefined,
+        skills: body.skills ?? null,
+      }, format);
+      return c.json({ preconfig }, 201);
+    },
+  );
 
   app.get('/api/preconfigs/:id', async (c) => {
     const id = c.req.param('id');
@@ -48,25 +64,29 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json({ preconfig });
   });
 
-  app.put('/api/preconfigs/:id', async (c) => {
-    const id = c.req.param('id');
-    const body = await c.req.json().catch(() => ({}));
-    const preconfig = await preconfigsConfig.updateValidatedPreconfig(id, {
-      name: body.name,
-      description: body.description,
-      systemPrompt: body.systemPrompt,
-      tools: body.tools,
-      model: body.model,
-      provider: body.provider,
-      variant: body.variant,
-      settings: body.settings,
-      isDefault: body.isDefault,
-      mode: body.mode,
-      canSpawnSubagents: body.canSpawnSubagents,
-      skills: body.skills,
-    });
-    return c.json({ preconfig });
-  });
+  app.put(
+    '/api/preconfigs/:id',
+    zValidator('json', updatePreconfigSchema),
+    async (c) => {
+      const id = c.req.param('id');
+      const body = c.req.valid('json');
+      const preconfig = await preconfigsConfig.updateValidatedPreconfig(id, {
+        name: body.name,
+        description: body.description,
+        systemPrompt: body.systemPrompt,
+        tools: body.tools,
+        model: body.model,
+        provider: body.provider,
+        variant: body.variant,
+        settings: body.settings,
+        isDefault: body.isDefault as boolean | undefined,
+        mode: body.mode as 'primary' | 'subagent' | 'both' | undefined,
+        canSpawnSubagents: body.canSpawnSubagents as boolean | string[] | null | undefined,
+        skills: body.skills,
+      });
+      return c.json({ preconfig });
+    },
+  );
 
   app.delete('/api/preconfigs/:id', async (c) => {
     const id = c.req.param('id');
@@ -118,21 +138,25 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json({ providers: providerStatuses });
   });
 
-  app.post('/api/providers/:providerId/connect', async (c) => {
-    const providerId = c.req.param('providerId');
-    const body = await c.req.json().catch(() => ({}));
-    const result = await providers.connectProvider(providerId, {
-      redirectStrategy: body.redirectStrategy,
-    });
-    const status = await providers.getProviderStatus(providerId);
-    return c.json({
-      authorizationUrl: result.authorizationUrl,
-      flowId: result.flowId,
-      redirectStrategy: result.redirectStrategy,
-      redirectUri: result.redirectUri,
-      status,
-    });
-  });
+  app.post(
+    '/api/providers/:providerId/connect',
+    zValidator('json', providerConnectSchema),
+    async (c) => {
+      const providerId = c.req.param('providerId');
+      const body = c.req.valid('json');
+      const result = await providers.connectProvider(providerId, {
+        redirectStrategy: body.redirectStrategy,
+      });
+      const status = await providers.getProviderStatus(providerId);
+      return c.json({
+        authorizationUrl: result.authorizationUrl,
+        flowId: result.flowId,
+        redirectStrategy: result.redirectStrategy,
+        redirectUri: result.redirectUri,
+        status,
+      });
+    },
+  );
 
   app.get('/api/providers/:providerId/status', async (c) => {
     const providerId = c.req.param('providerId');
@@ -146,16 +170,20 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json({ success: true });
   });
 
-  app.post('/api/oauth/callback', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const result = await providers.completeOAuthFlow(
-      body.flowId,
-      body.code,
-      body.state,
-      body.redirectUri,
-    );
-    return c.json({ success: true, provider: result.providerId });
-  });
+  app.post(
+    '/api/oauth/callback',
+    zValidator('json', oauthCallbackSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const result = await providers.completeOAuthFlow(
+        body.flowId,
+        body.code,
+        body.state ?? '',
+        body.redirectUri ?? '',
+      );
+      return c.json({ success: true, provider: result.providerId });
+    },
+  );
 
   app.get('/api/providers/:providerId/oauth/callback', async (c) => {
     const providerId = c.req.param('providerId');
@@ -172,12 +200,16 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json(result);
   });
 
-  app.put('/api/config/providers/:provider', async (c) => {
-    const provider = c.req.param('provider');
-    const body = await c.req.json().catch(() => ({}));
-    const result = await providerCredentials.setProviderCredential(provider, body.apiKey);
-    return c.json(result);
-  });
+  app.put(
+    '/api/config/providers/:provider',
+    zValidator('json', providerCredentialsSchema),
+    async (c) => {
+      const provider = c.req.param('provider');
+      const body = c.req.valid('json');
+      const result = await providerCredentials.setProviderCredential(provider, body.apiKey ?? '');
+      return c.json(result);
+    },
+  );
 
   app.delete('/api/config/providers/:provider', (c) => {
     const provider = c.req.param('provider');
@@ -194,18 +226,26 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json(result);
   });
 
-  app.post('/api/config/models/providers', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const result = await modelsConfig.createProvider(body);
-    return c.json(result, 201);
-  });
+  app.post(
+    '/api/config/models/providers',
+    zValidator('json', looseObjectSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const result = await modelsConfig.createProvider(body as unknown as Parameters<typeof modelsConfig.createProvider>[0]);
+      return c.json(result, 201);
+    },
+  );
 
-  app.put('/api/config/models/providers/:providerId', async (c) => {
-    const providerId = c.req.param('providerId');
-    const body = await c.req.json().catch(() => ({}));
-    const result = await modelsConfig.updateProvider(providerId, body);
-    return c.json(result);
-  });
+  app.put(
+    '/api/config/models/providers/:providerId',
+    zValidator('json', looseObjectSchema),
+    async (c) => {
+      const providerId = c.req.param('providerId');
+      const body = c.req.valid('json');
+      const result = await modelsConfig.updateProvider(providerId, body);
+      return c.json(result);
+    },
+  );
 
   app.delete('/api/config/models/providers/:providerId', async (c) => {
     const providerId = c.req.param('providerId');
@@ -213,20 +253,28 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json(result);
   });
 
-  app.post('/api/config/models/providers/:providerId/models', async (c) => {
-    const providerId = c.req.param('providerId');
-    const body = await c.req.json().catch(() => ({}));
-    const result = await modelsConfig.createModel(providerId, body);
-    return c.json(result, 201);
-  });
+  app.post(
+    '/api/config/models/providers/:providerId/models',
+    zValidator('json', looseObjectSchema),
+    async (c) => {
+      const providerId = c.req.param('providerId');
+      const body = c.req.valid('json');
+      const result = await modelsConfig.createModel(providerId, body as unknown as Parameters<typeof modelsConfig.createModel>[1]);
+      return c.json(result, 201);
+    },
+  );
 
-  app.put('/api/config/models/providers/:providerId/models/:modelId', async (c) => {
-    const providerId = c.req.param('providerId');
-    const modelId = c.req.param('modelId');
-    const body = await c.req.json().catch(() => ({}));
-    const result = await modelsConfig.updateModel(providerId, modelId, body);
-    return c.json(result);
-  });
+  app.put(
+    '/api/config/models/providers/:providerId/models/:modelId',
+    zValidator('json', looseObjectSchema),
+    async (c) => {
+      const providerId = c.req.param('providerId');
+      const modelId = c.req.param('modelId');
+      const body = c.req.valid('json');
+      const result = await modelsConfig.updateModel(providerId, modelId, body);
+      return c.json(result);
+    },
+  );
 
   app.delete('/api/config/models/providers/:providerId/models/:modelId', async (c) => {
     const providerId = c.req.param('providerId');
@@ -235,18 +283,26 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json(result);
   });
 
-  app.post('/api/config/models/sync', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const mode = body.mode === 'override' ? 'override' as const : 'merge' as const;
-    const result = await modelsSync.syncModels(mode);
-    return c.json(result);
-  });
+  app.post(
+    '/api/config/models/sync',
+    zValidator('json', modelsSyncSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const mode = body.mode === 'override' ? 'override' as const : 'merge' as const;
+      const result = await modelsSync.syncModels(mode);
+      return c.json(result);
+    },
+  );
 
-  app.put('/api/config/models/defaults', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const result = await modelsConfig.setDefaults(body);
-    return c.json(result);
-  });
+  app.put(
+    '/api/config/models/defaults',
+    zValidator('json', looseObjectSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const result = await modelsConfig.setDefaults(body as unknown as Parameters<typeof modelsConfig.setDefaults>[0]);
+      return c.json(result);
+    },
+  );
 
   // ============================================================================
   // Configuration: Prompts
@@ -263,18 +319,26 @@ export function registerConfigRoutes(app: Hono): void {
     return c.json(prompt);
   });
 
-  app.post('/api/config/prompts', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const prompt = await promptsConfig.createPromptConfig(body);
-    return c.json(prompt, 201);
-  });
+  app.post(
+    '/api/config/prompts',
+    zValidator('json', createPromptSchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const prompt = await promptsConfig.createPromptConfig(body as unknown as Parameters<typeof promptsConfig.createPromptConfig>[0]);
+      return c.json(prompt, 201);
+    },
+  );
 
-  app.put('/api/config/prompts/:name', async (c) => {
-    const name = c.req.param('name');
-    const body = await c.req.json().catch(() => ({}));
-    const prompt = await promptsConfig.updatePromptConfig(name, body);
-    return c.json(prompt);
-  });
+  app.put(
+    '/api/config/prompts/:name',
+    zValidator('json', updatePromptSchema),
+    async (c) => {
+      const name = c.req.param('name');
+      const body = c.req.valid('json');
+      const prompt = await promptsConfig.updatePromptConfig(name, body as unknown as Parameters<typeof promptsConfig.updatePromptConfig>[1]);
+      return c.json(prompt);
+    },
+  );
 
   app.delete('/api/config/prompts/:name', async (c) => {
     const name = c.req.param('name');

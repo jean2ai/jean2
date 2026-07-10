@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { randomUUID } from 'crypto';
 import {
   listResponseFormats,
@@ -7,7 +8,8 @@ import {
   updateResponseFormat,
   deleteResponseFormat,
 } from '@/store';
-import { NotFoundError, BadRequestError } from '@/utils/http-errors';
+import { NotFoundError } from '@/utils/http-errors';
+import { createResponseFormatSchema, updateResponseFormatSchema } from './schemas';
 
 export function registerResponseFormatRoutes(app: Hono): void {
   app.get('/api/response-formats', async (c) => {
@@ -24,41 +26,40 @@ export function registerResponseFormatRoutes(app: Hono): void {
     return c.json({ format });
   });
 
-  app.post('/api/response-formats', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const { name, description, schema } = body;
+  app.post(
+    '/api/response-formats',
+    zValidator('json', createResponseFormatSchema),
+    async (c) => {
+      const body = c.req.valid('json');
 
-    if (!name || typeof name !== 'string' || name.trim() === '') {
-      throw new BadRequestError('Name is required');
-    }
-    if (!schema || typeof schema !== 'object') {
-      throw new BadRequestError('Schema is required and must be a JSON Schema object');
-    }
+      const format = createResponseFormat({
+        id: randomUUID(),
+        name: body.name.trim(),
+        description: body.description?.trim() || undefined,
+        schema: body.schema as Record<string, unknown>,
+      });
+      return c.json({ format }, 201);
+    },
+  );
 
-    const format = createResponseFormat({
-      id: randomUUID(),
-      name: name.trim(),
-      description: description?.trim() || undefined,
-      schema: schema as Record<string, unknown>,
-    });
-    return c.json({ format }, 201);
-  });
+  app.put(
+    '/api/response-formats/:id',
+    zValidator('json', updateResponseFormatSchema),
+    async (c) => {
+      const id = c.req.param('id');
+      const body = c.req.valid('json');
 
-  app.put('/api/response-formats/:id', async (c) => {
-    const id = c.req.param('id');
-    const body = await c.req.json().catch(() => ({}));
-    const { name, description, schema } = body;
-
-    const updated = updateResponseFormat(id, {
-      name: name?.trim() || undefined,
-      description: description !== undefined ? description?.trim() : undefined,
-      schema: schema || undefined,
-    });
-    if (!updated) {
-      throw new NotFoundError('Response format not found');
-    }
-    return c.json({ format: updated });
-  });
+      const updated = updateResponseFormat(id, {
+        name: body.name?.trim() || undefined,
+        description: body.description !== undefined ? body.description?.trim() : undefined,
+        schema: body.schema || undefined,
+      });
+      if (!updated) {
+        throw new NotFoundError('Response format not found');
+      }
+      return c.json({ format: updated });
+    },
+  );
 
   app.delete('/api/response-formats/:id', async (c) => {
     const id = c.req.param('id');
