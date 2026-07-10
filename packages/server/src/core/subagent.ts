@@ -279,7 +279,7 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     if (!childSession) {
       childSession = createSession({
         id: randomUUID(),
-        workspaceId: workspaceId || '',
+        workspaceId: workspaceId || parentSession?.workspaceId || '',
         preconfigId: subagent_type,
         title: `${description} (@${subagent_type} subagent)`,
         status: 'active',

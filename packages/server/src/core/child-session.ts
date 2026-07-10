@@ -55,6 +55,7 @@ export async function executeChildSession(options: {
       text: prompt,
     };
     messages = [...historyMessages, { message: newMessage, parts: [textPart] }];
+    createMessage(newMessage);
     createPart(textPart, childSessionId);
   } else {
     const msgId = randomUUID();
@@ -72,11 +73,9 @@ export async function executeChildSession(options: {
       text: prompt,
     };
     messages = [{ message: userMessage, parts: [textPart] }];
+    createMessage(userMessage);
     createPart(textPart, childSessionId);
   }
-
-  const userMessage = messages[messages.length - 1].message;
-  createMessage(userMessage);
 
   const finalParts: Part[] = [];
   let error: string | undefined;
