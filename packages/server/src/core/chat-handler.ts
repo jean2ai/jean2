@@ -275,14 +275,11 @@ async function runSingleChatTurn(
             model: event.model,
             variant: event.variant ?? undefined,
           });
-          const currentSession = getSession(sessionId);
-          if (currentSession) {
-            updateSession(sessionId, {
-              promptTokens: event.usage.promptTokens,
-              completionTokens: event.usage.completionTokens,
-              totalTokens: event.usage.totalTokens,
-            });
-          }
+          updateSession(sessionId, {
+            promptTokens: event.usage.promptTokens,
+            completionTokens: event.usage.completionTokens,
+            totalTokens: event.usage.totalTokens,
+          });
           break;
         }
 

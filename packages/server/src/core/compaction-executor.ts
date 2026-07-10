@@ -105,8 +105,8 @@ export async function executeCompaction(
   const policy = resolveCompactionPolicy(sessionModelId, sessionProviderId);
 
   activeCompactionSessions.add(sessionId);
-  updateSession(sessionId, { compacting: true });
-  broadcastSessUpdate(getSession(sessionId)!);
+  const compactingSession = updateSession(sessionId, { compacting: true });
+  if (compactingSession) broadcastSessUpdate(compactingSession);
 
   try {
     const trigger = createCompactionTrigger(sessionId, reason);
@@ -128,16 +128,13 @@ export async function executeCompaction(
       broadcast({ type: 'part.created', sessionId, part });
     }
 
-    const currentSession = getSession(sessionId);
-    if (currentSession) {
-      updateSession(sessionId, {
-        promptTokens: result.tokensUsed.prompt,
-        completionTokens: result.tokensUsed.completion,
-        totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
-        compacting: false,
-      });
-      broadcastSessUpdate(getSession(sessionId)!);
-    }
+    const completedSession = updateSession(sessionId, {
+      promptTokens: result.tokensUsed.prompt,
+      completionTokens: result.tokensUsed.completion,
+      totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
+      compacting: false,
+    });
+    if (completedSession) broadcastSessUpdate(completedSession);
 
     return {
       ok: true,
@@ -150,8 +147,7 @@ export async function executeCompaction(
       reason,
     };
   } catch (err: unknown) {
-    updateSession(sessionId, { compacting: false });
-    const updatedSession = getSession(sessionId);
+    const updatedSession = updateSession(sessionId, { compacting: false });
     if (updatedSession) broadcastSessUpdate(updatedSession);
     const errorMessage = err instanceof Error ? err.message : 'Compaction failed';
 

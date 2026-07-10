@@ -87,8 +87,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const session = getSession(_sessionId);
   const isMainSession = session && !session.parentId;
   if (isMainSession) {
-    updateSession(_sessionId, { runningAt: new Date().toISOString() });
-    const updatedSession = getSession(_sessionId);
+    const updatedSession = updateSession(_sessionId, { runningAt: new Date().toISOString() });
     if (updatedSession) {
       broadcastSessionUpdated(updatedSession);
     }
@@ -300,8 +299,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     rejectPendingAsksBySession(_sessionId);
 
     if (isMainSession) {
-      updateSession(_sessionId, { runningAt: null });
-      const updatedSession = getSession(_sessionId);
+      const updatedSession = updateSession(_sessionId, { runningAt: null });
       if (updatedSession) {
         broadcastSessionUpdated(updatedSession);
       }
