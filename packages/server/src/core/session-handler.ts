@@ -7,11 +7,12 @@ import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
 import { forkSession } from '@/core/fork';
 import type { RouterContext } from './router-context';
+import type { SessionCompactMessage, SessionRevertMessage, SessionForkMessage } from '@jean2/sdk';
 
 export async function handleSessionCompact(
   ctx: RouterContext,
   ws: ServerWebSocket,
-  msg: { sessionId: string; messageIds?: string[] },
+  msg: SessionCompactMessage,
 ): Promise<void> {
   const session = getSession(msg.sessionId);
   if (!session) {
@@ -39,7 +40,7 @@ export async function handleSessionCompact(
 export async function handleSessionRevert(
   ctx: RouterContext,
   ws: ServerWebSocket,
-  msg: { sessionId: string; messageId: string },
+  msg: SessionRevertMessage,
 ): Promise<void> {
   try {
     const session = getSession(msg.sessionId);
@@ -75,7 +76,7 @@ export async function handleSessionRevert(
 export async function handleSessionFork(
   ctx: RouterContext,
   ws: ServerWebSocket,
-  msg: { sessionId: string; messageId: string; title?: string },
+  msg: SessionForkMessage,
 ): Promise<void> {
   try {
     const session = getSession(msg.sessionId);
