@@ -2,19 +2,10 @@ import { type LanguageModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { findModel } from '@/config';
-import {
-  getLLMOpenAIApiKey,
-  getLLMAnthropicApiKey,
-  getLLMOpenRouterApiKey,
-  getLLMGoogleApiKey,
-  getLLMMinimaxApiKey,
-  getLLMZhipuApiKey,
-  getLLMZhipuCodingApiKey,
-  getLLMDeepseekApiKey,
-  getLLMBaseUrl,
-} from '@/env';
+import { findProviderFromModel, getApiKeyForProvider } from '@/core/provider-utils';
 import { getProvider, createModelForProvider } from '@/providers';
 import { isSandboxActive } from '@/sandbox';
+import { getLLMBaseUrl } from '@/env';
 
 export interface ModelWithMetadata {
   model: LanguageModel;
@@ -66,23 +57,10 @@ export async function getModelWithMetadata(
   let model = resolvedModelId;
 
   if (!provider) {
+    provider = findProviderFromModel(resolvedModelId);
     const modelInfo = findModel(resolvedModelId);
-
     if (modelInfo) {
-      provider = modelInfo.providerId;
       model = modelInfo.id;
-    } else {
-      if (resolvedModelId.includes('/')) {
-        provider = 'openrouter';
-      } else if (resolvedModelId.startsWith('claude-')) {
-        provider = 'anthropic';
-      } else if (resolvedModelId.startsWith('gemini-')) {
-        provider = 'google';
-      } else if (resolvedModelId.startsWith('deepseek-')) {
-        provider = 'deepseek';
-      } else {
-        provider = 'openai';
-      }
     }
   }
 
@@ -102,30 +80,7 @@ export async function getModelWithMetadata(
     };
   }
 
-  const getApiKey = () => {
-    switch (provider) {
-      case 'openai':
-        return getLLMOpenAIApiKey();
-      case 'anthropic':
-        return getLLMAnthropicApiKey();
-      case 'openrouter':
-        return getLLMOpenRouterApiKey();
-      case 'google':
-        return getLLMGoogleApiKey();
-      case 'minimax':
-        return getLLMMinimaxApiKey();
-      case 'zhipu':
-        return getLLMZhipuApiKey();
-      case 'zhipu-coding':
-        return getLLMZhipuCodingApiKey();
-      case 'deepseek':
-        return getLLMDeepseekApiKey();
-      default:
-        return getLLMOpenAIApiKey();
-    }
-  };
-
-  const apiKey = getApiKey();
+  const apiKey = getApiKeyForProvider(provider);
 
   if (!apiKey) {
     throw new Error(`No API key configured for provider: ${provider}. Set LLM_${provider.toUpperCase()}_API_KEY environment variable.`);

@@ -20,18 +20,7 @@ import { getWorkspacesDir } from '@/paths';
 import { getTerminalManager } from '@/services/terminal';
 import * as mcp from '@/mcp';
 import { NotFoundError, BadRequestError } from '@/utils/http-errors';
-
-function expandPath(path: string): string {
-  let expanded = path;
-  if (expanded.startsWith('~/') || expanded === '~') {
-    expanded = join(homedir(), expanded.slice(1));
-  }
-  // Always resolve to an absolute path so relative paths (e.g. "./project",
-  // "../folder", "project") are anchored to process.cwd() instead of being
-  // stored verbatim. This is essential for cross-platform correctness (macOS,
-  // Linux, Windows with multiple drives).
-  return resolve(expanded);
-}
+import { expandPath } from '@/utils/paths';
 
 export function registerWorkspaceRoutes(app: Hono): void {
   // GET /api/workspaces - List all workspaces

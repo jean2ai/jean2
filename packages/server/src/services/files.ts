@@ -4,6 +4,9 @@ import { extname, resolve, join } from 'path';
 import fg from 'fast-glob';
 import ignore from 'ignore';
 import type { FileEntry } from '@jean2/sdk';
+import { isPathWithinWorkspace } from '@/utils/paths';
+
+export { isPathWithinWorkspace };
 
 const IGNORE_PATTERNS = [
   'node_modules/**',
@@ -129,14 +132,4 @@ export async function searchFiles(
   }
 
   return results;
-}
-
-export function isPathWithinWorkspace(
-  targetPath: string,
-  workspacePath: string,
-  additionalPaths: string[] = [],
-): boolean {
-  const resolved = resolve(targetPath);
-  const allAllowed = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
-  return allAllowed.some(allowed => resolved.startsWith(allowed));
 }

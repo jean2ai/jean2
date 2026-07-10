@@ -1,6 +1,6 @@
 import { generateText as aiGenerateText, streamText as aiStreamText } from 'ai';
 import { getModelWithMetadata } from './model-utils';
-import { findModel } from '@/config';
+import { findProviderFromModel } from './provider-utils';
 import {
   listMessagesWithParts,
   createPart,
@@ -381,12 +381,7 @@ async function defaultGenerateSummary(
   const effectiveModelId = policy.modelId || 'gpt-4o';
   let effectiveProviderId = policy.providerId;
   if (!effectiveProviderId) {
-    const modelInfo = findModel(effectiveModelId);
-    effectiveProviderId = modelInfo?.providerId ||
-      (effectiveModelId.includes('/') ? 'openrouter' :
-       effectiveModelId.startsWith('claude-') ? 'anthropic' :
-       effectiveModelId.startsWith('gemini-') ? 'google' :
-       effectiveModelId.startsWith('deepseek-') ? 'deepseek' : 'openai');
+    effectiveProviderId = findProviderFromModel(effectiveModelId);
   }
 
   const isCodex = effectiveProviderId === 'codex';

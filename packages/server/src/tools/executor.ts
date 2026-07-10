@@ -4,6 +4,7 @@ import { existsSync, mkdirSync } from 'fs';
 import type { ToolContext, ToolResult, LoadedTool, FileSystemApi, DirEntry, FileStat, EnvApi, ToolLogger, AskApi, LlmApi } from '@jean2/sdk';
 import { getJean2EnvValue } from '@/env';
 import { getWorkspace, updateWorkspace } from '@/store';
+import { isPathWithinWorkspace, resolvePath as sharedResolvePath } from '@/utils/paths';
 
 const BLOCKED_PATHS = [
   '/etc/', '/usr/', '/bin/', '/sbin/', '/boot/', '/dev/',
@@ -147,18 +148,11 @@ function createPathHelpers(workspacePath: string, additionalPaths: string[] = []
   const allAllowedPaths = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
 
   function resolvePath(path: string): string {
-    if (path.startsWith('~/') || path === '~') {
-      return join(homedir(), path.slice(1));
-    }
-    if (isAbsolute(path)) {
-      return resolve(path);
-    }
-    return resolve(workspacePath, path);
+    return sharedResolvePath(path, workspacePath);
   }
 
   function isWithinWorkspace(path: string): boolean {
-    const resolvedPath = resolvePath(path);
-    return allAllowedPaths.some(allowed => resolvedPath.startsWith(allowed));
+    return isPathWithinWorkspace(path, workspacePath, additionalPaths);
   }
 
   function isSensitivePath(path: string): boolean {

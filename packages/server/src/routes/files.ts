@@ -1,20 +1,14 @@
 import type { Hono } from 'hono';
 import { accessSync, constants } from 'fs';
-import { homedir } from 'os';
 import { join, dirname, resolve, isAbsolute, relative, sep } from 'path';
+import { homedir } from 'os';
 import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
 import { getGitStatus, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
 
 import { NotFoundError, BadRequestError, ForbiddenError } from '@/utils/http-errors';
-
-function expandPath(path: string): string {
-  if (path.startsWith('~/')) {
-    return path.replace('~', homedir());
-  }
-  return path;
-}
+import { expandPath } from '@/utils/paths';
 
 /**
  * Resolves an optional `root` query param to an allowed absolute root path.

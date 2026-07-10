@@ -4,13 +4,10 @@ import { createSession, getSession } from '@/store/sessions';
 import { getWorkspace, getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { markScheduledJobRun, markScheduledJobError } from '@/store/scheduled-jobs';
 import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
-import { getModelsConfig, findModel } from '@/config';
+import { getModelsConfig } from '@/config';
+import { findProviderFromModel } from '@/core/provider-utils';
 import { executeChildSession } from '@/core/child-session';
 
-function findProviderFromModel(modelId: string): string | null {
-  const modelInfo = findModel(modelId);
-  return modelInfo?.providerId ?? null;
-}
 
 export async function runScheduledJob(job: ScheduledJob): Promise<void> {
   const preconfig = job.preconfigId

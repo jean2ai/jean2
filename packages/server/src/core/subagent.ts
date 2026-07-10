@@ -2,6 +2,7 @@ import type { ToolDefinition, TextPart, Session, ResponseFormat } from '@jean2/s
 import { listSubagentPreconfigs } from './preconfig';
 import { getPreconfigOrAgent } from '@/agents/storage';
 import { createSession, getSession, updateSession } from '@/store';
+import { findProviderFromModel, resolveModelId, resolveProviderId } from './provider-utils';
 import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { executeChildSession } from './child-session';
 import { getModelsConfig, findModel } from '@/config';
@@ -11,17 +12,6 @@ import { randomUUID } from 'crypto';
 /**
  * Determine provider from model ID (fallback logic)
  */
-function findProviderFromModel(m: string): string {
-  const modelInfo = findModel(m);
-  if (modelInfo) return modelInfo.providerId;
-  // Fallback parsing
-  if (m.includes('/')) return 'openrouter';
-  if (m.startsWith('claude-')) return 'anthropic';
-  if (m.startsWith('gemini-')) return 'google';
-  if (m.startsWith('MiniMax-') || m.toLowerCase().includes('minimax')) return 'minimax';
-  if (m.startsWith('deepseek-')) return 'deepseek';
-  return 'openai';
-}
 
 const MAX_SUBAGENT_DEPTH = 2;
 
@@ -202,12 +192,8 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     : null;
   const config = getModelsConfig();
 
-  const parentModelId = parentSession?.selectedModel
-    || parentPreconfig?.model
-    || config.defaultModel;
-  const parentProviderId = parentSession?.selectedProvider
-    || (parentPreconfig?.model ? findProviderFromModel(parentPreconfig.model) : null)
-    || config.defaultProvider;
+  const parentModelId = resolveModelId(parentSession, parentPreconfig);
+  const parentProviderId = resolveProviderId(parentSession, parentPreconfig);
 
   // Check depth limit
   const currentDepth = computeSessionDepth(sessionId);

@@ -18,6 +18,7 @@ import {
   getResponseFormat,
 } from '@/store';
 import { getWorkspace } from '@/store/workspaces';
+import { resolveModelId, resolveProviderId, getApiKeyForProvider } from './provider-utils';
 import { streamChatWithRetry } from '@/core/retry';
 import { getModelsConfig, findModel } from '@/config';
 import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
@@ -527,16 +528,10 @@ export async function handleChat(
     return;
   }
 
-  const config = getModelsConfig();
-  const configDefaultModel = config.defaultModel;
+  const modelId = resolveModelId(session, preconfig);
+  const provider = resolveProviderId(session, preconfig);
 
-  const modelId = session.selectedModel || preconfig?.model || configDefaultModel;
-  const provider = session.selectedProvider ||
-                  (preconfig?.model ? findProviderFromModel(preconfig.model) : null) ||
-                  config.defaultProvider;
-
-  const apiKeyGetter = apiKeyGetterMap[provider as Provider];
-  const apiKey = apiKeyGetter ? apiKeyGetter() : undefined;
+  const apiKey = getApiKeyForProvider(provider);
 
   const isConnectableProvider = providerManager.getProvider(provider) !== null;
   if (!apiKey && !isConnectableProvider) {
@@ -743,9 +738,8 @@ export async function handleSessionEditMessage(
       return;
     }
 
-    const config = getModelsConfig();
-    const modelId = session.selectedModel || preconfig.model || config.defaultModel;
-    const provider = resolveProvider(session, preconfig);
+    const modelId = resolveModelId(session, preconfig);
+    const provider = resolveProviderId(session, preconfig);
 
     await runSingleChatTurn(
       ctx,
@@ -768,38 +762,3 @@ export async function handleSessionEditMessage(
   }
 }
 
-// ── Provider resolution helper (shared) ────────────────────────
-
-function findProviderFromModel(m: string): string {
-  const modelInfo = findModel(m);
-  if (modelInfo) return modelInfo.providerId;
-  if (m.includes('/')) return 'openrouter';
-  if (m.startsWith('claude-')) return 'anthropic';
-  if (m.startsWith('gemini-')) return 'google';
-  if (m.startsWith('deepseek-')) return 'deepseek';
-  return 'openai';
-}
-
-type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'deepseek';
-
-const apiKeyGetterMap: Record<Provider, () => string | undefined> = {
-  'openai': getLLMOpenAIApiKey,
-  'anthropic': getLLMAnthropicApiKey,
-  'openrouter': getLLMOpenRouterApiKey,
-  'google': getLLMGoogleApiKey,
-  'minimax': getLLMMinimaxApiKey,
-  'zhipu': getLLMZhipuApiKey,
-  'zhipu-coding': getLLMZhipuCodingApiKey,
-  'deepseek': getLLMDeepseekApiKey,
-};
-
-export function resolveProvider(
-  session: NonNullable<ReturnType<typeof getSession>>,
-  preconfig: NonNullable<Awaited<ReturnType<typeof getPreconfigOrAgent>>>,
-): string {
-  return (
-    session.selectedProvider ||
-    (preconfig.model ? findProviderFromModel(preconfig.model) : null) ||
-    getModelsConfig().defaultProvider
-  );
-}
