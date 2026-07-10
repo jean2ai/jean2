@@ -380,7 +380,7 @@ describe('API Routes', () => {
 
       expect(res.status).toBe(400);
       const body = await json(res);
-      expect(body.message).toContain('object');
+      expect(body.error).toBe('bad_request');
     });
 
     test('PATCH /api/workspaces/:id validates memory.enabled is boolean', async () => {
@@ -396,7 +396,7 @@ describe('API Routes', () => {
 
       expect(res.status).toBe(400);
       const body = await json(res);
-      expect(body.message).toContain('boolean');
+      expect(body.error).toBe('bad_request');
     });
 
     test('PATCH /api/workspaces/:id validates memory.permissionRisk enum', async () => {
@@ -412,7 +412,7 @@ describe('API Routes', () => {
 
       expect(res.status).toBe(400);
       const body = await json(res);
-      expect(body.message).toContain('risk level');
+      expect(body.error).toBe('bad_request');
     });
 
     test('PATCH /api/workspaces/:id accepts all valid risk levels', async () => {

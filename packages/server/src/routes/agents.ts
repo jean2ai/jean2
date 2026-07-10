@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import {
   listAgents,
   getAgent,
@@ -39,7 +39,7 @@ export function registerAgentRoutes(app: Hono): void {
 
   app.patch(
     '/api/agents/:id/memory',
-    zValidator('json', updateAgentMemorySchema),
+    validate('json', updateAgentMemorySchema),
     async (c) => {
       const { target, content } = c.req.valid('json');
       await updateAgentMemory(c.req.param('id'), target, content);

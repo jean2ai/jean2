@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import { randomUUID } from 'crypto';
 import {
   listResponseFormats,
@@ -28,7 +28,7 @@ export function registerResponseFormatRoutes(app: Hono): void {
 
   app.post(
     '/api/response-formats',
-    zValidator('json', createResponseFormatSchema),
+    validate('json', createResponseFormatSchema),
     async (c) => {
       const body = c.req.valid('json');
 
@@ -44,7 +44,7 @@ export function registerResponseFormatRoutes(app: Hono): void {
 
   app.put(
     '/api/response-formats/:id',
-    zValidator('json', updateResponseFormatSchema),
+    validate('json', updateResponseFormatSchema),
     async (c) => {
       const id = c.req.param('id');
       const body = c.req.valid('json');

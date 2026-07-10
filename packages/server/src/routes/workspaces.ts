@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import { mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { SessionStatus } from '@jean2/sdk';
@@ -56,7 +56,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
   // POST /api/workspaces - Create a new workspace
   app.post(
     '/api/workspaces',
-    zValidator('json', createWorkspaceSchema),
+    validate('json', createWorkspaceSchema),
     async (c) => {
       const body = c.req.valid('json');
       const { name, path: providedPath, isVirtual, additionalPaths } = body;
@@ -118,7 +118,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
   // PATCH /api/workspaces/:id - Update a workspace (name, additionalPaths, settings)
   app.patch(
     '/api/workspaces/:id',
-    zValidator('json', updateWorkspaceSettingsSchema),
+    validate('json', updateWorkspaceSettingsSchema),
     async (c) => {
       const id = c.req.param('id');
       const body = c.req.valid('json');
@@ -272,7 +272,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
   // POST /api/workspaces/:id/pinned-messages - Pin a message
   app.post(
     '/api/workspaces/:id/pinned-messages',
-    zValidator('json', pinMessageSchema),
+    validate('json', pinMessageSchema),
     async (c) => {
       const workspaceId = c.req.param('id');
       const { sessionId, messageId } = c.req.valid('json');

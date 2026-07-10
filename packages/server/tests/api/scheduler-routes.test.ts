@@ -98,7 +98,7 @@ describe('Scheduler Routes', () => {
       expect(res.status).toBe(400);
       const body = await json(res);
       expect(body.error).toBe('bad_request');
-      expect(body.message).toContain('Name');
+      expect(body.details.some((d: { path: string }) => d.path === 'name')).toBe(true);
     });
 
     test('returns 400 when prompt is missing', async () => {

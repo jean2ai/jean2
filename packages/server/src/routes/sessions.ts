@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import type { SessionStatus } from '@jean2/sdk';
 import {
   createSession,
@@ -33,7 +33,7 @@ export function registerSessionRoutes(app: Hono): void {
 
   app.post(
     '/api/sessions',
-    zValidator('json', createSessionSchema),
+    validate('json', createSessionSchema),
     async (c) => {
       const body = c.req.valid('json');
       const session = createSession({
@@ -87,7 +87,7 @@ export function registerSessionRoutes(app: Hono): void {
 
   app.put(
     '/api/sessions/:id',
-    zValidator('json', updateSessionSchema),
+    validate('json', updateSessionSchema),
     async (c) => {
       const id = c.req.param('id');
       const body = c.req.valid('json');

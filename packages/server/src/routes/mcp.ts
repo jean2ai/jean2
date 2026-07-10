@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import { getWorkspace } from '@/store';
 import * as mcp from '@/mcp';
 import { NotFoundError } from '@/utils/http-errors';
@@ -19,7 +19,7 @@ export function registerMcpRoutes(app: Hono): void {
 
   app.post(
     '/api/workspaces/:id/mcp/connect',
-    zValidator('json', mcpServerNameSchema),
+    validate('json', mcpServerNameSchema),
     async (c) => {
       const workspaceId = c.req.param('id');
       const { name } = c.req.valid('json');
@@ -41,7 +41,7 @@ export function registerMcpRoutes(app: Hono): void {
 
   app.post(
     '/api/workspaces/:id/mcp/disconnect',
-    zValidator('json', mcpServerNameSchema),
+    validate('json', mcpServerNameSchema),
     async (c) => {
       const workspaceId = c.req.param('id');
       const { name } = c.req.valid('json');

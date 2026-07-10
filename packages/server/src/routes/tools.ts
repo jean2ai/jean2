@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import { listTools, getTool } from '@/tools';
 import * as toolEnv from '@/configuration/tool-env';
 import {
@@ -33,7 +33,7 @@ export function registerToolRoutes(app: Hono): void {
   // PUT /api/tools/env/:key - Set a tool env var value
   app.put(
     '/api/tools/env/:key',
-    zValidator('json', setToolEnvSchema),
+    validate('json', setToolEnvSchema),
     async (c) => {
       const key = c.req.param('key');
       const { value } = c.req.valid('json');

@@ -67,7 +67,11 @@ async function setupMocks(opts: {
   mock.module('@/store', () => ({
     transitionToolToRunningByCallId: mock(() => null),
     getSession: mock(() => ({ id: 'sess-1' })),
-    getWorkspace: mock(() => null),
+    getWorkspace: mock(() => ({
+      id: 'ws-1',
+      path: '/workspace',
+      settings: {},
+    })),
   }));
 
   mock.module('@/paths', () => ({

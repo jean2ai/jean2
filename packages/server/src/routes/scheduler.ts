@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import {
   createScheduledJob,
   getScheduledJob,
@@ -30,7 +30,7 @@ export function registerSchedulerRoutes(app: Hono): void {
 
   app.post(
     '/api/workspaces/:workspaceId/scheduled-jobs',
-    zValidator('json', createScheduledJobSchema),
+    validate('json', createScheduledJobSchema),
     async (c) => {
       const workspaceId = c.req.param('workspaceId');
       const body = c.req.valid('json');
@@ -58,7 +58,7 @@ export function registerSchedulerRoutes(app: Hono): void {
 
   app.patch(
     '/api/workspaces/:workspaceId/scheduled-jobs/:jobId',
-    zValidator('json', updateScheduledJobSchema),
+    validate('json', updateScheduledJobSchema),
     async (c) => {
       const jobId = c.req.param('jobId');
       const body = c.req.valid('json') as Record<string, unknown>;

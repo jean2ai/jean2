@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from './validate';
 import * as providerCredentials from '@/configuration/provider-credentials';
 import * as modelsConfig from '@/configuration/models';
 import * as modelsSync from '@/configuration/models-sync';
@@ -31,7 +31,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/preconfigs',
-    zValidator('json', createPreconfigSchema),
+    validate('json', createPreconfigSchema),
     async (c) => {
       const body = c.req.valid('json');
       const format = body.format === 'md' ? 'md' : undefined;
@@ -66,7 +66,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/preconfigs/:id',
-    zValidator('json', updatePreconfigSchema),
+    validate('json', updatePreconfigSchema),
     async (c) => {
       const id = c.req.param('id');
       const body = c.req.valid('json');
@@ -140,7 +140,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/providers/:providerId/connect',
-    zValidator('json', providerConnectSchema),
+    validate('json', providerConnectSchema),
     async (c) => {
       const providerId = c.req.param('providerId');
       const body = c.req.valid('json');
@@ -172,7 +172,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/oauth/callback',
-    zValidator('json', oauthCallbackSchema),
+    validate('json', oauthCallbackSchema),
     async (c) => {
       const body = c.req.valid('json');
       const result = await providers.completeOAuthFlow(
@@ -202,7 +202,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/config/providers/:provider',
-    zValidator('json', providerCredentialsSchema),
+    validate('json', providerCredentialsSchema),
     async (c) => {
       const provider = c.req.param('provider');
       const body = c.req.valid('json');
@@ -228,7 +228,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/config/models/providers',
-    zValidator('json', looseObjectSchema),
+    validate('json', looseObjectSchema),
     async (c) => {
       const body = c.req.valid('json');
       const result = await modelsConfig.createProvider(body as unknown as Parameters<typeof modelsConfig.createProvider>[0]);
@@ -238,7 +238,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/config/models/providers/:providerId',
-    zValidator('json', looseObjectSchema),
+    validate('json', looseObjectSchema),
     async (c) => {
       const providerId = c.req.param('providerId');
       const body = c.req.valid('json');
@@ -255,7 +255,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/config/models/providers/:providerId/models',
-    zValidator('json', looseObjectSchema),
+    validate('json', looseObjectSchema),
     async (c) => {
       const providerId = c.req.param('providerId');
       const body = c.req.valid('json');
@@ -266,7 +266,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/config/models/providers/:providerId/models/:modelId',
-    zValidator('json', looseObjectSchema),
+    validate('json', looseObjectSchema),
     async (c) => {
       const providerId = c.req.param('providerId');
       const modelId = c.req.param('modelId');
@@ -285,7 +285,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/config/models/sync',
-    zValidator('json', modelsSyncSchema),
+    validate('json', modelsSyncSchema),
     async (c) => {
       const body = c.req.valid('json');
       const mode = body.mode === 'override' ? 'override' as const : 'merge' as const;
@@ -296,7 +296,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/config/models/defaults',
-    zValidator('json', looseObjectSchema),
+    validate('json', looseObjectSchema),
     async (c) => {
       const body = c.req.valid('json');
       const result = await modelsConfig.setDefaults(body as unknown as Parameters<typeof modelsConfig.setDefaults>[0]);
@@ -321,7 +321,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.post(
     '/api/config/prompts',
-    zValidator('json', createPromptSchema),
+    validate('json', createPromptSchema),
     async (c) => {
       const body = c.req.valid('json');
       const prompt = await promptsConfig.createPromptConfig(body as unknown as Parameters<typeof promptsConfig.createPromptConfig>[0]);
@@ -331,7 +331,7 @@ export function registerConfigRoutes(app: Hono): void {
 
   app.put(
     '/api/config/prompts/:name',
-    zValidator('json', updatePromptSchema),
+    validate('json', updatePromptSchema),
     async (c) => {
       const name = c.req.param('name');
       const body = c.req.valid('json');
