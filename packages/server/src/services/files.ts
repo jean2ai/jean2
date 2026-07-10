@@ -1,6 +1,6 @@
 import { readdir } from 'fs/promises';
 import { readFileSync, existsSync } from 'fs';
-import { extname, resolve, join } from 'path';
+import { extname, join } from 'path';
 import fg from 'fast-glob';
 import ignore from 'ignore';
 import type { FileEntry } from '@jean2/sdk';

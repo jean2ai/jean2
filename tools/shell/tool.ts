@@ -415,7 +415,7 @@ async function detectPlatform(): Promise<'windows' | 'unix'> {
   return 'unix';
 }
 
-function resolveCmdExe(): string {
+function _resolveCmdExe(): string {
   // Resolve cmd.exe to an absolute path so spawning does not depend on PATH
   // being intact in the current environment. The server may hold a stale or
   // stripped PATH snapshot (e.g. daemon-launched with a filtered env), in

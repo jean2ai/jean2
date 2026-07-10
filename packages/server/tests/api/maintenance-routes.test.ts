@@ -53,10 +53,10 @@ describe('Maintenance Routes', () => {
   describe('POST /api/maintenance/vacuum', () => {
     test('reclaims space and returns before/after stats', async () => {
       // Create some data to make the vacuum meaningful
-      const { workspaceId, sessionId } = (() => {
+      const { sessionId } = (() => {
         seedWorkspace({ id: 'ws1' });
         const s = seedSession('ws1');
-        return { workspaceId: 'ws1', sessionId: s.id };
+        return { sessionId: s.id };
       })();
 
       createMessage(createTestUserMessage(sessionId));

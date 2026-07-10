@@ -3,7 +3,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { createApp } from '@/app';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
-import { seedWorkspace, seedSession } from '#tests/seed';
+import { seedWorkspace } from '#tests/seed';
 
 async function json(res: Response): Promise<any> {
   return res.json();

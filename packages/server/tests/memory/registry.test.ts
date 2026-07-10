@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'fs';
-import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 

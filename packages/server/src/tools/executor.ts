@@ -145,7 +145,7 @@ function createFileSystemApi(workspacePath: string, sessionId: string): FileSyst
 }
 
 function createPathHelpers(workspacePath: string, additionalPaths: string[] = []) {
-  const allAllowedPaths = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
+  const _allAllowedPaths = [resolve(workspacePath), ...additionalPaths.map(p => resolve(p))];
 
   function resolvePath(path: string): string {
     return sharedResolvePath(path, workspacePath);

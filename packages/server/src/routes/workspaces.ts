@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { mkdirSync, existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import type { SessionStatus } from '@jean2/sdk';
 import {
   listWorkspaces,

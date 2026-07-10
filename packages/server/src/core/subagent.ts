@@ -2,10 +2,10 @@ import type { ToolDefinition, TextPart, Session, ResponseFormat } from '@jean2/s
 import { listSubagentPreconfigs } from './preconfig';
 import { getPreconfigOrAgent } from '@/agents/storage';
 import { createSession, getSession, updateSession } from '@/store';
-import { findProviderFromModel, resolveModelId, resolveProviderId } from './provider-utils';
+import { resolveModelId, resolveProviderId } from './provider-utils';
 import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { executeChildSession } from './child-session';
-import { getModelsConfig, findModel } from '@/config';
+
 import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, broadcastToSessionEvent, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
 import { randomUUID } from 'crypto';
 
@@ -190,8 +190,6 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
   const parentPreconfig = parentSession?.preconfigId
     ? await getPreconfigOrAgent(parentSession.preconfigId)
     : null;
-  const config = getModelsConfig();
-
   const parentModelId = resolveModelId(parentSession, parentPreconfig);
   const parentProviderId = resolveProviderId(parentSession, parentPreconfig);
 

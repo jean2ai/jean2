@@ -20,23 +20,12 @@ import {
 import { getWorkspace } from '@/store/workspaces';
 import { resolveModelId, resolveProviderId, getApiKeyForProvider } from './provider-utils';
 import { streamChatWithRetry } from '@/core/retry';
-import { getModelsConfig, findModel } from '@/config';
 import { getPreconfig, getDefaultPreconfig } from '@/core/preconfig';
 import { getPreconfigOrAgent } from '@/agents/storage';
 import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
 import { interruptManager } from '@/core/interrupt';
 import { runGoalLoop } from '@/core/goal-loop';
-import {
-  getLLMOpenAIApiKey,
-  getLLMAnthropicApiKey,
-  getLLMOpenRouterApiKey,
-  getLLMGoogleApiKey,
-  getLLMMinimaxApiKey,
-  getLLMZhipuApiKey,
-  getLLMZhipuCodingApiKey,
-  getLLMDeepseekApiKey,
-} from '@/env';
 import * as providerManager from '@/providers';
 import { isSandboxActive } from '@/sandbox';
 import type { ServerWebSocket } from 'bun';
