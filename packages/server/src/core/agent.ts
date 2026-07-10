@@ -1,10 +1,8 @@
-import { streamText, stepCountIs, Output, jsonSchema } from 'ai';
+import { streamText, stepCountIs } from 'ai';
 import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage, ResponseFormat } from '@jean2/sdk';
 import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted } from '@/store';
 
-import { findModel, findModelVariant, getMaxOutputTokens } from '@/config';
-import { buildWorkspaceSystemPrompt } from './prompts/workspace-context';
-import { loadInstructions, formatInstructions } from './instructions';
+import { findModel, getMaxOutputTokens } from '@/config';
 import { randomUUID } from 'crypto';
 import { interruptManager } from './interrupt';
 import { rejectPendingAsksBySession } from '@/tools/ask-user-api';
@@ -14,26 +12,17 @@ import { getModelWithMetadata } from './model-utils';
 import { createStepCallbacks, type CallbackEvent } from './step-handlers';
 import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
-import { buildSchemaPromptInstruction, extractJsonFromText } from './structured-output';
 import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
-import { loadMemoryInstructions, MEMORY_GUIDANCE } from '@/memory';
-import { SKILL_MANAGE_GUIDANCE } from '@/skills';
-import { SESSION_SEARCH_GUIDANCE } from '@/session-search';
-import { getWorkspace } from '@/store';
 import { getAgentDirectory } from '@/agents/storage';
-import { readAgentMemoryFile } from '@/agents/memory';
 import { join } from 'path';
-import {
-  getLLMTemperature,
-  getLLMMaxSteps,
-  getCompactionAutoThresholdRatio,
-  getCompactionAutoReserveCapTokens,
-  getCompactionAutoSafetyMarginTokens,
-} from '@/env';
 
 import { classifyApiError } from '@/utils/errors';
 import { createErrorEvent, type ErrorEvent } from './error-handling';
 import type { CompactionPolicy } from './compaction';
+import { buildSystemMessage } from './stream/system-message';
+import { computeAutoThreshold } from './stream/compaction-threshold';
+import { buildStreamConfig } from './stream/stream-config';
+import { extractFinalizationData } from './stream/finalization';
 
 export interface ChatOptions {
   sessionId: string;
@@ -99,7 +88,6 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   const isMainSession = session && !session.parentId;
   if (isMainSession) {
     updateSession(_sessionId, { runningAt: new Date().toISOString() });
-    // Broadcast the session update so clients know the session is running
     const updatedSession = getSession(_sessionId);
     if (updatedSession) {
       broadcastSessionUpdated(updatedSession);
@@ -132,68 +120,13 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     agentId: preconfig.id,
   });
 
-  // Build system message with workspace context
-  let systemMessage = preconfig.systemPrompt || '';
-
-  // Inject agent memory layers if this is an agent
-  if (agentDir) {
-    const agentUserMemory = await readAgentMemoryFile(preconfig.id, 'USER.md');
-    if (agentUserMemory) {
-      systemMessage = `<agent_user_preferences>\n${agentUserMemory}\n</agent_user_preferences>\n\n` + systemMessage;
-    }
-    const agentMemory = await readAgentMemoryFile(preconfig.id, 'MEMORY.md');
-    if (agentMemory) {
-      systemMessage = `<agent_memory>\n${agentMemory}\n</agent_memory>\n\n` + systemMessage;
-    }
-
-    systemMessage = systemMessage + '\n\n' + `You have personal memory and skills that travel with you across all workspaces.
-
-MEMORY:
-- Use "memory" (workspace) for facts about THIS project (repo conventions, build commands, project-specific patterns).
-- Use "agent_memory" (personal) for cross-project knowledge: reusable patterns, techniques, pitfalls, and user preferences that apply everywhere.
-- Save to agent_memory when: you complete a complex multi-step task, the user corrects your approach, you discover a pattern useful beyond this project, or you debug through errors.
-
-SKILLS:
-- Use "skill_manage" for procedures specific to THIS workspace.
-- Use "agent_skill_manage" for personal workflows you've refined across projects.
-
-Before saving, use list to check existing entries and avoid duplicates.`;
-  }
-
-  // Add instructions (global first, then project)
-  const instructions = await loadInstructions(workspacePath);
-  const instructionsSection = formatInstructions(instructions);
-  if (instructionsSection) {
-    systemMessage = systemMessage + '\n\n' + instructionsSection;
-  }
-
-  // Add workspace context
-  if (workspacePath) {
-    const workspaceContext = buildWorkspaceSystemPrompt(workspacePath, effectiveAdditionalPaths);
-    systemMessage = systemMessage + '\n\n' + workspaceContext;
-  }
-
-  // Add workspace memory if enabled
-  if (workspaceId) {
-    const workspace = getWorkspace(workspaceId);
-    if (workspace?.settings?.memory?.enabled && workspacePath) {
-      const memorySection = await loadMemoryInstructions(workspacePath);
-      if (memorySection) {
-        systemMessage = systemMessage + '\n\n' + memorySection;
-      }
-      systemMessage = systemMessage + '\n\n' + MEMORY_GUIDANCE;
-    }
-
-    // Add skill management guidance if enabled
-    if (workspace?.settings?.skills?.managementEnabled) {
-      systemMessage = systemMessage + '\n\n' + SKILL_MANAGE_GUIDANCE;
-    }
-
-    // Add session search guidance if enabled
-    if (workspace?.settings?.sessionSearch?.enabled) {
-      systemMessage = systemMessage + '\n\n' + SESSION_SEARCH_GUIDANCE;
-    }
-  }
+  // Build system message
+  const systemMessage = await buildSystemMessage({
+    preconfig,
+    workspacePath,
+    workspaceId,
+    additionalPaths: effectiveAdditionalPaths,
+  });
 
   const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =
     await getModelWithMetadata({
@@ -203,32 +136,24 @@ Before saving, use list to check existing entries and avoid duplicates.`;
       sessionId: _sessionId,
     });
 
-  // Resolve model definition for context window and capabilities
+  // Compute auto-compaction threshold
+  const { threshold: autoThreshold, contextWindow } = computeAutoThreshold(resolvedModelId, compactionPolicy);
+
+  // Convert messages for ai-sdk
   const modelDef = resolvedModelId ? findModel(resolvedModelId) : undefined;
-  const contextWindow = modelDef?.contextWindow;
-
-  // Convert messages for ai-sdk, passing model capabilities for multimodal handling
   const aiMessages = await convertToAiSdkMessages(messages, modelDef?.capabilities);
-  const modelMaxOutputTokens = contextWindow ? getMaxOutputTokens(resolvedModelId) : 0;
 
-  // Resolve hybrid formula parameters from compactionPolicy or env defaults
-  const autoThresholdRatio = compactionPolicy?.autoThresholdRatio ?? getCompactionAutoThresholdRatio();
-  const autoReserveCapTokens = compactionPolicy?.autoReserveCapTokens ?? getCompactionAutoReserveCapTokens();
-  const autoSafetyMarginTokens = compactionPolicy?.autoSafetyMarginTokens ?? getCompactionAutoSafetyMarginTokens();
-
-  // Compute auto-compaction threshold using hybrid formula:
-  // reserve = min(modelMaxOutputTokens, reserveCapTokens)
-  // threshold = min(floor(contextWindow * ratio), contextWindow - reserve - safetyMarginTokens)
-  let autoThreshold: number;
-  if (contextWindow) {
-    const reserve = Math.min(modelMaxOutputTokens, autoReserveCapTokens);
-    const ratioBasedThreshold = Math.floor(contextWindow * autoThresholdRatio);
-    const safeThreshold = contextWindow - reserve - autoSafetyMarginTokens;
-    // Defensive: ensure non-negative threshold for edge cases (e.g., tiny context windows)
-    autoThreshold = Math.max(0, Math.min(ratioBasedThreshold, safeThreshold));
-  } else {
-    autoThreshold = 0;
-  }
+  // Build stream config (variants, providerOptions, structured output)
+  const streamConfig = buildStreamConfig({
+    modelId: resolvedModelId,
+    providerId,
+    variant,
+    systemMessage,
+    baseProviderOptions,
+    responseFormat: options.responseFormat,
+    temperature: preconfig.settings?.temperature as number | undefined,
+    maxSteps,
+  });
 
   const messageId = randomUUID();
   const stepCtx = {
@@ -247,56 +172,20 @@ Before saving, use list to check existing entries and avoid duplicates.`;
 
   const { experimental_onStepStart, onStepFinish } = createStepCallbacks(stepCtx);
 
-  // Resolve variant providerOptions if applicable
-  const variantOpts = variant ? findModelVariant(resolvedModelId || '', variant) : undefined;
-
-  // Determine the provider-specific providerOptions key based on the provider
-  const resolvedProvider = providerId || 'openai';
-  const providerOptionsKey = resolvedProvider === 'codex' ? 'openai' : resolvedProvider;
-
-  // Build providerOptions from model factory result and variant
-  let providerOptions: Record<string, Record<string, unknown>> | undefined;
-  if (baseProviderOptions) {
-    providerOptions = {
-      ...baseProviderOptions,
-      ...(variantOpts ? { [providerOptionsKey]: { ...(baseProviderOptions[providerOptionsKey] || {}), ...variantOpts } } : {}),
-    };
-  } else if (variantOpts) {
-    providerOptions = { [providerOptionsKey]: variantOpts };
-  }
-
-  // Structured output handling: providers that strip the schema (GLM, MiniMax)
-  // need it injected into the system prompt instead of using Output.object().
-  const structuredOutputMode = modelDef?.capabilities?.structuredOutput?.mode ?? 'native';
-  const usePromptBasedStructuredOutput =
-    options.responseFormat && structuredOutputMode === 'prompt';
-
-  // For prompt-based mode, inject the schema instruction into the system message
-  if (usePromptBasedStructuredOutput && options.responseFormat && systemMessage) {
-    systemMessage = systemMessage + '\n\n' + buildSchemaPromptInstruction(options.responseFormat);
-  }
-
-  // For native mode (or no response format), use Output.object() as normal
-  const streamOutput = options.responseFormat && !usePromptBasedStructuredOutput
-    ? Output.object({ schema: jsonSchema(options.responseFormat.schema) })
-    : undefined;
-
   const result = streamText({
     model,
-    system: useProviderInstructions ? undefined : systemMessage,
+    system: useProviderInstructions ? undefined : streamConfig.systemMessage,
     messages: aiMessages,
     tools: aiTools,
     maxOutputTokens: omitMaxOutputTokens ? undefined : getMaxOutputTokens(resolvedModelId),
-    providerOptions: providerOptions as Parameters<typeof streamText>[0]['providerOptions'],
-    temperature: (preconfig.settings?.temperature ?? getLLMTemperature()) as number,
-    stopWhen: stepCountIs(maxSteps ?? getLLMMaxSteps()),
+    providerOptions: streamConfig.providerOptions as Parameters<typeof streamText>[0]['providerOptions'],
+    temperature: streamConfig.temperature,
+    stopWhen: stepCountIs(streamConfig.maxSteps),
     abortSignal: abortController.signal,
     experimental_onStepStart,
     onStepFinish,
-    ...(streamOutput ? { output: streamOutput } : {}),
+    ...(streamConfig.streamOutput ? { output: streamConfig.streamOutput } : {}),
   });
-
-  
 
   // Create assistant message
   const assistantMessage: AssistantMessage = {
@@ -311,19 +200,12 @@ Before saving, use list to check existing entries and avoid duplicates.`;
     cost: 0,
   };
 
-  // Store the assistant message in DB - pass the full message object
   createMessage(assistantMessage);
-
-  // Emit message.created event
   yield { type: 'message.created', message: assistantMessage };
 
-  // Set up the yield function for callbacks and stream handlers
-  // Use a single queue to handle events from callbacks since we can't yield from inside a callback
+  // Set up event queue for callbacks
   const eventQueue: Array<CallbackEvent> = [];
-
-  stepCtx.yieldFn = (event) => {
-    eventQueue.push(event);
-  };
+  stepCtx.yieldFn = (event) => { eventQueue.push(event); };
 
   const streamCtx = {
     messageId,
@@ -340,10 +222,8 @@ Before saving, use list to check existing entries and avoid duplicates.`;
 
   try {
     for await (const delta of result.fullStream) {
-
       if (abortController.signal.aborted) {
         handlers.flushPending();
-        // Clean up any pending/running tool parts that won't get results
         for (const event of collectInterruptedToolPartEvents(streamCtx.toolParts, _sessionId)) {
           yield event;
         }
@@ -392,9 +272,7 @@ Before saving, use list to check existing entries and avoid duplicates.`;
       rawError: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err,
     });
 
-    // Check if it's an abort/interrupt (already handled)
     if (abortController.signal.aborted) {
-      // Clean up any pending/running tool parts that won't get results
       for (const event of collectInterruptedToolPartEvents(streamCtx.toolParts, _sessionId)) {
         yield event;
       }
@@ -404,9 +282,7 @@ Before saving, use list to check existing entries and avoid duplicates.`;
       return;
     }
 
-    // Handle non-retryable errors - update message status then yield error event
     if (!classified.retryable) {
-      // Update message status to error FIRST so client receives it before the error event
       const errorMessage: AssistantMessage = {
         ...assistantMessage,
         status: 'error',
@@ -414,24 +290,15 @@ Before saving, use list to check existing entries and avoid duplicates.`;
       };
       yield { type: 'message.updated', message: errorMessage };
       updateMessage(messageId, errorMessage);
-
       yield createErrorEvent(classified);
       return;
     }
 
-    // For retryable errors, throw to let caller handle retry
     throw classified;
   } finally {
-    // Cleanup interrupt registration - always runs on success, error, or abort
     interruptManager.unregisterSession(_sessionId);
-
-    // Reject any lingering permission asks for this session.
-    // When the session ends (maxSteps reached, error, abort), tools that were
-    // waiting for user permission won't get a response — clean them up so the
-    // client UI (chat prompts + sidebar warning icons) is cleared immediately.
     rejectPendingAsksBySession(_sessionId);
 
-    // Clear runningAt and broadcast session update for main sessions
     if (isMainSession) {
       updateSession(_sessionId, { runningAt: null });
       const updatedSession = getSession(_sessionId);
@@ -441,49 +308,13 @@ Before saving, use list to check existing entries and avoid duplicates.`;
     }
   }
 
-  // Finalize: get usage data FIRST, then update message with actual tokens
-  let usageData = null;
-  let structuredOutputData: import('@jean2/sdk').StructuredOutputData | undefined;
-  try {
-    const totalUsagePromise = result.totalUsage;
-    const usagePromise = result.usage;
-    const [totalUsage, usage] = await Promise.all([totalUsagePromise, usagePromise]);
-    usageData = usage ?? totalUsage;
-
-    // Extract structured output if response format was specified
-    if (options.responseFormat) {
-      try {
-        if (usePromptBasedStructuredOutput) {
-          // Prompt-based mode: parse JSON from accumulated text output
-          const parsed = extractJsonFromText(streamCtx.currentText);
-          if (parsed) {
-            structuredOutputData = {
-              formatName: options.responseFormat.name,
-              data: parsed,
-              schema: options.responseFormat.schema,
-            };
-          } else {
-            console.warn('Failed to parse structured output from text response');
-          }
-        } else {
-          // Native mode: get validated object from AI SDK
-          const output = await result.output;
-          if (output && typeof output === 'object') {
-            structuredOutputData = {
-              formatName: options.responseFormat.name,
-              data: output as Record<string, unknown>,
-              schema: options.responseFormat.schema,
-            };
-          }
-        }
-      } catch (_outputErr) {
-        console.warn('Failed to get structured output:', _outputErr);
-      }
-    }
-  } catch (_usageErr) {
-    // Usage is optional - continue without it
-    console.warn('Failed to get usage data:', _usageErr);
-  }
+  // Extract finalization data (usage + structured output)
+  const { usageData, structuredOutputData } = await extractFinalizationData({
+    result,
+    responseFormat: options.responseFormat,
+    usePromptBasedStructuredOutput: streamConfig.usePromptBasedStructuredOutput,
+    accumulatedText: streamCtx.currentText,
+  });
 
   const finalMessage: AssistantMessage = {
     ...assistantMessage,
@@ -496,12 +327,9 @@ Before saving, use list to check existing entries and avoid duplicates.`;
     ...(structuredOutputData ? { structuredOutput: structuredOutputData } : {}),
   };
 
-  // Emit message.updated event with actual tokens
   yield { type: 'message.updated', message: finalMessage };
 
-  // Emit usage event for session tracking
   if (usageData) {
-    const actualModelId = resolvedModelId || 'gpt-4o';
     yield {
       type: 'usage',
       usage: {
@@ -509,12 +337,11 @@ Before saving, use list to check existing entries and avoid duplicates.`;
         completionTokens: stepCtx.latestUsage.completionTokens,
         totalTokens: stepCtx.latestUsage.totalTokens,
       },
-      model: actualModelId,
+      model: resolvedModelId || 'gpt-4o',
       variant: variant || null,
     };
   }
 
-  // Auto-compaction: yield needs_compaction event for main sessions
   if (isMainSession && stepCtx.needsCompaction) {
     yield { type: 'needs_compaction', sessionId: _sessionId };
   }
