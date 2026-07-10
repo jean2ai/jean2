@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Jean2Client, Session } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
 import { queryKeys } from '@/lib/queryKeys';
+
+const OVERVIEW_LIMIT_PER_WORKSPACE = 100;
 
 interface UseOverviewSessionsParams {
   sdkClient: Jean2Client | null;
@@ -15,8 +17,11 @@ interface UseOverviewSessionsReturn {
   tagGroupsByWorkspace: Record<string, Map<string, Session[]>>;
   orderedTagNamesByWorkspace: Record<string, string[]>;
   allWorkspaceTagsByWorkspace: Record<string, string[]>;
+  hasMoreByWorkspace: Record<string, boolean>;
   isLoading: boolean;
   error: string | null;
+  fetchNextPageForWorkspace: (workspaceId: string) => void;
+  loadingMoreWorkspace: string | null;
 }
 
 export function useOverviewSessions({
@@ -24,33 +29,84 @@ export function useOverviewSessions({
   workspaceIds,
   connected,
 }: UseOverviewSessionsParams): UseOverviewSessionsReturn {
-  const setSessions = useSessionStore(s => s.setSessions);
+  const mergeSessions = useSessionStore(s => s.mergeSessions);
   const allSessions = useSessionStore(s => s.sessions);
 
-  const { isLoading, error, data } = useQuery({
-    queryKey: queryKeys.sessions.grouped(workspaceIds, 'active'),
+  // Per-workspace cursor state (updated via setState, not refs, to avoid render-time ref reads)
+  const [cursorsByWorkspace, setCursorsByWorkspace] = useState<Record<string, string | undefined>>({});
+  const [loadingMoreWorkspace, setLoadingMoreWorkspace] = useState<string | null>(null);
+
+  // Phase 6: Bounded grouped query for the first page per workspace
+  const groupedQuery = useQuery({
+    queryKey: queryKeys.sessions.groupedBounded(
+      workspaceIds,
+      'active',
+      OVERVIEW_LIMIT_PER_WORKSPACE,
+    ),
     queryFn: () =>
       sdkClient!.http.sessions.listGrouped({
         workspaceIds,
         status: 'active',
+        rootOnly: true,
+        limitPerWorkspace: OVERVIEW_LIMIT_PER_WORKSPACE,
       }),
     enabled: !!sdkClient && connected && workspaceIds.length > 0,
     staleTime: 10_000,
   });
 
-  useEffect(() => {
-    if (workspaceIds.length === 0) {
-      setSessions([]);
-    }
-  }, [workspaceIds.length, setSessions]);
+  const groupedPagination = groupedQuery.data?.pagination;
 
+  // Initialize cursors from grouped pagination metadata
   useEffect(() => {
-    if (data?.sessions) {
-      const flatSessions = Object.values(data.sessions).flat();
-      setSessions(flatSessions);
-    }
-  }, [data, setSessions]);
+    if (!groupedPagination) return;
+    setCursorsByWorkspace((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const wsId of workspaceIds) {
+        const info = groupedPagination[wsId];
+        if (info?.nextCursor && !(wsId in next)) {
+          next[wsId] = info.nextCursor;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [groupedPagination, workspaceIds]);
 
+  // Merge the initial grouped page into the store
+  useEffect(() => {
+    if (groupedQuery.data?.sessions) {
+      const flatSessions = Object.values(groupedQuery.data.sessions).flat();
+      mergeSessions(flatSessions);
+    }
+  }, [groupedQuery.data, mergeSessions]);
+
+  const fetchNextPageForWorkspace = useCallback((workspaceId: string) => {
+    const cursor = cursorsByWorkspace[workspaceId];
+    if (!cursor || !sdkClient || loadingMoreWorkspace) return;
+    setLoadingMoreWorkspace(workspaceId);
+
+    sdkClient.http.sessions.listByWorkspace({
+      workspaceId,
+      status: 'active',
+      rootOnly: true,
+      limit: OVERVIEW_LIMIT_PER_WORKSPACE,
+      cursor,
+    }).then((response) => {
+      if (response.sessions.length > 0) {
+        mergeSessions(response.sessions);
+      }
+      const nextCursor = response.pagination?.hasMore
+        ? response.pagination.nextCursor ?? undefined
+        : undefined;
+      setCursorsByWorkspace((prev) => ({ ...prev, [workspaceId]: nextCursor }));
+      setLoadingMoreWorkspace(null);
+    }).catch(() => {
+      setLoadingMoreWorkspace(null);
+    });
+  }, [sdkClient, mergeSessions, cursorsByWorkspace, loadingMoreWorkspace]);
+
+  // Derive sessionsByWorkspace from the store (deduplicated, server-sorted)
   const sessionsByWorkspace = useMemo(() => {
     const grouped: Record<string, Session[]> = {};
     for (const id of workspaceIds) {
@@ -114,12 +170,23 @@ export function useOverviewSessions({
     return result;
   }, [tagGroupsByWorkspace, workspaceIds]);
 
+  const hasMoreByWorkspace = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    for (const id of workspaceIds) {
+      result[id] = cursorsByWorkspace[id] !== undefined;
+    }
+    return result;
+  }, [cursorsByWorkspace, workspaceIds]);
+
   return {
     sessionsByWorkspace,
     tagGroupsByWorkspace,
     orderedTagNamesByWorkspace,
     allWorkspaceTagsByWorkspace,
-    isLoading,
-    error: error?.message ?? null,
+    hasMoreByWorkspace,
+    isLoading: groupedQuery.isLoading,
+    error: groupedQuery.error?.message ?? null,
+    fetchNextPageForWorkspace,
+    loadingMoreWorkspace,
   };
 }

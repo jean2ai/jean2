@@ -38,8 +38,10 @@ describe('stream-handlers', () => {
       toolParts: [],
       currentText: '',
       currentTextPartId: null,
+      currentTextCreatedAt: null,
       currentReasoning: '',
       currentReasoningPartId: null,
+      currentReasoningCreatedAt: null,
       yieldFn: () => {},
       ...overrides,
     };

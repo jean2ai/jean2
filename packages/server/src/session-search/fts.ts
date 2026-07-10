@@ -145,17 +145,20 @@ export function indexMessage(
   agentId?: string | null,
 ): void {
   const db = getDatabase();
-  if (!content && !toolName) return;
+  if (!content && !toolName) {
+    // If nothing to index, just remove any existing entry
+    db.run('DELETE FROM messages_fts WHERE message_id = ?', [messageId]);
+    return;
+  }
 
-  db.run(
-    'DELETE FROM messages_fts WHERE message_id = ?',
-    [messageId],
-  );
-
-  db.run(
-    'INSERT INTO messages_fts (message_id, session_id, workspace_id, agent_id, role, content, tool_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [messageId, sessionId, workspaceId, agentId ?? null, role, content, toolName],
-  );
+  // Phase 3: Atomic delete + insert to prevent duplicate FTS rows
+  db.transaction(() => {
+    db.run('DELETE FROM messages_fts WHERE message_id = ?', [messageId]);
+    db.run(
+      'INSERT INTO messages_fts (message_id, session_id, workspace_id, agent_id, role, content, tool_name) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [messageId, sessionId, workspaceId, agentId ?? null, role, content, toolName],
+    );
+  })();
 }
 
 export function removeMessageFromFts(messageId: string): void {

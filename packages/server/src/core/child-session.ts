@@ -150,7 +150,7 @@ export async function executeChildSession(options: {
       if ('structuredOutput' in event.message && event.message.structuredOutput) {
         structuredOutput = event.message.structuredOutput as StructuredOutputData;
       }
-      updateMessage(event.message.id, event.message);
+      updateMessage(event.message.id, event.message, { syncFts: false });
       broadcastToSessionFn(event);
     } else if (event.type === 'usage') {
       const currentSession = getSession(childSessionId);

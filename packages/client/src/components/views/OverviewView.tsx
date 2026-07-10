@@ -23,6 +23,9 @@ export default function OverviewView() {
     tagGroupsByWorkspace,
     orderedTagNamesByWorkspace,
     allWorkspaceTagsByWorkspace,
+    hasMoreByWorkspace,
+    fetchNextPageForWorkspace,
+    loadingMoreWorkspace,
   } = useOverviewSessions({
     sdkClient: sessionManager.sdkClient,
     workspaceIds: sidebarData.favoritedWorkspaceIds,
@@ -78,6 +81,9 @@ export default function OverviewView() {
       onAddTag={handleAddTag}
       onRemoveTag={handleRemoveTag}
       connected={sidebarData.connected}
+      hasMoreByWorkspace={hasMoreByWorkspace}
+      loadingMoreWorkspace={loadingMoreWorkspace}
+      onLoadMoreWorkspace={fetchNextPageForWorkspace}
     />
   );
 

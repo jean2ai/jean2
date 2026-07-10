@@ -64,7 +64,11 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
     ?? getWorkspaceDefaultPreconfigId(activeWorkspace, allPreconfigs)
     ?? primaryPreconfigs[0]?.id;
 
-  useWorkspaceSessions({
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useWorkspaceSessions({
     sdkClient,
     workspaceId: sidebarData.activeWorkspace?.id ?? null,
     connected: sidebarData.connected,
@@ -183,6 +187,9 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
       onResumeScheduledJob={(jobId) => resumeJobMutation.mutate(jobId)}
       onTriggerScheduledJob={(jobId) => triggerJobMutation.mutate(jobId)}
       onDeleteScheduledJob={(jobId) => deleteJobMutation.mutate(jobId)}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+      onLoadMore={fetchNextPage}
     />
   );
 

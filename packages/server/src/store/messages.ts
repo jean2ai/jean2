@@ -36,6 +36,8 @@ interface MessageRow {
   parent_id: string | null;
   // Structured output
   structured_output: string | null;
+  // Deterministic per-session ordering (internal, not in public SDK Message)
+  sequence: number | null;
 }
 
 interface PartRow {
@@ -43,6 +45,7 @@ interface PartRow {
   message_id: string;
   session_id: string;
   type: string;
+  call_id: string | null;
   data: string;
   created_at: number;
 }
@@ -84,7 +87,7 @@ function rowToMessage(row: MessageRow): Message {
   return base as UserMessage | SystemMessage;
 }
 
-function messageToRow(message: Message): MessageRow {
+function messageToRow(message: Message, sequence?: number): MessageRow {
   const base: MessageRow = {
     id: message.id,
     session_id: message.sessionId,
@@ -103,6 +106,7 @@ function messageToRow(message: Message): MessageRow {
     mode: null,
     parent_id: null,
     structured_output: null,
+    sequence: sequence ?? null,
   };
 
   if (message.role === 'assistant') {
@@ -137,6 +141,7 @@ function rowToPart(row: PartRow): Part {
     id: row.id,
     messageId: row.message_id,
     createdAt: row.created_at,
+    type: row.type,
     ...data,
   } as Part;
 }
@@ -148,6 +153,7 @@ function partToRow(part: Part, sessionId: string): PartRow {
     message_id: messageId,
     session_id: sessionId,
     type: part.type,
+    call_id: part.type === 'tool' ? (part as ToolPart).callId : null,
     data: JSON.stringify(data),
     created_at: createdAt,
   };
@@ -159,19 +165,28 @@ function partToRow(part: Part, sessionId: string): PartRow {
 
 export function createMessage(message: Message): Message {
   const db = getDatabase();
-  const row = messageToRow(message);
+
+  // Allocate the next sequence atomically per session.
+  // Uses a subquery to find the current max sequence for this session.
+  const result = db.query(
+    'SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq FROM messages WHERE session_id = ?',
+  ).get(message.sessionId) as { next_seq: number };
+  const sequence = result.next_seq;
+
+  const row = messageToRow(message, sequence);
 
   db.run(
     `
     INSERT INTO messages (
-      id, session_id, role, created_at, status, model_id, provider_id,
+      id, session_id, sequence, role, created_at, status, model_id, provider_id,
       agent, tokens_prompt, tokens_completion, cost, completed_at, error,
       summary, mode, parent_id, structured_output
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       row.id,
       row.session_id,
+      row.sequence,
       row.role,
       row.created_at,
       row.status,
@@ -190,7 +205,8 @@ export function createMessage(message: Message): Message {
     ],
   );
 
-  syncMessageToFts(message.id, message.sessionId, message.role);
+  // Phase 3: Do not sync FTS on message creation. The message has no parts yet.
+  // FTS is synced when parts are created (user text) or at assistant finalization.
 
   return message;
 }
@@ -206,6 +222,7 @@ export function getMessage(id: string): Message | null {
 export function updateMessage(
   id: string,
   updates: Partial<Message>,
+  options?: { syncFts?: boolean },
 ): Message | null {
   const db = getDatabase();
   const existing = getMessage(id);
@@ -241,7 +258,9 @@ export function updateMessage(
     ],
   );
 
-  syncMessageToFts(id, updated.sessionId, updated.role);
+  if (options?.syncFts !== false) {
+    syncMessageToFts(id);
+  }
 
   return updated;
 }
@@ -249,7 +268,11 @@ export function updateMessage(
 export function listMessages(sessionId: string): Message[] {
   const db = getDatabase();
   const rows = db
-    .query('SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC')
+    .query(
+      `SELECT * FROM messages
+       WHERE session_id = ?
+       ORDER BY sequence IS NULL, sequence ASC, created_at ASC, rowid ASC`,
+    )
     .all(sessionId) as MessageRow[];
   return rows.map(rowToMessage);
 }
@@ -275,21 +298,24 @@ export function deleteMessage(messageId: string): boolean {
 // Part CRUD
 // =============================================================================
 
-export function createPart(part: Part, sessionId: string): Part {
+export function createPart(
+  part: Part,
+  sessionId: string,
+  options?: { syncFts?: boolean },
+): Part {
   const db = getDatabase();
   const row = partToRow(part, sessionId);
 
   db.run(
     `
-    INSERT INTO parts (id, message_id, session_id, type, data, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO parts (id, message_id, session_id, type, call_id, data, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `,
-    [row.id, row.message_id, row.session_id, row.type, row.data, row.created_at],
+    [row.id, row.message_id, row.session_id, row.type, row.call_id, row.data, row.created_at],
   );
 
-  if (part.type === 'text' || part.type === 'tool') {
-    const msg = getMessage(part.messageId);
-    if (msg) syncMessageToFts(msg.id, msg.sessionId, msg.role);
+  if (options?.syncFts !== false && (part.type === 'text' || part.type === 'tool')) {
+    syncMessageToFts(part.messageId);
   }
 
   return part;
@@ -319,8 +345,9 @@ export function updatePart(
 
   const row = partToRow(updated, message.sessionId);
 
-  db.run(`UPDATE parts SET type = ?, data = ? WHERE id = ?`, [
+  db.run(`UPDATE parts SET type = ?, call_id = ?, data = ? WHERE id = ?`, [
     row.type,
+    row.call_id,
     row.data,
     id,
   ]);
@@ -329,7 +356,7 @@ export function updatePart(
     options?.syncFts !== false &&
     (existing.type === 'text' || existing.type === 'tool' || updated.type === 'text' || updated.type === 'tool')
   ) {
-    syncMessageToFts(message.id, message.sessionId, message.role);
+    syncMessageToFts(message.id);
   }
 
   return updated;
@@ -360,6 +387,7 @@ interface JoinedMessagePartRow extends MessageRow {
   part_message_id: string | null;
   part_session_id: string | null;
   part_type: string | null;
+  part_call_id: string | null;
   part_data: string | null;
   part_created_at: number | null;
 }
@@ -378,6 +406,7 @@ function groupJoinedRows(rows: JoinedMessagePartRow[]): MessageWithParts[] {
         message_id: row.part_message_id!,
         session_id: row.part_session_id!,
         type: row.part_type!,
+        call_id: row.part_call_id,
         data: row.part_data!,
         created_at: row.part_created_at!,
       };
@@ -403,11 +432,12 @@ export function listMessagesWithParts(sessionId: string): MessageWithParts[] {
     .query(
       `SELECT m.*, p.id AS part_id, p.message_id AS part_message_id,
               p.session_id AS part_session_id, p.type AS part_type,
-              p.data AS part_data, p.created_at AS part_created_at
+              p.call_id AS part_call_id, p.data AS part_data, p.created_at AS part_created_at
        FROM messages m
        LEFT JOIN parts p ON p.message_id = m.id
        WHERE m.session_id = ?
-       ORDER BY m.created_at ASC, p.created_at ASC`,
+       ORDER BY m.sequence IS NULL, m.sequence ASC, m.created_at ASC, m.rowid ASC,
+                p.created_at ASC, p.id ASC`,
     )
     .all(sessionId) as JoinedMessagePartRow[];
   return groupJoinedRows(rows);
@@ -437,7 +467,41 @@ export function createToolPartPending(
     },
   };
 
-  createPart(part, sessionId);
+  createPart(part, sessionId, { syncFts: false });
+  return part;
+}
+
+/**
+ * Persist a fully-constructed part directly without read-before-write.
+ *
+ * Used by tool transitions that already have the complete part object.
+ * Serializes the known payload and writes it with identity guards.
+ * Does not trigger FTS (tool transitions don't need immediate search visibility).
+ */
+function getSessionIdForMessage(messageId: string): string | null {
+  const db = getDatabase();
+  const row = db.query('SELECT session_id FROM messages WHERE id = ?').get(messageId) as { session_id: string } | undefined;
+  return row?.session_id ?? null;
+}
+
+function persistKnownPart(
+  part: Part,
+  options?: { syncFts?: boolean },
+): Part {
+  const db = getDatabase();
+  const sessionId = getSessionIdForMessage(part.messageId);
+  if (!sessionId) return part;
+  const row = partToRow(part, sessionId);
+
+  db.run(
+    `UPDATE parts SET type = ?, call_id = ?, data = ? WHERE id = ? AND message_id = ? AND session_id = ?`,
+    [row.type, row.call_id, row.data, row.id, row.message_id, row.session_id],
+  );
+
+  if (options?.syncFts !== false && (part.type === 'text' || part.type === 'tool')) {
+    syncMessageToFts(part.messageId);
+  }
+
   return part;
 }
 
@@ -461,7 +525,7 @@ export function transitionToolToRunning(
     },
   };
 
-  return updatePart(partId, { state: updated.state }) as ToolPart;
+  return persistKnownPart(updated, { syncFts: false }) as ToolPart;
 }
 
 export function transitionToolToCompleted(
@@ -487,7 +551,7 @@ export function transitionToolToCompleted(
     },
   };
 
-  return updatePart(partId, { state: updated.state }) as ToolPart;
+  return persistKnownPart(updated, { syncFts: false }) as ToolPart;
 }
 
 export function transitionToolToError(partId: string, error: string): ToolPart | null {
@@ -511,7 +575,54 @@ export function transitionToolToError(partId: string, error: string): ToolPart |
     },
   };
 
-  return updatePart(partId, { state: updated.state }) as ToolPart;
+  return persistKnownPart(updated, { syncFts: false }) as ToolPart;
+}
+
+/**
+ * Phase 4: Find a tool part by call ID using the indexed (session_id, call_id) lookup.
+ *
+ * Primary path uses idx_parts_session_call_id. Falls back to JSON extraction
+ * for unmigrated rows where call_id column is NULL but JSON contains callId.
+ *
+ * When duplicate call IDs exist, prefers a part in 'pending' state, then newest.
+ */
+export function getToolPartByCallId(
+  sessionId: string,
+  callId: string,
+): ToolPart | null {
+  const db = getDatabase();
+
+  // Primary: indexed lookup on (session_id, call_id)
+  const rows = db.query(
+    `SELECT * FROM parts
+     WHERE session_id = ?
+       AND call_id = ?
+       AND type = 'tool'
+     ORDER BY
+       CASE WHEN JSON_EXTRACT(data, '$.state.status') = 'pending' THEN 0 ELSE 1 END,
+       created_at DESC, id DESC`,
+  ).all(sessionId, callId) as PartRow[];
+
+  if (rows.length > 0) {
+    return rowToPart(rows[0]) as ToolPart;
+  }
+
+  // Fallback: scan unmigrated tool rows with JSON extraction
+  const fallbackRows = db.query(
+    `SELECT * FROM parts
+     WHERE session_id = ?
+       AND type = 'tool'
+       AND call_id IS NULL
+       AND JSON_EXTRACT(data, '$.callId') = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+  ).all(sessionId, callId) as PartRow[];
+
+  if (fallbackRows.length > 0) {
+    return rowToPart(fallbackRows[0]) as ToolPart;
+  }
+
+  return null;
 }
 
 export function transitionToolToRunningByCallId(
@@ -519,10 +630,7 @@ export function transitionToolToRunningByCallId(
   callId: string,
   childSessionId?: string,
 ): ToolPart | null {
-  const allParts = getPartsBySession(sessionId);
-  const toolPart = allParts.find(
-    (p) => p.type === 'tool' && (p as ToolPart).callId === callId,
-  ) as ToolPart | undefined;
+  const toolPart = getToolPartByCallId(sessionId, callId);
 
   if (!toolPart || toolPart.state.status !== 'pending') return null;
 
@@ -536,7 +644,7 @@ export function transitionToolToRunningByCallId(
     },
   };
 
-  return updatePart(toolPart.id, { state: updated.state }) as ToolPart;
+  return persistKnownPart(updated, { syncFts: false }) as ToolPart;
 }
 
 // =============================================================================
@@ -570,7 +678,7 @@ export function transitionToolToInterrupted(
     },
   };
 
-  return updatePart(partId, { state: updated.state }) as ToolPart;
+  return persistKnownPart(updated, { syncFts: false }) as ToolPart;
 }
 
 export function findOrphanedToolCalls(sessionId: string): ToolPart[] {
@@ -682,6 +790,114 @@ export function listMessagesForSession(sessionId: string): MessageWithParts[] {
  *
  * Pre-boundary history (before trigger) is EXCLUDED from model context.
  */
+/**
+ * Identifies a valid compaction boundary for efficient context loading.
+ *
+ * A valid boundary consists of:
+ * - An assistant summary message (summary=1, mode='compaction', non-null parentId)
+ * - The trigger (parent) message exists in the same session
+ * - The trigger has a 'compaction' part
+ */
+interface CompactionBoundary {
+  triggerId: string;
+  triggerSequence: number;
+  summaryId: string;
+  summarySequence: number;
+}
+
+/**
+ * Find the latest valid compaction boundary for a session.
+ *
+ * Uses idx_messages_compaction_summary_sequence (partial index on summary=1 AND mode='compaction')
+ * to efficiently find the newest summary, then validates the trigger exists with a compaction part.
+ *
+ * Returns null when no valid boundary exists, causing callers to fall back to full history.
+ */
+export function getLatestCompactionBoundary(
+  sessionId: string,
+): CompactionBoundary | null {
+  const db = getDatabase();
+
+  const row = db.query(
+    `SELECT
+       summary.id AS summary_id,
+       summary.sequence AS summary_sequence,
+       trigger.id AS trigger_id,
+       trigger.sequence AS trigger_sequence
+     FROM messages summary
+     JOIN messages trigger
+       ON trigger.id = summary.parent_id
+      AND trigger.session_id = summary.session_id
+     WHERE summary.session_id = ?
+       AND summary.role = 'assistant'
+       AND summary.summary = 1
+       AND summary.mode = 'compaction'
+       AND summary.parent_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+         FROM parts trigger_part
+         WHERE trigger_part.message_id = trigger.id
+           AND trigger_part.type = 'compaction'
+       )
+     ORDER BY summary.sequence DESC
+     LIMIT 1`,
+  ).get(sessionId) as {
+    summary_id: string;
+    summary_sequence: number;
+    trigger_id: string;
+    trigger_sequence: number;
+  } | undefined;
+
+  if (!row) return null;
+
+  return {
+    triggerId: row.trigger_id,
+    triggerSequence: row.trigger_sequence,
+    summaryId: row.summary_id,
+    summarySequence: row.summary_sequence,
+  };
+}
+
+/**
+ * Load messages (with parts) at or after a given sequence number.
+ *
+ * Uses idx_messages_session_sequence for an indexed range scan.
+ * Parts are ordered deterministically by (created_at, id) for stable secondary ordering.
+ */
+export function listMessagesWithPartsFromSequence(
+  sessionId: string,
+  sequence: number,
+): MessageWithParts[] {
+  const db = getDatabase();
+  const rows = db
+    .query(
+      `SELECT m.*, p.id AS part_id, p.message_id AS part_message_id,
+              p.session_id AS part_session_id, p.type AS part_type,
+              p.call_id AS part_call_id, p.data AS part_data, p.created_at AS part_created_at
+       FROM messages m
+       LEFT JOIN parts p ON p.message_id = m.id
+       WHERE m.session_id = ?
+         AND m.sequence >= ?
+       ORDER BY m.sequence ASC, p.created_at ASC, p.id ASC`,
+    )
+    .all(sessionId, sequence) as JoinedMessagePartRow[];
+  return groupJoinedRows(rows);
+}
+
+/**
+ * Build effective context history by reading only the latest valid compaction boundary
+ * and the messages that follow it.
+ *
+ * When a valid compaction boundary exists, this loads only:
+ * - The compaction trigger message (with its 'compaction' part)
+ * - The summary assistant message
+ * - All messages after the summary (subsequent turns)
+ *
+ * Pre-boundary history is never read from the database.
+ *
+ * When no valid boundary exists, falls back to loading the full session history.
+ * This preserves exact existing semantics for uncompacted sessions.
+ */
 export function buildEffectiveContextHistory(
   sessionId: string,
 ): {
@@ -689,50 +905,22 @@ export function buildEffectiveContextHistory(
   latestCompactionBoundary: string | null;
   hasCompaction: boolean;
 } {
-  const allMessages = listMessagesForSession(sessionId);
+  const boundary = getLatestCompactionBoundary(sessionId);
 
-  // Find the latest trigger+summary pair
-  // The trigger (user message with 'compaction' part) comes BEFORE its summary
-  // We need to find the trigger's index to return it + summary + subsequent
-  let latestTriggerIndex = -1;
-
-  for (let i = allMessages.length - 1; i >= 0; i--) {
-    const item = allMessages[i];
-    const msg = item.message;
-
-    // Look for summary assistant messages (they indicate end of a compaction boundary)
-    if (
-      msg.role === 'assistant' &&
-      (msg as AssistantMessage).summary === true &&
-      (msg as AssistantMessage).mode === 'compaction' &&
-      (msg as AssistantMessage).parentId
-    ) {
-      // Found a summary - now find its trigger (parentId)
-      const triggerId = (msg as AssistantMessage).parentId!;
-      const triggerIndex = allMessages.findIndex((m) => m.message.id === triggerId);
-      if (triggerIndex !== -1) {
-        latestTriggerIndex = triggerIndex;
-        break;
-      }
-    }
-  }
-
-  // If no compaction boundary found, return all messages
-  if (latestTriggerIndex === -1) {
+  if (!boundary) {
     return {
-      messages: allMessages,
+      messages: listMessagesWithParts(sessionId),
       latestCompactionBoundary: null,
       hasCompaction: false,
     };
   }
 
-  // Return messages from trigger onwards (trigger + summary + subsequent)
-  const effectiveMessages = allMessages.slice(latestTriggerIndex);
-  const boundaryMsgId = allMessages[latestTriggerIndex].message.id;
-
   return {
-    messages: effectiveMessages,
-    latestCompactionBoundary: boundaryMsgId,
+    messages: listMessagesWithPartsFromSequence(
+      sessionId,
+      boundary.triggerSequence,
+    ),
+    latestCompactionBoundary: boundary.triggerId,
     hasCompaction: true,
   };
 }
@@ -741,14 +929,97 @@ export function buildEffectiveContextHistory(
 // FTS Sync Helper
 // =============================================================================
 
-function syncMessageToFts(messageId: string, sessionId: string, role: string): void {
+/**
+ * Synchronize a message's content to the FTS index.
+ * Loads message, session, and parts from the database to avoid stale parameters.
+ */
+function syncMessageToFts(messageId: string): void {
   try {
-    const session = getSession(sessionId);
+    const message = getMessage(messageId);
+    if (!message) return;
+
+    const session = getSession(message.sessionId);
     if (!session?.workspaceId) return;
 
     const { content, toolName } = getMessageContentForFts(messageId);
-    ftsIndexMessage(messageId, sessionId, session.workspaceId, role, content, toolName, session.agentId);
+    ftsIndexMessage(messageId, message.sessionId, session.workspaceId, message.role, content, toolName, session.agentId);
   } catch {
     // FTS sync failure should not break message operations
   }
+}
+
+/**
+ * Exported FTS sync for explicit finalization calls (Phase 3).
+ */
+export function syncMessageFts(messageId: string): void {
+  syncMessageToFts(messageId);
+}
+
+// =============================================================================
+// Phase 3: Streaming Snapshot Persistence (no read-before-write)
+// =============================================================================
+
+export interface StreamingPartSnapshot {
+  id: string;
+  messageId: string;
+  sessionId: string;
+  type: 'text' | 'reasoning';
+  createdAt: number;
+  text: string;
+}
+
+/**
+ * Persist a single streaming snapshot directly.
+ * Writes the complete known part payload without preliminary reads.
+ * Guards identity (id, message_id, session_id, type) to detect mismatches.
+ *
+ * Returns true if the update affected exactly one row.
+ */
+export function persistStreamingPartSnapshot(snapshot: StreamingPartSnapshot): boolean {
+  const db = getDatabase();
+
+  const data = JSON.stringify({ text: snapshot.text });
+  const result = db.run(
+    `UPDATE parts
+     SET data = ?
+     WHERE id = ?
+       AND message_id = ?
+       AND session_id = ?
+       AND type = ?`,
+    [data, snapshot.id, snapshot.messageId, snapshot.sessionId, snapshot.type],
+  );
+
+  return result.changes > 0;
+}
+
+/**
+ * Persist multiple streaming snapshots in one transaction.
+ * Each snapshot is a direct write with no preliminary reads.
+ *
+ * Returns the number of successfully persisted snapshots.
+ * If the transaction fails, all snapshots are rolled back.
+ */
+export function persistStreamingPartSnapshots(snapshots: StreamingPartSnapshot[]): number {
+  if (snapshots.length === 0) return 0;
+
+  const db = getDatabase();
+
+  return db.transaction(() => {
+    const stmt = db.prepare(
+      `UPDATE parts
+       SET data = ?
+       WHERE id = ?
+         AND message_id = ?
+         AND session_id = ?
+         AND type = ?`,
+    );
+
+    let count = 0;
+    for (const snapshot of snapshots) {
+      const data = JSON.stringify({ text: snapshot.text });
+      const result = stmt.run(data, snapshot.id, snapshot.messageId, snapshot.sessionId, snapshot.type);
+      if (result.changes > 0) count++;
+    }
+    return count;
+  })();
 }

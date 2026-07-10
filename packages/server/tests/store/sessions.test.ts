@@ -14,7 +14,12 @@ import {
   listSessionsGrouped,
   getChildSessions,
   deleteSessionsByWorkspace,
+  listSessionPageByWorkspace,
+  listSessionPageGrouped,
+  encodeSessionCursor,
+  decodeSessionCursor,
 } from '@/store/sessions';
+import { getDatabase } from '@/store';
 
 function makeSession(overrides: {
   id: string;
@@ -319,6 +324,221 @@ describe('sessions store', () => {
       deleteSessionsByWorkspace('ws1');
       expect(getSession('s1')).toBeNull();
       expect(getSession('s2')).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  // Phase 5: Cursor Pagination
+  // ===========================================================================
+
+  describe('cursor pagination (Phase 5)', () => {
+    test('encodeSessionCursor and decodeSessionCursor roundtrip', () => {
+      const payload = { version: 1 as const, updatedAt: '2025-01-15T10:00:00.000Z', id: 'sess-123' };
+      const encoded = encodeSessionCursor(payload);
+      const decoded = decodeSessionCursor(encoded);
+      expect(decoded).toEqual(payload);
+    });
+
+    test('decodeSessionCursor returns null for invalid input', () => {
+      expect(decodeSessionCursor('not-valid-base64')).toBeNull();
+      expect(decodeSessionCursor('')).toBeNull();
+      // Valid base64 but invalid JSON
+      expect(decodeSessionCursor(Buffer.from('{bad}').toString('base64url'))).toBeNull();
+      // Valid JSON but wrong version
+      const badVersion = Buffer.from(JSON.stringify({ version: 2, updatedAt: '2025-01-15T10:00:00.000Z', id: 'x' })).toString('base64url');
+      expect(decodeSessionCursor(badVersion)).toBeNull();
+      // Missing id
+      const noId = Buffer.from(JSON.stringify({ version: 1, updatedAt: '2025-01-15T10:00:00.000Z' })).toString('base64url');
+      expect(decodeSessionCursor(noId)).toBeNull();
+      // Invalid timestamp
+      const badTs = Buffer.from(JSON.stringify({ version: 1, updatedAt: 'not-a-date', id: 'x' })).toString('base64url');
+      expect(decodeSessionCursor(badTs)).toBeNull();
+    });
+
+    test('first page returns at most limit rows', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 5; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const page = listSessionPageByWorkspace('ws1', { limit: 3 });
+      expect(page.sessions).toHaveLength(3);
+      expect(page.hasMore).toBe(true);
+      expect(page.nextCursor).not.toBeNull();
+    });
+
+    test('limit + 1 detects hasMore without returning extra row', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 4; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const page = listSessionPageByWorkspace('ws1', { limit: 3 });
+      expect(page.sessions).toHaveLength(3);
+      expect(page.hasMore).toBe(true);
+    });
+
+    test('final page has null cursor and hasMore false', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 3; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const page = listSessionPageByWorkspace('ws1', { limit: 10 });
+      expect(page.sessions).toHaveLength(3);
+      expect(page.hasMore).toBe(false);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    test('next page is disjoint from the first', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 6; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const page1 = listSessionPageByWorkspace('ws1', { limit: 3 });
+      expect(page1.nextCursor).not.toBeNull();
+
+      const page2 = listSessionPageByWorkspace('ws1', { limit: 3, cursor: page1.nextCursor! });
+
+      const page1Ids = new Set(page1.sessions.map((s) => s.id));
+      const page2Ids = new Set(page2.sessions.map((s) => s.id));
+      for (const id of page2Ids) {
+        expect(page1Ids.has(id)).toBe(false);
+      }
+    });
+
+    test('status and root-only filters remain active on every page', () => {
+      seedWorkspace({ id: 'ws1' });
+      // 3 active root, 2 closed root, 1 active child
+      createSession(makeSession({ id: 'a1', workspaceId: 'ws1', title: 'A1', status: 'active' }));
+      createSession(makeSession({ id: 'a2', workspaceId: 'ws1', title: 'A2', status: 'active' }));
+      createSession(makeSession({ id: 'a3', workspaceId: 'ws1', title: 'A3', status: 'active' }));
+      createSession(makeSession({ id: 'c1', workspaceId: 'ws1', title: 'C1', status: 'closed' }));
+      createSession(makeSession({ id: 'c2', workspaceId: 'ws1', title: 'C2', status: 'closed' }));
+      createSession(makeSession({ id: 'child', workspaceId: 'ws1', title: 'Child', status: 'active', parentId: 'a1' }));
+
+      const page = listSessionPageByWorkspace('ws1', { status: 'active', rootOnly: true, limit: 50 });
+      expect(page.sessions).toHaveLength(3);
+      expect(page.sessions.every((s) => s.status === 'active')).toBe(true);
+      expect(page.sessions.every((s) => s.parentId === null)).toBe(true);
+    });
+
+    test('deleted cursor row does not break traversal', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 5; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const page1 = listSessionPageByWorkspace('ws1', { limit: 2 });
+      expect(page1.nextCursor).not.toBeNull();
+
+      // Delete the session that the cursor points to
+      const cursorId = page1.nextCursor!.id;
+      deleteSession(cursorId);
+
+      // Next page should still work (cursor values are self-contained)
+      const page2 = listSessionPageByWorkspace('ws1', { limit: 2, cursor: page1.nextCursor! });
+      expect(page2.sessions.length).toBeGreaterThan(0);
+      // The deleted session should not appear
+      expect(page2.sessions.find((s) => s.id === cursorId)).toBeUndefined();
+    });
+
+    test('limit is clamped to max 100', () => {
+      seedWorkspace({ id: 'ws1' });
+      createSession(makeSession({ id: 's1', workspaceId: 'ws1', title: 'S1', status: 'active' }));
+
+      const page = listSessionPageByWorkspace('ws1', { limit: 500 });
+      expect(page.sessions).toHaveLength(1);
+    });
+
+    test('query plan uses workspace-leading index', () => {
+      seedWorkspace({ id: 'ws1' });
+      createSession(makeSession({ id: 's1', workspaceId: 'ws1', title: 'S1', status: 'active' }));
+
+      const db = getDatabase();
+      const plan = db.query(
+        `EXPLAIN QUERY PLAN
+         SELECT * FROM sessions
+         WHERE workspace_id = ? AND status = ?
+         ORDER BY updated_at DESC, id DESC LIMIT ?`,
+      ).all('ws1', 'active', 10) as { detail: string }[];
+
+      const planText = plan.map((p) => p.detail).join(' ');
+      expect(planText).toContain('idx_sessions');
+    });
+  });
+
+  // ===========================================================================
+  // Phase 5: Grouped Pagination
+  // ===========================================================================
+
+  describe('grouped pagination (Phase 5)', () => {
+    test('grouped initial page enforces limit independently per workspace', () => {
+      seedWorkspace({ id: 'ws1' });
+      seedWorkspace({ id: 'ws2' });
+
+      for (let i = 0; i < 5; i++) {
+        createSession(makeSession({ id: `ws1-s${i}`, workspaceId: 'ws1', title: `WS1-${i}`, status: 'active' }));
+      }
+      for (let i = 0; i < 3; i++) {
+        createSession(makeSession({ id: `ws2-s${i}`, workspaceId: 'ws2', title: `WS2-${i}`, status: 'active' }));
+      }
+
+      const result = listSessionPageGrouped(['ws1', 'ws2'], { limitPerWorkspace: 2 });
+      expect(result.sessions['ws1']).toHaveLength(2);
+      expect(result.sessions['ws2']).toHaveLength(2);
+      expect(result.pagination['ws1'].hasMore).toBe(true);
+      expect(result.pagination['ws2'].hasMore).toBe(true);
+      expect(result.pagination['ws1'].nextCursor).not.toBeNull();
+      expect(result.pagination['ws2'].nextCursor).not.toBeNull();
+    });
+
+    test('empty workspaces have empty arrays and hasMore false', () => {
+      seedWorkspace({ id: 'ws1' });
+      seedWorkspace({ id: 'ws2' });
+      createSession(makeSession({ id: 's1', workspaceId: 'ws1', title: 'S1', status: 'active' }));
+
+      const result = listSessionPageGrouped(['ws1', 'ws2'], { limitPerWorkspace: 10 });
+      expect(result.sessions['ws1']).toHaveLength(1);
+      expect(result.sessions['ws2']).toHaveLength(0);
+      expect(result.pagination['ws2'].hasMore).toBe(false);
+      expect(result.pagination['ws2'].nextCursor).toBeNull();
+    });
+
+    test('grouped with root-only and status filters', () => {
+      seedWorkspace({ id: 'ws1' });
+      createSession(makeSession({ id: 'a1', workspaceId: 'ws1', title: 'A1', status: 'active' }));
+      createSession(makeSession({ id: 'c1', workspaceId: 'ws1', title: 'C1', status: 'closed' }));
+      createSession(makeSession({ id: 'child', workspaceId: 'ws1', title: 'Child', status: 'active', parentId: 'a1' }));
+
+      const result = listSessionPageGrouped(['ws1'], { status: 'active', rootOnly: true, limitPerWorkspace: 10 });
+      expect(result.sessions['ws1']).toHaveLength(1);
+      expect(result.sessions['ws1'][0].id).toBe('a1');
+    });
+
+    test('grouped pagination returns cursor metadata per workspace', () => {
+      seedWorkspace({ id: 'ws1' });
+      for (let i = 0; i < 5; i++) {
+        createSession(makeSession({ id: `s${i}`, workspaceId: 'ws1', title: `S${i}`, status: 'active' }));
+      }
+
+      const result = listSessionPageGrouped(['ws1'], { limitPerWorkspace: 3 });
+      const ws1Pagination = result.pagination['ws1'];
+      expect(ws1Pagination.hasMore).toBe(true);
+      expect(ws1Pagination.nextCursor).not.toBeNull();
+      expect(ws1Pagination.limit).toBe(3);
+
+      // The cursor should be decodable
+      const decoded = decodeSessionCursor(ws1Pagination.nextCursor!);
+      expect(decoded).not.toBeNull();
+      expect(decoded!.id).toBeDefined();
+    });
+
+    test('empty workspaceIds returns empty result', () => {
+      const result = listSessionPageGrouped([], { limitPerWorkspace: 10 });
+      expect(Object.keys(result.sessions)).toHaveLength(0);
+      expect(Object.keys(result.pagination)).toHaveLength(0);
     });
   });
 });

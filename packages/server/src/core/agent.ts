@@ -1,6 +1,6 @@
 import { streamText, stepCountIs } from 'ai';
 import type { MessageWithParts, ToolPart, StepPart, Preconfig, MessageEvent, AssistantMessage, ResponseFormat } from '@jean2/sdk';
-import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted } from '@/store';
+import { createMessage, updateMessage, getSession, updateSession, transitionToolToInterrupted, syncMessageFts } from '@/store';
 
 import { findModel, getMaxOutputTokens } from '@/config';
 import { randomUUID } from 'crypto';
@@ -212,8 +212,10 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     toolParts: [] as ToolPart[],
     currentText: '',
     currentTextPartId: null as string | null,
+    currentTextCreatedAt: null as number | null,
     currentReasoning: '',
     currentReasoningPartId: null as string | null,
+    currentReasoningCreatedAt: null as number | null,
     yieldFn: (event: MessageEvent) => { eventQueue.push(event); },
   };
 
@@ -228,7 +230,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         }
         const interruptedMessage = buildInterruptedMessage(assistantMessage);
         yield { type: 'message.updated', message: interruptedMessage };
-        updateMessage(messageId, interruptedMessage);
+        updateMessage(messageId, interruptedMessage, { syncFts: false });
+        syncMessageFts(messageId);
         return;
       }
 
@@ -277,7 +280,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
       }
       const interruptedMessage = buildInterruptedMessage(assistantMessage);
       yield { type: 'message.updated', message: interruptedMessage };
-      updateMessage(messageId, interruptedMessage);
+      updateMessage(messageId, interruptedMessage, { syncFts: false });
+      syncMessageFts(messageId);
       return;
     }
 
@@ -288,7 +292,8 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         error: classified.message,
       };
       yield { type: 'message.updated', message: errorMessage };
-      updateMessage(messageId, errorMessage);
+      updateMessage(messageId, errorMessage, { syncFts: false });
+      syncMessageFts(messageId);
       yield createErrorEvent(classified);
       return;
     }
@@ -326,6 +331,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   };
 
   yield { type: 'message.updated', message: finalMessage };
+
+  // Phase 3: Sync FTS once after all final parts and message state are persisted
+  syncMessageFts(messageId);
 
   if (usageData) {
     yield {

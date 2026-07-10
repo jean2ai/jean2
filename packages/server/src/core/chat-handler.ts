@@ -251,7 +251,7 @@ async function runSingleChatTurn(
           break;
 
         case 'message.updated':
-          updateMessage(event.message.id, event.message);
+          updateMessage(event.message.id, event.message, { syncFts: false });
           ctx.broadcastToSession(sessionId, event);
           break;
 

@@ -2,7 +2,7 @@ import type { ChatOptions } from './agent';
 import { classifyApiError, ApiErrorType, ERROR_RATE_LIMIT, ERROR_SERVER_ERROR, ERROR_TIMEOUT, ERROR_CHAT_FAILED } from '@/utils/errors';
 import type { ClassifiedError } from '@/utils/errors';
 import type { MessageEvent, RateLimitErrorMessage, ServerErrorMessage, TimeoutErrorMessage, ContextOverflowErrorMessage, InvalidRequestErrorMessage, AuthErrorMessage, ErrorMessage, AssistantMessage } from '@jean2/sdk';
-import { updateMessage } from '@/store';
+import { updateMessage, syncMessageFts } from '@/store';
 
 /** The union of all events that streamChat can yield (or retry wraps). */
 export type StreamChatEvent =
@@ -66,7 +66,8 @@ export async function* streamChatWithRetry(
             error: classifiedError.message,
           };
           yield { type: 'message.updated', message: errorMessage };
-          updateMessage(lastAssistantMessage.id, errorMessage);
+          updateMessage(lastAssistantMessage.id, errorMessage, { syncFts: false });
+          syncMessageFts(lastAssistantMessage.id);
         }
 
         if (classifiedError.type === ApiErrorType.RateLimit) {

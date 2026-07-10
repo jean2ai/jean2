@@ -48,6 +48,9 @@ interface WorkspaceOverviewProps {
   onAddTag?: (sessionId: string, tag: string) => void;
   onRemoveTag?: (sessionId: string, tag: string) => void;
   connected: boolean;
+  hasMoreByWorkspace?: Record<string, boolean>;
+  loadingMoreWorkspace?: string | null;
+  onLoadMoreWorkspace?: (workspaceId: string) => void;
 }
 
 export const WorkspaceOverview = React.memo(function WorkspaceOverview({
@@ -72,6 +75,9 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   onAddTag,
   onRemoveTag,
   connected,
+  hasMoreByWorkspace,
+  loadingMoreWorkspace,
+  onLoadMoreWorkspace,
 }: WorkspaceOverviewProps) {
   const { isTagOpen, toggleTag } = useTagCollapseState();
   const [archiveTagDialog, setArchiveTagDialog] = useState<{ workspaceId: string; tagName: string } | null>(null);
@@ -225,6 +231,18 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
                     <SidebarMenu>
                       {activeSessions.map(session => renderSessionButton(session, workspace.id))}
                     </SidebarMenu>
+                  )}
+                  {hasMoreByWorkspace?.[workspace.id] && onLoadMoreWorkspace && (
+                    <div className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => onLoadMoreWorkspace(workspace.id)}
+                        disabled={loadingMoreWorkspace === workspace.id}
+                        className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center py-1.5 rounded-md hover:bg-sidebar-accent disabled:opacity-50"
+                      >
+                        {loadingMoreWorkspace === workspace.id ? 'Loading more...' : 'Load more sessions'}
+                      </button>
+                    </div>
                   )}
                 </SidebarGroupContent>
               </CollapsibleContent>

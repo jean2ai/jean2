@@ -3,8 +3,18 @@ import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, Pro
 /**
  * GET /api/sessions
  */
+export interface SessionPageInfo {
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
+}
+
+/**
+ * GET /api/sessions
+ */
 export interface ListSessionsResponse {
   sessions: Session[];
+  pagination?: SessionPageInfo;
 }
 
 /**
@@ -12,6 +22,7 @@ export interface ListSessionsResponse {
  */
 export interface ListSessionsGroupedResponse {
   sessions: Record<string, Session[]>;
+  pagination?: Record<string, SessionPageInfo>;
 }
 
 /**

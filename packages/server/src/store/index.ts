@@ -5,6 +5,9 @@ import { mkdirSync } from 'fs';
 import { resolveDatabasePath } from '@/config';
 import { seedBuiltinResponseFormats } from './response-formats';
 import { initializeFts, migrateFtsForAgents } from '@/session-search/fts';
+import { isPerfDiagnosticsEnabled } from '@/utils/perf';
+
+const PERF_DIAGNOSTICS_ENABLED = isPerfDiagnosticsEnabled();
 
 /**
  * Database Singleton
@@ -173,6 +176,11 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)');
   db.run('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_id)');
 
+  // Phase 5: Workspace-leading indexes for paginated session queries
+  db.run('CREATE INDEX IF NOT EXISTS idx_sessions_workspace_updated ON sessions(workspace_id, updated_at DESC, id DESC)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sessions_workspace_status_updated ON sessions(workspace_id, status, updated_at DESC, id DESC)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_sessions_root_workspace_status_updated ON sessions(workspace_id, status, updated_at DESC, id DESC) WHERE parent_id IS NULL');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
@@ -199,6 +207,9 @@ export function initializeSchema(db: Database): void {
       -- Structured output (when response format was used)
       structured_output TEXT,
 
+      -- Deterministic per-session ordering (Phase 1)
+      sequence INTEGER,
+
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     )
   `);
@@ -208,12 +219,27 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_summary ON messages(session_id, summary) WHERE summary = 1');
   db.run('CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id)');
 
+  // Migrate: add sequence column to messages if missing
+  try {
+    db.run('ALTER TABLE messages ADD COLUMN sequence INTEGER');
+  } catch {
+    // Column already exists
+  }
+
+  // Backfill sequence values for existing rows, then create unique index
+  migrateMessageSequence(db);
+
+  // Phase 2: Partial index for efficient compaction boundary lookup
+  // (must be after sequence column migration)
+  db.run('CREATE INDEX IF NOT EXISTS idx_messages_compaction_summary_sequence ON messages(session_id, sequence DESC) WHERE summary = 1 AND mode = \'compaction\'');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS parts (
       id TEXT PRIMARY KEY,
       message_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
       type TEXT NOT NULL,
+      call_id TEXT,
       data TEXT NOT NULL,
       created_at INTEGER NOT NULL,
 
@@ -225,6 +251,16 @@ export function initializeSchema(db: Database): void {
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_message ON parts(message_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_session ON parts(session_id, created_at)');
   db.run('CREATE INDEX IF NOT EXISTS idx_parts_type ON parts(type)');
+
+  // Migrate: add call_id column to parts if missing
+  try {
+    db.run('ALTER TABLE parts ADD COLUMN call_id TEXT');
+  } catch {
+    // Column already exists
+  }
+
+  // Phase 4: Backfill call_id from JSON for legacy tool rows, then create partial index
+  migratePartsCallId(db);
 
   db.run(`CREATE TABLE IF NOT EXISTS permission_grants (
     id TEXT PRIMARY KEY,
@@ -462,6 +498,146 @@ export function initializeSchema(db: Database): void {
   // Initialize FTS table for session search
   initializeFts(db);
   migrateFtsForAgents(db);
+}
+
+/**
+ * Phase 4: Migrate parts.call_id.
+ * Backfill from JSON for legacy tool rows, then create the partial composite index.
+ *
+ * Safe to run on every startup: backfill is idempotent (only touches call_id IS NULL rows),
+ * and the index uses IF NOT EXISTS.
+ */
+function migratePartsCallId(db: Database): void {
+  // Backfill call_id from JSON for legacy tool rows
+  const needsBackfill = (
+    db.query(
+      `SELECT COUNT(*) as cnt FROM parts
+       WHERE type = 'tool'
+         AND call_id IS NULL
+         AND JSON_TYPE(data, '$.callId') = 'text'`,
+    ).get() as { cnt: number }
+  ).cnt;
+
+  if (needsBackfill > 0) {
+    const totalUpdated = db.run(
+      `UPDATE parts
+       SET call_id = JSON_EXTRACT(data, '$.callId')
+       WHERE type = 'tool'
+         AND call_id IS NULL
+         AND JSON_TYPE(data, '$.callId') = 'text'`,
+    ).changes;
+
+    if (totalUpdated > 0) {
+      console.log(`[migration] Backfilled call_id for ${totalUpdated} tool part(s)`);
+    }
+  }
+
+  // Partial composite index for session-scoped tool call lookups
+  db.run(
+    `CREATE INDEX IF NOT EXISTS idx_parts_session_call_id
+     ON parts(session_id, call_id)
+     WHERE type = 'tool' AND call_id IS NOT NULL`,
+  );
+}
+
+/**
+ * Migrate messages.sequence:
+ * 1. Backfill NULL sequence values in legacy insertion order.
+ * 2. Validate no duplicates or nulls remain.
+ * 3. Create the unique index if validation passes.
+ *
+ * Safe to run on every startup: backfill is idempotent (only touches NULL rows),
+ * validation is a no-op when already clean, and the index uses IF NOT EXISTS.
+ */
+function migrateMessageSequence(db: Database): void {
+  // Check if there are any rows needing backfill
+  const nullCount = (
+    db.query('SELECT COUNT(*) as cnt FROM messages WHERE sequence IS NULL').get() as { cnt: number }
+  ).cnt;
+
+  if (nullCount > 0) {
+    backfillMessageSequence(db);
+  }
+
+  // Validate: check for nulls or duplicate (session_id, sequence) pairs
+  const conflicts = (
+    db.query(
+      `SELECT session_id, sequence, COUNT(*) as cnt
+       FROM messages
+       GROUP BY session_id, sequence
+       HAVING sequence IS NULL OR cnt > 1`,
+    ).all() as { session_id: string; sequence: number | null; cnt: number }[]
+  );
+
+  if (conflicts.length === 0) {
+    db.run(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_session_sequence ON messages(session_id, sequence)',
+    );
+  } else if (PERF_DIAGNOSTICS_ENABLED) {
+    console.warn(
+      `[migration] messages.sequence has ${conflicts.length} conflict(s), skipping unique index creation`,
+    );
+  }
+}
+
+/**
+ * Backfill sequence values for rows with NULL sequence.
+ * Assigns per-session monotonic values based on legacy (created_at, rowid) order.
+ * Restartable: only touches rows where sequence IS NULL.
+ */
+function backfillMessageSequence(db: Database): void {
+  const BATCH_SIZE = 5000;
+  let totalBackfilled = 0;
+
+  while (true) {
+    const batchResult = db.transaction(() => {
+      // Find rows needing backfill, batch by session
+      const rows = db.query(
+        `SELECT rowid, session_id
+         FROM messages
+         WHERE sequence IS NULL
+         ORDER BY session_id ASC, created_at ASC, rowid ASC
+         LIMIT ?`,
+      ).all(BATCH_SIZE) as { rowid: number; session_id: string }[];
+
+      if (rows.length === 0) return 0;
+
+      const updateStmt = db.prepare(
+        'UPDATE messages SET sequence = ? WHERE rowid = ?',
+      );
+
+      // Track per-session sequence counters within this batch
+      const sessionCounters = new Map<string, number>();
+
+      // For each session, find the current MAX(sequence) as starting point
+      const sessionIds = [...new Set(rows.map((r) => r.session_id))];
+      for (const sid of sessionIds) {
+        const maxResult = (
+          db.query(
+            'SELECT COALESCE(MAX(sequence), 0) as max_seq FROM messages WHERE session_id = ?',
+          ).get(sid) as { max_seq: number }
+        );
+        sessionCounters.set(sid, maxResult.max_seq);
+      }
+
+      for (const row of rows) {
+        const next = (sessionCounters.get(row.session_id) ?? 0) + 1;
+        sessionCounters.set(row.session_id, next);
+        updateStmt.run(next, row.rowid);
+      }
+
+      return rows.length;
+    })();
+
+    if (batchResult === 0) break;
+    totalBackfilled += batchResult;
+
+    if (batchResult < BATCH_SIZE) break;
+  }
+
+  if (totalBackfilled > 0) {
+    console.log(`[migration] Backfilled sequence for ${totalBackfilled} message(s)`);
+  }
 }
 
 export { Database };

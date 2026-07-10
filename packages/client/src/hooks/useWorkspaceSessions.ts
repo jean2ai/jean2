@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import type { Jean2Client } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
 import { queryKeys } from '@/lib/queryKeys';
+import { dedupeAndSortSessions } from '@/lib/sessionUtils';
+
+const WORKSPACE_PAGE_SIZE = 100;
 
 interface UseWorkspaceSessionsParams {
   sdkClient: Jean2Client | null;
@@ -13,6 +16,10 @@ interface UseWorkspaceSessionsParams {
 interface UseWorkspaceSessionsReturn {
   isLoading: boolean;
   error: string | null;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+  loadedCount: number;
 }
 
 export function useWorkspaceSessions({
@@ -20,30 +27,75 @@ export function useWorkspaceSessions({
   workspaceId,
   connected,
 }: UseWorkspaceSessionsParams): UseWorkspaceSessionsReturn {
-  const setSessions = useSessionStore(s => s.setSessions);
+  const replaceSessionsForWorkspace = useSessionStore(s => s.replaceSessionsForWorkspace);
+  const removeSessionsForWorkspace = useSessionStore(s => s.removeSessionsForWorkspace);
 
-  const { isLoading, error, data } = useQuery({
-    queryKey: queryKeys.sessions.byWorkspace(workspaceId ?? ''),
-    queryFn: () =>
-      sdkClient!.http.sessions.listByWorkspace({ workspaceId: workspaceId! }),
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.sessions.byWorkspaceInfinite({
+      workspaceId: workspaceId ?? '',
+      limit: WORKSPACE_PAGE_SIZE,
+    }),
+    queryFn: ({ pageParam }) =>
+      sdkClient!.http.sessions.listByWorkspace({
+        workspaceId: workspaceId!,
+        limit: WORKSPACE_PAGE_SIZE,
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination?.hasMore
+        ? lastPage.pagination.nextCursor ?? undefined
+        : undefined,
     enabled: !!sdkClient && connected && !!workspaceId,
     staleTime: 10_000,
   });
 
+  // When workspace is null, clear sessions for it
   useEffect(() => {
     if (!workspaceId) {
-      setSessions([]);
+      return;
     }
-  }, [workspaceId, setSessions]);
+  }, [workspaceId]);
 
+  // When workspaceId changes, remove old workspace sessions
   useEffect(() => {
-    if (data?.sessions) {
-      setSessions(data.sessions);
+    return () => {
+      if (workspaceId) {
+        removeSessionsForWorkspace(workspaceId);
+      }
+    };
+  }, [workspaceId, removeSessionsForWorkspace]);
+
+  // Merge loaded pages into store
+  useEffect(() => {
+    if (!workspaceId) return;
+    if (!query.data?.pages) return;
+
+    const allSessions = query.data.pages.flatMap((page) => page.sessions);
+    const deduped = dedupeAndSortSessions(allSessions);
+    replaceSessionsForWorkspace(workspaceId, deduped);
+  }, [query.data, workspaceId, replaceSessionsForWorkspace]);
+
+  const hasNextPage = query.hasNextPage;
+  const isFetchingNextPage = query.isFetchingNextPage;
+
+  const fetchNextPage = () => {
+    if (query.hasNextPage && !query.isFetchingNextPage) {
+      void query.fetchNextPage();
     }
-  }, [data, setSessions]);
+  };
+
+  const loadedCount = query.data?.pages.reduce(
+    (sum, page) => sum + (page.sessions?.length ?? 0),
+    0,
+  ) ?? 0;
 
   return {
-    isLoading,
-    error: error?.message ?? null,
+    isLoading: query.isLoading,
+    error: query.error?.message ?? null,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    loadedCount,
   };
 }

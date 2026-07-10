@@ -374,3 +374,213 @@ export function getSessionsByAgent(agentId: string, sinceTimestamp?: number, lim
   const rows = db.query(sql).all(...params) as SessionRow[];
   return rows.map(mapRowToSession);
 }
+
+// =============================================================================
+// Phase 5: Cursor Pagination
+// =============================================================================
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+const MIN_PAGE_SIZE = 1;
+
+interface SessionCursorPayload {
+  version: 1;
+  updatedAt: string;
+  id: string;
+}
+
+/** Encode a cursor payload as an opaque base64url string. */
+export function encodeSessionCursor(payload: SessionCursorPayload): string {
+  const json = JSON.stringify(payload);
+  return Buffer.from(json, 'utf8').toString('base64url');
+}
+
+/**
+ * Decode and validate an opaque cursor string.
+ * Returns null for invalid cursors rather than throwing.
+ */
+export function decodeSessionCursor(cursor: string): SessionCursorPayload | null {
+  try {
+    const json = Buffer.from(cursor, 'base64url').toString('utf8');
+    const parsed = JSON.parse(json) as unknown;
+
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const obj = parsed as Record<string, unknown>;
+
+    if (obj.version !== 1) return null;
+    if (typeof obj.id !== 'string' || obj.id.length === 0) return null;
+    if (typeof obj.updatedAt !== 'string' || obj.updatedAt.length === 0) return null;
+    // Validate the timestamp is parseable
+    const ts = Date.parse(obj.updatedAt);
+    if (isNaN(ts)) return null;
+
+    return { version: 1, updatedAt: obj.updatedAt as string, id: obj.id as string };
+  } catch {
+    return null;
+  }
+}
+
+export interface SessionPageInfo {
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
+}
+
+export interface SessionPage {
+  sessions: Session[];
+  nextCursor: SessionCursorPayload | null;
+  hasMore: boolean;
+}
+
+export interface ListSessionPageOptions {
+  status?: SessionStatus;
+  rootOnly?: boolean;
+  cursor?: SessionCursorPayload;
+  limit: number;
+}
+
+/** Clamp a page size to the valid range. */
+function clampLimit(limit: number): number {
+  if (!Number.isInteger(limit) || limit < MIN_PAGE_SIZE) return DEFAULT_PAGE_SIZE;
+  return Math.min(limit, MAX_PAGE_SIZE);
+}
+
+/**
+ * Paginated session query for a single workspace.
+ * Uses idx_sessions_workspace_updated or idx_sessions_workspace_status_updated.
+ * Fetches limit+1 rows to detect hasMore without a separate COUNT query.
+ */
+export function listSessionPageByWorkspace(
+  workspaceId: string,
+  options: ListSessionPageOptions,
+): SessionPage {
+  const db = getDatabase();
+  const limit = clampLimit(options.limit);
+  const whereClauses: string[] = ['workspace_id = ?'];
+  const values: (string | number)[] = [workspaceId];
+
+  if (options.status !== undefined) {
+    whereClauses.push('status = ?');
+    values.push(options.status);
+  }
+  if (options.rootOnly === true) {
+    whereClauses.push('parent_id IS NULL');
+  }
+
+  if (options.cursor) {
+    whereClauses.push('(updated_at < ? OR (updated_at = ? AND id < ?))');
+    values.push(options.cursor.updatedAt, options.cursor.updatedAt, options.cursor.id);
+  }
+
+  const query = `SELECT * FROM sessions WHERE ${whereClauses.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`;
+  const rows = db.query(query).all(...values, limit + 1) as SessionRow[];
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const sessions = pageRows.map(mapRowToSession);
+
+  let nextCursor: SessionCursorPayload | null = null;
+  if (hasMore && pageRows.length > 0) {
+    const lastRow = pageRows[pageRows.length - 1];
+    nextCursor = {
+      version: 1,
+      updatedAt: lastRow.updated_at,
+      id: lastRow.id,
+    };
+  }
+
+  return { sessions, nextCursor, hasMore };
+}
+
+/**
+ * Paginated grouped query: first bounded page for multiple workspaces.
+ * Each workspace gets an independent position using a window query.
+ *
+ * Returns sessions grouped by workspace plus per-workspace pagination metadata.
+ */
+export function listSessionPageGrouped(
+  workspaceIds: string[],
+  options: { status?: SessionStatus; rootOnly?: boolean; limitPerWorkspace: number },
+): { sessions: Record<string, Session[]>; pagination: Record<string, SessionPageInfo> } {
+  const db = getDatabase();
+  const limitPerWs = clampLimit(options.limitPerWorkspace);
+
+  const sessions: Record<string, Session[]> = {};
+  const pagination: Record<string, SessionPageInfo> = {};
+
+  for (const wsId of workspaceIds) {
+    sessions[wsId] = [];
+  }
+
+  if (workspaceIds.length === 0) {
+    return { sessions, pagination };
+  }
+
+  const placeholders = workspaceIds.map(() => '?').join(', ');
+  const whereClauses: string[] = [`workspace_id IN (${placeholders})`];
+  const values: (string | number)[] = [...workspaceIds];
+
+  if (options.status !== undefined) {
+    whereClauses.push('status = ?');
+    values.push(options.status);
+  }
+  if (options.rootOnly === true) {
+    whereClauses.push('parent_id IS NULL');
+  }
+
+  const query = `
+    WITH ranked AS (
+      SELECT
+        sessions.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY workspace_id
+          ORDER BY updated_at DESC, id DESC
+        ) AS page_rank
+      FROM sessions
+      WHERE ${whereClauses.join(' AND ')}
+    )
+    SELECT * FROM ranked
+    WHERE page_rank <= ?
+    ORDER BY workspace_id ASC, updated_at DESC, id DESC`;
+
+  const rows = db.query(query).all(...values, limitPerWs + 1) as (SessionRow & { page_rank: number })[];
+
+  // Group rows by workspace
+  const byWorkspace = new Map<string, SessionRow[]>();
+  for (const wsId of workspaceIds) {
+    byWorkspace.set(wsId, []);
+  }
+  for (const row of rows) {
+    const wsId = row.workspace_id || '';
+    const arr = byWorkspace.get(wsId);
+    if (arr) arr.push(row);
+  }
+
+  for (const wsId of workspaceIds) {
+    const wsRows = byWorkspace.get(wsId) ?? [];
+    const hasMore = wsRows.length > limitPerWs;
+    const pageRows = hasMore ? wsRows.slice(0, limitPerWs) : wsRows;
+    sessions[wsId] = pageRows.map(mapRowToSession);
+
+    let nextCursor: SessionCursorPayload | null = null;
+    if (hasMore && pageRows.length > 0) {
+      const lastRow = pageRows[pageRows.length - 1];
+      nextCursor = {
+        version: 1,
+        updatedAt: lastRow.updated_at,
+        id: lastRow.id,
+      };
+    }
+
+    pagination[wsId] = {
+      nextCursor: nextCursor ? encodeSessionCursor(nextCursor) : null,
+      hasMore,
+      limit: limitPerWs,
+    };
+  }
+
+  return { sessions, pagination };
+}
+
+export { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE };
+export type { SessionCursorPayload };

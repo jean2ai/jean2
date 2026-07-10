@@ -2,7 +2,7 @@ import { broadcastEvent, broadcastSessionUpdated, type BroadcastFn, type Broadca
 import {
   getSession,
   updateSession,
-  listMessagesWithParts,
+  getMessageWithParts,
 } from '@/store';
 import {
   createCompactionTrigger,
@@ -112,8 +112,7 @@ export async function executeCompaction(
     const trigger = createCompactionTrigger(sessionId, reason);
     triggerMessageId = trigger.messageId;
 
-    const allMessages = listMessagesWithParts(sessionId);
-    const triggerMsg = allMessages.find(m => m.message.id === trigger.messageId);
+    const triggerMsg = getMessageWithParts(trigger.messageId);
     if (triggerMsg) {
       broadcast({ type: 'message.created', message: triggerMsg.message });
       for (const part of triggerMsg.parts) {

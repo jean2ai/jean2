@@ -139,6 +139,14 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
 
+    // If session is not in the loaded list (e.g. pinned message navigation),
+    // fetch it from the server so it can be opened
+    if (!session && client && client.connected) {
+      client.http.sessions.get(sessionId).then((response: { session: Session }) => {
+        useSessionStore.getState().addSessionToFront(response.session);
+      }).catch(() => {});
+    }
+
     if (client && client.connected) {
       client.sessions.resume(sessionId);
     }

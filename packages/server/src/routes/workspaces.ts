@@ -10,6 +10,10 @@ import {
   updateWorkspace,
   deleteWorkspace,
   listSessionsByWorkspace,
+  listSessionPageByWorkspace,
+  encodeSessionCursor,
+  decodeSessionCursor,
+  DEFAULT_PAGE_SIZE,
   cleanupSessionsOutputDirs,
   listPinnedMessagesByWorkspace,
   pinMessage,
@@ -242,6 +246,7 @@ export function registerWorkspaceRoutes(app: Hono): void {
   });
 
   // GET /api/workspaces/:id/sessions - List sessions in a workspace
+  // When limit or cursor is present, uses pagination. Otherwise returns unbounded for compatibility.
   app.get('/api/workspaces/:id/sessions', async (c) => {
     const workspaceId = c.req.param('id');
 
@@ -252,6 +257,39 @@ export function registerWorkspaceRoutes(app: Hono): void {
 
     const status = c.req.query('status') as SessionStatus | undefined;
     const rootOnly = c.req.query('rootOnly') === 'true';
+    const cursorParam = c.req.query('cursor');
+    const limitParam = c.req.query('limit');
+
+    const usePagination = cursorParam !== undefined || limitParam !== undefined;
+
+    if (usePagination) {
+      let cursor = null;
+      if (cursorParam) {
+        cursor = decodeSessionCursor(cursorParam);
+        if (!cursor) {
+          throw new BadRequestError('Invalid cursor');
+        }
+      }
+
+      let limit = DEFAULT_PAGE_SIZE;
+      if (limitParam) {
+        limit = parseInt(limitParam, 10);
+        if (isNaN(limit) || limit < 1 || limit > 100) {
+          throw new BadRequestError('limit must be an integer between 1 and 100');
+        }
+      }
+
+      const page = listSessionPageByWorkspace(workspaceId, { status, rootOnly, cursor: cursor ?? undefined, limit });
+      return c.json({
+        sessions: page.sessions,
+        pagination: {
+          nextCursor: page.nextCursor ? encodeSessionCursor(page.nextCursor) : null,
+          hasMore: page.hasMore,
+          limit,
+        },
+      });
+    }
+
     const sessions = listSessionsByWorkspace(workspaceId, { status, rootOnly });
     return c.json({ sessions });
   });

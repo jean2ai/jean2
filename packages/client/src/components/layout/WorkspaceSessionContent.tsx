@@ -34,6 +34,9 @@ interface WorkspaceSessionContentProps {
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSessionId: string | null;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
   onResumeSession: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
@@ -82,6 +85,9 @@ export function WorkspaceSessionContent({
   onResumeScheduledJob,
   onTriggerScheduledJob,
   onDeleteScheduledJob,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
 }: WorkspaceSessionContentProps) {
   const { isTagOpen, toggleTag } = useTagCollapseState();
   const [selectionMode, setSelectionMode] = useState(false);
@@ -314,6 +320,18 @@ export function WorkspaceSessionContent({
               <SidebarMenu>
                 {activeSessions.map(renderSessionButton)}
               </SidebarMenu>
+            )}
+            {hasNextPage && onLoadMore && (
+              <div className="px-2 py-2">
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  disabled={isFetchingNextPage}
+                  className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center py-1.5 rounded-md hover:bg-sidebar-accent disabled:opacity-50"
+                >
+                  {isFetchingNextPage ? 'Loading more...' : 'Load more sessions'}
+                </button>
+              </div>
             )}
           </SidebarGroupContent>
         </CollapsibleContent>

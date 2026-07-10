@@ -9,6 +9,7 @@ import {
   deleteSession,
   listMessages,
   listSessionsGrouped,
+  listSessionPageGrouped,
   listTagsByWorkspace,
 } from '@/store';
 import {
@@ -63,6 +64,19 @@ export function registerSessionRoutes(app: Hono): void {
 
     const status = c.req.query('status') as SessionStatus | undefined;
     const rootOnly = c.req.query('rootOnly') === 'true';
+    const limitPerWorkspaceParam = c.req.query('limitPerWorkspace');
+
+    // When limitPerWorkspace is present, use bounded grouped pagination
+    if (limitPerWorkspaceParam !== undefined) {
+      const limitPerWorkspace = parseInt(limitPerWorkspaceParam, 10);
+      if (isNaN(limitPerWorkspace) || limitPerWorkspace < 1 || limitPerWorkspace > 100) {
+        throw new BadRequestError('limitPerWorkspace must be an integer between 1 and 100');
+      }
+
+      const result = listSessionPageGrouped(workspaceIds, { status, rootOnly, limitPerWorkspace });
+      return c.json({ sessions: result.sessions, pagination: result.pagination });
+    }
+
     const sessions = listSessionsGrouped(workspaceIds, { status, rootOnly });
     return c.json({ sessions });
   });

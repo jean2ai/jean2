@@ -59,6 +59,9 @@ interface SessionActions {
   // --- Session List ---
   setSessions: (updater: SessionsUpdater) => void;
   addSessionToFront: (session: Session) => void;
+  mergeSessions: (sessions: Session[]) => void;
+  replaceSessionsForWorkspace: (workspaceId: string, sessions: Session[]) => void;
+  removeSessionsForWorkspace: (workspaceId: string) => void;
   updateSession: (session: Session) => void;
   removeSessionById: (sessionId: string) => void;
   clearSessions: () => void;
@@ -106,7 +109,29 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   addSessionToFront: (session) =>
     set((state) => ({
-      sessions: [session, ...state.sessions],
+      sessions: [session, ...state.sessions.filter((s) => s.id !== session.id)],
+    })),
+
+  mergeSessions: (incoming) =>
+    set((state) => {
+      const existing = new Map(state.sessions.map((s) => [s.id, s]));
+      for (const session of incoming) {
+        existing.set(session.id, session);
+      }
+      return { sessions: [...existing.values()] };
+    }),
+
+  replaceSessionsForWorkspace: (workspaceId, sessions) =>
+    set((state) => ({
+      sessions: [
+        ...state.sessions.filter((s) => s.workspaceId !== workspaceId),
+        ...sessions,
+      ],
+    })),
+
+  removeSessionsForWorkspace: (workspaceId) =>
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.workspaceId !== workspaceId),
     })),
 
   updateSession: (session) =>

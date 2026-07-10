@@ -28,8 +28,15 @@ import {
   findOrphanedCompactionTriggers,
   buildEffectiveContextHistory,
   listMessagesForSession,
+  getToolPartByCallId,
+  persistStreamingPartSnapshot,
+  persistStreamingPartSnapshots,
+  syncMessageFts,
 } from '@/store/messages';
 import { createSession } from '@/store/sessions';
+import { getDatabase } from '@/store';
+import { revertToStep } from '@/core/revert';
+import { forkSession } from '@/core/fork';
 import { createTestSession } from '#tests/factories';
 import type { AssistantMessage, Part } from '@jean2/sdk';
 
@@ -765,13 +772,15 @@ describe('messages store', () => {
       expect(result[1].parts).toHaveLength(0);
     });
 
-    test('preserves message ordering by created_at ascending', () => {
+    test('preserves message ordering by sequence (insertion order)', () => {
+      // Messages are ordered by sequence (insertion order), not created_at.
+      // This is the Phase 1 change: deterministic ordering via sequence column.
       createAssistantMsg('msg3', {}, 3000);
       createUserMsg('msg1', 1000);
       createAssistantMsg('msg2', {}, 2000);
 
       const result = listMessagesWithParts(sessionId);
-      expect(result.map((r) => r.message.id)).toEqual(['msg1', 'msg2', 'msg3']);
+      expect(result.map((r) => r.message.id)).toEqual(['msg3', 'msg1', 'msg2']);
     });
 
     test('preserves part ordering within each message', () => {
@@ -913,6 +922,626 @@ describe('messages store', () => {
       expect(result[0].parts).toHaveLength(2);
       expect(result[1].parts).toHaveLength(0);
       expect(result[2].parts).toHaveLength(1);
+    });
+  });
+
+  // ===========================================================================
+  // Phase 1: Message Sequencing
+  // ===========================================================================
+
+  describe('message sequencing (Phase 1)', () => {
+    test('new messages receive increasing sequences within a session', () => {
+      createUserMsg('msg1', 1000);
+      createUserMsg('msg2', 2000);
+      createUserMsg('msg3', 3000);
+
+      const messages = listMessages(sessionId);
+      expect(messages).toHaveLength(3);
+      // All messages should have distinct sequence values, in order
+      const db = getDatabase();
+      const rows = db.query('SELECT id, sequence FROM messages WHERE session_id = ? ORDER BY sequence ASC').all(sessionId) as { id: string; sequence: number }[];
+      expect(rows[0].sequence).toBe(1);
+      expect(rows[1].sequence).toBe(2);
+      expect(rows[2].sequence).toBe(3);
+    });
+
+    test('different sessions each start at sequence 1', () => {
+      const otherSessionId = 'other-session-seq';
+      createSession(makeSession({ id: otherSessionId, workspaceId: 'ws1', title: 'Other', status: 'active' }));
+
+      createUserMsg('msg-a', 1000);
+      createUserMsg('msg-b', 2000);
+
+      createMessage({ id: 'msg-x', sessionId: otherSessionId, role: 'user', createdAt: 1000 });
+      createMessage({ id: 'msg-y', sessionId: otherSessionId, role: 'user', createdAt: 2000 });
+
+      const db = getDatabase();
+      const seqA = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg-a') as { sequence: number }).sequence;
+      const seqB = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg-b') as { sequence: number }).sequence;
+      const seqX = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg-x') as { sequence: number }).sequence;
+      const seqY = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg-y') as { sequence: number }).sequence;
+
+      expect(seqA).toBe(1);
+      expect(seqB).toBe(2);
+      expect(seqX).toBe(1);
+      expect(seqY).toBe(2);
+    });
+
+    test('same-millisecond messages retain insertion order via sequence', () => {
+      const ts = Date.now();
+      createUserMsg('msg1', ts);
+      createUserMsg('msg2', ts);
+      createUserMsg('msg3', ts);
+
+      const messages = listMessages(sessionId);
+      expect(messages.map((m) => m.id)).toEqual(['msg1', 'msg2', 'msg3']);
+    });
+
+    test('listMessages() orders by sequence', () => {
+      // Insert out of timestamp order - sequence should still determine order
+      createUserMsg('c', 3000);
+      createUserMsg('a', 1000);
+      createUserMsg('b', 2000);
+
+      const messages = listMessages(sessionId);
+      // Sequence order is insertion order: c=1, a=2, b=3
+      expect(messages.map((m) => m.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    test('listMessagesWithParts() orders messages by sequence and parts deterministically', () => {
+      createUserMsg('msg1', 3000);
+      createAssistantMsg('msg2', {}, 1000);
+      // Parts with same timestamp should be ordered by id
+      createPart({ id: 'p3', messageId: 'msg1', createdAt: 500, type: 'text', text: 'c' } as Part, sessionId);
+      createPart({ id: 'p1', messageId: 'msg1', createdAt: 500, type: 'text', text: 'a' } as Part, sessionId);
+      createPart({ id: 'p2', messageId: 'msg1', createdAt: 500, type: 'text', text: 'b' } as Part, sessionId);
+
+      const result = listMessagesWithParts(sessionId);
+      // Sequence: msg1=1, msg2=2
+      expect(result.map((r) => r.message.id)).toEqual(['msg1', 'msg2']);
+      // Parts ordered by (created_at, id)
+      expect(result[0].parts.map((p) => p.id)).toEqual(['p1', 'p2', 'p3']);
+    });
+
+    test('revert leaves sequence gaps and the next insert remains monotonic', async () => {
+      createUserMsg('msg1', 1000);
+      createUserMsg('msg2', 2000);
+      createUserMsg('msg3', 3000);
+      createUserMsg('msg4', 4000);
+
+      // Revert to msg2: delete msg3 and msg4
+      await revertToStep({ sessionId, targetMessageId: 'msg2', keepTarget: true });
+
+      // Next message should get MAX(sequence)+1 of surviving rows
+      // After deleting msg3(seq=3) and msg4(seq=4), surviving MAX is 2, so msg5 gets seq=3
+      createUserMsg('msg5', 5000);
+
+      const messages = listMessages(sessionId);
+      expect(messages.map((m) => m.id)).toEqual(['msg1', 'msg2', 'msg5']);
+
+      const db = getDatabase();
+      const seq5 = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg5') as { sequence: number }).sequence;
+      expect(seq5).toBe(3); // MAX(1,2)+1 = 3
+    });
+
+    test('forked messages receive a new contiguous sequence in source order', async () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+      createUserMsg('msg3', 3000);
+
+      const forkResult = await forkSession({ sessionId, targetMessageId: 'msg3' });
+      const forkedSessionId = forkResult.forkedSession.id;
+
+      const db = getDatabase();
+      const rows = db.query('SELECT id, sequence FROM messages WHERE session_id = ? ORDER BY sequence ASC').all(forkedSessionId) as { id: string; sequence: number }[];
+      expect(rows).toHaveLength(3);
+      expect(rows[0].sequence).toBe(1);
+      expect(rows[1].sequence).toBe(2);
+      expect(rows[2].sequence).toBe(3);
+    });
+
+    test('unique index rejects duplicate sequence values within one session', () => {
+      // First create a message through normal API (gets sequence=1)
+      createUserMsg('msg1', 1000);
+
+      const db = getDatabase();
+      // Manually insert a message with a duplicate sequence
+      // The unique index should prevent this
+      expect(() => {
+        db.run(
+          `INSERT INTO messages (id, session_id, sequence, role, created_at) VALUES (?, ?, ?, ?, ?)`,
+          ['dup-msg', sessionId, 1, 'user', 9999],
+        );
+      }).toThrow();
+    });
+
+    test('the same sequence value is valid in two different sessions', () => {
+      const otherSessionId = 'other-session-dup';
+      createSession(makeSession({ id: otherSessionId, workspaceId: 'ws1', title: 'Other', status: 'active' }));
+
+      createUserMsg('msg1', 1000);
+      createMessage({ id: 'msg-other', sessionId: otherSessionId, role: 'user', createdAt: 1000 });
+
+      const db = getDatabase();
+      const seq1 = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg1') as { sequence: number }).sequence;
+      const seq2 = (db.query('SELECT sequence FROM messages WHERE id = ?').get('msg-other') as { sequence: number }).sequence;
+
+      expect(seq1).toBe(1);
+      expect(seq2).toBe(1); // Same sequence in different session is fine
+    });
+  });
+
+  // ===========================================================================
+  // Phase 2: Effective Context Loading
+  // ===========================================================================
+
+  describe('effective context loading (Phase 2)', () => {
+    test('no compaction returns all messages', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+      createUserMsg('msg3', 3000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.messages).toHaveLength(3);
+      expect(result.hasCompaction).toBe(false);
+      expect(result.latestCompactionBoundary).toBeNull();
+    });
+
+    test('one compaction returns trigger, summary, and later messages', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+
+      // Trigger
+      createUserMsg('trigger', 3000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+
+      // Summary
+      createAssistantMsg('summary', { summary: true, mode: 'compaction', parentId: 'trigger' } as Partial<AssistantMessage>, 4000);
+      createPart({ id: 'sp1', messageId: 'summary', createdAt: 4000, type: 'text', text: 'Summary...' } as Part, sessionId);
+
+      // Post-compaction
+      createUserMsg('msg5', 5000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(true);
+      expect(result.messages).toHaveLength(3); // trigger + summary + msg5
+      expect(result.messages[0].message.id).toBe('trigger');
+      expect(result.messages[1].message.id).toBe('summary');
+      expect(result.messages[2].message.id).toBe('msg5');
+      expect(result.latestCompactionBoundary).toBe('trigger');
+    });
+
+    test('multiple compactions use the latest valid boundary', () => {
+      // First compaction
+      createUserMsg('trigger1', 1000);
+      createPart({ id: 'cp1', messageId: 'trigger1', createdAt: 1000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary1', { summary: true, mode: 'compaction', parentId: 'trigger1' } as Partial<AssistantMessage>, 2000);
+      createPart({ id: 'sp1', messageId: 'summary1', createdAt: 2000, type: 'text', text: 'First summary' } as Part, sessionId);
+
+      createUserMsg('msg3', 3000);
+
+      // Second compaction
+      createUserMsg('trigger2', 4000);
+      createPart({ id: 'cp2', messageId: 'trigger2', createdAt: 4000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary2', { summary: true, mode: 'compaction', parentId: 'trigger2' } as Partial<AssistantMessage>, 5000);
+      createPart({ id: 'sp2', messageId: 'summary2', createdAt: 5000, type: 'text', text: 'Second summary' } as Part, sessionId);
+
+      createUserMsg('msg6', 6000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(true);
+      expect(result.latestCompactionBoundary).toBe('trigger2');
+      expect(result.messages).toHaveLength(3); // trigger2 + summary2 + msg6
+    });
+
+    test('orphaned trigger is ignored', () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+
+      // Orphaned trigger (no summary)
+      createUserMsg('orphan-trigger', 3000);
+      createPart({ id: 'cp1', messageId: 'orphan-trigger', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+
+      createUserMsg('msg4', 4000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(false);
+      expect(result.messages).toHaveLength(4); // all messages
+    });
+
+    test('failed compaction outcome is ignored', () => {
+      createUserMsg('msg1', 1000);
+
+      // Trigger
+      createUserMsg('trigger', 2000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 2000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+
+      // Failed compaction outcome (mode='compact_failed', not 'compaction')
+      createAssistantMsg('failed-summary', {
+        summary: true,
+        mode: 'compact_failed',
+        parentId: 'trigger',
+      } as Partial<AssistantMessage>, 3000);
+      createPart({ id: 'fsp', messageId: 'failed-summary', createdAt: 3000, type: 'text', text: 'Compaction failed' } as Part, sessionId);
+
+      createUserMsg('msg4', 4000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(false);
+    });
+
+    test('summary with missing parent is ignored', () => {
+      createUserMsg('msg1', 1000);
+
+      // Summary that references a non-existent trigger
+      createAssistantMsg('summary', {
+        summary: true,
+        mode: 'compaction',
+        parentId: 'nonexistent-trigger',
+      } as Partial<AssistantMessage>, 2000);
+      createPart({ id: 'sp1', messageId: 'summary', createdAt: 2000, type: 'text', text: 'Summary' } as Part, sessionId);
+
+      createUserMsg('msg3', 3000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(false);
+    });
+
+    test('summary with existing parent but no compaction part is ignored', () => {
+      createUserMsg('msg1', 1000);
+
+      // Trigger without a compaction part
+      createUserMsg('trigger', 2000);
+      // No compaction part on trigger
+
+      createAssistantMsg('summary', {
+        summary: true,
+        mode: 'compaction',
+        parentId: 'trigger',
+      } as Partial<AssistantMessage>, 3000);
+      createPart({ id: 'sp1', messageId: 'summary', createdAt: 3000, type: 'text', text: 'Summary' } as Part, sessionId);
+
+      createUserMsg('msg4', 4000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(false);
+    });
+
+    test('pre-boundary message and part rows are absent from effective result', () => {
+      // Pre-boundary messages
+      createUserMsg('old1', 1000);
+      createPart({ id: 'op1', messageId: 'old1', createdAt: 100, type: 'text', text: 'old content' } as Part, sessionId);
+      createAssistantMsg('old2', {}, 2000);
+
+      // Trigger
+      createUserMsg('trigger', 3000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+
+      // Summary
+      createAssistantMsg('summary', { summary: true, mode: 'compaction', parentId: 'trigger' } as Partial<AssistantMessage>, 4000);
+      createPart({ id: 'sp1', messageId: 'summary', createdAt: 4000, type: 'text', text: 'Summary' } as Part, sessionId);
+
+      // Post
+      createUserMsg('new1', 5000);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(true);
+      const messageIds = result.messages.map((m) => m.message.id);
+      expect(messageIds).not.toContain('old1');
+      expect(messageIds).not.toContain('old2');
+      expect(messageIds).toContain('trigger');
+      expect(messageIds).toContain('summary');
+      expect(messageIds).toContain('new1');
+    });
+
+    test('full-history API still returns pre-boundary rows', () => {
+      createUserMsg('old1', 1000);
+      createAssistantMsg('old2', {}, 2000);
+
+      createUserMsg('trigger', 3000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary', { summary: true, mode: 'compaction', parentId: 'trigger' } as Partial<AssistantMessage>, 4000);
+
+      createUserMsg('new1', 5000);
+
+      const full = listMessagesWithParts(sessionId);
+      expect(full).toHaveLength(5);
+      expect(full.map((r) => r.message.id)).toContain('old1');
+      expect(full.map((r) => r.message.id)).toContain('old2');
+    });
+
+    test('revert past the latest boundary selects the previous valid boundary', async () => {
+      // First compaction
+      createUserMsg('trigger1', 1000);
+      createPart({ id: 'cp1', messageId: 'trigger1', createdAt: 1000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary1', { summary: true, mode: 'compaction', parentId: 'trigger1' } as Partial<AssistantMessage>, 2000);
+
+      // Second compaction
+      createUserMsg('trigger2', 3000);
+      createPart({ id: 'cp2', messageId: 'trigger2', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary2', { summary: true, mode: 'compaction', parentId: 'trigger2' } as Partial<AssistantMessage>, 4000);
+
+      createUserMsg('msg5', 5000);
+
+      // Revert to summary1: deletes trigger2, summary2, msg5
+      await revertToStep({ sessionId, targetMessageId: 'summary1', keepTarget: true });
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(true);
+      expect(result.latestCompactionBoundary).toBe('trigger1');
+    });
+
+    test('revert past all boundaries returns full surviving history', async () => {
+      createUserMsg('trigger', 1000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 1000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary', { summary: true, mode: 'compaction', parentId: 'trigger' } as Partial<AssistantMessage>, 2000);
+
+      createUserMsg('msg3', 3000);
+
+      // Revert to trigger: deletes summary, msg3
+      await revertToStep({ sessionId, targetMessageId: 'trigger', keepTarget: true });
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.hasCompaction).toBe(false);
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].message.id).toBe('trigger');
+    });
+
+    test('forked compaction relationships are valid', async () => {
+      createUserMsg('msg1', 1000);
+      createAssistantMsg('msg2', {}, 2000);
+
+      createUserMsg('trigger', 3000);
+      createPart({ id: 'cp1', messageId: 'trigger', createdAt: 3000, type: 'compaction', auto: true, overflow: false } as Part, sessionId);
+      createAssistantMsg('summary', { summary: true, mode: 'compaction', parentId: 'trigger' } as Partial<AssistantMessage>, 4000);
+
+      const forkResult = await forkSession({ sessionId, targetMessageId: 'summary' });
+      const forkedSessionId = forkResult.forkedSession.id;
+
+      const result = buildEffectiveContextHistory(forkedSessionId);
+      expect(result.hasCompaction).toBe(true);
+      // Effective context starts at the trigger, not the first forked message
+      expect(result.messages.length).toBeGreaterThanOrEqual(1);
+      expect(result.latestCompactionBoundary).not.toBeNull();
+    });
+
+    test('same-millisecond messages remain correct through sequence ordering', () => {
+      const ts = Date.now();
+      createUserMsg('msg1', ts);
+      createAssistantMsg('msg2', {}, ts);
+
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[0].message.id).toBe('msg1');
+      expect(result.messages[1].message.id).toBe('msg2');
+    });
+
+    test('returns empty for session with no messages', () => {
+      const result = buildEffectiveContextHistory(sessionId);
+      expect(result.messages).toHaveLength(0);
+      expect(result.hasCompaction).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // Phase 3: Streaming Snapshot Persistence
+  // ===========================================================================
+
+  describe('streaming snapshot persistence (Phase 3)', () => {
+    test('persistStreamingPartSnapshot writes text without read-before-write', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createPart({
+        id: 'tp1',
+        messageId: 'msg1',
+        createdAt: 1000,
+        type: 'text',
+        text: 'initial',
+      } as Part, sessionId);
+
+      const ok = persistStreamingPartSnapshot({
+        id: 'tp1',
+        messageId: 'msg1',
+        sessionId,
+        type: 'text',
+        createdAt: 1000,
+        text: 'updated snapshot text',
+      });
+
+      expect(ok).toBe(true);
+      const part = getPart('tp1');
+      expect((part as unknown as Record<string, unknown>).text).toBe('updated snapshot text');
+    });
+
+    test('persistStreamingPartSnapshot returns false for identity mismatch', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createPart({
+        id: 'tp1',
+        messageId: 'msg1',
+        createdAt: 1000,
+        type: 'text',
+        text: 'initial',
+      } as Part, sessionId);
+
+      const ok = persistStreamingPartSnapshot({
+        id: 'tp1',
+        messageId: 'wrong-message',
+        sessionId,
+        type: 'text',
+        createdAt: 1000,
+        text: 'should not update',
+      });
+
+      expect(ok).toBe(false);
+      const part = getPart('tp1');
+      expect((part as unknown as Record<string, unknown>).text).toBe('initial');
+    });
+
+    test('persistStreamingPartSnapshots writes multiple in one transaction', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createPart({ id: 'tp1', messageId: 'msg1', createdAt: 1000, type: 'text', text: 'a' } as Part, sessionId);
+      createPart({ id: 'rp1', messageId: 'msg1', createdAt: 2000, type: 'reasoning', text: 'b' } as Part, sessionId);
+
+      const count = persistStreamingPartSnapshots([
+        { id: 'tp1', messageId: 'msg1', sessionId, type: 'text', createdAt: 1000, text: 'updated text' },
+        { id: 'rp1', messageId: 'msg1', sessionId, type: 'reasoning', createdAt: 2000, text: 'updated reasoning' },
+      ]);
+
+      expect(count).toBe(2);
+      expect((getPart('tp1') as unknown as Record<string, unknown>).text).toBe('updated text');
+      expect((getPart('rp1') as unknown as Record<string, unknown>).text).toBe('updated reasoning');
+    });
+
+    test('persistStreamingPartSnapshots handles empty array', () => {
+      expect(persistStreamingPartSnapshots([])).toBe(0);
+    });
+
+    test('createMessage does not create an empty FTS row', () => {
+      createUserMsg('msg1');
+
+      // Message was just created with no parts, should not be in FTS
+      const db = getDatabase();
+      const ftsRow = db.query('SELECT * FROM messages_fts WHERE message_id = ?').get('msg1');
+      expect(ftsRow).toBeNull();
+    });
+
+    test('user text part creation syncs FTS immediately', () => {
+      createUserMsg('msg1');
+      createPart({ id: 'tp1', messageId: 'msg1', createdAt: 1000, type: 'text', text: 'hello world' } as Part, sessionId);
+
+      syncMessageFts('msg1');
+
+      const db = getDatabase();
+      const ftsRow = db.query('SELECT * FROM messages_fts WHERE message_id = ?').get('msg1') as { content: string } | undefined;
+      expect(ftsRow).toBeDefined();
+      expect(ftsRow!.content).toContain('hello world');
+    });
+
+    test('syncMessageFts replaces FTS content atomically producing one row', () => {
+      createUserMsg('msg1');
+      createPart({ id: 'tp1', messageId: 'msg1', createdAt: 1000, type: 'text', text: 'first version' } as Part, sessionId);
+      syncMessageFts('msg1');
+
+      createPart({ id: 'tp2', messageId: 'msg1', createdAt: 2000, type: 'text', text: 'second version' } as Part, sessionId);
+      syncMessageFts('msg1');
+
+      const db = getDatabase();
+      const ftsRows = db.query('SELECT * FROM messages_fts WHERE message_id = ?').all('msg1');
+      expect(ftsRows).toHaveLength(1);
+    });
+  });
+
+  // ===========================================================================
+  // Phase 4: Indexed Tool Call Lookup
+  // ===========================================================================
+
+  describe('indexed tool call lookup (Phase 4)', () => {
+    test('tool creation writes matching JSON callId and call_id column', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'call-123', 'read-file', { path: '/test' }, sessionId);
+
+      const db = getDatabase();
+      const row = db.query('SELECT call_id, data FROM parts WHERE type = \'tool\'').get() as { call_id: string; data: string };
+      expect(row.call_id).toBe('call-123');
+      const parsed = JSON.parse(row.data);
+      expect(parsed.callId).toBe('call-123');
+    });
+
+    test('non-tool parts write null call_id', () => {
+      createUserMsg('msg1');
+      createPart({ id: 'tp1', messageId: 'msg1', createdAt: 1000, type: 'text', text: 'hello' } as Part, sessionId);
+
+      const db = getDatabase();
+      const row = db.query('SELECT call_id FROM parts WHERE type = \'text\'').get() as { call_id: string | null };
+      expect(row.call_id).toBeNull();
+    });
+
+    test('getToolPartByCallId returns the correct tool part via index', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'call-abc', 'shell', { command: 'ls' }, sessionId);
+
+      const result = getToolPartByCallId(sessionId, 'call-abc');
+      expect(result).not.toBeNull();
+      expect(result!.callId).toBe('call-abc');
+      expect(result!.name).toBe('shell');
+    });
+
+    test('getToolPartByCallId returns null for unknown call ID', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'call-1', 'shell', {}, sessionId);
+
+      expect(getToolPartByCallId(sessionId, 'nonexistent')).toBeNull();
+    });
+
+    test('same call ID in two sessions does not collide', () => {
+      const otherSessionId = 'other-session-callid';
+      createSession(makeSession({ id: otherSessionId, workspaceId: 'ws1', title: 'Other', status: 'active' }));
+
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'shared-call', 'shell', {}, sessionId);
+
+      createMessage({ id: 'msg2', sessionId: otherSessionId, role: 'assistant', createdAt: Date.now(), status: 'streaming', modelId: 'gpt-4o', providerId: 'openai', tokens: { prompt: 0, completion: 0 }, cost: 0 } as AssistantMessage);
+      createToolPartPending('msg2', 'shared-call', 'read-file', {}, otherSessionId);
+
+      const result1 = getToolPartByCallId(sessionId, 'shared-call');
+      const result2 = getToolPartByCallId(otherSessionId, 'shared-call');
+
+      expect(result1!.name).toBe('shell');
+      expect(result2!.name).toBe('read-file');
+    });
+
+    test('state transitions preserve call_id', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      const tool = createToolPartPending('msg1', 'call-preserve', 'shell', {}, sessionId);
+      transitionToolToRunning(tool.id);
+      transitionToolToCompleted(tool.id, 'done');
+
+      const db = getDatabase();
+      const row = db.query('SELECT call_id FROM parts WHERE id = ?').get(tool.id) as { call_id: string };
+      expect(row.call_id).toBe('call-preserve');
+    });
+
+    test('transitionToolToRunningByCallId uses indexed lookup', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'call-idx', 'shell', {}, sessionId);
+
+      const result = transitionToolToRunningByCallId(sessionId, 'call-idx', 'child-1');
+      expect(result).not.toBeNull();
+      expect(result!.state.status).toBe('running');
+      if (result!.state.status === 'running') {
+        expect(result!.state.childSessionId).toBe('child-1');
+      }
+    });
+
+    test('getToolPartByCallId with legacy JSON fallback', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+
+      // Manually insert a tool part with NULL call_id (simulating unmigrated row)
+      const db = getDatabase();
+      db.run(
+        `INSERT INTO parts (id, message_id, session_id, type, call_id, data, created_at)
+         VALUES (?, ?, ?, ?, NULL, ?, ?)`,
+        ['legacy-part', 'msg1', sessionId, 'tool', JSON.stringify({ callId: 'legacy-call', name: 'old-tool', state: { status: 'pending', input: {} } }), Date.now()],
+      );
+
+      const result = getToolPartByCallId(sessionId, 'legacy-call');
+      expect(result).not.toBeNull();
+      expect(result!.callId).toBe('legacy-call');
+      expect(result!.name).toBe('old-tool');
+    });
+
+    test('query plan uses idx_parts_session_call_id', () => {
+      createAssistantMsg('msg1', { status: 'streaming' });
+      createToolPartPending('msg1', 'call-plan', 'shell', {}, sessionId);
+
+      const db = getDatabase();
+      const plan = db.query(
+        `EXPLAIN QUERY PLAN
+         SELECT * FROM parts
+         WHERE session_id = ? AND call_id = ? AND type = 'tool'`,
+      ).all(sessionId, 'call-plan') as { detail: string }[];
+
+      const planText = plan.map((p) => p.detail).join(' ');
+      expect(planText).toContain('idx_parts_session_call_id');
     });
   });
 });

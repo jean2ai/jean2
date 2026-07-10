@@ -1,5 +1,5 @@
 import type { TextPart, ToolPart, ReasoningPart, MessageEvent } from '@jean2/sdk';
-import { createPart, updatePart, getPart } from '@/store';
+import { createPart, updatePart, getPart, persistStreamingPartSnapshots } from '@/store';
 import { parseToolInput } from './part-utils';
 import { randomUUID } from 'crypto';
 
@@ -11,8 +11,10 @@ export interface StreamHandlerContext {
   toolParts: ToolPart[];
   currentText: string;
   currentTextPartId: string | null;
+  currentTextCreatedAt: number | null;
   currentReasoning: string;
   currentReasoningPartId: string | null;
+  currentReasoningCreatedAt: number | null;
   yieldFn: (event: MessageEvent) => void;
 }
 
@@ -37,20 +39,49 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
 
   function persistText(syncFts: boolean): void {
     if (!ctx.currentTextPartId || ctx.currentText === persistence.persistedText) return;
-    updatePart(ctx.currentTextPartId, { text: ctx.currentText }, { syncFts });
-    persistence.persistedText = ctx.currentText;
-    persistence.lastTextPersistedAt = Date.now();
+    if (syncFts) {
+      // Final flush: use generic updatePart which also syncs FTS
+      updatePart(ctx.currentTextPartId, { text: ctx.currentText }, { syncFts: false });
+      persistence.persistedText = ctx.currentText;
+      persistence.lastTextPersistedAt = Date.now();
+    } else {
+      // Intermediate snapshot: no read-before-write
+      persistStreamingPartSnapshots([{
+        id: ctx.currentTextPartId,
+        messageId: ctx.messageId,
+        sessionId: ctx.sessionId,
+        type: 'text',
+        createdAt: ctx.currentTextCreatedAt ?? Date.now(),
+        text: ctx.currentText,
+      }]);
+      persistence.persistedText = ctx.currentText;
+      persistence.lastTextPersistedAt = Date.now();
+    }
   }
 
   function persistReasoning(syncFts: boolean): void {
     if (!ctx.currentReasoningPartId || ctx.currentReasoning === persistence.persistedReasoning) return;
-    updatePart(ctx.currentReasoningPartId, { text: ctx.currentReasoning }, { syncFts });
-    persistence.persistedReasoning = ctx.currentReasoning;
-    persistence.lastReasoningPersistedAt = Date.now();
+    if (syncFts) {
+      updatePart(ctx.currentReasoningPartId, { text: ctx.currentReasoning }, { syncFts: false });
+      persistence.persistedReasoning = ctx.currentReasoning;
+      persistence.lastReasoningPersistedAt = Date.now();
+    } else {
+      persistStreamingPartSnapshots([{
+        id: ctx.currentReasoningPartId,
+        messageId: ctx.messageId,
+        sessionId: ctx.sessionId,
+        type: 'reasoning',
+        createdAt: ctx.currentReasoningCreatedAt ?? Date.now(),
+        text: ctx.currentReasoning,
+      }]);
+      persistence.persistedReasoning = ctx.currentReasoning;
+      persistence.lastReasoningPersistedAt = Date.now();
+    }
   }
 
   function resetTextState(): void {
     ctx.currentTextPartId = null;
+    ctx.currentTextCreatedAt = null;
     ctx.currentText = '';
     persistence.persistedText = '';
     persistence.lastTextPersistedAt = 0;
@@ -58,6 +89,7 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
 
   function resetReasoningState(): void {
     ctx.currentReasoningPartId = null;
+    ctx.currentReasoningCreatedAt = null;
     ctx.currentReasoning = '';
     persistence.persistedReasoning = '';
     persistence.lastReasoningPersistedAt = 0;
@@ -76,15 +108,16 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
           }
         } else {
           ctx.currentTextPartId = randomUUID();
+          ctx.currentTextCreatedAt = Date.now();
           const textPart: TextPart = {
             id: ctx.currentTextPartId,
             messageId: ctx.messageId,
-            createdAt: Date.now(),
+            createdAt: ctx.currentTextCreatedAt,
             type: 'text',
             text: textContent,
           };
           ctx.yieldFn({ type: 'part.created', sessionId: ctx.sessionId, part: textPart });
-          createPart(textPart, ctx.sessionId);
+          createPart(textPart, ctx.sessionId, { syncFts: false });
           persistence.persistedText = textContent;
           persistence.lastTextPersistedAt = Date.now();
         }
@@ -103,15 +136,16 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
           }
         } else {
           ctx.currentReasoningPartId = randomUUID();
+          ctx.currentReasoningCreatedAt = Date.now();
           const reasoningPart: ReasoningPart = {
             id: ctx.currentReasoningPartId,
             messageId: ctx.messageId,
-            createdAt: Date.now(),
+            createdAt: ctx.currentReasoningCreatedAt,
             type: 'reasoning',
             text: reasoningContent,
           };
           ctx.yieldFn({ type: 'part.created', sessionId: ctx.sessionId, part: reasoningPart });
-          createPart(reasoningPart, ctx.sessionId);
+          createPart(reasoningPart, ctx.sessionId, { syncFts: false });
           persistence.persistedReasoning = reasoningContent;
           persistence.lastReasoningPersistedAt = Date.now();
         }
@@ -137,7 +171,7 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
       ctx.toolParts.push(toolPart);
 
       ctx.yieldFn({ type: 'part.created', sessionId: ctx.sessionId, part: toolPart });
-      createPart(toolPart, ctx.sessionId);
+      createPart(toolPart, ctx.sessionId, { syncFts: false });
 
       resetTextState();
       resetReasoningState();
@@ -196,7 +230,7 @@ export function createStreamHandlers(ctx: StreamHandlerContext) {
         }
 
         ctx.yieldFn({ type: 'part.updated', sessionId: ctx.sessionId, part: updatedToolPart });
-        updatePart(updatedToolPart.id, { state: updatedToolPart.state });
+        updatePart(updatedToolPart.id, { state: updatedToolPart.state }, { syncFts: false });
       }
     },
 

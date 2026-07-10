@@ -2,8 +2,16 @@ export const queryKeys = {
   sessions: {
     all: ['sessions'] as const,
     byWorkspace: (workspaceId: string) => ['sessions', 'workspace', workspaceId] as const,
+    byWorkspaceInfinite: (options: {
+      workspaceId: string;
+      status?: string;
+      rootOnly?: boolean;
+      limit: number;
+    }) => ['sessions', 'workspace', 'infinite', options] as const,
     grouped: (workspaceIds: string[], status?: string) =>
       ['sessions', 'grouped', { workspaceIds: [...workspaceIds].sort(), status }] as const,
+    groupedBounded: (workspaceIds: string[], status: string | undefined, limitPerWorkspace: number) =>
+      ['sessions', 'grouped', 'bounded', { workspaceIds: [...workspaceIds].sort(), status, limitPerWorkspace }] as const,
     tags: (workspaceId: string) => ['sessions', 'tags', workspaceId] as const,
   },
   tools: {

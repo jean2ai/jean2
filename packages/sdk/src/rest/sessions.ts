@@ -36,6 +36,7 @@ interface ListGroupedOptions {
   workspaceIds: string[];
   status?: SessionStatus;
   rootOnly?: boolean;
+  limitPerWorkspace?: number;
   signal?: AbortSignal;
 }
 
@@ -43,6 +44,8 @@ interface ListByWorkspaceOptions {
   workspaceId: string;
   status?: SessionStatus;
   rootOnly?: boolean;
+  cursor?: string;
+  limit?: number;
   signal?: AbortSignal;
 }
 
@@ -83,6 +86,7 @@ export class SessionsRestNamespace {
     };
     if (options.status) params.status = options.status;
     if (options.rootOnly) params.rootOnly = 'true';
+    if (options.limitPerWorkspace !== undefined) params.limitPerWorkspace = String(options.limitPerWorkspace);
     return this.http.get('/sessions/grouped', { params, signal: options.signal });
   }
 
@@ -90,6 +94,8 @@ export class SessionsRestNamespace {
     const params: Record<string, string> = {};
     if (options.status) params.status = options.status;
     if (options.rootOnly) params.rootOnly = 'true';
+    if (options.limit !== undefined) params.limit = String(options.limit);
+    if (options.cursor) params.cursor = options.cursor;
     return this.http.get(`/workspaces/${encodeURIComponent(options.workspaceId)}/sessions`, { params, signal: options.signal });
   }
 
