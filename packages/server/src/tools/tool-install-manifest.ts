@@ -19,6 +19,18 @@ export interface InstallManifest {
   sdkIntegrity?: string;
 }
 
+function isInstallManifest(data: unknown): data is InstallManifest {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.toolName === 'string' &&
+    (obj.toolVersion === null || typeof obj.toolVersion === 'string') &&
+    typeof obj.installedAt === 'string' &&
+    typeof obj.entry === 'string' &&
+    typeof obj.runtime === 'string'
+  );
+}
+
 export function readInstallManifest(
   toolsDir: string,
   toolName: string,
@@ -29,7 +41,12 @@ export function readInstallManifest(
   }
   try {
     const content = readFileSync(manifestPath, 'utf-8');
-    return JSON.parse(content) as InstallManifest;
+    const parsed: unknown = JSON.parse(content);
+    if (!isInstallManifest(parsed)) {
+      console.warn(`[install-manifest] Invalid manifest for ${toolName}: missing required fields`);
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }

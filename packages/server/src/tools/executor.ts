@@ -11,6 +11,14 @@ const BLOCKED_PATHS = [
   '/proc/', '/sys/', '/root/',
 ];
 
+function createThrowingStub<T>(name: string): T {
+  return new Proxy({}, {
+    get() {
+      throw new Error(`${name} API not available: this tool requires ${name} capabilities that were not provided`);
+    },
+  }) as T;
+}
+
 const SENSITIVE_PATTERNS = [
   '.env', '.pem', '.key', '.ssh/', 'id_rsa', 'id_ed25519',
   '.gitconfig', '.npmrc', 'credentials', 'secrets', 'password',
@@ -265,8 +273,8 @@ export async function executeTool(options: ExecuteToolOptions): Promise<ToolResu
     abortSignal: toolAbortController.signal,
     allowedPaths: options.allowedPaths ?? [],
     fs: createFileSystemApi(effectiveWorkspace, sessionId),
-    llm: createLlmApi ? createLlmApi() : ({} as LlmApi),
-    ask: createAskApi ? createAskApi(options.toolCallId ?? '') : ({} as AskApi),
+    llm: createLlmApi ? createLlmApi() : createThrowingStub<LlmApi>('llm'),
+    ask: createAskApi ? createAskApi(options.toolCallId ?? '') : createThrowingStub<AskApi>('ask'),
     env: createEnvApi(tool.definition.env),
     logger: createLogger(tool.definition.name, sessionId),
     fetch: globalThis.fetch.bind(globalThis),

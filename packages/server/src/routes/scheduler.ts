@@ -61,8 +61,8 @@ export function registerSchedulerRoutes(app: Hono): void {
     validate('json', updateScheduledJobSchema),
     async (c) => {
       const jobId = c.req.param('jobId');
-      const body = c.req.valid('json') as Record<string, unknown>;
-      const updated = updateScheduledJob(jobId, body as Parameters<typeof updateScheduledJob>[1]);
+      const body = c.req.valid('json');
+      const updated = updateScheduledJob(jobId, body as unknown as Parameters<typeof updateScheduledJob>[1]);
       if (!updated) {
         throw new NotFoundError('Scheduled job not found');
       }
