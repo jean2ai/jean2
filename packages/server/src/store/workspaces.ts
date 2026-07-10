@@ -85,25 +85,27 @@ export function createWorkspace(input: CreateWorkspaceInput): Workspace {
     updatedAt: now,
   };
 
-  db.run(`
-    INSERT INTO workspaces (id, name, path, is_virtual, settings, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `, [
-    workspace.id,
-    workspace.name,
-    workspace.path,
-    workspace.isVirtual ? 1 : 0,
-    JSON.stringify(settings),
-    workspace.createdAt,
-    workspace.updatedAt,
-  ]);
+  db.transaction(() => {
+    db.run(`
+      INSERT INTO workspaces (id, name, path, is_virtual, settings, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [
+      workspace.id,
+      workspace.name,
+      workspace.path,
+      workspace.isVirtual ? 1 : 0,
+      JSON.stringify(settings),
+      workspace.createdAt,
+      workspace.updatedAt,
+    ]);
 
-  for (const p of input.additionalPaths ?? []) {
-    db.run(
-      'INSERT OR IGNORE INTO workspace_paths (workspace_id, path) VALUES (?, ?)',
-      [workspace.id, p],
-    );
-  }
+    for (const p of input.additionalPaths ?? []) {
+      db.run(
+        'INSERT OR IGNORE INTO workspace_paths (workspace_id, path) VALUES (?, ?)',
+        [workspace.id, p],
+      );
+    }
+  })();
 
   return workspace;
 }
@@ -141,28 +143,30 @@ export function updateWorkspace(
   const db = getDatabase();
   const now = new Date().toISOString();
 
-  if (updates.name !== undefined) {
-    db.run('UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ?', [
-      updates.name, now, id,
-    ]);
-  }
-
-  if (updates.additionalPaths !== undefined) {
-    db.run('DELETE FROM workspace_paths WHERE workspace_id = ?', [id]);
-    for (const p of updates.additionalPaths) {
-      db.run(
-        'INSERT OR IGNORE INTO workspace_paths (workspace_id, path) VALUES (?, ?)',
-        [id, p],
-      );
+  db.transaction(() => {
+    if (updates.name !== undefined) {
+      db.run('UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ?', [
+        updates.name, now, id,
+      ]);
     }
-    db.run('UPDATE workspaces SET updated_at = ? WHERE id = ?', [now, id]);
-  }
 
-  if (updates.settings !== undefined) {
-    db.run('UPDATE workspaces SET settings = ?, updated_at = ? WHERE id = ?', [
-      JSON.stringify(updates.settings), now, id,
-    ]);
-  }
+    if (updates.additionalPaths !== undefined) {
+      db.run('DELETE FROM workspace_paths WHERE workspace_id = ?', [id]);
+      for (const p of updates.additionalPaths) {
+        db.run(
+          'INSERT OR IGNORE INTO workspace_paths (workspace_id, path) VALUES (?, ?)',
+          [id, p],
+        );
+      }
+      db.run('UPDATE workspaces SET updated_at = ? WHERE id = ?', [now, id]);
+    }
+
+    if (updates.settings !== undefined) {
+      db.run('UPDATE workspaces SET settings = ?, updated_at = ? WHERE id = ?', [
+        JSON.stringify(updates.settings), now, id,
+      ]);
+    }
+  })();
 
   const row = db.query('SELECT * FROM workspaces WHERE id = ?').get(id) as WorkspaceRow | undefined;
   if (!row) return null;
