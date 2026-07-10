@@ -238,7 +238,9 @@ export function WorkspaceSwitcher({
             <CommandSeparator />
             <CommandGroup>
               <CommandItem
+                disabled={isCreatingWorkspace}
                 onSelect={() => {
+                  if (isCreatingWorkspace) return;
                   onCreateVirtualWorkspace();
                   setOpen(false);
                 }}
@@ -247,7 +249,9 @@ export function WorkspaceSwitcher({
                 Create virtual workspace
               </CommandItem>
               <CommandItem
+                disabled={isCreatingWorkspace}
                 onSelect={() => {
+                  if (isCreatingWorkspace) return;
                   setOpen(false);
                   setShowFolderPicker(true);
                 }}
@@ -264,6 +268,7 @@ export function WorkspaceSwitcher({
       open={showFolderPicker}
       onOpenChange={setShowFolderPicker}
       onSelect={(path) => {
+        if (isCreatingWorkspace) return;
         onCreatePhysicalWorkspace(path);
         setShowFolderPicker(false);
       }}

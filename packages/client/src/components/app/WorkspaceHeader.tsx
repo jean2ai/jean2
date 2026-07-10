@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { FolderOpen, PanelLeft } from 'lucide-react';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
@@ -26,8 +27,14 @@ export function WorkspaceHeader() {
   // Chat data for the merged ChatHeader
   const currentSession = useSessionStore((s) => s.currentSession);
   const sessionUsage = useSessionStore((s) => s.sessionUsage);
+  const currentSessionMessages = useSessionStore((s) =>
+    currentSession ? s.messagesBySession[currentSession.id] : undefined,
+  );
   const streamingSessionIds = useConnectionStore((s) => s.streamingSessionIds);
-  const messagesWithParts = sessionManager.messagesWithParts;
+  const compactableMessageCount = useMemo(
+    () => currentSessionMessages?.filter((message) => message.role !== 'system').length ?? 0,
+    [currentSessionMessages],
+  );
 
   const currentModel = sessionManager.currentModel;
   const selectedVariant = sessionManager.selectedVariant;
@@ -73,9 +80,9 @@ export function WorkspaceHeader() {
               onRename={sessionManager.handleRenameSession}
               onNavigateBack={sessionManager.handleNavigateBack}
               isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
-              onCompact={messagesWithParts.length >= 2 ? () => sessionManager.compactSession(currentSession.id) : undefined}
+              onCompact={compactableMessageCount >= 2 ? () => sessionManager.compactSession(currentSession.id) : undefined}
               isCompacting={isCompacting}
-              canCompact={messagesWithParts.filter((m) => m.message.role !== 'system').length >= 2}
+              canCompact={compactableMessageCount >= 2}
               selectedVariant={selectedVariant}
               variants={currentModelInfo?.variants}
               onClaimControl={sessionManager.claimControl}

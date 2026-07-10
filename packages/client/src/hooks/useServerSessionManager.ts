@@ -4,7 +4,7 @@ import { useParams, useRouterState } from '@tanstack/react-router';
 import type {
   Session,
   Message,
-  MessageWithParts,
+
   Workspace,
   WorkspaceSettings,
   PermissionGrant,
@@ -58,7 +58,7 @@ export interface UseServerSessionManagerReturn {
   currentSession: Session | null;
   sessions: Session[];
   workspaceSessions: Session[];
-  messagesWithParts: MessageWithParts[];
+
   pendingAskRequests: PendingAskRequest[];
   queuedMessages: Record<string, QueuedMessage[]>;
   permissions: PermissionGrant[];
@@ -199,12 +199,6 @@ export function useServerSessionManager({
   }, [currentSession, setCurrentSession]);
 
   const activeSessionId = currentSession?.id;
-  const activeSessionMessages = useSessionStore(
-    useShallow((state) => activeSessionId ? state.messagesBySession[activeSessionId] || [] : []),
-  );
-  const activeSessionPartsMap = useSessionStore(
-    useShallow((state) => activeSessionId ? state.partsBySession[activeSessionId] || {} : {}),
-  );
 
   useLayoutEffect(() => {
     messagesBySessionRef.current = useSessionStore.getState().messagesBySession;
@@ -491,15 +485,7 @@ export function useServerSessionManager({
     sessionsRef.current = sessions;
   }, [sessions]);
 
-  const getMessagesWithParts = useCallback((sessionId: string): MessageWithParts[] => {
-    if (sessionId !== activeSessionId) {
-      return [];
-    }
-    return activeSessionMessages.map(message => ({
-      message,
-      parts: (activeSessionPartsMap[message.id] || []).sort((a, b) => a.createdAt - b.createdAt),
-    }));
-  }, [activeSessionId, activeSessionMessages, activeSessionPartsMap]);
+
 
   const { removeServer } = useServerContext();
 
@@ -887,7 +873,7 @@ export function useServerSessionManager({
     .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
     .map(conn => conn.workspaceId!);
 
-  const messagesWithParts = currentSession ? getMessagesWithParts(currentSession.id) : [];
+
 
   const isPrimarySession = !currentSession?.parentId;
 
@@ -905,7 +891,7 @@ export function useServerSessionManager({
     currentSession,
     sessions,
     workspaceSessions,
-    messagesWithParts,
+
     pendingAskRequests,
     queuedMessages,
 

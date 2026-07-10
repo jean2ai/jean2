@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import type { Jean2Client } from '@jean2/sdk';
 import type { ModelRuntimeStatus, ModelWithStatus } from '@jean2/sdk';
 import {
@@ -129,14 +130,14 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   const [providerForm, setProviderForm] = useState<ProviderFormData>(emptyProviderForm);
   const [savingProvider, setSavingProvider] = useState(false);
   const [deleteProviderTarget, setDeleteProviderTarget] = useState<string | null>(null);
-  const [, setDeletingProvider] = useState(false);
+  const [deletingProvider, setDeletingProvider] = useState(false);
 
   const [editingModel, setEditingModel] = useState<{ providerId: string; modelId: string } | null>(null);
   const [isCreatingModel, setIsCreatingModel] = useState<string | null>(null);
   const [modelForm, setModelForm] = useState<ModelFormData>(emptyModelForm);
   const [savingModel, setSavingModel] = useState(false);
   const [deleteModelTarget, setDeleteModelTarget] = useState<{ providerId: string; modelId: string } | null>(null);
-  const [, setDeletingModel] = useState(false);
+  const [deletingModel, setDeletingModel] = useState(false);
   const [variantJsonErrors, setVariantJsonErrors] = useState<Record<string, boolean>>({});
 
   const [isEditingDefaults, setIsEditingDefaults] = useState(false);
@@ -237,10 +238,14 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
   };
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set());
 
-  // Sync defaultsForm from query data
-  if (config && defaultsForm.defaultProvider === '' && defaultsForm.defaultModel === '') {
-    setDefaultsForm({ defaultProvider: config.defaultProvider, defaultModel: config.defaultModel });
-  }
+  useEffect(() => {
+    if (!config) return;
+    setDefaultsForm((current) =>
+      current.defaultProvider === '' && current.defaultModel === ''
+        ? { defaultProvider: config.defaultProvider, defaultModel: config.defaultModel }
+        : current,
+    );
+  }, [config]);
 
   const handleCreateProvider = () => {
     setIsCreatingProvider(true);
@@ -281,7 +286,9 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
       await deleteProviderMut.mutateAsync(deleteProviderTarget);
       setDeleteProviderTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete provider');
+      const message = err instanceof Error ? err.message : 'Failed to delete provider';
+      setError(message);
+      toast.error('Failed to delete provider', { description: message });
     } finally {
       setDeletingProvider(false);
     }
@@ -353,7 +360,9 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
       await deleteModelMut.mutateAsync({ providerId: deleteModelTarget.providerId, modelId: deleteModelTarget.modelId });
       setDeleteModelTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete model');
+      const message = err instanceof Error ? err.message : 'Failed to delete model';
+      setError(message);
+      toast.error('Failed to delete model', { description: message });
     } finally {
       setDeletingModel(false);
     }
@@ -970,6 +979,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDeleteProvider}
+        loading={deletingProvider}
       />
 
       <ConfirmDialog
@@ -980,6 +990,7 @@ export function ModelsPanel({ sdkClient }: PanelProps) {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDeleteModel}
+        loading={deletingModel}
       />
     </div>
   );

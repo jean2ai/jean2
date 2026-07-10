@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
@@ -90,6 +91,21 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
   const resumeJobMutation = useResumeScheduledJob(sdkClient, workspaceIdForJobs);
   const triggerJobMutation = useTriggerScheduledJob(sdkClient, workspaceIdForJobs);
   const deleteJobMutation = useDeleteScheduledJob(sdkClient, workspaceIdForJobs);
+  const pendingScheduledJobIds = useMemo(() => new Set([
+    pauseJobMutation.isPending ? pauseJobMutation.variables : undefined,
+    resumeJobMutation.isPending ? resumeJobMutation.variables : undefined,
+    triggerJobMutation.isPending ? triggerJobMutation.variables : undefined,
+    deleteJobMutation.isPending ? deleteJobMutation.variables : undefined,
+  ].filter((jobId): jobId is string => typeof jobId === 'string')), [
+    pauseJobMutation.isPending,
+    pauseJobMutation.variables,
+    resumeJobMutation.isPending,
+    resumeJobMutation.variables,
+    triggerJobMutation.isPending,
+    triggerJobMutation.variables,
+    deleteJobMutation.isPending,
+    deleteJobMutation.variables,
+  ]);
 
   const setShowSchedulerJob = useUIStore(s => s.setShowSchedulerJob);
 
@@ -165,6 +181,7 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
       archivedSessions={archivedSessions}
       scheduledJobs={scheduledJobs ?? []}
       scheduledSessionsByJob={sidebarData.scheduledSessionsByJob}
+      pendingScheduledJobIds={pendingScheduledJobIds}
       childrenMap={sidebarData.childrenMap}
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSessionId={sidebarData.currentSessionId}
@@ -183,10 +200,18 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
       onRemoveTag={handleRemoveTag}
       onCreateScheduledJob={() => setShowSchedulerJob(true)}
       onEditScheduledJob={(job) => setShowSchedulerJob(true, job)}
-      onPauseScheduledJob={(jobId) => pauseJobMutation.mutate(jobId)}
-      onResumeScheduledJob={(jobId) => resumeJobMutation.mutate(jobId)}
-      onTriggerScheduledJob={(jobId) => triggerJobMutation.mutate(jobId)}
-      onDeleteScheduledJob={(jobId) => deleteJobMutation.mutate(jobId)}
+      onPauseScheduledJob={(jobId) => pauseJobMutation.mutate(jobId, {
+        onError: (error) => toast.error('Failed to pause scheduled job', { description: error.message }),
+      })}
+      onResumeScheduledJob={(jobId) => resumeJobMutation.mutate(jobId, {
+        onError: (error) => toast.error('Failed to resume scheduled job', { description: error.message }),
+      })}
+      onTriggerScheduledJob={(jobId) => triggerJobMutation.mutate(jobId, {
+        onError: (error) => toast.error('Failed to trigger scheduled job', { description: error.message }),
+      })}
+      onDeleteScheduledJob={(jobId) => deleteJobMutation.mutate(jobId, {
+        onError: (error) => toast.error('Failed to delete scheduled job', { description: error.message }),
+      })}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
       onLoadMore={fetchNextPage}

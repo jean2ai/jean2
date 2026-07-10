@@ -32,6 +32,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { platform } from '@/platform';
+import { useFileSearchQuery } from '@/hooks/queries';
 
 interface FilesPanelProps {
   sdkClient: Jean2Client | null;
@@ -112,41 +113,33 @@ function SearchResults({
   root: string | undefined;
   onFileSelect: (file: FileEntry) => void;
 }) {
-  const [results, setResults] = useState<FileEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const queryIdRef = useRef(0);
+  const normalizedQuery = query.trim();
+  const [debouncedQuery, setDebouncedQuery] = useState(normalizedQuery);
 
   useEffect(() => {
-    if (!query || query.length < 2 || !sdkClient) {
-      setResults([]);
+    if (normalizedQuery.length < 2) {
+      setDebouncedQuery('');
       return;
     }
 
-    const timer = setTimeout(() => {
-      const queryId = ++queryIdRef.current;
-      setLoading(true);
-      const controller = new AbortController();
-
-      sdkClient.http.files
-        .search(workspaceId, query, { showHidden: true, root, limit: 50, signal: controller.signal })
-        .then((data) => {
-          if (queryId !== queryIdRef.current) return;
-          setResults(data.files ?? []);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof Error && err.name !== 'AbortError') {
-            console.error('File search failed:', err);
-          }
-        })
-        .finally(() => {
-          if (queryId === queryIdRef.current) setLoading(false);
-        });
-
-      return () => controller.abort();
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(normalizedQuery);
     }, SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
-  }, [workspaceId, query, root, sdkClient, onFileSelect]);
+    return () => window.clearTimeout(timer);
+  }, [normalizedQuery]);
+
+  const effectiveQuery = normalizedQuery.length >= 2 ? debouncedQuery : '';
+  const { data, isFetching, error } = useFileSearchQuery(
+    sdkClient,
+    workspaceId,
+    effectiveQuery,
+    root,
+  );
+  const results = data?.files ?? [];
+  const loading = normalizedQuery.length >= 2 && (
+    effectiveQuery !== normalizedQuery || isFetching
+  );
 
   if (!query || query.length < 2) {
     return (
@@ -161,6 +154,14 @@ function SearchResults({
       <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
         <RefreshCw className="w-3.5 h-3.5 animate-spin mr-2" />
         Searching...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-3 text-xs text-destructive">
+        {error instanceof Error ? error.message : 'File search failed'}
       </div>
     );
   }

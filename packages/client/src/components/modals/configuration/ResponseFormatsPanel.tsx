@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import type { Jean2Client, ResponseFormat } from '@jean2/sdk';
 import { useResponseFormatsQuery, useCreateResponseFormat, useUpdateResponseFormat, useDeleteResponseFormat } from '@/hooks/queries';
 import { Braces, Plus, Pencil, Trash2, ArrowLeft, Loader2, GripVertical, Code, Eye, ChevronRight } from 'lucide-react';
@@ -654,7 +655,9 @@ export function ResponseFormatsPanel({ sdkClient }: PanelProps) {
       await deleteMut.mutateAsync(deleteTarget.id);
       setDeleteTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete');
+      const message = err instanceof Error ? err.message : 'Failed to delete';
+      setError(message);
+      toast.error('Failed to delete response format', { description: message });
     }
   };
 
@@ -858,6 +861,7 @@ export function ResponseFormatsPanel({ sdkClient }: PanelProps) {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
+        loading={deleteMut.isPending}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import type { Jean2Client } from '@jean2/sdk';
 import { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from '@/hooks/queries';
 import { FileText, Plus, Pencil, Trash2, ArrowLeft, Loader2 } from 'lucide-react';
@@ -71,7 +72,9 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
       await deletePromptMut.mutateAsync(deleteTarget);
       setDeleteTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete prompt');
+      const message = err instanceof Error ? err.message : 'Failed to delete prompt';
+      setError(message);
+      toast.error('Failed to delete prompt', { description: message });
     }
   };
 
@@ -203,6 +206,7 @@ export function PromptsPanel({ sdkClient }: PanelProps) {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
+        loading={deletePromptMut.isPending}
       />
     </div>
   );

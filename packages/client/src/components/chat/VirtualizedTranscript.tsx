@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, memo, useLayoutEffect } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo, memo, useLayoutEffect } from 'react';
 import { buildApiUrl } from '@/config/urls';
 import { LegendList, type LegendListRef } from '@legendapp/list/react';
 import { ChevronDown, ChevronRight, Download, FileIcon, Braces } from 'lucide-react';
@@ -65,30 +65,6 @@ function getTextContent(parts: Part[]): string {
     .filter((part): part is TextPart => part.type === 'text')
     .map(part => part.text)
     .join('');
-}
-
-function findRevertMessageId(
-  targetMessageId: string,
-  messagesWithParts: MessageWithParts[]
-): string | null {
-  const targetIndex = messagesWithParts.findIndex(mwp => mwp.message.id === targetMessageId);
-
-  if (targetIndex < 0) {
-    return null;
-  }
-
-  if (targetIndex === 0) {
-    return targetMessageId;
-  }
-
-  for (let i = targetIndex - 1; i >= 0; i--) {
-    const mwp = messagesWithParts[i];
-    if (mwp.message.role === 'assistant' && mwp.message.status !== 'streaming') {
-      return mwp.message.id;
-    }
-  }
-
-  return null;
 }
 
 function CompactionInProgressBanner() {
@@ -189,11 +165,9 @@ const MessageParts = memo(function MessageParts({
   inverted?: boolean;
   serverUrl?: string;
 }) {
-  const sortedParts = [...parts].sort((a, b) => a.createdAt - b.createdAt);
-
   return (
     <>
-      {sortedParts.map((part) => {
+      {parts.map((part) => {
         switch (part.type) {
           case 'text': {
             const text = inverted && part.text
@@ -361,7 +335,7 @@ const StructuredOutputMessage = memo(function StructuredOutputMessage({
 
 interface MessageRowProps {
   item: DisplayItem;
-  messagesWithParts: MessageWithParts[];
+  revertMessageId: string | null;
   sessionId: string;
   pendingAskRequests: PendingAskRequest[];
   onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
@@ -376,13 +350,13 @@ interface MessageRowProps {
   serverUrl?: string;
   isPinned?: boolean;
   canPin?: boolean;
-  onTogglePin?: () => void;
+  onTogglePinMessage?: (message: Message) => void;
   isPinningMessage?: boolean;
 }
 
 const MessageRow = memo(function MessageRow({
   item,
-  messagesWithParts,
+  revertMessageId,
   sessionId,
   pendingAskRequests,
   onAskResponse,
@@ -397,7 +371,7 @@ const MessageRow = memo(function MessageRow({
   serverUrl,
   isPinned = false,
   canPin = false,
-  onTogglePin,
+  onTogglePinMessage,
   isPinningMessage = false,
 }: MessageRowProps) {
   const compactionPart = item.parts.find(
@@ -431,9 +405,6 @@ const MessageRow = memo(function MessageRow({
   }
 
   const canRevert = !item.isQueued && item.message.role === 'user';
-  const revertMessageId = canRevert
-    ? findRevertMessageId(item.message.id, messagesWithParts)
-    : null;
   const isClearAll = revertMessageId === item.message.id;
 
   return (
@@ -451,7 +422,7 @@ const MessageRow = memo(function MessageRow({
       isClearAll={isClearAll}
       isPinned={isPinned}
       canPin={canPin}
-      onTogglePin={onTogglePin}
+      onTogglePin={onTogglePinMessage ? () => onTogglePinMessage(item.message) : undefined}
       isPinningMessage={isPinningMessage}
     >
       {item.parts.length === 0 ? (
@@ -477,7 +448,33 @@ const MessageRow = memo(function MessageRow({
       )}
     </MessageBubble>
   );
-});
+}, areMessageRowPropsEqual);
+
+function areMessageRowPropsEqual(prev: MessageRowProps, next: MessageRowProps): boolean {
+  return (
+    prev.item.message === next.item.message &&
+    prev.item.parts === next.item.parts &&
+    prev.item.isQueued === next.item.isQueued &&
+    prev.item.queueId === next.item.queueId &&
+    prev.revertMessageId === next.revertMessageId &&
+    prev.sessionId === next.sessionId &&
+    prev.pendingAskRequests === next.pendingAskRequests &&
+    prev.onAskResponse === next.onAskResponse &&
+    prev.onNavigateToSubagent === next.onNavigateToSubagent &&
+    prev.onRemoveFromQueue === next.onRemoveFromQueue &&
+    prev.onRevert === next.onRevert &&
+    prev.onFork === next.onFork &&
+    prev.onEditMessage === next.onEditMessage &&
+    prev.isMainActiveSession === next.isMainActiveSession &&
+    prev.isCompacting === next.isCompacting &&
+    prev.onCompact === next.onCompact &&
+    prev.serverUrl === next.serverUrl &&
+    prev.isPinned === next.isPinned &&
+    prev.canPin === next.canPin &&
+    prev.onTogglePinMessage === next.onTogglePinMessage &&
+    prev.isPinningMessage === next.isPinningMessage
+  );
+}
 
 function EmptyTranscript() {
   return (
@@ -720,6 +717,21 @@ export function VirtualizedTranscript({
 
   }, []);
 
+  const revertMessageIds = useMemo(() => {
+    const ids = new Map<string, string | null>();
+    let previousCompletedAssistantId: string | null = null;
+
+    messagesWithParts.forEach(({ message }, index) => {
+      if (message.role === 'user') {
+        ids.set(message.id, index === 0 ? message.id : previousCompletedAssistantId);
+      } else if (message.role === 'assistant' && message.status !== 'streaming') {
+        previousCompletedAssistantId = message.id;
+      }
+    });
+
+    return ids;
+  }, [messagesWithParts]);
+
   const renderItem = useCallback(({ item }: { item: DisplayItem }) => (
     <div
       className={cn(
@@ -729,7 +741,7 @@ export function VirtualizedTranscript({
     >
       <MessageRow
         item={item}
-        messagesWithParts={messagesWithParts}
+        revertMessageId={revertMessageIds.get(item.message.id) ?? null}
         sessionId={sessionId}
         pendingAskRequests={pendingAskRequests}
         onAskResponse={onAskResponse}
@@ -744,16 +756,16 @@ export function VirtualizedTranscript({
         serverUrl={serverUrl}
         isPinned={pinnedMessageIds?.has(item.message.id) ?? false}
         canPin={item.message.role === 'assistant' && !item.isQueued}
-        onTogglePin={
+        onTogglePinMessage={
           item.message.role === 'assistant' && !item.isQueued
-            ? () => onTogglePinMessage?.(item.message)
+            ? onTogglePinMessage
             : undefined
         }
         isPinningMessage={isPinningMessage}
       />
     </div>
   ), [
-    messagesWithParts,
+    revertMessageIds,
     sessionId,
     pendingAskRequests,
     onAskResponse,

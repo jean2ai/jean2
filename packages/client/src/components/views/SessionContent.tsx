@@ -1,7 +1,12 @@
+import { useMemo } from 'react';
+import type { Part } from '@jean2/sdk';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppMainContent } from '@/components/app/AppMainContent';
 import { ChatLoadingState } from '@/components/shared/LoadingSkeleton';
+import { useSessionStore } from '@/stores/sessionStore';
+
+const EMPTY_PARTS: Part[] = [];
 
 export default function SessionContent() {
   const sessionManager = useSessionManager();
@@ -9,7 +14,6 @@ export default function SessionContent() {
 
   const {
     sdkClient,
-    messagesWithParts,
     serverUrl,
     currentSession,
     isSessionLoading,
@@ -24,6 +28,20 @@ export default function SessionContent() {
     handleInterruptSession,
     setCompactionSuccess,
   } = sessionManager;
+
+  const activeSessionMessages = useSessionStore((state) =>
+    currentSession ? state.messagesBySession[currentSession.id] : undefined,
+  );
+  const activeSessionParts = useSessionStore((state) =>
+    currentSession ? state.partsBySession[currentSession.id] : undefined,
+  );
+  const messagesWithParts = useMemo(
+    () => (activeSessionMessages ?? []).map((message) => ({
+      message,
+      parts: activeSessionParts?.[message.id] ?? EMPTY_PARTS,
+    })),
+    [activeSessionMessages, activeSessionParts],
+  );
 
   if (isSessionLoading) {
     return <ChatLoadingState />;

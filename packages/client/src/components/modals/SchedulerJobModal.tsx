@@ -27,6 +27,7 @@ import {
   useUpdateScheduledJob,
 } from '@/hooks/queries';
 import { formatLastRun } from '@/utils/scheduleCountdown';
+import { Loader2 } from 'lucide-react';
 
 interface SchedulerJobModalProps {
   open: boolean;
@@ -69,12 +70,14 @@ export function SchedulerJobModal({
   const [reuseSession, setReuseSession] = useState(false);
   const [includeHistory, setIncludeHistory] = useState(false);
   const [autoApproveSeverity, setAutoApproveSeverity] = useState<AutoApproveSeverity | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateScheduledJob(sdkClient, workspaceId);
   const updateMutation = useUpdateScheduledJob(sdkClient, workspaceId);
 
   useEffect(() => {
     if (!open) return;
+    setError(null);
     if (editingJob) {
       setName(editingJob.name);
       setPrompt(editingJob.prompt);
@@ -137,10 +140,25 @@ export function SchedulerJobModal({
     const limitValue = repeatLimit.trim() === '' ? null : parseInt(repeatLimit, 10);
     const preconfigValue = preconfigId === '__default__' ? null : preconfigId;
 
-    if (editingJob) {
-      updateMutation.mutate({
-        jobId: editingJob.id,
-        updates: {
+    setError(null);
+    try {
+      if (editingJob) {
+        await updateMutation.mutateAsync({
+          jobId: editingJob.id,
+          updates: {
+            name: name.trim(),
+            prompt: prompt.trim(),
+            scheduleKind,
+            scheduleConfig: config,
+            repeatLimit: limitValue,
+            preconfigId: preconfigValue,
+            reuseSession,
+            includeHistory,
+            autoApproveSeverity,
+          },
+        });
+      } else {
+        await createMutation.mutateAsync({
           name: name.trim(),
           prompt: prompt.trim(),
           scheduleKind,
@@ -150,22 +168,12 @@ export function SchedulerJobModal({
           reuseSession,
           includeHistory,
           autoApproveSeverity,
-        },
-      });
-    } else {
-      createMutation.mutate({
-        name: name.trim(),
-        prompt: prompt.trim(),
-        scheduleKind,
-        scheduleConfig: config,
-        repeatLimit: limitValue,
-        preconfigId: preconfigValue,
-        reuseSession,
-        includeHistory,
-        autoApproveSeverity,
-      });
+        });
+      }
+      onOpenChange(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save scheduled job');
     }
-    onOpenChange(false);
   }, [workspaceId, name, prompt, buildScheduleConfig, repeatLimit, preconfigId, editingJob, scheduleKind, createMutation, updateMutation, onOpenChange, autoApproveSeverity, reuseSession, includeHistory]);
 
   const toggleDay = (day: number) => {
@@ -177,7 +185,7 @@ export function SchedulerJobModal({
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!isSaving) onOpenChange(nextOpen); }}>
       <DialogContent className="flex flex-col overflow-hidden p-3 sm:p-4 gap-3 sm:gap-4 max-w-[calc(100vw-0.5rem)] sm:max-w-[560px] h-[85dvh] sm:h-[85vh]">
         <DialogHeader className="shrink-0">
           <DialogTitle>{editingJob ? 'Edit Scheduled Job' : 'New Scheduled Job'}</DialogTitle>
@@ -388,11 +396,18 @@ export function SchedulerJobModal({
           )}
         </div>
 
+        {error && (
+          <div role="alert" className="shrink-0 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
         <DialogFooter className="shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!name.trim() || !prompt.trim() || isSaving}>
+            {isSaving && <Loader2 data-icon="inline-start" className="animate-spin" />}
             {isSaving ? 'Saving...' : editingJob ? 'Save changes' : 'Create job'}
           </Button>
         </DialogFooter>

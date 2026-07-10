@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface ConfirmDialogProps {
   variant?: 'default' | 'destructive';
   onConfirm: () => void;
   onCancel?: () => void;
+  loading?: boolean;
 }
 
 export function ConfirmDialog({
@@ -30,33 +32,31 @@ export function ConfirmDialog({
   variant = 'default',
   onConfirm,
   onCancel,
+  loading = false,
 }: ConfirmDialogProps) {
   const handleCancel = () => {
     onCancel?.();
     onOpenChange(false);
   };
 
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={loading ? undefined : onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel} disabled={loading}>
             {cancelLabel}
           </Button>
           <Button
             variant={variant === 'destructive' ? 'destructive' : 'default'}
-            onClick={handleConfirm}
+            onClick={onConfirm}
+            disabled={loading}
           >
-            {confirmLabel}
+            {loading && <Loader2 data-icon="inline-start" className="animate-spin" />}
+            {loading ? 'Working...' : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle2,
   MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import type { ScheduledJob, Session } from '@jean2/sdk';
 import {
@@ -41,6 +42,7 @@ import { useNow } from '@/hooks/useNow';
 interface ScheduledJobsSectionProps {
   jobs: ScheduledJob[];
   sessionsByJob: Map<string, Session[]>;
+  pendingJobIds?: ReadonlySet<string>;
   currentSessionId: string | null;
   onCreateJob: () => void;
   onEditJob: (job: ScheduledJob) => void;
@@ -66,6 +68,7 @@ function relativeTime(iso: string, now: number): string {
 export function ScheduledJobsSection({
   jobs,
   sessionsByJob,
+  pendingJobIds,
   currentSessionId,
   onCreateJob,
   onEditJob,
@@ -149,6 +152,7 @@ export function ScheduledJobsSection({
               )}
               {jobs.map((job) => {
                 const runs = sessionsByJob.get(job.id) ?? [];
+                const isMutating = pendingJobIds?.has(job.id) ?? false;
                 return (
                   <Collapsible key={job.id} className="group/job-collapsible">
                     <SidebarMenuItem>
@@ -196,10 +200,15 @@ export function ScheduledJobsSection({
                             <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
-                                className="p-1 rounded-md hover:bg-sidebar-accent-foreground/10 opacity-0 group-hover/job-collapsible:opacity-100 transition-opacity"
-                                title="Job actions"
+                                disabled={isMutating}
+                                className="p-1 rounded-md hover:bg-sidebar-accent-foreground/10 opacity-0 group-hover/job-collapsible:opacity-100 transition-opacity disabled:opacity-100"
+                                title={isMutating ? 'Updating job' : 'Job actions'}
                               >
-                                <MoreHorizontal className="size-3.5" />
+                                {isMutating ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="size-3.5" />
+                                )}
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-40">
@@ -208,23 +217,24 @@ export function ScheduledJobsSection({
                                 Edit
                               </DropdownMenuItem>
                               {job.state === 'active' && (
-                                <DropdownMenuItem onClick={() => onPauseJob(job.id)}>
+                                <DropdownMenuItem disabled={isMutating} onClick={() => onPauseJob(job.id)}>
                                   <Pause className="size-4" />
                                   Pause
                                 </DropdownMenuItem>
                               )}
                               {(job.state === 'paused' || job.state === 'completed') && (
-                                <DropdownMenuItem onClick={() => onResumeJob(job.id)}>
+                                <DropdownMenuItem disabled={isMutating} onClick={() => onResumeJob(job.id)}>
                                   <Play className="size-4" />
                                   Resume
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem onClick={() => onTriggerJob(job.id)}>
+                              <DropdownMenuItem disabled={isMutating} onClick={() => onTriggerJob(job.id)}>
                                 <Zap className="size-4" />
                                 Trigger now
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => onDeleteJob(job.id)}
+                                disabled={isMutating}
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="size-4" />

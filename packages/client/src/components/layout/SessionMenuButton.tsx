@@ -308,32 +308,35 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
 
   const completionRecord = useCompletionStore(selectCompletionRecord(session.id));
   const clearCompletion = useCompletionStore((s) => s.clearCompletion);
-
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!completionRecord) return;
-    const interval = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(interval);
-  }, [!!completionRecord]);
-
-  const isFlashing = !!completionRecord && (now - completionRecord.flashStartedAt < COMPLETION_FLASH_DURATION_MS);
-  const isSticky = completionRecord?.type === 'flash-then-sticky';
+  const [isFlashing, setIsFlashing] = useState(false);
 
   useEffect(() => {
-    if (!completionRecord || completionRecord.type !== 'flash-only') return;
-
-    const remainingTime = COMPLETION_FLASH_DURATION_MS - (Date.now() - completionRecord.flashStartedAt);
-    if (remainingTime <= 0) {
-      clearCompletion(session.id);
+    if (!completionRecord) {
+      setIsFlashing(false);
       return;
     }
 
+    const remainingTime = COMPLETION_FLASH_DURATION_MS - (Date.now() - completionRecord.flashStartedAt);
+    if (remainingTime <= 0) {
+      setIsFlashing(false);
+      if (completionRecord.type === 'flash-only') {
+        clearCompletion(session.id);
+      }
+      return;
+    }
+
+    setIsFlashing(true);
     const timer = setTimeout(() => {
-      clearCompletion(session.id);
+      setIsFlashing(false);
+      if (completionRecord.type === 'flash-only') {
+        clearCompletion(session.id);
+      }
     }, remainingTime);
 
     return () => clearTimeout(timer);
   }, [completionRecord, session.id, clearCompletion]);
+
+  const isSticky = completionRecord?.type === 'flash-then-sticky';
 
   const highlightClass = isFlashing
     ? 'animate-completion-flash rounded-md'

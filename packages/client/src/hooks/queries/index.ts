@@ -6,7 +6,7 @@ export { usePromptsQuery, useCreatePrompt, useUpdatePrompt, useDeletePrompt } fr
 export { useProvidersQuery, useProviderCredentialsQuery, useConnectProvider, useDisconnectProvider, useCompleteOAuth, useSetProviderCredential, useClearProviderCredential } from './useProvidersQueries';
 export { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } from './useMcpQueries';
 export { useCreateWorkspaceMutation, useDeleteWorkspaceMutation, useRenameWorkspaceMutation, useUpdateWorkspaceMutation } from './useWorkspaceMutations';
-export { useFileBrowseQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery, useFileGitDiffQuery, useGitStatusQuery } from './useFileQueries';
+export { useFileBrowseQuery, useFileSearchQuery, useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery, useFilePreviewQuery, useFileGitDiffQuery, useGitStatusQuery } from './useFileQueries';
 export { useResponseFormatsQuery, useCreateResponseFormat, useUpdateResponseFormat, useDeleteResponseFormat } from './useResponseFormatsQueries';
 export { usePinnedMessagesQuery, usePinMessageMutation, useUnpinMessageMutation } from './usePinnedMessagesQueries';
 export { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from './useSessionTagsQueries';

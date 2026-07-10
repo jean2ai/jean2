@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import type { Jean2Client, ModelWithStatus } from '@jean2/sdk';
 import { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePreconfig, useToolsQuery } from '@/hooks/queries';
 import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X, Cpu, ChevronsUpDown } from 'lucide-react';
@@ -98,7 +99,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [availableTools, setAvailableTools] = useState<{ name: string; description: string }[]>([]);
   const [customToolInput, setCustomToolInput] = useState('');
   const [toolSearch, setToolSearch] = useState('');
@@ -232,7 +233,9 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
       await deletePreconfigMut.mutateAsync(deleteTarget);
       setDeleteTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete preconfig');
+      const message = err instanceof Error ? err.message : 'Failed to delete preconfig';
+      setError(message);
+      toast.error('Failed to delete preconfig', { description: message });
     } finally {
       setDeleting(false);
     }
@@ -755,6 +758,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
+        loading={deleting}
       />
     </div>
   );

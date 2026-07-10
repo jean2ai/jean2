@@ -35,6 +35,8 @@ export const queryKeys = {
   files: {
     browse: (workspaceId: string, path?: string, opts?: { showHidden?: boolean; root?: string }) =>
       ['files', 'browse', workspaceId, path ?? '.', opts] as const,
+    search: (workspaceId: string, query: string, root?: string) =>
+      ['files', 'search', workspaceId, query, root] as const,
     browseFs: (path: string) => ['files', 'browseFs', path] as const,
     drives: ['files', 'drives'] as const,
     parent: (path: string) => ['files', 'parent', path] as const,

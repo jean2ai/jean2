@@ -2,6 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { Jean2Client } from '@jean2/sdk';
 import { queryKeys } from '@/lib/queryKeys';
 
+const FILE_BROWSE_STALE_TIME_MS = 10_000;
+const FILE_CONTENT_STALE_TIME_MS = 5_000;
+
 export function useFileBrowseQuery(
   sdkClient: Jean2Client | null,
   workspaceId: string | undefined,
@@ -13,7 +16,25 @@ export function useFileBrowseQuery(
     queryKey: queryKeys.files.browse(workspaceId ?? '', path, opts),
     queryFn: () => sdkClient!.http.files.browse(workspaceId!, path, opts),
     enabled: !!sdkClient && !!workspaceId && (enabledOverride ?? true),
-    staleTime: 0,
+    staleTime: FILE_BROWSE_STALE_TIME_MS,
+  });
+}
+
+export function useFileSearchQuery(
+  sdkClient: Jean2Client | null,
+  workspaceId: string | undefined,
+  query: string,
+  root?: string,
+) {
+  return useQuery({
+    queryKey: queryKeys.files.search(workspaceId ?? '', query, root),
+    queryFn: ({ signal }) => sdkClient!.http.files.search(
+      workspaceId!,
+      query,
+      { showHidden: true, root, limit: 50, signal },
+    ),
+    enabled: !!sdkClient && !!workspaceId && query.length >= 2,
+    staleTime: FILE_BROWSE_STALE_TIME_MS,
   });
 }
 
@@ -60,7 +81,7 @@ export function useFilePreviewQuery(
     queryKey: queryKeys.files.preview(workspaceId ?? '', path ?? '', root),
     queryFn: () => sdkClient!.http.files.preview(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
-    staleTime: 0,
+    staleTime: FILE_CONTENT_STALE_TIME_MS,
   });
 }
 
@@ -75,7 +96,7 @@ export function useFileGitDiffQuery(
     queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? '', root),
     queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
-    staleTime: 0,
+    staleTime: FILE_CONTENT_STALE_TIME_MS,
   });
 }
 
@@ -89,6 +110,6 @@ export function useGitStatusQuery(
     queryKey: queryKeys.files.gitStatus(workspaceId ?? '', root),
     queryFn: () => sdkClient!.http.files.gitStatus(workspaceId!, { root }),
     enabled: !!sdkClient && !!workspaceId && enabled,
-    staleTime: 0,
+    staleTime: FILE_CONTENT_STALE_TIME_MS,
   });
 }
