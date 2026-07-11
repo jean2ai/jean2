@@ -6,7 +6,7 @@ import {
   getSession,
   updateSession,
   deleteSession,
-  listMessagesWithParts,
+  listLatestMessagesWithPartsPage,
   reconcileSessionCompaction,
   reconcileOrphanedToolCalls,
 } from '@/store';
@@ -107,12 +107,16 @@ export async function handleResumeSession(
   }
 
   const reconciledSession = getSession(msg.sessionId);
-  const messages = listMessagesWithParts(session.id);
+  const transcriptPage = listLatestMessagesWithPartsPage(session.id, 50);
 
   ctx.send(ws, {
     type: 'session.resumed',
     session: reconciledSession!,
-    messages,
+    messages: transcriptPage.messages,
+    transcript: {
+      messages: transcriptPage.messages,
+      pagination: transcriptPage.pagination,
+    },
     usage: reconciledSession!.totalTokens ? {
       promptTokens: reconciledSession!.promptTokens ?? 0,
       completionTokens: reconciledSession!.completionTokens ?? 0,

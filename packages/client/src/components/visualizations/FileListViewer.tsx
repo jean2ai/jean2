@@ -1,7 +1,8 @@
 import { FileEdit, Plus, Trash2, Search, FileText, Copy } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { FileListItem } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 interface FileListGroup {
   label: string;
@@ -48,8 +49,26 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export function FileListViewer({ title, groups, files, total }: FileListViewerProps) {
+  const [showAll, setShowAll] = useState(false);
   const defaultGroup: FileListGroup = { label: 'Files', files: files || [], icon: undefined };
   const displayGroups = groups || (files ? [defaultGroup] : []);
+
+  const totalItemCount = useMemo(
+    () => displayGroups.reduce((sum, g) => sum + g.files.length, 0),
+    [displayGroups],
+  );
+  const needsTruncation = totalItemCount > RENDER_BUDGETS.fileListMaxItems;
+
+  const visibleGroups = useMemo(() => {
+    if (!needsTruncation || showAll) return displayGroups;
+    let remaining = RENDER_BUDGETS.fileListMaxItems;
+    return displayGroups.map((group) => {
+      if (remaining <= 0) return { ...group, files: [] };
+      const slice = group.files.slice(0, remaining);
+      remaining -= slice.length;
+      return { ...group, files: slice };
+    });
+  }, [displayGroups, needsTruncation, showAll]);
 
   if (displayGroups.length === 0) {
     return null;
@@ -66,7 +85,7 @@ export function FileListViewer({ title, groups, files, total }: FileListViewerPr
         </div>
       )}
 
-      {displayGroups.map((group, groupIndex) => (
+      {visibleGroups.map((group, groupIndex) => (
         <div key={groupIndex} className="flex flex-col gap-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {group.icon && (
@@ -112,6 +131,25 @@ export function FileListViewer({ title, groups, files, total }: FileListViewerPr
           </div>
         </div>
       ))}
+
+      {needsTruncation && !showAll && (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          onClick={() => setShowAll(true)}
+        >
+          Show all {totalItemCount} files
+        </button>
+      )}
+      {needsTruncation && showAll && (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          onClick={() => setShowAll(false)}
+        >
+          Show fewer
+        </button>
+      )}
     </div>
   );
 }

@@ -185,13 +185,16 @@ export const useSidebarData = (): UseSidebarDataReturn => {
 
   // Derive ordered tag names (sorted by most recently updated session in group)
   const orderedTagNames = useMemo((): string[] => {
-    const entries = Array.from(tagGroups.entries())
-      .filter(([tag]) => tag !== '__ungrouped__')
-      .map(([tag, sessions]) => ({
-        tag,
-        lastUpdated: Math.max(...sessions.map(s => new Date(s.updatedAt).getTime())),
-      }));
-
+    const entries: { tag: string; lastUpdated: number }[] = [];
+    for (const [tag, sessions] of tagGroups) {
+      if (tag === '__ungrouped__') continue;
+      let latest = 0;
+      for (const s of sessions) {
+        const ts = new Date(s.updatedAt).getTime();
+        if (ts > latest) latest = ts;
+      }
+      entries.push({ tag, lastUpdated: latest });
+    }
     entries.sort((a, b) => b.lastUpdated - a.lastUpdated);
     return entries.map(e => e.tag);
   }, [tagGroups]);

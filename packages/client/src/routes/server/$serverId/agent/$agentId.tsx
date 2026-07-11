@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { createFileRoute, useParams, useRouter } from '@tanstack/react-router';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { useSessionManager } from '@/contexts/SessionManagerContext';
+import { useSdkClient } from '@/contexts/ServerClientContext';
 import WorkspaceView from '@/components/views/WorkspaceView';
 import { AgentSwitcher } from '@/components/agent/AgentSwitcher';
 
@@ -12,7 +12,7 @@ export const Route = createFileRoute('/server/$serverId/agent/$agentId')({
 function AgentWorkspaceLayout() {
   const { agentId, serverId } = useParams({ from: '/server/$serverId/agent/$agentId' });
   const router = useRouter();
-  const { sdkClient } = useSessionManager();
+  const sdkClient = useSdkClient();
   const workspaces = useServerDataStore(s => s.workspaces);
   const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
   const agents = useServerDataStore(s => s.agents);

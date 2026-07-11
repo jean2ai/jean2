@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Server, RefreshCw, Plug, PlugZap, ExternalLink, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { McpStatus, McpServerConfig, Jean2Client } from '@jean2/sdk';
 import { useMcpStatusQuery, useMcpConnect, useMcpDisconnect, useMcpStartAuth } from '@/hooks/queries';
@@ -42,18 +42,11 @@ export function MCPServersPanel({ workspaceId, sdkClient }: MCPServersPanelProps
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (workspaceId) {
-      refetch();
-    }
-  }, [workspaceId, refetch]);
-
   const handleConnect = async (name: string) => {
     if (!workspaceId || !sdkClient) return;
     setActionLoading(name);
     try {
       await connectMut.mutateAsync({ workspaceId, name });
-      refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -66,7 +59,6 @@ export function MCPServersPanel({ workspaceId, sdkClient }: MCPServersPanelProps
     setActionLoading(name);
     try {
       await disconnectMut.mutateAsync({ workspaceId, name });
-      refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -82,7 +74,6 @@ export function MCPServersPanel({ workspaceId, sdkClient }: MCPServersPanelProps
       if (data.authorizationUrl) {
         window.open(data.authorizationUrl, '_blank');
       }
-      refetch();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {

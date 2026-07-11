@@ -81,6 +81,10 @@ export interface SessionHandlersContext {
   interruptedSessions: Set<string>;
   sessionsRef: React.MutableRefObject<Session[]>;
   flushPendingPartAppends: () => void;
+  beginSessionContentLoad: (sessionId: string) => void;
+  replaceSessionContent: (sessionId: string, messagesWithParts: import('@jean2/sdk').MessageWithParts[], metadata?: { hasOlder?: boolean; oldestSequence?: number | null; newestSequence?: number | null }) => void;
+  failSessionContentLoad: (sessionId: string, error: string) => void;
+  touchSessionContent: (sessionId: string) => void;
   setProviderStatuses: React.Dispatch<React.SetStateAction<ProviderStatus[]>>;
   setPermissions: React.Dispatch<React.SetStateAction<PermissionGrant[]>>;
   notifiedToolCallIdsRef: React.MutableRefObject<Set<string>>;

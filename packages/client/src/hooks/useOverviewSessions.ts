@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { Jean2Client, Session } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
 import { queryKeys } from '@/lib/queryKeys';
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
-const OVERVIEW_LIMIT_PER_WORKSPACE = 100;
+const OVERVIEW_LIMIT_PER_WORKSPACE = RENDER_BUDGETS.overviewInitialPageSize;
 
 interface UseOverviewSessionsParams {
   sdkClient: Jean2Client | null;
@@ -149,12 +150,16 @@ export function useOverviewSessions({
     const result: Record<string, string[]> = {};
     for (const id of workspaceIds) {
       const groups = tagGroupsByWorkspace[id] ?? new Map();
-      const entries = Array.from(groups.entries())
-        .filter(([tag]) => tag !== '__ungrouped__')
-        .map(([tag, sessions]) => ({
-          tag,
-          lastUpdated: Math.max(...sessions.map(s => new Date(s.updatedAt).getTime())),
-        }));
+      const entries: { tag: string; lastUpdated: number }[] = [];
+      for (const [tag, sessions] of groups) {
+        if (tag === '__ungrouped__') continue;
+        let latest = 0;
+        for (const s of sessions) {
+          const ts = new Date(s.updatedAt).getTime();
+          if (ts > latest) latest = ts;
+        }
+        entries.push({ tag, lastUpdated: latest });
+      }
       entries.sort((a, b) => b.lastUpdated - a.lastUpdated);
       result[id] = entries.map(e => e.tag);
     }

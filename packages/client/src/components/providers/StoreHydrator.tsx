@@ -1,8 +1,13 @@
-import { useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useLoaderData, useParams } from '@tanstack/react-router';
 import { clearSessionState } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import type { ServerData } from '@/lib/fetchServerData';
+import type { CriticalServerData } from '@/lib/fetchServerData';
+import { fetchSecondaryServerData } from '@/lib/fetchServerData';
+import { queryClient } from '@/components/providers/QueryProvider';
+import { queryKeys } from '@/lib/queryKeys';
+import { mark } from '@/lib/perf';
+import { useServerContext } from '@/contexts/ServerContext';
 
 interface StoreHydratorProps {
   children: ReactNode;
@@ -13,24 +18,31 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
     from: '/server/$serverId',
     strict: false,
     structuralSharing: true,
-  } as unknown as Parameters<typeof useLoaderData>[0]) as ServerData | undefined;
+  } as unknown as Parameters<typeof useLoaderData>[0]) as CriticalServerData | undefined;
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const serverId = params.serverId as string | undefined;
 
+  const { servers } = useServerContext();
+  const activeServer = servers.find(s => s.id === serverId) ?? null;
+  const serverUrl = activeServer?.url ?? null;
+  const apiToken = activeServer?.token ?? undefined;
+
+  const secondaryLoadedRef = useRef<string | null>(null);
+
   useLayoutEffect(() => {
     if (!data) return;
+    mark('shell:first-render');
 
     const usableModels = (data.models || []).filter((m) => m.runtimeStatus?.usable);
-    useServerDataStore.getState().hydrate(serverId ?? '', {
+    useServerDataStore.getState().hydrateCritical(serverId ?? '', {
       workspaces: data.workspaces,
       preconfigs: data.preconfigs,
-      prompts: data.prompts,
       models: usableModels,
       defaultModel: data.defaultModel || 'gpt-4o',
       defaultProvider: data.defaultProvider || 'openai',
-      providers: data.providers,
-      agents: data.agents || [],
     });
+
+    queryClient.setQueryData(queryKeys.config.preconfigs, { preconfigs: data.preconfigs });
 
     const pendingWorkspaceId = localStorage.getItem('activeWorkspaceId');
     const workspaces = data.workspaces;
@@ -47,9 +59,61 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
   }, [data, serverId]);
 
   useEffect(() => {
+    if (!data || !serverUrl || !serverId) return;
+    if (secondaryLoadedRef.current === serverId) return;
+    secondaryLoadedRef.current = serverId;
+
+    const controller = new AbortController();
+
+    fetchSecondaryServerData(serverUrl, apiToken, controller.signal)
+      .then((secondary) => {
+        useServerDataStore.getState().hydrateSecondary({
+          prompts: secondary.prompts,
+          providers: secondary.providers,
+          agents: secondary.agents,
+        });
+
+        if (secondary.prompts.length > 0 || secondary.errors.prompts === null) {
+          queryClient.setQueryData(queryKeys.config.prompts, { prompts: secondary.prompts });
+        }
+        if (secondary.providers.length > 0 || secondary.errors.providers === null) {
+          queryClient.setQueryData(queryKeys.config.providers.all, { providers: secondary.providers });
+        }
+        if (secondary.agents.length > 0 || secondary.errors.agents === null) {
+          queryClient.setQueryData(queryKeys.config.agents, { agents: secondary.agents });
+        }
+
+        if (secondary.errors.prompts) {
+          console.warn('[bootstrap] Failed to load prompts:', secondary.errors.prompts);
+        }
+        if (secondary.errors.providers) {
+          console.warn('[bootstrap] Failed to load providers:', secondary.errors.providers);
+        }
+        if (secondary.errors.agents) {
+          console.warn('[bootstrap] Failed to load agents:', secondary.errors.agents);
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.warn('[bootstrap] Secondary data fetch failed:', err);
+      });
+
+    return () => {
+      controller.abort();
+      secondaryLoadedRef.current = null;
+    };
+  }, [data, serverUrl, serverId, apiToken]);
+
+  useEffect(() => {
     return () => {
       clearSessionState();
       useServerDataStore.getState().clearAll();
+      queryClient.removeQueries({ queryKey: ['sessions'] });
+      queryClient.removeQueries({ queryKey: ['config'] });
+      queryClient.removeQueries({ queryKey: ['transcript'] });
+      queryClient.removeQueries({ queryKey: ['pinnedMessages'] });
+      queryClient.removeQueries({ queryKey: ['mcp'] });
+      queryClient.removeQueries({ queryKey: ['scheduledJobs'] });
     };
   }, []);
 

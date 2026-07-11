@@ -5,6 +5,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { useServerContext } from '@/contexts/ServerContext';
 import { ViewRefsContext } from '@/contexts/ViewRefsContext';
 import { SessionManagerContext } from '@/contexts/SessionManagerContext';
+import { ServerClientProvider, useServerClientMemo } from '@/contexts/ServerClientContext';
+import { SessionCommandsProvider } from '@/contexts/SessionCommandsContext';
 import { useServerSessionManager } from '@/hooks/useServerSessionManager';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { platform } from '@/platform';
@@ -66,6 +68,13 @@ export default function ServerShell() {
     autoFollowToggleRef,
   };
 
+  const serverClientValue = useServerClientMemo(
+    sessionManager.sdkClient,
+    sessionManager.serverUrl,
+    sessionManager.apiToken,
+    sessionManager.connected,
+  );
+
   return (
     <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': platform.id === 'electron' ? '4.625rem' : '2.75rem' } as React.CSSProperties}>
       <div className="bg-background">
@@ -74,9 +83,13 @@ export default function ServerShell() {
 
       <div className="flex flex-1 min-h-0">
         <SessionManagerContext.Provider value={sessionManager}>
-          <ViewRefsContext.Provider value={viewRefs}>
-            <Outlet />
-          </ViewRefsContext.Provider>
+          <ServerClientProvider value={serverClientValue}>
+            <SessionCommandsProvider value={sessionManager}>
+              <ViewRefsContext.Provider value={viewRefs}>
+                <Outlet />
+              </ViewRefsContext.Provider>
+            </SessionCommandsProvider>
+          </ServerClientProvider>
         </SessionManagerContext.Provider>
 
         <FilesPanel

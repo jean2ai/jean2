@@ -7,7 +7,7 @@ import { platform } from '@/platform';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChatHeader } from '@/components/chat/ChatHeader';
-import { useSessionManager } from '@/contexts/SessionManagerContext';
+import { useSessionCommands } from '@/contexts/SessionCommandsContext';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { getWorkspacePreconfigs } from '@/lib/workspacePreconfigs';
@@ -20,13 +20,14 @@ export function WorkspaceHeader() {
   const models = useServerDataStore((s) => s.models);
   const defaultModel = useServerDataStore((s) => s.defaultModel);
   const { toggleSidebar, state: sidebarState } = useSidebar();
-  const sessionManager = useSessionManager();
+  const sessionManager = useSessionCommands();
 
   const preconfigs = getWorkspacePreconfigs(activeWorkspace, allPreconfigs);
 
-  // Chat data for the merged ChatHeader
   const currentSession = useSessionStore((s) => s.currentSession);
   const sessionUsage = useSessionStore((s) => s.sessionUsage);
+  const currentModel = useSessionStore((s) => s.currentModel);
+  const selectedVariant = useSessionStore((s) => s.selectedVariant);
   const currentSessionMessages = useSessionStore((s) =>
     currentSession ? s.messagesBySession[currentSession.id] : undefined,
   );
@@ -36,12 +37,11 @@ export function WorkspaceHeader() {
     [currentSessionMessages],
   );
 
-  const currentModel = sessionManager.currentModel;
-  const selectedVariant = sessionManager.selectedVariant;
-  const isCompacting = sessionManager.isCompacting;
+  const isCompacting = currentSession?.compacting ?? false;
+
+  const currentModelInfo = models.find((m) => m.id === currentModel);
 
   const hasSession = !!currentSession;
-  const currentModelInfo = models.find((m) => m.id === currentModel);
 
   return (
     <TooltipProvider delayDuration={300}>

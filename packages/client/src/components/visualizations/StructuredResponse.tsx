@@ -1,7 +1,8 @@
 import { memo, useState } from 'react';
-import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 const MARKDOWN_RE = /(?:\*\*|__|`|\[[^\]]+\]\(|^#{1,6}\s|^-\s|^\*\s|^\d+\.\s|^>\s|^\|)/m;
 
@@ -17,9 +18,13 @@ interface StructuredResponseProps {
 
 function ObjectDefList({ data, depth = 1 }: { data: Record<string, unknown>; depth?: number }) {
   const entries = Object.entries(data);
+  const maxEntries = RENDER_BUDGETS.structuredMaxObjectEntries;
+  const truncated = entries.length > maxEntries;
+  const visibleEntries = truncated ? entries.slice(0, maxEntries) : entries;
+
   return (
     <dl className="space-y-1.5">
-      {entries.map(([key, value]) => (
+      {visibleEntries.map(([key, value]) => (
         <div key={key} className="flex gap-3 items-start">
           <dt className="text-xs font-medium text-muted-foreground shrink-0 w-28 pt-0.5">
             {formatLabel(key)}
@@ -29,6 +34,9 @@ function ObjectDefList({ data, depth = 1 }: { data: Record<string, unknown>; dep
           </dd>
         </div>
       ))}
+      {truncated && (
+        <TruncatedNotice count={entries.length - maxEntries} kind="entries" />
+      )}
     </dl>
   );
 }
@@ -74,10 +82,17 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
       return <span className="text-sm text-muted-foreground italic">Empty</span>;
     }
 
+    if (depth >= RENDER_BUDGETS.structuredMaxDepth) {
+      return <RawJsonFallback data={data} />;
+    }
+
     if (data.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
+      const maxItems = RENDER_BUDGETS.structuredMaxArrayItems;
+      const truncated = data.length > maxItems;
+      const visibleData = truncated ? data.slice(0, maxItems) : data;
       return (
         <div className="flex flex-wrap gap-1.5">
-          {data.map((item, i) => {
+          {visibleData.map((item, i) => {
             if (typeof item === 'boolean') {
               return (
                 <span key={i} className={cn(
@@ -99,13 +114,20 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
               </span>
             );
           })}
+          {truncated && (
+            <TruncatedNotice count={data.length - maxItems} kind="items" inline />
+          )}
         </div>
       );
     }
 
+    const maxItems = RENDER_BUDGETS.structuredMaxArrayItems;
+    const truncated = data.length > maxItems;
+    const visibleData = truncated ? data.slice(0, maxItems) : data;
+
     return (
       <div className="space-y-2">
-        {data.map((item, i) => (
+        {visibleData.map((item, i) => (
           <div key={i} className="rounded-md border border-border/60 bg-muted/20 p-2.5">
             <div className="flex gap-2.5">
               <span className="inline-flex items-center justify-center shrink-0 size-5 rounded bg-background text-[10px] font-semibold tabular-nums text-muted-foreground mt-0.5">
@@ -121,6 +143,9 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
             </div>
           </div>
         ))}
+        {truncated && (
+          <TruncatedNotice count={data.length - maxItems} kind="items" />
+        )}
       </div>
     );
   }
@@ -129,6 +154,10 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
     const entries = Object.entries(data as Record<string, unknown>);
     if (entries.length === 0) {
       return <span className="text-sm text-muted-foreground italic">Empty</span>;
+    }
+
+    if (depth >= RENDER_BUDGETS.structuredMaxDepth) {
+      return <RawJsonFallback data={data} />;
     }
 
     if (depth === 0) {
@@ -150,6 +179,31 @@ function HumanValue({ data, depth = 0 }: { data: unknown; depth?: number }) {
   }
 
   return <span className="text-sm">{String(data)}</span>;
+}
+
+function TruncatedNotice({ count, kind, inline }: { count: number; kind: string; inline?: boolean }) {
+  return (
+    <span className={cn(
+      'text-xs text-muted-foreground italic',
+      inline ? 'inline-flex items-center px-2 py-0.5' : 'block py-1',
+    )}>
+      {count} more {kind} hidden
+    </span>
+  );
+}
+
+function RawJsonFallback({ data }: { data: unknown }) {
+  return (
+    <div className="text-xs text-muted-foreground flex flex-col gap-1 py-1">
+      <div className="flex items-center gap-1">
+        <AlertCircle className="size-3" />
+        <span>Switched to raw JSON (depth/item limit reached)</span>
+      </div>
+      <pre className="text-xs font-mono overflow-x-auto max-h-40 block w-full">
+        {JSON.stringify(data, null, 2).slice(0, 2000)}
+      </pre>
+    </div>
+  );
 }
 
 function formatLabel(key: string): string {

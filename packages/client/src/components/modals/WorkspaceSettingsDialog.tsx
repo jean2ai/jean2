@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { Brain, Wrench, Search, Workflow, Server, Shield, FolderSymlink, Clock, ShieldCheck, Cog, Loader2 } from 'lucide-react';
 import type { Workspace, WorkspaceSettings, WorkspacePreconfigSettings, PermissionRiskLevel, PermissionGrant, Jean2Client, AutoApproveSeverity } from '@jean2/sdk';
 import { useServerDataStore } from '@/stores/serverDataStore';
@@ -19,16 +19,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MemoryPanel } from './configuration/MemoryPanel';
-import { SkillsPanel } from './configuration/SkillsPanel';
-import { SessionSearchPanel } from './configuration/SessionSearchPanel';
-import { WorkflowPanel } from './configuration/WorkflowPanel';
-import { SchedulingPanel } from './configuration/SchedulingPanel';
-import { MCPServersPanel } from './configuration/MCPServersPanel';
-import { PermissionsPanel } from './configuration/PermissionsPanel';
-import { AdditionalPathsPanel } from './configuration/AdditionalPathsPanel';
-import { AutoApprovePanel } from './configuration/AutoApprovePanel';
-import { WorkspacePreconfigsPanel } from './configuration/WorkspacePreconfigsPanel';
+
+const MemoryPanel = lazy(() => import('./configuration/MemoryPanel').then((m) => ({ default: m.MemoryPanel })));
+const SkillsPanel = lazy(() => import('./configuration/SkillsPanel').then((m) => ({ default: m.SkillsPanel })));
+const SessionSearchPanel = lazy(() => import('./configuration/SessionSearchPanel').then((m) => ({ default: m.SessionSearchPanel })));
+const WorkflowPanel = lazy(() => import('./configuration/WorkflowPanel').then((m) => ({ default: m.WorkflowPanel })));
+const SchedulingPanel = lazy(() => import('./configuration/SchedulingPanel').then((m) => ({ default: m.SchedulingPanel })));
+const MCPServersPanel = lazy(() => import('./configuration/MCPServersPanel').then((m) => ({ default: m.MCPServersPanel })));
+const PermissionsPanel = lazy(() => import('./configuration/PermissionsPanel').then((m) => ({ default: m.PermissionsPanel })));
+const AdditionalPathsPanel = lazy(() => import('./configuration/AdditionalPathsPanel').then((m) => ({ default: m.AdditionalPathsPanel })));
+const AutoApprovePanel = lazy(() => import('./configuration/AutoApprovePanel').then((m) => ({ default: m.AutoApprovePanel })));
+const WorkspacePreconfigsPanel = lazy(() => import('./configuration/WorkspacePreconfigsPanel').then((m) => ({ default: m.WorkspacePreconfigsPanel })));
+
+function PanelLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-32 text-muted-foreground">
+      <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+    </div>
+  );
+}
 
 type Section = 'mcp' | 'permissions' | 'paths' | 'autoApprove' | 'memory' | 'skills' | 'search' | 'workflow' | 'scheduling' | 'preconfigs';
 
@@ -200,75 +209,74 @@ export function WorkspaceSettingsDialog({
             ))}
           </TabsList>
 
-          {/* Shared content area */}
+          {/* Shared content area - only mount the selected panel */}
           <div className="dialog-scrollbar flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain rounded-lg border">
-            <TabsContent value="mcp" className="mt-0">
-              <MCPServersPanel workspaceId={workspace.id} sdkClient={sdkClient} />
+            <TabsContent key={section} value={section} className="mt-0">
+              <Suspense fallback={<PanelLoadingFallback />}>
+                {(() => {
+                  switch (section) {
+                    case 'mcp':
+                      return <MCPServersPanel workspaceId={workspace.id} sdkClient={sdkClient} />;
+                    case 'permissions':
+                      return <PermissionsPanel
+                        permissions={permissions}
+                        onRefreshPermissions={onRefreshPermissions}
+                        onRevokePermission={onRevokePermission}
+                        onRevokeAllPermissions={onRevokeAllPermissions}
+                      />;
+                    case 'paths':
+                      return <AdditionalPathsPanel
+                        workspace={workspace}
+                        onSave={onUpdateWorkspacePaths}
+                        sdkClient={sdkClient}
+                      />;
+                    case 'preconfigs':
+                      return <WorkspacePreconfigsPanel
+                        preconfigs={allPreconfigs}
+                        settings={preconfigSettings}
+                        onChange={setPreconfigSettings}
+                      />;
+                    case 'autoApprove':
+                      return <AutoApprovePanel
+                        severity={autoApprove}
+                        onChange={setAutoApprove}
+                      />;
+                    case 'memory':
+                      return <MemoryPanel
+                        enabled={memory.enabled}
+                        permissionRisk={memory.permissionRisk}
+                        onChange={setMemory}
+                      />;
+                    case 'skills':
+                      return <SkillsPanel
+                        enabled={skills.enabled}
+                        permissionRisk={skills.permissionRisk}
+                        onChange={setSkills}
+                      />;
+                    case 'search':
+                      return <SessionSearchPanel
+                        enabled={search.enabled}
+                        permissionRisk={search.permissionRisk}
+                        includeToolResults={search.includeToolResults}
+                        onChange={setSearch}
+                      />;
+                    case 'workflow':
+                      return <WorkflowPanel
+                        enabled={workflow}
+                        onChange={setWorkflow}
+                      />;
+                    case 'scheduling':
+                      return <SchedulingPanel
+                        enabled={scheduling.enabled}
+                        permissionRisk={scheduling.permissionRisk}
+                        onChange={setScheduling}
+                      />;
+                  }
+                })()}
+              </Suspense>
             </TabsContent>
-            <TabsContent value="permissions" className="mt-0">
-              <PermissionsPanel
-                permissions={permissions}
-                onRefreshPermissions={onRefreshPermissions}
-                onRevokePermission={onRevokePermission}
-                onRevokeAllPermissions={onRevokeAllPermissions}
-              />
-            </TabsContent>
-            <TabsContent value="paths" className="mt-0">
-              <AdditionalPathsPanel
-                workspace={workspace}
-                onSave={onUpdateWorkspacePaths}
-                sdkClient={sdkClient}
-              />
-            </TabsContent>
-            <TabsContent value="preconfigs" className="mt-0">
-              <WorkspacePreconfigsPanel
-                preconfigs={allPreconfigs}
-                settings={preconfigSettings}
-                onChange={setPreconfigSettings}
-              />
-            </TabsContent>
-            <TabsContent value="autoApprove" className="mt-0">
-              <AutoApprovePanel
-                severity={autoApprove}
-                onChange={setAutoApprove}
-              />
-            </TabsContent>
-            <TabsContent value="memory" className="mt-0">
-              <MemoryPanel
-                enabled={memory.enabled}
-                permissionRisk={memory.permissionRisk}
-                onChange={setMemory}
-              />
-            </TabsContent>
-            <TabsContent value="skills" className="mt-0">
-              <SkillsPanel
-                enabled={skills.enabled}
-                permissionRisk={skills.permissionRisk}
-                onChange={setSkills}
-              />
-            </TabsContent>
-            <TabsContent value="search" className="mt-0">
-              <SessionSearchPanel
-                enabled={search.enabled}
-                permissionRisk={search.permissionRisk}
-                includeToolResults={search.includeToolResults}
-                onChange={setSearch}
-              />
-            </TabsContent>
-            <TabsContent value="workflow" className="mt-0">
-              <WorkflowPanel
-                enabled={workflow}
-                onChange={setWorkflow}
-              />
-            </TabsContent>
-            <TabsContent value="scheduling" className="mt-0">
-              <SchedulingPanel
-                enabled={scheduling.enabled}
-                permissionRisk={scheduling.permissionRisk}
-                onChange={setScheduling}
-              />
-            </TabsContent>
-            </div>        </Tabs>
+            </div>
+        </Tabs>
 
         {/* Only show Save/Cancel footer for capability sections (they have a form) */}
         {isCapability && (

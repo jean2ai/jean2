@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { Part } from '@jean2/sdk';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppMainContent } from '@/components/app/AppMainContent';
 import { ChatLoadingState } from '@/components/shared/LoadingSkeleton';
+import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/stores/sessionStore';
+import { mark } from '@/lib/perf';
 
 const EMPTY_PARTS: Part[] = [];
 
@@ -29,6 +32,9 @@ export default function SessionContent() {
     setCompactionSuccess,
   } = sessionManager;
 
+  const contentMeta = useSessionStore((state) =>
+    currentSession ? state.contentMetaBySession[currentSession.id] : undefined,
+  );
   const activeSessionMessages = useSessionStore((state) =>
     currentSession ? state.messagesBySession[currentSession.id] : undefined,
   );
@@ -43,12 +49,41 @@ export default function SessionContent() {
     [activeSessionMessages, activeSessionParts],
   );
 
+  useEffect(() => {
+    if (currentSession) {
+      mark('session-navigation:start');
+    }
+  }, [currentSession?.id]);
+
   if (isSessionLoading) {
     return <ChatLoadingState />;
   }
 
   if (!currentSession) {
     return null;
+  }
+
+  const contentStatus = contentMeta?.status ?? 'unloaded';
+
+  if (contentStatus === 'loading') {
+    return <ChatLoadingState />;
+  }
+
+  if (contentStatus === 'error') {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-4 text-muted-foreground">
+        <AlertCircle className="size-8 text-destructive" />
+        <p className="text-sm">{contentMeta?.error || 'Failed to load conversation'}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => resumeSession(currentSession.id)}
+        >
+          <RefreshCw className="size-4" />
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (

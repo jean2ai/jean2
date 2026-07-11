@@ -7,8 +7,7 @@ import { VisualizationRenderer } from '@/components/visualizations';
 import { AskQuestion } from './AskQuestion';
 import type { PendingAskRequest } from '@/stores/askStore';
 import { useSessionStore } from '@/stores/sessionStore';
-
-const LARGE_OUTPUT_THRESHOLD = 1536;
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 interface LazyOutputProps {
   content: string;
@@ -17,9 +16,9 @@ interface LazyOutputProps {
 
 const LazyOutput = memo(function LazyOutput({ content, className }: LazyOutputProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const size = new Blob([content]).size;
-  const isLarge = size > LARGE_OUTPUT_THRESHOLD;
-  const preview = isLarge ? content.slice(0, LARGE_OUTPUT_THRESHOLD) + '\n...' : null;
+  const size = content.length;
+  const isLarge = size > RENDER_BUDGETS.toolOutputPreviewChars;
+  const preview = isLarge ? content.slice(0, RENDER_BUDGETS.toolOutputPreviewChars) + '\n...' : null;
 
   if (!isLarge) {
     return <pre className={className}>{content}</pre>;

@@ -11,6 +11,8 @@ import {
   listSessionsGrouped,
   listSessionPageGrouped,
   listTagsByWorkspace,
+  listLatestMessagesWithPartsPage,
+  listMessagesWithPartsBeforeSequence,
 } from '@/store';
 import {
   getAttachmentByKey,
@@ -139,6 +141,40 @@ export function registerSessionRoutes(app: Hono): void {
     }
     const messages = listMessages(sessionId);
     return c.json({ messages });
+  });
+
+  app.get('/api/sessions/:id/transcript', async (c) => {
+    const sessionId = c.req.param('id');
+    const session = getSession(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const limitParam = c.req.query('limit');
+    const beforeParam = c.req.query('before');
+
+    const limit = limitParam ? parseInt(limitParam, 10) : 50;
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestError('limit must be an integer between 1 and 100');
+    }
+
+    if (beforeParam) {
+      const beforeSequence = parseInt(beforeParam, 10);
+      if (isNaN(beforeSequence) || beforeSequence < 1) {
+        throw new BadRequestError('before must be a positive integer');
+      }
+      const result = listMessagesWithPartsBeforeSequence(sessionId, beforeSequence, limit);
+      return c.json({
+        messages: result.messages,
+        pagination: result.pagination,
+      });
+    }
+
+    const result = listLatestMessagesWithPartsPage(sessionId, limit);
+    return c.json({
+      messages: result.messages,
+      pagination: result.pagination,
+    });
   });
 
   app.get('/api/sessions/:id/attachments', async (c) => {

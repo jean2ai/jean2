@@ -14,7 +14,7 @@ export function useFileBrowseQuery(
 ) {
   return useQuery({
     queryKey: queryKeys.files.browse(workspaceId ?? '', path, opts),
-    queryFn: () => sdkClient!.http.files.browse(workspaceId!, path, opts),
+    queryFn: ({ signal }) => sdkClient!.http.files.browse(workspaceId!, path, { ...opts, signal }),
     enabled: !!sdkClient && !!workspaceId && (enabledOverride ?? true),
     staleTime: FILE_BROWSE_STALE_TIME_MS,
   });

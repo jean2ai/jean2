@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, ExternalLink, FileText } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 
 const CODE_THEME_DARK = themes.oneDark;
@@ -11,6 +11,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { platform } from '@/platform';
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 interface DiffViewerProps {
   hunks: DiffHunk[];
@@ -52,32 +53,31 @@ interface DiffLineProps {
   lineNumber?: number;
   newLineNumber?: number;
   language: string;
+  codeTheme: typeof CODE_THEME_DARK;
+  isDark: boolean;
 }
 
-const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumber, language, codeTheme }: DiffLineProps & { codeTheme: typeof CODE_THEME_DARK }) {
-  const { resolvedMode } = useTheme();
-  const isDark = resolvedMode === 'dark';
-
+const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumber, language, codeTheme }: DiffLineProps) {
   const tintClass = cn(
     'flex font-mono text-xs',
-    type === 'added' && (isDark ? 'bg-green-500/20' : 'bg-green-500/15'),
-    type === 'removed' && (isDark ? 'bg-red-500/20' : 'bg-red-500/15'),
+    type === 'added' && 'bg-green-500/15',
+    type === 'removed' && 'bg-red-500/15',
     type === 'context' && 'bg-muted/30',
   );
 
   const prefixColor = cn(
     'font-bold w-4 select-none',
-    type === 'added' && (isDark ? 'text-green-400' : 'text-green-600'),
-    type === 'removed' && (isDark ? 'text-red-400' : 'text-red-600'),
+    type === 'added' && 'text-green-600 dark:text-green-400',
+    type === 'removed' && 'text-red-600 dark:text-red-400',
     type === 'context' && 'text-muted-foreground/50',
   );
 
   return (
     <div className={tintClass}>
-      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r', isDark ? 'border-white/10' : 'border-border')}>
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r border-border')}>
         {lineNumber ?? ''}
       </span>
-      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r', isDark ? 'border-white/10' : 'border-border')}>
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r border-border')}>
         {newLineNumber ?? ''}
       </span>
       <span className="pl-2 flex-1 whitespace-pre overflow-hidden flex">
@@ -104,6 +104,48 @@ const DiffLine = memo(function DiffLine({ type, content, lineNumber, newLineNumb
   );
 });
 
+interface PlainDiffLineProps {
+  type: 'added' | 'removed' | 'context';
+  content: string;
+  lineNumber?: number;
+  newLineNumber?: number;
+}
+
+const PlainDiffLine = memo(function PlainDiffLine({ type, content, lineNumber, newLineNumber }: PlainDiffLineProps) {
+  const tintClass = cn(
+    'flex font-mono text-xs',
+    type === 'added' && 'bg-green-500/15',
+    type === 'removed' && 'bg-red-500/15',
+    type === 'context' && 'bg-muted/30',
+  );
+
+  const prefixColor = cn(
+    'font-bold w-4 select-none',
+    type === 'added' && 'text-green-600 dark:text-green-400',
+    type === 'removed' && 'text-red-600 dark:text-red-400',
+    type === 'context' && 'text-muted-foreground/50',
+  );
+
+  return (
+    <div className={tintClass}>
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r border-border')}>
+        {lineNumber ?? ''}
+      </span>
+      <span className={cn('w-10 text-right pr-2 text-muted-foreground select-none border-r border-border')}>
+        {newLineNumber ?? ''}
+      </span>
+      <span className="pl-2 flex-1 whitespace-pre overflow-hidden flex">
+        <span className={prefixColor}>
+          {type === 'added' && '+'}
+          {type === 'removed' && '-'}
+          {type === 'context' && ' '}
+        </span>
+        <span className="text-foreground/90">{content}</span>
+      </span>
+    </div>
+  );
+});
+
 export const DiffViewer = memo(function DiffViewer({ hunks, path, language: propLanguage, additions, deletions, disablePathOpen }: DiffViewerProps) {
   const [expanded, setExpanded] = useState(true);
   const language = propLanguage || detectLanguage(path);
@@ -114,6 +156,30 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
   const { resolvedMode } = useTheme();
   const isDark = resolvedMode === 'dark';
   const codeTheme = isDark ? CODE_THEME_DARK : CODE_THEME_LIGHT;
+
+  const totalDiffLines = useMemo(
+    () => hunks.reduce((sum, hunk) => sum + hunk.changes.length, 0),
+    [hunks],
+  );
+
+  const usePlainText = totalDiffLines > RENDER_BUDGETS.diffPlainTextThreshold;
+
+  const previewHunks = useMemo(() => {
+    if (expanded) return hunks;
+    let remaining: number = RENDER_BUDGETS.diffPreviewLines;
+    const result: DiffHunk[] = [];
+    for (const hunk of hunks) {
+      if (remaining <= 0) break;
+      if (hunk.changes.length <= remaining) {
+        result.push(hunk);
+        remaining -= hunk.changes.length;
+      } else {
+        result.push({ ...hunk, changes: hunk.changes.slice(0, remaining) });
+        remaining = 0;
+      }
+    }
+    return result;
+  }, [hunks, expanded]);
 
   const handlePathClick = () => {
     if (!activeWorkspace) return;
@@ -160,22 +226,41 @@ export const DiffViewer = memo(function DiffViewer({ hunks, path, language: prop
             </button>
           )}
 
-          {additions !== undefined && deletions !== undefined && (
-            <span className="ml-auto mr-2 text-muted-foreground">
-              +{additions} -{deletions}
-            </span>
-          )}
+          <div className="ml-auto mr-2 flex items-center gap-2">
+            {usePlainText && (
+              <span className="text-xs text-muted-foreground/70">plain text</span>
+            )}
+            {!expanded && totalDiffLines > RENDER_BUDGETS.diffPreviewLines && (
+              <span className="text-xs text-muted-foreground/70">
+                {totalDiffLines} lines
+              </span>
+            )}
+            {additions !== undefined && deletions !== undefined && (
+              <span className="text-muted-foreground">
+                +{additions} -{deletions}
+              </span>
+            )}
+          </div>
         </div>
 
         {expanded && (
           <div style={{ backgroundColor: codeTheme.plain.backgroundColor || (isDark ? '#282c34' : '#fafafa') }}>
-            {hunks.map((hunk, hunkIndex) => (
-              <div key={hunkIndex} className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-border')}>
+            {previewHunks.map((hunk, hunkIndex) => (
+              <div key={hunkIndex} className={cn('divide-y divide-border')}>
                 {hunk.changes.map((change, i) => (
-                  <DiffLine key={i} {...change} language={language} codeTheme={codeTheme} />
+                  usePlainText ? (
+                    <PlainDiffLine key={i} {...change} />
+                  ) : (
+                    <DiffLine key={i} {...change} language={language} codeTheme={codeTheme} isDark={isDark} />
+                  )
                 ))}
               </div>
             ))}
+            {!expanded && totalDiffLines > RENDER_BUDGETS.diffPreviewLines && (
+              <div className="text-center py-1 text-xs text-muted-foreground bg-muted/30">
+                {totalDiffLines - RENDER_BUDGETS.diffPreviewLines} more lines hidden
+              </div>
+            )}
           </div>
         )}
       </div>

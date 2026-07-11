@@ -118,7 +118,8 @@ export function useSessionCommands({
 
   const resumeSession = useCallback((sessionId: string, options?: ResumeSessionOptions) => {
     const client = clientRef.current;
-    useSessionStore.getState().setNavigationIntent(
+    const store = useSessionStore.getState();
+    store.setNavigationIntent(
       options?.targetMessageId
         ? { mode: 'target-message', messageId: options.targetMessageId }
         : { mode: 'follow' }
@@ -139,8 +140,15 @@ export function useSessionCommands({
     }
     pendingPartAppendsRef.current.clear();
 
-    // If session is not in the loaded list (e.g. pinned message navigation),
-    // fetch it from the server so it can be opened
+    const contentMeta = store.contentMetaBySession[sessionId];
+    const hasCachedContent = contentMeta?.status === 'ready' && !!store.messagesBySession[sessionId];
+
+    if (hasCachedContent) {
+      store.touchSessionContent(sessionId);
+    } else {
+      store.beginSessionContentLoad(sessionId);
+    }
+
     if (!session && client && client.connected) {
       client.http.sessions.get(sessionId).then((response: { session: Session }) => {
         useSessionStore.getState().addSessionToFront(response.session);

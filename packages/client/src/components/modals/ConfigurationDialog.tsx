@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
 import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard, Wrench } from 'lucide-react';
 import {
@@ -19,18 +20,25 @@ import {
 import { useUIStore } from '@/stores/uiStore';
 import type { ConfigurationSection } from '@/stores/uiStore';
 
-import { ProviderCredentialsPanel } from './configuration/ProviderCredentialsPanel';
-import { OAuthProvidersPanel } from './configuration/OAuthProvidersPanel';
-import { ModelsPanel } from './configuration/ModelsPanel';
-import { PromptsPanel } from './configuration/PromptsPanel';
-import { PreconfigsPanel } from './configuration/PreconfigsPanel';
-import { ResponseFormatsPanel } from './configuration/ResponseFormatsPanel';
-import { EnvPanel } from './configuration/EnvPanel';
-import { ToolsPanel } from './tools/ToolsPanel';
+const ProviderCredentialsPanel = lazy(() => import('./configuration/ProviderCredentialsPanel').then((m) => ({ default: m.ProviderCredentialsPanel })));
+const OAuthProvidersPanel = lazy(() => import('./configuration/OAuthProvidersPanel').then((m) => ({ default: m.OAuthProvidersPanel })));
+const ModelsPanel = lazy(() => import('./configuration/ModelsPanel').then((m) => ({ default: m.ModelsPanel })));
+const PromptsPanel = lazy(() => import('./configuration/PromptsPanel').then((m) => ({ default: m.PromptsPanel })));
+const PreconfigsPanel = lazy(() => import('./configuration/PreconfigsPanel').then((m) => ({ default: m.PreconfigsPanel })));
+const ResponseFormatsPanel = lazy(() => import('./configuration/ResponseFormatsPanel').then((m) => ({ default: m.ResponseFormatsPanel })));
+const EnvPanel = lazy(() => import('./configuration/EnvPanel').then((m) => ({ default: m.EnvPanel })));
+const ToolsPanel = lazy(() => import('./tools/ToolsPanel').then((m) => ({ default: m.ToolsPanel })));
+const AccountPanel = lazy(() => import('./configuration/AccountPanel').then((m) => ({ default: m.AccountPanel })));
+const AppearancePanel = lazy(() => import('./configuration/AppearancePanel').then((m) => ({ default: m.AppearancePanel })));
+const KeybindsPanel = lazy(() => import('./configuration/KeybindsPanel').then((m) => ({ default: m.KeybindsPanel })));
 
-import { AccountPanel } from './configuration/AccountPanel';
-import { AppearancePanel } from './configuration/AppearancePanel';
-import { KeybindsPanel } from './configuration/KeybindsPanel';
+function PanelLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-32 text-muted-foreground">
+      <div className="h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+    </div>
+  );
+}
 
 interface ConfigurationDialogProps {
   open: boolean;
@@ -68,30 +76,36 @@ const SECTIONS: SectionDef[] = [
 ];
 
 function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null, extra: { apiToken: string | null; isConnected: boolean; onLogout: () => void; open: boolean }) {
-  switch (value) {
-    case 'account':
-      return <AccountPanel apiToken={extra.apiToken} isConnected={extra.isConnected} onLogout={extra.onLogout} sdkClient={sdkClient} open={extra.open} />;
-    case 'appearance':
-      return <AppearancePanel />;
-    case 'keybinds':
-      return <KeybindsPanel />;
-    case 'providers':
-      return <ProviderCredentialsPanel sdkClient={sdkClient} />;
-    case 'oauth':
-      return <OAuthProvidersPanel sdkClient={sdkClient} />;
-    case 'models':
-      return <ModelsPanel sdkClient={sdkClient} />;
-    case 'prompts':
-      return <PromptsPanel sdkClient={sdkClient} />;
-    case 'preconfigs':
-      return <PreconfigsPanel sdkClient={sdkClient} />;
-    case 'response-formats':
-      return <ResponseFormatsPanel sdkClient={sdkClient} />;
-    case 'env':
-      return <EnvPanel sdkClient={sdkClient} />;
-    case 'tools':
-      return <ToolsPanel sdkClient={sdkClient} />;
-  }
+  return (
+    <Suspense fallback={<PanelLoadingFallback />}>
+      {(() => {
+        switch (value) {
+          case 'account':
+            return <AccountPanel apiToken={extra.apiToken} isConnected={extra.isConnected} onLogout={extra.onLogout} sdkClient={sdkClient} open={extra.open} />;
+          case 'appearance':
+            return <AppearancePanel />;
+          case 'keybinds':
+            return <KeybindsPanel />;
+          case 'providers':
+            return <ProviderCredentialsPanel sdkClient={sdkClient} />;
+          case 'oauth':
+            return <OAuthProvidersPanel sdkClient={sdkClient} />;
+          case 'models':
+            return <ModelsPanel sdkClient={sdkClient} />;
+          case 'prompts':
+            return <PromptsPanel sdkClient={sdkClient} />;
+          case 'preconfigs':
+            return <PreconfigsPanel sdkClient={sdkClient} />;
+          case 'response-formats':
+            return <ResponseFormatsPanel sdkClient={sdkClient} />;
+          case 'env':
+            return <EnvPanel sdkClient={sdkClient} />;
+          case 'tools':
+            return <ToolsPanel sdkClient={sdkClient} />;
+        }
+      })()}
+    </Suspense>
+  );
 }
 
 export function ConfigurationDialog({
@@ -176,13 +190,11 @@ export function ConfigurationDialog({
             ))}
           </TabsList>
 
-          {/* Shared content area */}
+          {/* Shared content area - only mount the selected panel */}
           <div className="dialog-scrollbar flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain rounded-lg border">
-            {SECTIONS.map((s) => (
-              <TabsContent key={s.value} value={s.value} className="mt-0">
-                {renderPanel(s.value, sdkClient, { apiToken, isConnected, onLogout, open })}
-              </TabsContent>
-            ))}
+            <TabsContent key={section} value={section} className="mt-0">
+              {renderPanel(section, sdkClient, { apiToken, isConnected, onLogout, open })}
+            </TabsContent>
           </div>
         </Tabs>
       </DialogContent>

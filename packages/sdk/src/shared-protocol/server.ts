@@ -32,6 +32,15 @@ export interface SessionResumedMessage {
   type: 'session.resumed';
   session: Session;
   messages: MessageWithParts[];
+  transcript?: {
+    messages: MessageWithParts[];
+    pagination: {
+      hasOlder: boolean;
+      oldestSequence: number | null;
+      newestSequence: number | null;
+      limit: number;
+    };
+  };
   usage?: {
     promptTokens: number;
     completionTokens: number;

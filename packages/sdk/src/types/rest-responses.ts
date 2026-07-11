@@ -61,6 +61,21 @@ export interface ListMessagesResponse {
 }
 
 /**
+ * GET /api/sessions/:id/transcript
+ */
+export interface TranscriptPageInfo {
+  hasOlder: boolean;
+  oldestSequence: number | null;
+  newestSequence: number | null;
+  limit: number;
+}
+
+export interface TranscriptPageResponse {
+  messages: import('../shared-types/message').MessageWithParts[];
+  pagination: TranscriptPageInfo;
+}
+
+/**
  * GET /api/workspaces
  */
 export interface ListWorkspacesResponse {

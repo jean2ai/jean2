@@ -100,11 +100,12 @@ export function useConnectionLifecycle({
           ?? useSessionStore.getState().currentSession?.id;
 
         if (sessionId) {
-          // Patch the ref so subsequent event handlers (message.created, part.append,
-          // etc.) see the correct session ID even if the useLayoutEffect that normally
-          // sets it hasn't fired yet.
           const wasNull = currentSessionIdRef.current === null;
           currentSessionIdRef.current = sessionId;
+          const hasContent = !!useSessionStore.getState().messagesBySession[sessionId]?.length;
+          if (!hasContent) {
+            useSessionStore.getState().beginSessionContentLoad(sessionId);
+          }
           console.log('[reconnect] Resuming session:', sessionId, wasNull ? '(restored from store)' : '(from ref)');
           client.sessions.resume(sessionId);
         } else {

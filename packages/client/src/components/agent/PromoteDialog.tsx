@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Preconfig } from '@jean2/sdk';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { useSessionManager } from '@/contexts/SessionManagerContext';
+import { useSdkClient } from '@/contexts/ServerClientContext';
 import { usePromoteAgent } from '@/hooks/queries';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +33,7 @@ interface PromoteDialogProps {
 }
 
 export function PromoteDialog({ open, onOpenChange }: PromoteDialogProps) {
-  const { sdkClient } = useSessionManager();
+  const sdkClient = useSdkClient();
   const preconfigs = useServerDataStore(s => s.preconfigs);
   const agents = useServerDataStore(s => s.agents);
   const promoteAgent = usePromoteAgent(sdkClient);

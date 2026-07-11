@@ -73,6 +73,8 @@ export class HttpNamespace {
   /**
    * Load all initial server data in parallel.
    * Useful for client initialization — replaces manual Promise.all() composition.
+   *
+   * Deprecated: prefer loadCritical + loadSecondary for progressive bootstrap.
    */
   async loadAll(options?: { signal?: AbortSignal }): Promise<LoadAllResult> {
     const [workspacesData, preconfigsData, promptsData, modelsData, providersData, agentsData] = await Promise.all([
@@ -95,4 +97,69 @@ export class HttpNamespace {
       agents: agentsData.agents,
     };
   }
+
+  /**
+   * Load only critical data needed for the shell to be usable:
+   * workspaces, models (flat), defaults, and preconfigs.
+   */
+  async loadCritical(options?: { signal?: AbortSignal }): Promise<CriticalServerData> {
+    const [workspacesData, modelsData, preconfigsData] = await Promise.all([
+      this.workspaces.list(options),
+      this.models.list(options),
+      this.preconfigs.list(options),
+    ]);
+
+    return {
+      workspaces: workspacesData.workspaces,
+      models: modelsData.models,
+      defaultModel: modelsData.defaultModel,
+      defaultProvider: modelsData.defaultProvider,
+      preconfigs: preconfigsData.preconfigs,
+    };
+  }
+
+  /**
+   * Load secondary data that the shell can render without.
+   * Each request is independent so partial failures don't block the others.
+   * Returns results with per-section error info.
+   */
+  async loadSecondary(options?: { signal?: AbortSignal }): Promise<SecondaryServerData> {
+    const results = await Promise.allSettled([
+      this.prompts.list(options),
+      this.providers.list(options),
+      this.agents.list(options),
+    ]);
+
+    const [promptsResult, providersResult, agentsResult] = results;
+
+    return {
+      prompts: promptsResult.status === 'fulfilled' ? promptsResult.value.prompts : [],
+      providers: providersResult.status === 'fulfilled' ? providersResult.value.providers : [],
+      agents: agentsResult.status === 'fulfilled' ? agentsResult.value.agents : [],
+      errors: {
+        prompts: promptsResult.status === 'rejected' ? (promptsResult.reason instanceof Error ? promptsResult.reason.message : String(promptsResult.reason)) : null,
+        providers: providersResult.status === 'rejected' ? (providersResult.reason instanceof Error ? providersResult.reason.message : String(providersResult.reason)) : null,
+        agents: agentsResult.status === 'rejected' ? (agentsResult.reason instanceof Error ? agentsResult.reason.message : String(agentsResult.reason)) : null,
+      },
+    };
+  }
+}
+
+export interface CriticalServerData {
+  workspaces: Workspace[];
+  models: ModelWithStatus[];
+  defaultModel: string;
+  defaultProvider: string;
+  preconfigs: Preconfig[];
+}
+
+export interface SecondaryServerData {
+  prompts: PromptInfo[];
+  providers: ProviderStatus[];
+  agents: Agent[];
+  errors: {
+    prompts: string | null;
+    providers: string | null;
+    agents: string | null;
+  };
 }

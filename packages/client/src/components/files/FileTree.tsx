@@ -1,11 +1,13 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { LegendList } from '@legendapp/list/react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileTreeNode } from './FileTreeNode';
-import { useFileBrowseQuery } from '@/hooks/queries';
+import { FileTreeRow } from './FileTreeRow';
+import { useFlatFileTree, type VisibleFileNode } from '@/hooks/useFlatFileTree';
+import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 interface FileTreeProps {
   workspaceId: string;
@@ -24,108 +26,121 @@ export interface FileTreeHandle {
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
   ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
-    const { data, isLoading, error, refetch } = useFileBrowseQuery(
+    const {
+      visibleNodes,
+      isLoading,
+      error,
+      refetchRoot,
+      toggleExpanded,
+      prefetchDirectory,
+    } = useFlatFileTree({
       sdkClient,
       workspaceId,
-      undefined,
-      { showHidden, root },
-    );
+      showHidden,
+      root,
+    });
 
-    const files = data?.files ?? [];
-    const currentPath = data?.currentPath ?? '';
+    const shouldVirtualize = visibleNodes.length > RENDER_BUDGETS.fileTreeVirtualizeThreshold;
 
     useImperativeHandle(ref, () => ({
       refresh: () => {
-        refetch();
+        refetchRoot();
       },
       focus: () => {
+        if (visibleNodes.length > 0) {
+          setFocusedIndex(0);
+        }
         const container = containerRef.current;
-        if (!container) return;
-        const firstNode = container.querySelector<HTMLButtonElement>('[data-file-node]');
-        if (firstNode) {
-          firstNode.focus();
-        } else {
-          container.focus();
+        if (container) {
+          const firstNode = container.querySelector<HTMLButtonElement>('[data-file-node]');
+          if (firstNode) {
+            firstNode.focus();
+          } else {
+            container.focus();
+          }
         }
       },
-    }), [refetch]);
+    }), [refetchRoot, visibleNodes.length]);
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const focusNode = useCallback((index: number) => {
+      if (index < 0 || index >= visibleNodes.length) return;
+      setFocusedIndex(index);
       const container = containerRef.current;
       if (!container) return;
+      const nodes = container.querySelectorAll<HTMLButtonElement>('[data-file-node]');
+      nodes[index]?.focus();
+    }, [visibleNodes.length]);
 
-      const allNodes = Array.from(
-        container.querySelectorAll<HTMLButtonElement>('[data-file-node]')
-      );
-      if (allNodes.length === 0) return;
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+      if (visibleNodes.length === 0) return;
 
-      const currentIndex = allNodes.indexOf(document.activeElement as HTMLButtonElement);
+      const currentIndex = focusedIndex >= 0 ? focusedIndex : 0;
+      const currentNode = visibleNodes[currentIndex];
 
       switch (e.key) {
         case 'ArrowDown': {
           e.preventDefault();
-          const nextIndex = currentIndex < allNodes.length - 1 ? currentIndex + 1 : 0;
-          allNodes[nextIndex]?.focus();
+          focusNode(Math.min(currentIndex + 1, visibleNodes.length - 1));
           break;
         }
         case 'ArrowUp': {
           e.preventDefault();
-          const prevIndex = currentIndex > 0 ? currentIndex - 1 : allNodes.length - 1;
-          allNodes[prevIndex]?.focus();
+          focusNode(Math.max(currentIndex - 1, 0));
           break;
         }
         case 'ArrowRight': {
           e.preventDefault();
-          const focused = document.activeElement as HTMLElement;
-          if (!focused) break;
-          const fileType = focused.getAttribute('data-file-type');
-          if (fileType === 'directory') {
-            const isOpen = focused.getAttribute('data-file-is-open');
-            if (isOpen !== 'true') {
-              focused.click();
+          if (!currentNode) break;
+          if (currentNode.entry.type === 'directory') {
+            if (!currentNode.isExpanded) {
+              toggleExpanded(currentNode.fullPath);
             } else {
-              const nextIndex = currentIndex < allNodes.length - 1 ? currentIndex + 1 : -1;
-              if (nextIndex >= 0) allNodes[nextIndex]?.focus();
+              focusNode(Math.min(currentIndex + 1, visibleNodes.length - 1));
             }
           } else {
-            const nextIndex = currentIndex < allNodes.length - 1 ? currentIndex + 1 : -1;
-            if (nextIndex >= 0) allNodes[nextIndex]?.focus();
+            focusNode(Math.min(currentIndex + 1, visibleNodes.length - 1));
           }
           break;
         }
         case 'ArrowLeft': {
           e.preventDefault();
-          const focused = document.activeElement as HTMLElement;
-          if (!focused) break;
-          const fileType = focused.getAttribute('data-file-type');
-          if (fileType === 'directory') {
-            const isOpen = focused.getAttribute('data-file-is-open');
-            if (isOpen === 'true') {
-              focused.click();
-            } else {
-              const prevIndex = currentIndex > 0 ? currentIndex - 1 : -1;
-              if (prevIndex >= 0) allNodes[prevIndex]?.focus();
-            }
+          if (!currentNode) break;
+          if (currentNode.entry.type === 'directory' && currentNode.isExpanded) {
+            toggleExpanded(currentNode.fullPath);
+          } else if (currentNode.parentId) {
+            const parentIndex = visibleNodes.findIndex(n => n.fullPath === currentNode.parentId);
+            if (parentIndex >= 0) focusNode(parentIndex);
           } else {
-            const prevIndex = currentIndex > 0 ? currentIndex - 1 : -1;
-            if (prevIndex >= 0) allNodes[prevIndex]?.focus();
+            focusNode(Math.max(currentIndex - 1, 0));
           }
           break;
         }
         case 'Enter': {
-          if (document.activeElement instanceof HTMLButtonElement) {
-            document.activeElement.click();
+          e.preventDefault();
+          if (!currentNode) break;
+          if (currentNode.entry.type === 'directory') {
+            toggleExpanded(currentNode.fullPath);
+          } else {
+            onFileSelect?.({ ...currentNode.entry, path: currentNode.fullPath });
           }
           break;
         }
         case 'Escape': {
           e.preventDefault();
+          setFocusedIndex(-1);
           (document.activeElement as HTMLElement)?.blur();
           break;
         }
       }
-    }, []);
+    }, [visibleNodes, focusedIndex, toggleExpanded, onFileSelect, focusNode]);
+
+    const rowCommon = {
+      onToggle: toggleExpanded,
+      onFileSelect,
+      onPrefetch: prefetchDirectory,
+    };
 
     if (isLoading) {
       return (
@@ -140,40 +155,70 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
       return (
         <div className="p-4 text-sm text-destructive">
           {error.message}
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-2">
+          <Button variant="ghost" size="sm" onClick={() => refetchRoot()} className="ml-2">
             <RefreshCw className="w-3 h-3" />
           </Button>
         </div>
       );
     }
 
-    if (files.length === 0) {
+    if (visibleNodes.length === 0) {
       return (
         <div className="p-4 text-sm text-muted-foreground">
           Empty workspace
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-2">
+          <Button variant="ghost" size="sm" onClick={() => refetchRoot()} className="ml-2">
             <RefreshCw className="w-3 h-3" />
           </Button>
+        </div>
+      );
+    }
+
+    if (shouldVirtualize) {
+      return (
+        <div
+          ref={containerRef}
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          className="flex-1 min-h-0 min-w-0 w-full outline-none"
+        >
+          <LegendList
+            data={visibleNodes}
+            keyExtractor={(node: VisibleFileNode) => node.id}
+            renderItem={({ item, index }: { item: VisibleFileNode; index: number }) => (
+              <FileTreeRow
+                node={item}
+                {...rowCommon}
+                isFocused={focusedIndex === index}
+              />
+            )}
+            estimatedItemSize={36}
+            drawDistance={400}
+            className="h-full overflow-y-auto px-2 pb-2"
+            ListEmptyComponent={null}
+          />
         </div>
       );
     }
 
     return (
-      <div ref={containerRef} tabIndex={-1} onKeyDown={handleKeyDown} className="flex-1 min-h-0 min-w-0 w-full outline-none">
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        className="flex-1 min-h-0 min-w-0 w-full outline-none"
+      >
         <ScrollArea className="h-full">
-          <div className="px-2 pb-2 w-full min-w-0" style={width ? { width: `${width - 8}px` } : undefined}>
+          <div
+            className="px-2 pb-2 w-full min-w-0"
+            style={width ? { width: `${width - 8}px` } : undefined}
+          >
             <div className="space-y-0.5 min-w-0">
-              {files.map(file => (
-                <FileTreeNode
-                  key={file.path}
-                  entry={file}
-                  workspaceId={workspaceId}
-                  parentPath={currentPath}
-                  depth={0}
-                  onFileSelect={onFileSelect}
-                  showHidden={showHidden}
-                  sdkClient={sdkClient}
-                  root={root}
+              {visibleNodes.map((node, index) => (
+                <FileTreeRow
+                  key={node.id}
+                  node={node}
+                  {...rowCommon}
+                  isFocused={focusedIndex === index}
                 />
               ))}
             </div>

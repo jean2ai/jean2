@@ -10,6 +10,7 @@ import {
   createMessage,
   createPart,
   listMessagesWithParts,
+  listLatestMessagesWithPartsPage,
   buildEffectiveContextHistory,
   addMessageToQueue,
   deleteQueuedMessage,
@@ -705,11 +706,11 @@ export async function handleSessionEditMessage(
       keepTarget: true,
     });
 
-    const currentState = listMessagesWithParts(msg.sessionId);
+    const currentState = listLatestMessagesWithPartsPage(msg.sessionId, 50);
     ctx.broadcastToSession(msg.sessionId, {
       type: 'session.state',
       sessionId: msg.sessionId,
-      messages: currentState,
+      messages: currentState.messages,
     });
 
     const workspace = session.workspaceId ? getWorkspace(session.workspaceId) : null;

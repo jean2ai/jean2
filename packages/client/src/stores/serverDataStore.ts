@@ -32,6 +32,18 @@ interface ServerDataActions {
     providers: ProviderStatus[];
     agents: Agent[];
   }) => void;
+  hydrateCritical: (serverId: string, data: {
+    workspaces: Workspace[];
+    preconfigs: Preconfig[];
+    models: ModelWithStatus[];
+    defaultModel: string;
+    defaultProvider: string;
+  }) => void;
+  hydrateSecondary: (data: {
+    prompts: PromptInfo[];
+    providers: ProviderStatus[];
+    agents: Agent[];
+  }) => void;
   updateModels: (models: ModelWithStatus[], defaultModel: string, defaultProvider: string) => void;
   updatePreconfigs: (preconfigs: Preconfig[]) => void;
   updatePrompts: (prompts: PromptInfo[]) => void;
@@ -57,6 +69,21 @@ export const useServerDataStore = create<ServerDataState & ServerDataActions>((s
   hydrate: (serverId, data) => set({
     serverId,
     ...data,
+  }),
+
+  hydrateCritical: (serverId, data) => set({
+    serverId,
+    workspaces: data.workspaces,
+    preconfigs: data.preconfigs,
+    models: data.models,
+    defaultModel: data.defaultModel,
+    defaultProvider: data.defaultProvider,
+  }),
+
+  hydrateSecondary: (data) => set({
+    prompts: data.prompts,
+    providers: data.providers,
+    agents: data.agents,
   }),
 
   updateModels: (models, defaultModel, defaultProvider) => set({

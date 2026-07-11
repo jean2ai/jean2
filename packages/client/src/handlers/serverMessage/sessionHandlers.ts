@@ -1,12 +1,52 @@
 import type { Session, MessageWithParts, SessionControlState } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
+import { mark, markAndMeasure } from '@/lib/perf';
 
-function invalidateSessionQueries() {
-  queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+/**
+ * Check whether a query key contains a given workspace ID.
+ */
+function queryKeyContainsWorkspace(key: readonly unknown[], workspaceId: string): boolean {
+  for (const part of key) {
+    if (typeof part === 'string' && part === workspaceId) return true;
+    if (part && typeof part === 'object') {
+      if ('workspaceId' in part && part.workspaceId === workspaceId) return true;
+      if ('workspaceIds' in part && Array.isArray(part.workspaceIds) && part.workspaceIds.includes(workspaceId)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Invalidate session-related queries scoped to a single workspace.
+ */
+function invalidateSessionQueriesForWorkspace(workspaceId: string): void {
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const key = query.queryKey;
+      if (!key || !Array.isArray(key) || key[0] !== 'sessions') return false;
+      return queryKeyContainsWorkspace(key, workspaceId);
+    },
+  });
+}
+
+/**
+ * Invalidate session-related queries scoped to a single workspace and its tags.
+ */
+function invalidateSessionsAndTagsForWorkspace(workspaceId: string): void {
+  invalidateSessionQueriesForWorkspace(workspaceId);
+  queryClient.invalidateQueries({ queryKey: queryKeys.sessions.tags(workspaceId) });
+}
+
+/**
+ * Find the workspace ID for a session from the sessions list.
+ */
+function findWorkspaceId(sessions: Session[], sessionId: string): string | null {
+  return sessions.find(s => s.id === sessionId)?.workspaceId ?? null;
 }
 
 export function handleSessionCreated(
@@ -17,8 +57,6 @@ export function handleSessionCreated(
   const {
     setSessions,
     setCurrentSession,
-    setMessagesBySession,
-    setPartsBySession,
     setSessionUsage,
     setCurrentModel,
     setSelectedVariant,
@@ -32,8 +70,7 @@ export function handleSessionCreated(
 
   if (pendingSessionCreateRef.current) {
     setCurrentSession(session);
-    setMessagesBySession(prev => ({ ...prev, [session.id]: [] }));
-    setPartsBySession(prev => ({ ...prev, [session.id]: {} }));
+    ctx.replaceSessionContent(session.id, []);
     partIdIndexRef.current.clear();
     setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
     setCurrentModel(session.selectedModel || defaultModel);
@@ -43,22 +80,41 @@ export function handleSessionCreated(
     ctx.resumeSessionAfterCreate(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
-  invalidateSessionQueries();
+  if (session.workspaceId) {
+    invalidateSessionQueriesForWorkspace(session.workspaceId);
+  } else {
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+  }
 }
 
 export function handleSessionResumed(
-  msg: { type: 'session.resumed'; session: Session; messages?: MessageWithParts[]; usage?: SessionUsage; isRunning?: boolean; control?: SessionControlState },
+  msg: {
+    type: 'session.resumed';
+    session: Session;
+    messages?: MessageWithParts[];
+    usage?: SessionUsage;
+    isRunning?: boolean;
+    control?: SessionControlState;
+    transcript?: {
+      messages: MessageWithParts[];
+      pagination: {
+        hasOlder: boolean;
+        oldestSequence: number | null;
+        newestSequence: number | null;
+        limit: number;
+      };
+    };
+  },
   ctx: SessionHandlersContext,
 ): void {
-  const { session, messages, usage, isRunning, control } = msg;
+  const { session, messages, transcript, usage, isRunning, control } = msg;
+  mark('session-resumed:received');
   const {
     setCurrentSession,
     removeInterruptedSession,
     addStreamingSession,
     removeStreamingSession,
     skipFinishSoundSessionIdsRef,
-    setMessagesBySession,
-    setPartsBySession,
     setSessionUsage,
     setCurrentModel,
     setSelectedVariant,
@@ -81,19 +137,25 @@ export function handleSessionResumed(
     skipFinishSoundSessionIdsRef.current.add(session.id);
   }
 
-  if (messages) {
-    setMessagesBySession(prev => ({
-      ...prev,
-      [session.id]: messages.map(mwp => mwp.message),
-    }));
-    setPartsBySession(prev => {
-      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = { ...prev };
-      newParts[session.id] = {};
-      for (const mwp of messages) {
-        newParts[session.id][mwp.message.id] = mwp.parts;
-      }
-      return newParts;
+  if (transcript) {
+    ctx.replaceSessionContent(session.id, transcript.messages, {
+      hasOlder: transcript.pagination.hasOlder,
+      oldestSequence: transcript.pagination.oldestSequence,
+      newestSequence: transcript.pagination.newestSequence,
     });
+
+    partIdIndexRef.current.clear();
+    for (const mwp of transcript.messages) {
+      for (let i = 0; i < mwp.parts.length; i++) {
+        partIdIndexRef.current.set(mwp.parts[i].id, {
+          sessionId: session.id,
+          messageId: mwp.message.id,
+          index: i,
+        });
+      }
+    }
+  } else if (messages) {
+    ctx.replaceSessionContent(session.id, messages);
 
     partIdIndexRef.current.clear();
     for (const mwp of messages) {
@@ -121,6 +183,8 @@ export function handleSessionResumed(
   if (control) {
     useSessionControlStore.getState().setControlState(session.id, control);
   }
+
+  markAndMeasure('session-resumed:received', 'session-content:ready');
 }
 
 export function handleSessionClosed(
@@ -130,8 +194,6 @@ export function handleSessionClosed(
   const { sessionId } = msg;
   const {
     setSessions,
-    setMessagesBySession,
-    setPartsBySession,
     setCurrentSession,
     partIdIndexRef,
     partAppendRafRef,
@@ -145,7 +207,6 @@ export function handleSessionClosed(
     s.id === sessionId ? { ...s, status: 'closed' } : s
   ));
 
-  // Clear completion state when session is closed
   clearCompletion(sessionId);
 
   if (currentSessionIdRef.current === sessionId) {
@@ -156,16 +217,7 @@ export function handleSessionClosed(
     pendingPartAppendsRef.current.clear();
   }
 
-  setMessagesBySession(prev => {
-    const newMap = { ...prev };
-    delete newMap[sessionId];
-    return newMap;
-  });
-  setPartsBySession(prev => {
-    const newMap = { ...prev };
-    delete newMap[sessionId];
-    return newMap;
-  });
+  useSessionStore.getState().evictSessionContent(sessionId);
 
   for (const [partId, entry] of partIdIndexRef.current) {
     if (entry.sessionId === sessionId) {
@@ -177,7 +229,12 @@ export function handleSessionClosed(
     setCurrentSession(null);
     ctx.navigateToParent();
   }
-  invalidateSessionQueries();
+  const wsId = findWorkspaceId(ctx.sessionsRef.current, sessionId);
+  if (wsId) {
+    invalidateSessionQueriesForWorkspace(wsId);
+  } else {
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+  }
 }
 
 export function handleSessionReopened(
@@ -193,7 +250,9 @@ export function handleSessionReopened(
   if (currentSessionIdRef.current === session.id) {
     setCurrentSession(session);
   }
-  invalidateSessionQueries();
+  if (session.workspaceId) {
+    invalidateSessionQueriesForWorkspace(session.workspaceId);
+  }
 }
 
 export function handleSessionDeleted(
@@ -203,8 +262,6 @@ export function handleSessionDeleted(
   const { sessionId } = msg;
   const {
     setSessions,
-    setMessagesBySession,
-    setPartsBySession,
     removeInterruptedSession,
     partIdIndexRef,
     sessionAccessTimesRef,
@@ -215,18 +272,8 @@ export function handleSessionDeleted(
 
   setSessions(prev => prev.filter(s => s.id !== sessionId));
 
-  // Clear completion state when session is deleted
   clearCompletion(sessionId);
-  setMessagesBySession(prev => {
-    const newMap = { ...prev };
-    delete newMap[sessionId];
-    return newMap;
-  });
-  setPartsBySession(prev => {
-    const newMap = { ...prev };
-    delete newMap[sessionId];
-    return newMap;
-  });
+  useSessionStore.getState().evictSessionContent(sessionId);
   removeInterruptedSession(sessionId);
 
   for (const [partId, entry] of partIdIndexRef.current) {
@@ -241,7 +288,12 @@ export function handleSessionDeleted(
     setCurrentSession(null);
     ctx.navigateToParent();
   }
-  invalidateSessionQueries();
+  const wsId = findWorkspaceId(ctx.sessionsRef.current, sessionId);
+  if (wsId) {
+    invalidateSessionQueriesForWorkspace(wsId);
+  } else {
+    queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all });
+  }
 }
 
 export function handleSessionUpdated(
@@ -263,7 +315,9 @@ export function handleSessionUpdated(
       setCurrentModel(session.selectedModel);
     }
   }
-  invalidateSessionQueries();
+  if (session.workspaceId) {
+    invalidateSessionsAndTagsForWorkspace(session.workspaceId);
+  }
 }
 
 export function handleSessionRenamed(
@@ -282,7 +336,9 @@ export function handleSessionRenamed(
   if (currentSessionIdRef.current === session.id) {
     setCurrentSession(session);
   }
-  invalidateSessionQueries();
+  if (session.workspaceId) {
+    invalidateSessionQueriesForWorkspace(session.workspaceId);
+  }
 }
 
 export function handleSessionInterrupted(
@@ -321,22 +377,14 @@ export function handleSessionForked(
   const {
     setSessions,
     setCurrentSession,
-    setMessagesBySession,
-    setPartsBySession,
     setSessionUsage,
     sessionAccessTimesRef,
     partIdIndexRef,
     clearCompletion,
   } = ctx;
 
-  setSessions(prev => [forkedSession, ...prev]);    setMessagesBySession(prev => ({ ...prev, [forkedSession.id]: forkedMessages.map(mwp => mwp.message) }));
-    setPartsBySession(prev => {
-      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = { ...prev };
-      newParts[forkedSession.id] = {};    for (const mwp of forkedMessages) {
-      newParts[forkedSession.id][mwp.message.id] = mwp.parts;
-    }
-    return newParts;
-  });
+  setSessions(prev => [forkedSession, ...prev]);
+  ctx.replaceSessionContent(forkedSession.id, forkedMessages);
 
   partIdIndexRef.current.clear();
   for (const mwp of forkedMessages) {
@@ -355,9 +403,10 @@ export function handleSessionForked(
   ctx.resumeSessionAfterCreate(forkedSession.id);
   setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
-  // Clear completion state when session is forked (creates new context)
   clearCompletion(forkedSession.id);
-  invalidateSessionQueries();
+  if (forkedSession.workspaceId) {
+    invalidateSessionQueriesForWorkspace(forkedSession.workspaceId);
+  }
 }
 
 export function handleSessionState(
@@ -366,8 +415,6 @@ export function handleSessionState(
 ): void {
   const { sessionId, messages } = msg;
   const {
-    setMessagesBySession,
-    setPartsBySession,
     partIdIndexRef,
     partAppendRafRef,
     skipFinishSoundSessionIdsRef,
@@ -387,15 +434,7 @@ export function handleSessionState(
   }
 
   if (currentSessionIdRef.current === sessionId) {
-    setMessagesBySession(prev => ({ ...prev, [sessionId]: messages.map(mwp => mwp.message) }));
-    setPartsBySession(prev => {
-      const newParts: Record<string, Record<string, import('@jean2/sdk').Part[]>> = { ...prev };
-      newParts[sessionId] = {};
-      for (const mwp of messages) {
-        newParts[sessionId][mwp.message.id] = mwp.parts;
-      }
-      return newParts;
-    });
+    ctx.replaceSessionContent(sessionId, messages);
 
     partIdIndexRef.current.clear();
     for (const mwp of messages) {
@@ -411,7 +450,6 @@ export function handleSessionState(
   skipFinishSoundSessionIdsRef.current.add(sessionId);
   removeStreamingSession(sessionId);
   sessionAccessTimesRef.current.set(sessionId, Date.now());
-  // Clear completion state when session state is refreshed
   clearCompletion(sessionId);
 
   usePendingOperationsStore.getState().clearOperation(sessionId, 'revert');

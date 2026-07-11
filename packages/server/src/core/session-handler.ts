@@ -1,7 +1,9 @@
 import type { ServerWebSocket } from 'bun';
 import {
   getSession,
-  listMessagesWithParts,
+} from '@/store';
+import {
+  listLatestMessagesWithPartsPage,
 } from '@/store';
 import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
@@ -61,11 +63,11 @@ export async function handleSessionRevert(
       removed: result.removed,
     });
 
-    const currentState = listMessagesWithParts(msg.sessionId);
+    const currentState = listLatestMessagesWithPartsPage(msg.sessionId, 50);
     ctx.broadcastToSession(msg.sessionId, {
       type: 'session.state',
       sessionId: msg.sessionId,
-      messages: currentState,
+      messages: currentState.messages,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Revert failed';
@@ -91,11 +93,12 @@ export async function handleSessionFork(
       title: msg.title,
     });
 
+    const forkedPage = listLatestMessagesWithPartsPage(result.forkedSession.id, 50);
     ctx.broadcastToSession(msg.sessionId, {
       type: 'session.forked',
       originalSessionId: msg.sessionId,
       forkedSession: result.forkedSession,
-      messages: result.messages,
+      messages: forkedPage.messages,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Fork failed';

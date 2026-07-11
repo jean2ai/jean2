@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
+import { useQueryClient } from '@tanstack/react-query';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useFileBrowseQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryKeys';
 import { GitStatusBadge } from './GitStatusBadge';
 
 interface FileTreeNodeProps {
@@ -29,6 +31,8 @@ const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
   '.html': { icon: File, color: 'text-orange-500' },
 };
 
+const PREFETCH_DELAY_MS = 200;
+
 export function FileTreeNode({
   entry,
   workspaceId,
@@ -40,6 +44,8 @@ export function FileTreeNode({
   root,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fullPath = parentPath ? `${parentPath}/${entry.path}` : entry.path;
   const isDirectory = entry.type === 'directory';
@@ -54,7 +60,28 @@ export function FileTreeNode({
 
   const children = data?.files ?? [];
 
+  const cancelPrefetch = useCallback(() => {
+    if (prefetchTimerRef.current !== null) {
+      clearTimeout(prefetchTimerRef.current);
+      prefetchTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePrefetch = useCallback(() => {
+    if (!isDirectory || !sdkClient || !workspaceId) return;
+    cancelPrefetch();
+    prefetchTimerRef.current = setTimeout(() => {
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.files.browse(workspaceId, fullPath, { showHidden, root }),
+        queryFn: ({ signal }) =>
+          sdkClient.http.files.browse(workspaceId, fullPath, { showHidden, root, signal }),
+        staleTime: 10_000,
+      });
+    }, PREFETCH_DELAY_MS);
+  }, [isDirectory, sdkClient, workspaceId, fullPath, showHidden, root, queryClient, cancelPrefetch]);
+
   const handleToggle = (open: boolean) => {
+    cancelPrefetch();
     (document.activeElement as HTMLElement)?.focus();
     setIsOpen(open);
   };
@@ -106,6 +133,12 @@ export function FileTreeNode({
           data-file-node
           data-file-type="directory"
           data-file-is-open={isOpen || undefined}
+          onPointerEnter={handlePrefetch}
+          onPointerLeave={cancelPrefetch}
+          onFocus={handlePrefetch}
+          onBlur={cancelPrefetch}
+          onClick={handleClick}
+          onKeyDown={handleKeyDown}
           className={cn(
             'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
             'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',

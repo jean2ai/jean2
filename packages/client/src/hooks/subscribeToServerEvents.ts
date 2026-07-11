@@ -27,9 +27,20 @@ export function subscribeToServerEvents(
   add('session.created', (session: unknown) => {
     sessionHandlers['session.created']({ type: 'session.created', session: session as Session }, ctx()!);
   });
-  add('session.resumed', (session: unknown, messages: unknown, usage: unknown, isRunning: unknown, control: unknown) => {
+  add('session.resumed', (session: unknown, messages: unknown, usage: unknown, isRunning: unknown, control: unknown, transcript: unknown) => {
     sessionHandlers['session.resumed'](
-      { type: 'session.resumed', session: session as Session, messages: messages as MessageWithParts[] | undefined, usage: usage as SessionUsage | undefined, isRunning: isRunning as boolean | undefined, control: control as SessionControlState | undefined },
+      {
+        type: 'session.resumed',
+        session: session as Session,
+        messages: messages as MessageWithParts[] | undefined,
+        usage: usage as SessionUsage | undefined,
+        isRunning: isRunning as boolean | undefined,
+        control: control as SessionControlState | undefined,
+        transcript: transcript as {
+          messages: MessageWithParts[];
+          pagination: { hasOlder: boolean; oldestSequence: number | null; newestSequence: number | null; limit: number };
+        } | undefined,
+      },
       ctx()!,
     );
   });

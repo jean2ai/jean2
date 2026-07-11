@@ -8,7 +8,8 @@ import { VirtualizedTranscript } from './VirtualizedTranscript';
 import type { PendingAskRequest } from '@/stores/askStore';
 import { useSessionControlStore, type ActionRejection } from '@/stores/sessionControlStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
-import type { SessionNavigationIntent } from '@/stores/sessionStore';
+import { useSessionStore, type SessionNavigationIntent } from '@/stores/sessionStore';
+import { useTranscriptPagination } from '@/hooks/useTranscriptPagination';
 
 export interface DisplayItem {
   message: import('@jean2/sdk').Message;
@@ -155,6 +156,9 @@ export function ChatView({
   const isPrimarySession = !session.parentId;
   const isMainActiveSession = isPrimarySession && session.status === 'active';
 
+  const contentMeta = useSessionStore((state) => state.contentMetaBySession[session.id]);
+  const { loadOlder } = useTranscriptPagination({ sessionId: session.id, client: sdkClient ?? null });
+
   const controlState = useSessionControlStore((s) => s.controlBySessionId[session.id]);
   const myClientId = useClientIdentityStore((s) => s.clientId);
   const isObserver = controlState?.status === 'controlled' && controlState.controllerClientId !== myClientId;
@@ -265,6 +269,10 @@ export function ChatView({
           isPinningMessage={isPinningMessage}
           targetMessageId={targetMessageId}
           onTargetMessageHandled={onTargetMessageHandled}
+          hasOlder={contentMeta?.hasOlder}
+          isLoadingOlder={contentMeta?.isLoadingOlder}
+          loadOlderError={contentMeta?.loadOlderError}
+          onLoadOlder={loadOlder}
         />
 
         {/* Floating auto-follow toggle button - positioned within transcript area */}

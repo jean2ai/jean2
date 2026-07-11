@@ -51,6 +51,10 @@ export const queryKeys = {
   pinnedMessages: {
     byWorkspace: (workspaceId: string) => ['pinnedMessages', 'workspace', workspaceId] as const,
   },
+  transcript: {
+    page: (sessionId: string, before?: number) =>
+      ['transcript', sessionId, { before: before ?? 'latest' }] as const,
+  },
   scheduledJobs: {
     byWorkspace: (workspaceId: string) => ['scheduledJobs', 'workspace', workspaceId] as const,
   },

@@ -1,7 +1,8 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
-import { fetchServerData, type ServerData } from '@/lib/fetchServerData';
+import { fetchCriticalServerData, type CriticalServerData } from '@/lib/fetchServerData';
 import { StoreHydrator } from '@/components/providers/StoreHydrator';
 import ServerShell from '@/components/shell/ServerShell';
+import { mark } from '@/lib/perf';
 
 function ServerErrorComponent({
   error,
@@ -27,15 +28,11 @@ function ServerErrorComponent({
           <button
             onClick={() => reset()}
             className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
-          >
-            Retry
-          </button>
+          >Retry</button>
           <button
             onClick={handleGoToServerSelection}
             className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground text-sm font-medium hover:bg-accent"
-          >
-            Back to Server Selection
-          </button>
+          >Back to Server Selection</button>
         </div>
       </div>
     </div>
@@ -50,13 +47,16 @@ export const Route = createFileRoute('/server/$serverId')({
     }
     return { server };
   },
-  loader: async ({ params, context, abortController }): Promise<ServerData> => {
+  loader: async ({ params, context, abortController }): Promise<CriticalServerData> => {
     const server = context.serverRegistry.getServer(params.serverId);
     if (!server) {
       throw redirect({ to: '/', replace: true, throw: true });
     }
+    mark('server-loader:start');
     try {
-      return await fetchServerData(server.url, server.token, abortController.signal);
+      const data = await fetchCriticalServerData(server.url, server.token, abortController.signal);
+      mark('server-loader:all-ready');
+      return data;
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw err;

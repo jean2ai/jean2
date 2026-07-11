@@ -3,8 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { useParams, useRouterState } from '@tanstack/react-router';
 import type {
   Session,
-  Message,
-
   Workspace,
   WorkspaceSettings,
   PermissionGrant,
@@ -21,7 +19,7 @@ import type { Jean2Client } from '@jean2/sdk';
 import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage/types';
 
 import { useServerContext } from '@/contexts/ServerContext';
-import { useSessionStore, type ResumeSessionOptions, type SessionUsage } from '@/stores/sessionStore';
+import { useSessionStore, type ResumeSessionOptions, type SessionUsage, evictToBudget } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
@@ -139,7 +137,6 @@ export function useServerSessionManager({
   const sdkClientRef = useRef<Jean2Client | null>(null);
   const currentSessionIdRef = useRef<string | null>(null);
   const sessionsRef = useRef<Session[]>([]);
-  const messagesBySessionRef = useRef<Record<string, Message[]>>({});
   const sessionAccessTimesRef = useRef<Map<string, number>>(new Map());
   const prevSessionKeyCountRef = useRef(0);
   const notifiedToolCallIdsRef = useRef<Set<string>>(new Set());
@@ -199,12 +196,6 @@ export function useServerSessionManager({
   }, [currentSession, setCurrentSession]);
 
   const activeSessionId = currentSession?.id;
-
-  useLayoutEffect(() => {
-    messagesBySessionRef.current = useSessionStore.getState().messagesBySession;
-  });
-
-  const SESSION_CACHE_MAX = 1;
 
   const {
     streamingSessionIds,
@@ -407,43 +398,20 @@ export function useServerSessionManager({
     }
     prevSessionKeyCountRef.current = currentCount;
 
-    if (currentCount <= SESSION_CACHE_MAX) return;
-
-    const messagesBySession = messagesBySessionRef.current;
-    const keys = Object.keys(messagesBySession);
-    while (keys.length > SESSION_CACHE_MAX) {
-      let oldestKey: string | null = null;
-      let oldestTime = Infinity;
-      for (const key of keys) {
-        if (key === currentSession?.id) continue;
-        const time = sessionAccessTimesRef.current.get(key);
-        if (time !== undefined && time < oldestTime) {
-          oldestTime = time;
-          oldestKey = key;
+    const streamingIds = useConnectionStore.getState().streamingSessionIds;
+    const protectedSessionIds = new Set<string>(streamingIds);
+    const evictedIds = evictToBudget(activeSessionId ?? null, protectedSessionIds);
+    if (evictedIds.length > 0) {
+      for (const id of evictedIds) {
+        sessionAccessTimesRef.current.delete(id);
+        for (const [partId, entry] of partIdIndexRef.current) {
+          if (entry.sessionId === id) {
+            partIdIndexRef.current.delete(partId);
+          }
         }
       }
-      if (!oldestKey) break;
-      sessionAccessTimesRef.current.delete(oldestKey);
-      for (const [partId, entry] of partIdIndexRef.current) {
-        if (entry.sessionId === oldestKey) {
-          partIdIndexRef.current.delete(partId);
-        }
-      }
-      keys.splice(keys.indexOf(oldestKey), 1);
-      setMessagesBySession(prev => {
-        if (!(oldestKey! in prev)) return prev;
-        const next = { ...prev };
-        delete next[oldestKey!];
-        return next;
-      });
-      setPartsBySession(prev => {
-        if (!(oldestKey! in prev)) return prev;
-        const next = { ...prev };
-        delete next[oldestKey!];
-        return next;
-      });
     }
-  }, [currentSession, setMessagesBySession, setPartsBySession]);
+  }, [activeSessionId]);
 
   const apiToken = activeServer?.token ?? null;
   const serverUrl = activeServer?.url ?? null;
@@ -472,6 +440,7 @@ export function useServerSessionManager({
         : false;
       if (!hasMessages) {
         hasResumedRef.current.add(sessionIdFromUrl);
+        useSessionStore.getState().beginSessionContentLoad(sessionIdFromUrl);
         sdkClientRef.current.sessions.resume(sessionIdFromUrl);
       }
     }
@@ -563,16 +532,7 @@ export function useServerSessionManager({
 
     setSessions(prev => prev.filter(s => !deletedSessions.includes(s.id)));
 
-    setMessagesBySession(prev => {
-      const next = { ...prev };
-      deletedSessions.forEach(sessionId => delete next[sessionId]);
-      return next;
-    });
-    setPartsBySession(prev => {
-      const next = { ...prev };
-      deletedSessions.forEach(sessionId => delete next[sessionId]);
-      return next;
-    });
+    useSessionStore.getState().evictSessionContentBatch(deletedSessions);
     deletedSessions.forEach(sessionId => sessionAccessTimesRef.current.delete(sessionId));
 
     for (const [partId, entry] of partIdIndexRef.current) {
@@ -743,6 +703,10 @@ export function useServerSessionManager({
       interruptedSessions,
       sessionsRef,
       flushPendingPartAppends,
+      beginSessionContentLoad: useSessionStore.getState().beginSessionContentLoad,
+      replaceSessionContent: useSessionStore.getState().replaceSessionContent,
+      failSessionContentLoad: useSessionStore.getState().failSessionContentLoad,
+      touchSessionContent: useSessionStore.getState().touchSessionContent,
       setProviderStatuses,
       setPermissions,
       notifiedToolCallIdsRef,

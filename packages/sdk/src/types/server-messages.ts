@@ -70,6 +70,7 @@ export interface SdkEventMap {
     usage: SessionResumedMessage['usage'],
     isRunning: SessionResumedMessage['isRunning'],
     control: SessionResumedMessage['control'],
+    transcript: SessionResumedMessage['transcript'],
   ];
   'session.control.updated': [
     control: SessionControlUpdatedMessage['control'],
@@ -229,7 +230,7 @@ export function routeServerMessage(
       emitter.emit('session.created', msg.session);
       break;
     case 'session.resumed':
-      emitter.emit('session.resumed', msg.session, msg.messages, msg.usage, msg.isRunning, msg.control);
+      emitter.emit('session.resumed', msg.session, msg.messages, msg.usage, msg.isRunning, msg.control, msg.transcript);
       break;
     case 'session.control.updated':
       emitter.emit('session.control.updated', msg.control, msg.reason);

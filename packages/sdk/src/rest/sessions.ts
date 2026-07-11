@@ -7,6 +7,7 @@ import type {
   UpdateSessionResponse,
   DeleteSessionResponse,
   ListMessagesResponse,
+  TranscriptPageResponse,
 } from '../types/rest-responses';
 import type { SessionStatus } from '../types';
 
@@ -78,6 +79,19 @@ export class SessionsRestNamespace {
 
   async listMessages(id: string, options?: { signal?: AbortSignal }): Promise<ListMessagesResponse> {
     return this.http.get(`/sessions/${encodeURIComponent(id)}/messages`, { signal: options?.signal });
+  }
+
+  async getTranscriptPage(
+    id: string,
+    options?: { before?: number; limit?: number; signal?: AbortSignal },
+  ): Promise<TranscriptPageResponse> {
+    const params: Record<string, string> = {};
+    if (options?.before !== undefined) params.before = String(options.before);
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    return this.http.get(`/sessions/${encodeURIComponent(id)}/transcript`, {
+      params,
+      signal: options?.signal,
+    });
   }
 
   async listGrouped(options: ListGroupedOptions): Promise<ListSessionsGroupedResponse> {

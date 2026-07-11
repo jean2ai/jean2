@@ -926,6 +926,199 @@ export function buildEffectiveContextHistory(
 }
 
 // =============================================================================
+// Paginated Transcript Queries
+// =============================================================================
+
+const DEFAULT_TRANSCRIPT_LIMIT = 50;
+const MAX_TRANSCRIPT_LIMIT = 100;
+
+/**
+ * Select message IDs for the newest page of a session.
+ * Returns message IDs in ascending display order (oldest of the page first).
+ *
+ * Strategy: select message IDs ordered by sequence DESC with LIMIT,
+ * then reverse to get ascending order.
+ */
+function selectMessageIdsForLatestPage(sessionId: string, limit: number): { id: string; sequence: number | null }[] {
+  const db = getDatabase();
+  const effectiveLimit = Math.min(Math.max(limit, 1), MAX_TRANSCRIPT_LIMIT);
+  const rows = db.query(
+    `SELECT id, sequence FROM messages
+     WHERE session_id = ?
+     ORDER BY sequence IS NULL, sequence DESC, created_at DESC, rowid DESC
+     LIMIT ?`,
+  ).all(sessionId, effectiveLimit) as { id: string; sequence: number | null }[];
+  return rows.reverse();
+}
+
+/**
+ * Select message IDs for the page before a given sequence.
+ * Returns message IDs in ascending display order.
+ */
+function selectMessageIdsBeforeSequence(
+  sessionId: string,
+  beforeSequence: number,
+  limit: number,
+): { id: string; sequence: number | null }[] {
+  const db = getDatabase();
+  const effectiveLimit = Math.min(Math.max(limit, 1), MAX_TRANSCRIPT_LIMIT);
+  const rows = db.query(
+    `SELECT id, sequence FROM messages
+     WHERE session_id = ? AND sequence IS NOT NULL AND sequence < ?
+     ORDER BY sequence DESC, created_at DESC, rowid DESC
+     LIMIT ?`,
+  ).all(sessionId, beforeSequence, effectiveLimit) as { id: string; sequence: number | null }[];
+  return rows.reverse();
+}
+
+/**
+ * Fetch messages with parts for a specific set of message IDs.
+ * Returns messages in ascending display order with parts ordered by (created_at, id).
+ */
+function fetchMessagesWithPartsByIds(
+  sessionId: string,
+  messageIds: string[],
+): MessageWithParts[] {
+  if (messageIds.length === 0) return [];
+
+  const db = getDatabase();
+  const placeholders = messageIds.map(() => '?').join(',');
+  const rows = db
+    .query(
+      `SELECT m.*, p.id AS part_id, p.message_id AS part_message_id,
+              p.session_id AS part_session_id, p.type AS part_type,
+              p.call_id AS part_call_id, p.data AS part_data, p.created_at AS part_created_at
+       FROM messages m
+       LEFT JOIN parts p ON p.message_id = m.id
+       WHERE m.session_id = ? AND m.id IN (${placeholders})
+       ORDER BY m.sequence IS NULL, m.sequence ASC, m.created_at ASC, m.rowid ASC,
+                p.created_at ASC, p.id ASC`,
+    )
+    .all(sessionId, ...messageIds) as JoinedMessagePartRow[];
+  return groupJoinedRows(rows);
+}
+
+/**
+ * Count total messages in a session.
+ */
+export function countMessagesInSession(sessionId: string): number {
+  const db = getDatabase();
+  const row = db.query(
+    'SELECT COUNT(*) as count FROM messages WHERE session_id = ?',
+  ).get(sessionId) as { count: number };
+  return row.count;
+}
+
+export interface TranscriptPageResult {
+  messages: MessageWithParts[];
+  pagination: {
+    hasOlder: boolean;
+    oldestSequence: number | null;
+    newestSequence: number | null;
+    limit: number;
+  };
+}
+
+/**
+ * Load the newest page of messages with parts for a session.
+ * Returns messages in ascending display order.
+ */
+export function listLatestMessagesWithPartsPage(
+  sessionId: string,
+  limit: number = DEFAULT_TRANSCRIPT_LIMIT,
+): TranscriptPageResult {
+  const effectiveLimit = Math.min(Math.max(limit, 1), MAX_TRANSCRIPT_LIMIT);
+  const idRows = selectMessageIdsForLatestPage(sessionId, effectiveLimit);
+  const messageIds = idRows.map((r) => r.id);
+
+  if (messageIds.length === 0) {
+    return {
+      messages: [],
+      pagination: {
+        hasOlder: false,
+        oldestSequence: null,
+        newestSequence: null,
+        limit: effectiveLimit,
+      },
+    };
+  }
+
+  const messages = fetchMessagesWithPartsByIds(sessionId, messageIds);
+
+  const oldestSequence = idRows[0]?.sequence ?? null;
+  const newestSequence = idRows[idRows.length - 1]?.sequence ?? null;
+
+  const hasOlder = (() => {
+    if (!oldestSequence) return false;
+    const db = getDatabase();
+    const row = db.query(
+      'SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND sequence IS NOT NULL AND sequence < ?',
+    ).get(sessionId, oldestSequence) as { count: number };
+    return row.count > 0;
+  })();
+
+  return {
+    messages,
+    pagination: {
+      hasOlder,
+      oldestSequence,
+      newestSequence,
+      limit: effectiveLimit,
+    },
+  };
+}
+
+/**
+ * Load a page of messages with parts before a given sequence number.
+ * Returns messages in ascending display order.
+ */
+export function listMessagesWithPartsBeforeSequence(
+  sessionId: string,
+  beforeSequence: number,
+  limit: number = DEFAULT_TRANSCRIPT_LIMIT,
+): TranscriptPageResult {
+  const effectiveLimit = Math.min(Math.max(limit, 1), MAX_TRANSCRIPT_LIMIT);
+  const idRows = selectMessageIdsBeforeSequence(sessionId, beforeSequence, effectiveLimit);
+  const messageIds = idRows.map((r) => r.id);
+
+  if (messageIds.length === 0) {
+    return {
+      messages: [],
+      pagination: {
+        hasOlder: false,
+        oldestSequence: null,
+        newestSequence: null,
+        limit: effectiveLimit,
+      },
+    };
+  }
+
+  const messages = fetchMessagesWithPartsByIds(sessionId, messageIds);
+
+  const oldestSequence = idRows[0]?.sequence ?? null;
+  const newestSequence = idRows[idRows.length - 1]?.sequence ?? null;
+
+  const hasOlder = (() => {
+    if (!oldestSequence) return false;
+    const db = getDatabase();
+    const row = db.query(
+      'SELECT COUNT(*) as count FROM messages WHERE session_id = ? AND sequence IS NOT NULL AND sequence < ?',
+    ).get(sessionId, oldestSequence) as { count: number };
+    return row.count > 0;
+  })();
+
+  return {
+    messages,
+    pagination: {
+      hasOlder,
+      oldestSequence,
+      newestSequence,
+      limit: effectiveLimit,
+    },
+  };
+}
+
+// =============================================================================
 // FTS Sync Helper
 // =============================================================================
 

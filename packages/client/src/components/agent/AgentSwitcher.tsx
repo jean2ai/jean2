@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter, useParams } from '@tanstack/react-router';
 import { useServerDataStore } from '@/stores/serverDataStore';
-import { useSessionManager } from '@/contexts/SessionManagerContext';
+import { useSdkClient } from '@/contexts/ServerClientContext';
 import { useDemoteAgent } from '@/hooks/queries';
 import { Button } from '@/components/ui/button';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
@@ -34,7 +34,7 @@ export function AgentSwitcher() {
   const router = useRouter();
   const params = useParams({ strict: false });
   const agents = useServerDataStore(s => s.agents);
-  const { sdkClient } = useSessionManager();
+  const sdkClient = useSdkClient();
   const [open, setOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [demoteAgent, setDemoteAgent] = useState<Agent | null>(null);
@@ -160,7 +160,7 @@ export function AgentSwitcher() {
 }
 
 function DemoteAgentDialog({ agent, onClose }: { agent: Agent; onClose: () => void }) {
-  const { sdkClient } = useSessionManager();
+  const sdkClient = useSdkClient();
   const demoteMutation = useDemoteAgent(sdkClient);
 
   const handleDemote = () => {

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, useMemo, memo, useLayoutEffect } from 'react';
 import { buildApiUrl } from '@/config/urls';
 import { LegendList, type LegendListRef } from '@legendapp/list/react';
-import { ChevronDown, ChevronRight, Download, FileIcon, Braces } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, FileIcon, Braces, Loader2 } from 'lucide-react';
 import type {
   MessageWithParts,
   Part,
@@ -58,6 +58,10 @@ interface VirtualizedTranscriptProps {
   isPinningMessage?: boolean;
   targetMessageId?: string | null;
   onTargetMessageHandled?: () => void;
+  hasOlder?: boolean;
+  isLoadingOlder?: boolean;
+  loadOlderError?: string | null;
+  onLoadOlder?: () => void;
 }
 
 function getTextContent(parts: Part[]): string {
@@ -515,6 +519,10 @@ export function VirtualizedTranscript({
   isPinningMessage,
   targetMessageId,
   onTargetMessageHandled,
+  hasOlder = false,
+  isLoadingOlder = false,
+  loadOlderError = null,
+  onLoadOlder,
 }: VirtualizedTranscriptProps) {
   const listRef = useRef<LegendListRef | null>(null);
   const autoScrollRef = useRef(autoFollow);
@@ -705,6 +713,13 @@ export function VirtualizedTranscript({
     const state = listRef.current?.getState();
     if (!state) return;
 
+    if (hasOlder && !isLoadingOlder && onLoadOlder) {
+      const scrollEl = listRef.current?.getScrollableNode() as HTMLElement | null | undefined;
+      if (scrollEl && scrollEl.scrollTop < 200) {
+        onLoadOlder();
+      }
+    }
+
     if (state.isAtEnd || state.isWithinMaintainScrollAtEndThreshold) {
       if (!autoScrollRef.current) {
         autoScrollRef.current = true;
@@ -715,7 +730,7 @@ export function VirtualizedTranscript({
     }
 
 
-  }, []);
+  }, [hasOlder, isLoadingOlder, onLoadOlder]);
 
   const revertMessageIds = useMemo(() => {
     const ids = new Map<string, string | null>();
@@ -786,6 +801,19 @@ export function VirtualizedTranscript({
 
   const header = (
     <>
+      {isLoadingOlder && (
+        <div className="flex items-center justify-center py-3">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {loadOlderError && (
+        <div className="flex items-center justify-center gap-2 py-2 text-xs text-destructive">
+          <span>Failed to load older messages</span>
+          <button onClick={onLoadOlder} className="underline hover:text-foreground">Retry</button>
+        </div>
+      )}
+
       {showCompactionBanner && (
         <div className="sticky top-0 z-10 px-4 pt-4 pb-1 bg-gradient-to-b from-background via-background/95 to-transparent">
           <CompactionInProgressBanner />

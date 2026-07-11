@@ -53,9 +53,10 @@ export function TodoList({ title, items }: TodoListProps) {
     return null;
   }
 
-  const completedCount = items.filter((item) => item.status === 'completed').length;
-  const _inProgressCount = items.filter((item) => item.status === 'in_progress').length;
-  const _pendingCount = items.filter((item) => item.status === 'pending').length;
+  let completedCount = 0;
+  for (const item of items) {
+    if (item.status === 'completed') completedCount++;
+  }
 
   return (
     <div className="flex flex-col gap-3 w-full overflow-hidden">

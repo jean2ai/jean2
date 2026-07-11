@@ -66,6 +66,6 @@ export type { CreateResponseFormatRequest, UpdateResponseFormatRequest } from '.
 export { SchedulerRestNamespace } from './rest/scheduler';
 export type { ListScheduledJobsResponse, GetScheduledJobResponse } from './rest/scheduler';
 export { HttpNamespace } from './rest/http-namespace';
-export type { LoadAllResult } from './rest/http-namespace';
+export type { LoadAllResult, CriticalServerData, SecondaryServerData } from './rest/http-namespace';
 
 export type { ClientConfig, ConnectionState, SdkEvent } from './types';
