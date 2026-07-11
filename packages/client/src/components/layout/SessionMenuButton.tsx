@@ -165,7 +165,11 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
           </DropdownMenuItem>
         )}
         {tagInputOpen && (
-          <div className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="px-2 py-1.5"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-1">
               <input
                 ref={tagInputRef}
