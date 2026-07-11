@@ -117,33 +117,7 @@ const areToolCallPropsEqual = (
   if (prev.part !== next.part) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.onAskResponse !== next.onAskResponse) return false;
-
-  // Always check asks — even when the tool status is no longer pending/running,
-  // we need to re-render if asks are removed (e.g. after a subagent timeout
-  // that cancels permission prompts) so the UI cleans them up.
-  const prevDirectAsk = prev.pendingAskRequests.find(r => r.toolCallId === prev.part.callId);
-  const nextDirectAsk = next.pendingAskRequests.find(r => r.toolCallId === next.part.callId);
-  if (prevDirectAsk !== nextDirectAsk) return false;
-
-  // Check child session asks for task tools
-  const prevTaskSessionId = extractTaskSessionId(prev.part);
-  const nextTaskSessionId = extractTaskSessionId(next.part);
-  if (prevTaskSessionId || nextTaskSessionId) {
-    const prevChildAsks = prev.pendingAskRequests.filter(r => 
-      r.originSessionId === prevTaskSessionId || 
-      r.originSessionId === nextTaskSessionId ||
-      r.sessionId === prevTaskSessionId ||
-      r.sessionId === nextTaskSessionId
-    );
-    const nextChildAsks = next.pendingAskRequests.filter(r => 
-      r.originSessionId === prevTaskSessionId || 
-      r.originSessionId === nextTaskSessionId ||
-      r.sessionId === prevTaskSessionId ||
-      r.sessionId === nextTaskSessionId
-    );
-    if (prevChildAsks.length !== nextChildAsks.length) return false;
-    if (prevChildAsks.some((pa, i) => pa !== nextChildAsks[i])) return false;
-  }
+  if (prev.pendingAskRequests !== next.pendingAskRequests) return false;
 
   return true;
 };

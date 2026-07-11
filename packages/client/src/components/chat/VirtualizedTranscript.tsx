@@ -840,6 +840,7 @@ export function VirtualizedTranscript({
     <LegendList
       ref={listRef}
       data={displayItems}
+      extraData={pendingAskRequests}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       estimatedItemSize={100}
