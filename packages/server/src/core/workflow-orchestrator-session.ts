@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { randomUUID } from 'crypto';
 import type { TextPart, UserMessage, AssistantMessage } from '@jean2/sdk';
 import { createMessage, createPart, createSession, getSession, updateSession } from '@/store';
@@ -118,28 +118,28 @@ export async function runOrchestratorSession(
     });
 
     // Resolve model metadata
-    const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+    const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
       modelId,
       providerId,
       systemPrompt,
       sessionId: parentSessionId,
     });
 
-    // Run the LLM call
-    console.log(`[workflow:${agentName}] Calling generateText...`);
-    const result = await generateText({
+    // Run the LLM call via streamText (works universally, including providers
+    // like Codex/OpenAI Responses API that require stream: true)
+    console.log(`[workflow:${agentName}] Calling streamText...`);
+    const stream = streamText({
       model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+      system: useProviderInstructions ? undefined : systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
       maxOutputTokens: omitMaxOutputTokens ? undefined : maxTokens,
-      providerOptions: providerOptions as unknown as Parameters<typeof generateText>[0]['providerOptions'],
+      providerOptions: providerOptions as unknown as Parameters<typeof streamText>[0]['providerOptions'],
       abortSignal,
     });
 
-    const text = result.text;
-    console.log(`[workflow:${agentName}] generateText returned`, { textLength: text?.length });
+    const text = await stream.text;
+    const streamUsage = await stream.usage;
+    console.log(`[workflow:${agentName}] streamText returned`, { textLength: text?.length });
 
     // Create assistant message
     const assistantMsgId = randomUUID();
@@ -163,8 +163,8 @@ export async function runOrchestratorSession(
       providerId,
       agent: agentName,
       tokens: {
-        prompt: result.usage?.inputTokens ?? 0,
-        completion: result.usage?.outputTokens ?? 0,
+        prompt: streamUsage?.inputTokens ?? 0,
+        completion: streamUsage?.outputTokens ?? 0,
       },
       cost: 0,
       createdAt: Date.now(),
@@ -202,7 +202,19 @@ export async function runOrchestratorSession(
       sessionId: session.id,
     };
   } catch (err) {
-    console.error(`[workflow:${agentName}] FAILED`, err instanceof Error ? err.message : err);
+    // Log full error details so bad-request failures are diagnosable.
+    // AI SDK errors (AI_APICallError) carry statusCode, responseBody, url, etc.
+    const errAny = err as Record<string, unknown>;
+    console.error(`[workflow:${agentName}] FAILED`, {
+      message: err instanceof Error ? err.message : String(err),
+      name: err instanceof Error ? err.name : undefined,
+      statusCode: errAny?.statusCode ?? errAny?.status,
+      url: errAny?.url,
+      responseBody: errAny?.responseBody ?? errAny?.response,
+      data: errAny?.data,
+      cause: err instanceof Error ? err.cause : undefined,
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : undefined,
+    });
 
     // Mark session as error
     updateSession(session.id, { subagentStatus: 'error' });

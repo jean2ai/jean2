@@ -1,4 +1,4 @@
-import { generateText, generateObject } from 'ai';
+import { streamText, streamObject } from 'ai';
 import { jsonSchema } from 'ai';
 import type { ModelMessage } from 'ai';
 import type { LlmApi, LlmTextOptions, LlmStructuredOptions, LlmImage } from '@jean2/sdk';
@@ -7,14 +7,13 @@ import { getModelWithMetadata } from '@/core/model-utils';
 export function createLlmApi(defaultModelId?: string, defaultProviderId?: string, sessionId?: string): LlmApi {
   return {
     async generateText(options: LlmTextOptions): Promise<string> {
-      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+      const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
         modelId: options.model || defaultModelId,
         providerId: options.provider || defaultProviderId,
         systemPrompt: options.system,
         sessionId,
       });
 
-      const systemMessage = options.system ? { role: 'system' as const, content: options.system } : null;
       let userContent: string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string | Uint8Array; mimeType: string }> = options.prompt;
 
       if (options.image) {
@@ -29,29 +28,25 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
         ];
       }
 
-      const messages = systemMessage
-        ? [systemMessage, { role: 'user' as const, content: userContent }]
-        : [{ role: 'user' as const, content: userContent }];
-
-      const result = await generateText({
+      const stream = streamText({
         model,
-        messages: messages as ModelMessage[],
+        system: (!options.system || useProviderInstructions) ? undefined : options.system,
+        messages: [{ role: 'user' as const, content: userContent }] as ModelMessage[],
         maxOutputTokens: omitMaxOutputTokens ? undefined : (options.maxTokens ?? 4096),
-        providerOptions: providerOptions as unknown as Parameters<typeof generateText>[0]['providerOptions'],
+        providerOptions: providerOptions as unknown as Parameters<typeof streamText>[0]['providerOptions'],
       });
 
-      return result.text;
+      return stream.text;
     },
 
     async generateStructured<T = unknown>(options: LlmStructuredOptions): Promise<T> {
-      const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+      const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
         modelId: options.model || defaultModelId,
         providerId: options.provider || defaultProviderId,
         systemPrompt: options.system,
         sessionId,
       });
 
-      const systemMessage = options.system ? { role: 'system' as const, content: options.system } : null;
       let userContent: string | Array<{ type: 'text'; text: string } | { type: 'image'; image: string | Uint8Array; mimeType: string }> = options.prompt;
 
       if (options.image) {
@@ -66,19 +61,16 @@ export function createLlmApi(defaultModelId?: string, defaultProviderId?: string
         ];
       }
 
-      const messages = systemMessage
-        ? [systemMessage, { role: 'user' as const, content: userContent }]
-        : [{ role: 'user' as const, content: userContent }];
-
-      const result = await generateObject({
+      const result = streamObject({
         model,
-        messages: messages as ModelMessage[],
+        system: (!options.system || useProviderInstructions) ? undefined : options.system,
+        messages: [{ role: 'user' as const, content: userContent }] as ModelMessage[],
         schema: jsonSchema(options.schema),
         maxOutputTokens: omitMaxOutputTokens ? undefined : (options.maxTokens ?? 4096),
-        providerOptions: providerOptions as unknown as Parameters<typeof generateObject>[0]['providerOptions'],
+        providerOptions: providerOptions as unknown as Parameters<typeof streamObject>[0]['providerOptions'],
       });
 
-      return result.object as T;
+      return result.object as Promise<T>;
     },
   };
 }

@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import type { MessageWithParts } from '@jean2/sdk';
 import { getModelsConfig, findModel } from '@/config';
 import { getModelWithMetadata } from '@/core/model-utils';
@@ -74,24 +74,26 @@ export async function generateSessionTitle(messages: MessageWithParts[]): Promis
 
   const config = getModelsConfig();
   const providerId = config.defaultProvider || findModel(config.defaultModel)?.providerId;
-  const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
+  const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
     modelId: config.defaultModel,
     providerId,
+    systemPrompt: TITLE_SYSTEM_PROMPT,
   });
 
-  const result = await generateText({
+  const stream = streamText({
     model,
-    system: TITLE_SYSTEM_PROMPT,
+    system: useProviderInstructions ? undefined : TITLE_SYSTEM_PROMPT,
     prompt: `Generate a title for this conversation:\n\n<chat>\n${conversation}\n</chat>`,
     ...(omitMaxOutputTokens ? {} : { maxOutputTokens: 20000 }),
     temperature: 0.5,
-    providerOptions: providerOptions as Parameters<typeof generateText>[0]['providerOptions'],
+    providerOptions: providerOptions as Parameters<typeof streamText>[0]['providerOptions'],
   });
 
-  const title = normalizeTitle(result.text);
+  const text = await stream.text;
+  const title = normalizeTitle(text);
   if (title) return title;
 
-  console.warn('[session-title] Rejected generated title, using fallback if possible:', result.text.slice(0, 200));
+  console.warn('[session-title] Rejected generated title, using fallback if possible:', text.slice(0, 200));
   return fallbackTitleFromMessages(messages);
 }
 

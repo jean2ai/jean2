@@ -1,4 +1,4 @@
-import { generateText as aiGenerateText, streamText as aiStreamText } from 'ai';
+import { streamText as aiStreamText } from 'ai';
 import { getModelWithMetadata } from './model-utils';
 import { findProviderFromModel } from './provider-utils';
 import {
@@ -360,7 +360,9 @@ export interface GenerateSummaryFn {
 }
 
 /**
- * Default implementation that uses AI SDK generateText/streamText.
+ * Default implementation that uses AI SDK streamText.
+ * Uses streamText universally — required for providers like Codex/OpenAI Responses API
+ * that reject non-streaming calls.
  */
 async function defaultGenerateSummary(
   prompt: string,
@@ -372,9 +374,10 @@ async function defaultGenerateSummary(
   effectiveModelId: string;
   effectiveProviderId: string;
 }> {
-  const { model, omitMaxOutputTokens } = await getModelWithMetadata({
+  const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
     modelId: policy.modelId ?? undefined,
     providerId: policy.providerId ?? undefined,
+    systemPrompt: prompt,
     sessionId,
   });
 
@@ -384,60 +387,38 @@ async function defaultGenerateSummary(
     effectiveProviderId = findProviderFromModel(effectiveModelId);
   }
 
-  const isCodex = effectiveProviderId === 'codex';
+  const stream = aiStreamText({
+    model,
+    prompt,
+    maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
+    providerOptions: providerOptions as unknown as Parameters<typeof aiStreamText>[0]['providerOptions'],
+  });
 
   let text: string;
-  let usage: { prompt: number; completion: number };
-
-  if (isCodex) {
-    const stream = aiStreamText({
-      model,
-      prompt,
-      maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
-      providerOptions: {
-        openai: {
-          instructions: prompt,
-          store: false,
-        },
-      },
-    });
+  try {
     text = await stream.text;
-    const resultUsage = await stream.usage;
-    const resultFinishReason = await stream.finishReason;
-    if (resultFinishReason === 'length') {
-      console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
-      text += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
-    }
-    usage = {
-      prompt: resultUsage.inputTokens ?? 0,
-      completion: resultUsage.outputTokens ?? 0,
-    };
-  } else {
-    try {
-      const result = await aiGenerateText({
-        model,
-        prompt,
-        maxOutputTokens: omitMaxOutputTokens ? undefined : policy.maxOutputTokens,
-      });
-      text = result.text;
-      if (result.finishReason === 'length') {
-        console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
-        text += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
-      }
-      usage = {
-        prompt: result.usage.inputTokens ?? 0,
-        completion: result.usage.outputTokens ?? 0,
-      };
-    } catch (err) {
-      console.error('[compaction] generateText failed:', err);
-      if (err instanceof Error) {
-        console.error('[compaction] error message:', err.message);
-      }
-      throw err;
-    }
+  } catch (err) {
+    console.error('[compaction] streamText failed:', err);
+    throw err;
   }
 
-  return { text, usage, effectiveModelId, effectiveProviderId };
+  const streamUsage = await stream.usage;
+  const streamFinishReason = await stream.finishReason;
+
+  if (streamFinishReason === 'length') {
+    console.warn('[compaction] Summary was truncated (hit maxOutputTokens limit). Some context may be lost.');
+    text += '\n\n[Note: Summary was truncated due to token limit. Some context may be incomplete.]';
+  }
+
+  return {
+    text,
+    usage: {
+      prompt: streamUsage.inputTokens ?? 0,
+      completion: streamUsage.outputTokens ?? 0,
+    },
+    effectiveModelId,
+    effectiveProviderId,
+  };
 }
 
 /**

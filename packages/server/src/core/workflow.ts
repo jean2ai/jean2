@@ -103,7 +103,14 @@ export async function executeWorkflow(
       });
       console.log('[workflow] Phase 1: Decomposition complete', { subtaskCount: subtasks.length });
     } catch (err) {
-      console.error('[workflow] Phase 1: Decomposition FAILED', err instanceof Error ? err.message : err);
+      const errAny = err as Record<string, unknown>;
+      console.error('[workflow] Phase 1: Decomposition FAILED', {
+        message: err instanceof Error ? err.message : String(err),
+        statusCode: errAny?.statusCode ?? errAny?.status,
+        url: errAny?.url,
+        responseBody: errAny?.responseBody ?? errAny?.response,
+        data: errAny?.data,
+      });
       return {
         workflow_id: workflowId,
         result: '',
@@ -240,10 +247,25 @@ export async function executeWorkflow(
       subtaskCount: subtasks.length,
     };
   } catch (err) {
-    console.error('[workflow] Phase 3: Synthesis FAILED', err instanceof Error ? err.message : err);
+    console.error('[workflow] Phase 3: Synthesis FAILED, falling back to raw leaf results', err instanceof Error ? err.message : err);
+
+    // Fallback: return the individual leaf results so the caller still gets useful output
+    const fallbackText = [
+      `Workflow completed but synthesis failed. ${subtasks.length} sub-agent(s) executed (${leafResults.filter(r => r.error).length} failed).`,
+      'Returning raw sub-agent results:',
+      '',
+      leafResults
+        .map((r) => {
+          const status = r.error ? '[FAILED]' : '[success]';
+          const body = r.error ? `Error: ${r.error}` : (r.text || '(no text output)');
+          return `Sub-agent ${r.index + 1} ${status}:\n${body}`;
+        })
+        .join('\n\n'),
+    ].join('\n');
+
     return {
       workflow_id: workflowId,
-      result: '',
+      result: fallbackText,
       subtaskCount: subtasks.length,
       error: `Synthesis failed: ${err instanceof Error ? err.message : String(err)}`,
     };
