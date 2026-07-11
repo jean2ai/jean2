@@ -34,12 +34,14 @@ export function useWorkspaceSessions({
     queryKey: queryKeys.sessions.byWorkspaceInfinite({
       workspaceId: workspaceId ?? '',
       limit: WORKSPACE_PAGE_SIZE,
+      rootOnly: true,
     }),
     queryFn: ({ pageParam }) =>
       sdkClient!.http.sessions.listByWorkspace({
         workspaceId: workspaceId!,
         limit: WORKSPACE_PAGE_SIZE,
         cursor: pageParam,
+        rootOnly: true,
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>

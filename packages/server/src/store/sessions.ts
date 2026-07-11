@@ -477,7 +477,22 @@ export function listSessionPageByWorkspace(
 
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
-  const sessions = pageRows.map(mapRowToSession);
+  const rootSessions = pageRows.map(mapRowToSession);
+
+  // When rootOnly, fetch child sessions of the fetched roots so the client
+  // store has complete parent-child relationships without separate requests.
+  let sessions = rootSessions;
+  if (options.rootOnly === true && rootSessions.length > 0) {
+    const rootIds = rootSessions.map(s => s.id);
+    const placeholders = rootIds.map(() => '?').join(', ');
+    const childRows = db
+      .query(`SELECT * FROM sessions WHERE parent_id IN (${placeholders}) ORDER BY created_at ASC`)
+      .all(...rootIds) as SessionRow[];
+    const children = childRows.map(mapRowToSession);
+    if (children.length > 0) {
+      sessions = [...rootSessions, ...children];
+    }
+  }
 
   let nextCursor: SessionCursorPayload | null = null;
   if (hasMore && pageRows.length > 0) {
@@ -560,7 +575,22 @@ export function listSessionPageGrouped(
     const wsRows = byWorkspace.get(wsId) ?? [];
     const hasMore = wsRows.length > limitPerWs;
     const pageRows = hasMore ? wsRows.slice(0, limitPerWs) : wsRows;
-    sessions[wsId] = pageRows.map(mapRowToSession);
+    const rootSessions = pageRows.map(mapRowToSession);
+
+    // When rootOnly, include children of the fetched roots
+    let wsSessions = rootSessions;
+    if (options.rootOnly === true && rootSessions.length > 0) {
+      const rootIds = rootSessions.map(s => s.id);
+      const placeholders = rootIds.map(() => '?').join(', ');
+      const childRows = db
+        .query(`SELECT * FROM sessions WHERE parent_id IN (${placeholders}) ORDER BY created_at ASC`)
+        .all(...rootIds) as SessionRow[];
+      const children = childRows.map(mapRowToSession);
+      if (children.length > 0) {
+        wsSessions = [...rootSessions, ...children];
+      }
+    }
+    sessions[wsId] = wsSessions;
 
     let nextCursor: SessionCursorPayload | null = null;
     if (hasMore && pageRows.length > 0) {

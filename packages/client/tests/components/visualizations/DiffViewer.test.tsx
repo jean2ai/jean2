@@ -60,7 +60,7 @@ describe('DiffViewer', () => {
     const { container } = render(
       <DiffViewer hunks={sampleHunks} path="src/app.tsx" />,
     );
-    const addedLine = container.querySelector('.bg-green-500\\/20');
+    const addedLine = container.querySelector('.bg-green-500\\/15');
     expect(addedLine).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe('DiffViewer', () => {
     const { container } = render(
       <DiffViewer hunks={sampleHunks} path="src/app.tsx" />,
     );
-    const removedLine = container.querySelector('.bg-red-500\\/20');
+    const removedLine = container.querySelector('.bg-red-500\\/15');
     expect(removedLine).toBeInTheDocument();
   });
 

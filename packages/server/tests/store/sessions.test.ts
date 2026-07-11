@@ -410,7 +410,7 @@ describe('sessions store', () => {
 
     test('status and root-only filters remain active on every page', () => {
       seedWorkspace({ id: 'ws1' });
-      // 3 active root, 2 closed root, 1 active child
+      // 3 active root, 2 closed root, 1 active child of a1
       createSession(makeSession({ id: 'a1', workspaceId: 'ws1', title: 'A1', status: 'active' }));
       createSession(makeSession({ id: 'a2', workspaceId: 'ws1', title: 'A2', status: 'active' }));
       createSession(makeSession({ id: 'a3', workspaceId: 'ws1', title: 'A3', status: 'active' }));
@@ -419,9 +419,18 @@ describe('sessions store', () => {
       createSession(makeSession({ id: 'child', workspaceId: 'ws1', title: 'Child', status: 'active', parentId: 'a1' }));
 
       const page = listSessionPageByWorkspace('ws1', { status: 'active', rootOnly: true, limit: 50 });
-      expect(page.sessions).toHaveLength(3);
+      // 3 active roots + 1 child of an active root
+      expect(page.sessions).toHaveLength(4);
+      // Closed sessions excluded
       expect(page.sessions.every((s) => s.status === 'active')).toBe(true);
-      expect(page.sessions.every((s) => s.parentId === null)).toBe(true);
+      // Root sessions have parentId null, child does not
+      const roots = page.sessions.filter((s) => s.parentId === null);
+      const children = page.sessions.filter((s) => s.parentId !== null);
+      expect(roots).toHaveLength(3);
+      expect(children).toHaveLength(1);
+      expect(children[0].id).toBe('child');
+      // hasMore is false (all roots fit in one page)
+      expect(page.hasMore).toBe(false);
     });
 
     test('deleted cursor row does not break traversal', () => {
@@ -513,7 +522,13 @@ describe('sessions store', () => {
       createSession(makeSession({ id: 'child', workspaceId: 'ws1', title: 'Child', status: 'active', parentId: 'a1' }));
 
       const result = listSessionPageGrouped(['ws1'], { status: 'active', rootOnly: true, limitPerWorkspace: 10 });
-      expect(result.sessions['ws1']).toHaveLength(1);
+      // 1 active root + 1 child of the active root
+      expect(result.sessions['ws1']).toHaveLength(2);
+      const roots = result.sessions['ws1'].filter((s) => s.parentId === null);
+      const children = result.sessions['ws1'].filter((s) => s.parentId !== null);
+      expect(roots).toHaveLength(1);
+      expect(children).toHaveLength(1);
+      expect(children[0].id).toBe('child');
       expect(result.sessions['ws1'][0].id).toBe('a1');
     });
 
