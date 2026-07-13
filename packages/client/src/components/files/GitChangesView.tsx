@@ -24,16 +24,116 @@ interface GitChangesViewProps {
 
 type ChangedFile = { path: string; git: GitDiffSummary };
 
+// --- Tree model ---
+
+export interface ChangedDirectoryNode {
+  name: string;
+  path: string;
+  directories: ChangedDirectoryNode[];
+  files: ChangedFile[];
+  fileCount: number;
+}
+
+export interface ChangedFilesTree {
+  directories: ChangedDirectoryNode[];
+  files: ChangedFile[];
+}
+
+function getFileName(path: string): string {
+  const idx = path.lastIndexOf('/');
+  return idx === -1 ? path : path.slice(idx + 1);
+}
+
+/**
+ * Build a recursive directory tree from a flat list of changed files.
+ * Every directory segment in a file's path becomes a node.
+ * Directories are sorted before files at every level, both alphabetically.
+ * The input array is not mutated.
+ */
+export function buildChangedFilesTree(files: ChangedFile[]): ChangedFilesTree {
+  interface BuilderDir {
+    name: string;
+    path: string;
+    directories: Map<string, BuilderDir>;
+    files: ChangedFile[];
+  }
+
+  const root: BuilderDir = {
+    name: '',
+    path: '',
+    directories: new Map(),
+    files: [],
+  };
+
+  for (const f of files) {
+    const segments = f.path.split('/');
+    const dirSegments = segments.slice(0, -1);
+    const fileName = segments[segments.length - 1];
+
+    if (!fileName) continue;
+
+    let current = root;
+    for (const seg of dirSegments) {
+      if (!seg) continue;
+      let child = current.directories.get(seg);
+      if (!child) {
+        child = {
+          name: seg,
+          path: current.path ? `${current.path}/${seg}` : seg,
+          directories: new Map(),
+          files: [],
+        };
+        current.directories.set(seg, child);
+      }
+      current = child;
+    }
+    current.files.push(f);
+  }
+
+  function convert(dir: BuilderDir): ChangedDirectoryNode {
+    const directories = Array.from(dir.directories.values())
+      .map(convert)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const sortedFiles = [...dir.files].sort((a, b) =>
+      getFileName(a.path).localeCompare(getFileName(b.path)),
+    );
+    const fileCount =
+      sortedFiles.length + directories.reduce((sum, d) => sum + d.fileCount, 0);
+    return {
+      name: dir.name,
+      path: dir.path,
+      directories,
+      files: sortedFiles,
+      fileCount,
+    };
+  }
+
+  return {
+    directories: Array.from(root.directories.values())
+      .map(convert)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    files: [...root.files].sort((a, b) =>
+      getFileName(a.path).localeCompare(getFileName(b.path)),
+    ),
+  };
+}
+
+// --- File row ---
+
 function ChangedFileRow({
   path,
   git,
   onFileSelect,
-  indent = 0,
+  depth = 0,
+  showChevronSpacer = false,
+  showDirPrefix = true,
 }: {
   path: string;
   git: GitDiffSummary;
   onFileSelect: (file: FileEntry) => void;
-  indent?: number;
+  depth?: number;
+  showChevronSpacer?: boolean;
+  showDirPrefix?: boolean;
 }) {
   const lastSlash = path.lastIndexOf('/');
   const fileName = lastSlash === -1 ? path : path.slice(lastSlash + 1);
@@ -55,17 +155,20 @@ function ChangedFileRow({
         'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
         '[&_svg]:size-4 [&_svg]:shrink-0',
       )}
-      style={{ paddingLeft: `${indent + 8}px` }}
+      style={{ paddingLeft: `${depth * 12 + 8}px` }}
     >
+      {showChevronSpacer && <span className="w-3 h-3 shrink-0" aria-hidden />}
       <File className={fileIconColor(path)} />
       <span className="truncate flex-1 min-w-0">
-        {dirPath && <span className="text-muted-foreground">{dirPath}</span>}
+        {showDirPrefix && dirPath && <span className="text-muted-foreground">{dirPath}</span>}
         <span>{fileName}</span>
       </span>
       <GitStatusBadge git={git} />
     </button>
   );
 }
+
+// --- Grouped mode ---
 
 function GroupedChangedFiles({
   files,
@@ -74,45 +177,35 @@ function GroupedChangedFiles({
   files: ChangedFile[];
   onFileSelect: (file: FileEntry) => void;
 }) {
-  const groups = useMemo(() => {
-    const map = new Map<string, ChangedFile[]>();
-    for (const f of files) {
-      // Group by top-level directory (first path segment).
-      // Files at the repo root (no slash) go in the '' bucket and render ungrouped.
-      const slashIdx = f.path.indexOf('/');
-      const dir = slashIdx === -1 ? '' : f.path.slice(0, slashIdx);
-      const existing = map.get(dir) ?? [];
-      existing.push(f);
-      map.set(dir, existing);
-    }
-    return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === '') return 1;
-      if (b[0] === '') return -1;
-      return a[0].localeCompare(b[0]);
-    });
-  }, [files]);
+  const tree = useMemo(() => buildChangedFilesTree(files), [files]);
 
   return (
     <div className="space-y-0.5">
-      {groups.map(([dir, dirFiles]) => {
-        if (dir === '') {
-          return dirFiles.map((f) => (
-            <ChangedFileRow key={f.path} path={f.path} git={f.git} onFileSelect={onFileSelect} />
-          ));
-        }
-        return <GroupedDirectory key={dir} dir={dir} dirFiles={dirFiles} onFileSelect={onFileSelect} />;
-      })}
+      {tree.directories.map((dir) => (
+        <GroupedDirectoryNode key={dir.path} node={dir} depth={0} onFileSelect={onFileSelect} />
+      ))}
+      {tree.files.map((f) => (
+        <ChangedFileRow
+          key={f.path}
+          path={f.path}
+          git={f.git}
+          depth={0}
+          showChevronSpacer
+          showDirPrefix={false}
+          onFileSelect={onFileSelect}
+        />
+      ))}
     </div>
   );
 }
 
-function GroupedDirectory({
-  dir,
-  dirFiles,
+function GroupedDirectoryNode({
+  node,
+  depth,
   onFileSelect,
 }: {
-  dir: string;
-  dirFiles: ChangedFile[];
+  node: ChangedDirectoryNode;
+  depth: number;
   onFileSelect: (file: FileEntry) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -130,32 +223,37 @@ function GroupedDirectory({
             'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
             '[&_svg]:size-4 [&_svg]:shrink-0',
           )}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           <ChevronRight className={cn('w-3 h-3 shrink-0 transition-transform', open && 'rotate-90')} />
           <Folder className={FOLDER_ICON_COLOR} />
-          <span className="flex-1 min-w-0 truncate">{dir}</span>
-          <span className="text-xs text-muted-foreground tabular-nums shrink-0">{dirFiles.length}</span>
+          <span className="flex-1 min-w-0 truncate">{node.name}</span>
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">{node.fileCount}</span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="space-y-0.5">
-          {dirFiles.map((f) => {
-            const relativeName = f.path.slice(dir.length + 1);
-            return (
-              <ChangedFileRow
-                key={f.path}
-                path={relativeName}
-                git={f.git}
-                indent={20}
-                onFileSelect={(file) => onFileSelect({ ...file, path: f.path })}
-              />
-            );
-          })}
+          {node.directories.map((child) => (
+            <GroupedDirectoryNode key={child.path} node={child} depth={depth + 1} onFileSelect={onFileSelect} />
+          ))}
+          {node.files.map((f) => (
+            <ChangedFileRow
+              key={f.path}
+              path={f.path}
+              git={f.git}
+              depth={depth + 1}
+              showChevronSpacer
+              showDirPrefix={false}
+              onFileSelect={onFileSelect}
+            />
+          ))}
         </div>
       </CollapsibleContent>
     </Collapsible>
   );
 }
+
+// --- Main component ---
 
 const REASON_LABELS: Record<string, string> = {
   git_not_installed: 'Git is not installed',
