@@ -1,5 +1,16 @@
 import { join } from 'path';
-import { closeSync, existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+  unlinkSync,
+  watchFile,
+  writeFileSync,
+} from 'fs';
 import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '@/paths';
 
 import { getPort, getHost } from '@/config';
@@ -280,6 +291,60 @@ export function getStatus(): DaemonStatus {
   };
 }
 
+const INITIAL_LOG_LINES = 10;
+const LOG_READ_BUFFER_SIZE = 64 * 1024;
+
+function readLogRange(logFilePath: string, start: number, end: number): void {
+  if (end <= start) {
+    return;
+  }
+
+  const fd = openSync(logFilePath, 'r');
+
+  try {
+    let position = start;
+    while (position < end) {
+      const buffer = Buffer.allocUnsafe(Math.min(LOG_READ_BUFFER_SIZE, end - position));
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, position);
+      if (bytesRead === 0) {
+        break;
+      }
+      process.stdout.write(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function printInitialLogLines(logFilePath: string, fileSize: number): void {
+  if (fileSize === 0) {
+    return;
+  }
+
+  const start = Math.max(0, fileSize - LOG_READ_BUFFER_SIZE);
+  const fd = openSync(logFilePath, 'r');
+
+  try {
+    const buffer = Buffer.allocUnsafe(fileSize - start);
+    const bytesRead = readSync(fd, buffer, 0, buffer.length, start);
+    const content = buffer.subarray(0, bytesRead).toString('utf8');
+    const lines = content.split('\n');
+    const trailingNewline = content.endsWith('\n');
+    const completeLines = trailingNewline ? lines.slice(0, -1) : lines;
+    const output = completeLines.slice(-INITIAL_LOG_LINES).join('\n');
+
+    if (output) {
+      process.stdout.write(output);
+      if (trailingNewline) {
+        process.stdout.write('\n');
+      }
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
+
 export function tailLogs(): void {
   const logFilePath = getLogFilePath();
 
@@ -289,9 +354,22 @@ export function tailLogs(): void {
     return;
   }
 
-  const tailProcess = Bun.spawn(['tail', '-f', logFilePath], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
+  let offset = statSync(logFilePath).size;
+  printInitialLogLines(logFilePath, offset);
 
-  tailProcess.unref();
+  watchFile(logFilePath, { interval: 250 }, (current, previous) => {
+    if (current.size < offset || current.ino !== previous.ino) {
+      offset = 0;
+    }
+
+    if (current.size > offset) {
+      try {
+        readLogRange(logFilePath, offset, current.size);
+        offset = current.size;
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Failed to read log file: ${message}`);
+      }
+    }
+  });
 }
