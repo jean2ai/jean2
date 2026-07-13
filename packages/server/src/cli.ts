@@ -719,7 +719,13 @@ function printSyncResult(result: SyncResult): void {
   console.log(`info: Total: ${result.totalProviders} providers, ${result.totalModels} models`);
 }
 
-main().catch((err: unknown) => {
+const longRunningCommands = new Set(['server', 'logs', '_client']);
+
+main().then(() => {
+  if (!longRunningCommands.has(command ?? '')) {
+    process.exit(process.exitCode ?? 0);
+  }
+}).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   console.error('Error:', message);
   process.exit(1);

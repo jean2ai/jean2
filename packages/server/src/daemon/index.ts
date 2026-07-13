@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, openSync } from 'fs';
 import { getPidFilePath as getPidFilePathFromPaths, getLogFilePath as getLogFilePathFromPaths, getDataDir } from '@/paths';
 
 import { getPort, getHost } from '@/config';
@@ -152,6 +152,7 @@ export async function startDaemon(options?: DaemonOptions): Promise<DaemonResult
   }
 
   const pid = child.pid;
+  closeSync(logFd);
 
   if (!pid) {
     return {
