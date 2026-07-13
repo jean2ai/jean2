@@ -161,19 +161,19 @@ export function setupMenu(createWindow: WindowCreator): void {
       {
         label: 'Documentation',
         click: async () => {
-          await shell.openExternal('https://github.com/jean2/jean2#readme');
+          await shell.openExternal('https://github.com/jean2ai/jean2#readme');
         },
       },
       {
         label: 'Report Issue',
         click: async () => {
-          await shell.openExternal('https://github.com/jean2/jean2/issues');
+          await shell.openExternal('https://github.com/jean2ai/jean2/issues');
         },
       },
       {
         label: 'View on GitHub',
         click: async () => {
-          await shell.openExternal('https://github.com/jean2/jean2');
+          await shell.openExternal('https://github.com/jean2ai/jean2');
         },
       },
       separator(),
