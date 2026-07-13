@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Folder, Plus, X, FolderSymlink } from 'lucide-react';
 import type { Workspace } from '@jean2/sdk';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FolderPickerDialog } from './FolderPickerDialog';
+import { FOLDER_ICON_COLOR } from '@/components/files/fileIcons';
 
 interface WorkspaceAdditionalPathsDialogProps {
   open: boolean;
@@ -83,7 +85,7 @@ export function WorkspaceAdditionalPathsDialog({
                       key={path}
                       className="flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted group"
                     >
-                      <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <Folder className={cn('w-4 h-4 flex-shrink-0', FOLDER_ICON_COLOR)} />
                       <span className="font-mono text-xs truncate flex-1" title={path}>{path}</span>
                       <Button
                         variant="ghost"

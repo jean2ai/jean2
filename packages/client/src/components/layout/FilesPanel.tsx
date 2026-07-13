@@ -2,7 +2,8 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState, useEffe
 import { X, RefreshCw, Search, ChevronDown, Folder, Check } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import { FileTree, type FileTreeHandle, GitChangesView } from '@/components/files';
+import { FileTree, type FileTreeHandle, GitChangesView, type GitChangesViewHandle } from '@/components/files';
+import { FOLDER_ICON_COLOR } from '@/components/files/fileIcons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -74,7 +75,7 @@ function PathSwitcher({
           className="h-7 min-w-0 flex-1 justify-between gap-1 px-2 text-sm font-medium"
         >
           <span className="flex items-center gap-1.5 min-w-0">
-            <Folder className="size-3.5 shrink-0 text-amber-500" />
+            <Folder className={cn('size-3.5 shrink-0', FOLDER_ICON_COLOR)} />
             <span className="truncate">{selectedLabel}</span>
           </span>
           <ChevronDown className="size-3.5 shrink-0 opacity-60" />
@@ -87,7 +88,7 @@ function PathSwitcher({
             onClick={() => onSelect(opt.value)}
             className="gap-2"
           >
-            <Folder className="size-3.5 shrink-0 text-amber-500" />
+            <Folder className={cn('size-3.5 shrink-0', FOLDER_ICON_COLOR)} />
             <span className="truncate">{opt.label}</span>
             {opt.value === selectedRoot && <Check className="size-3.5 ml-auto shrink-0" />}
           </DropdownMenuItem>
@@ -209,6 +210,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
   ({ sdkClient }, ref) => {
     const isMobile = useIsMobile();
     const fileTreeRef = useRef<FileTreeHandle>(null);
+    const gitChangesRef = useRef<GitChangesViewHandle>(null);
     const filesPanelWidth = useChatLayoutStore((s) => s.filesPanelWidth);
     const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
     const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
@@ -266,10 +268,14 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
       setShowFilesPanel(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          fileTreeRef.current?.focus();
+          if (filesPanelTab === 'changes') {
+            gitChangesRef.current?.focus();
+          } else {
+            fileTreeRef.current?.focus();
+          }
         });
       });
-    }, [setShowFilesPanel]);
+    }, [setShowFilesPanel, filesPanelTab]);
 
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
@@ -361,6 +367,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
         )
       ) : (
         <GitChangesView
+          ref={gitChangesRef}
           workspaceId={workspaceId}
           sdkClient={sdkClient}
           root={isMainRoot ? undefined : selectedRoot}

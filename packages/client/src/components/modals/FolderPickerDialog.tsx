@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { FOLDER_ICON_COLOR } from '@/components/files/fileIcons';
 import { useFileBrowseFsQuery, useFileDrivesQuery, useFileParentQuery } from '@/hooks/queries';
 
 interface FolderPickerDialogProps {
@@ -238,7 +239,7 @@ export function FolderPickerDialog({
                           currentPath === drive && 'bg-primary/20 text-primary font-medium'
                         )}
                       >
-                        <Folder className="w-3.5 h-3.5 text-amber-500" />
+                        <Folder className={cn('w-3.5 h-3.5', FOLDER_ICON_COLOR)} />
                         {drive}
                       </button>
                     ))}
@@ -304,7 +305,7 @@ export function FolderPickerDialog({
                       index === selectedIndex && 'bg-primary/20 text-primary font-medium ring-1 ring-primary/50'
                     )}
                   >
-                    <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <Folder className={cn('w-4 h-4 flex-shrink-0', FOLDER_ICON_COLOR)} />
                     <span className="truncate flex-1">{file.name}</span>
                     {index === selectedIndex && (
                       <Check className="w-4 h-4 text-primary" />

@@ -3,18 +3,8 @@ import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
 import type { FileEntry } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 import { GitStatusBadge } from './GitStatusBadge';
+import { FOLDER_ICON_COLOR, fileIconColor } from './fileIcons';
 import type { VisibleFileNode } from '@/hooks/useFlatFileTree';
-
-const FILE_ICONS: Record<string, { icon: typeof File; color: string }> = {
-  '.ts': { icon: File, color: 'text-blue-500' },
-  '.tsx': { icon: File, color: 'text-blue-500' },
-  '.js': { icon: File, color: 'text-yellow-500' },
-  '.jsx': { icon: File, color: 'text-yellow-500' },
-  '.json': { icon: File, color: 'text-yellow-600' },
-  '.md': { icon: File, color: 'text-gray-500' },
-  '.css': { icon: File, color: 'text-purple-500' },
-  '.html': { icon: File, color: 'text-orange-500' },
-};
 
 const PREFETCH_DELAY_MS = 200;
 
@@ -67,9 +57,8 @@ export const FileTreeRow = memo(function FileTreeRow({
     }
   }, [handleClick]);
 
-  const iconConfig = entry.extension ? FILE_ICONS[entry.extension] : null;
-  const Icon = isDirectory ? (isExpanded ? FolderOpen : Folder) : (iconConfig?.icon || File);
-  const iconColor = isDirectory ? 'text-amber-500' : (iconConfig?.color || 'text-muted-foreground');
+  const Icon = isDirectory ? (isExpanded ? FolderOpen : Folder) : File;
+  const iconColor = isDirectory ? FOLDER_ICON_COLOR : (fullPath ? fileIconColor(fullPath) : 'text-muted-foreground');
 
   return (
     <button

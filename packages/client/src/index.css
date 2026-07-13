@@ -160,6 +160,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.92 0 0);
   --sidebar-ring: oklch(0.205 0 0);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 255);
+  --file-icon-js: oklch(0.68 0.16 85);
+  --file-icon-json: oklch(0.55 0.13 75);
+  --file-icon-md: oklch(0.55 0.02 250);
+  --file-icon-css: oklch(0.5 0.2 300);
+  --file-icon-html: oklch(0.55 0.16 45);
+  --file-icon-folder: oklch(0.5 0.02 250);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -192,6 +201,15 @@
   --sidebar-accent-foreground: oklch(0.90 0 0);
   --sidebar-border: oklch(0.22 0 0);
   --sidebar-ring: oklch(0.3 0 0);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 255);
+  --file-icon-js: oklch(0.8 0.15 85);
+  --file-icon-json: oklch(0.75 0.13 75);
+  --file-icon-md: oklch(0.7 0.02 250);
+  --file-icon-css: oklch(0.7 0.18 300);
+  --file-icon-html: oklch(0.75 0.15 45);
+  --file-icon-folder: oklch(0.7 0.02 250);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -205,6 +223,15 @@
   --chart-3: oklch(0.65 0.2 145);
   --chart-4: oklch(0.7 0.18 85);
   --chart-5: oklch(0.6 0.22 25);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 255);
+  --file-icon-js: oklch(0.68 0.16 85);
+  --file-icon-json: oklch(0.55 0.13 75);
+  --file-icon-md: oklch(0.55 0.02 250);
+  --file-icon-css: oklch(0.5 0.2 300);
+  --file-icon-html: oklch(0.55 0.16 45);
+  --file-icon-folder: oklch(0.5 0.02 250);
+  --file-icon-default: var(--muted-foreground);
 }
 
 .dark.neutral {
@@ -213,6 +240,15 @@
   --chart-3: oklch(0.7 0.15 145);
   --chart-4: oklch(0.75 0.12 85);
   --chart-5: oklch(0.65 0.18 25);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 255);
+  --file-icon-js: oklch(0.8 0.15 85);
+  --file-icon-json: oklch(0.75 0.13 75);
+  --file-icon-md: oklch(0.7 0.02 250);
+  --file-icon-css: oklch(0.7 0.18 300);
+  --file-icon-html: oklch(0.75 0.15 45);
+  --file-icon-folder: oklch(0.7 0.02 250);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -254,6 +290,15 @@
   --chart-3: oklch(0.5 0.15 230);
   --chart-4: oklch(0.65 0.1 180);
   --chart-5: oklch(0.7 0.08 250);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 250);
+  --file-icon-js: oklch(0.68 0.14 90);
+  --file-icon-json: oklch(0.55 0.12 80);
+  --file-icon-md: oklch(0.5 0.02 230);
+  --file-icon-css: oklch(0.5 0.15 200);
+  --file-icon-html: oklch(0.55 0.16 50);
+  --file-icon-folder: oklch(0.5 0.13 230);
+  --file-icon-default: var(--muted-foreground);
 }
 
 .dark.ocean {
@@ -292,6 +337,15 @@
   --chart-3: oklch(0.6 0.12 230);
   --chart-4: oklch(0.7 0.08 180);
   --chart-5: oklch(0.75 0.1 260);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 250);
+  --file-icon-js: oklch(0.8 0.13 90);
+  --file-icon-json: oklch(0.75 0.12 80);
+  --file-icon-md: oklch(0.65 0.02 230);
+  --file-icon-css: oklch(0.7 0.13 200);
+  --file-icon-html: oklch(0.75 0.15 50);
+  --file-icon-folder: oklch(0.7 0.13 230);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -333,6 +387,15 @@
   --chart-3: oklch(0.65 0.08 130);
   --chart-4: oklch(0.7 0.12 85);
   --chart-5: oklch(0.55 0.18 145);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 255);
+  --file-icon-js: oklch(0.68 0.16 85);
+  --file-icon-json: oklch(0.55 0.13 75);
+  --file-icon-md: oklch(0.55 0.03 155);
+  --file-icon-css: oklch(0.5 0.2 300);
+  --file-icon-html: oklch(0.55 0.16 45);
+  --file-icon-folder: oklch(0.45 0.12 150);
+  --file-icon-default: var(--muted-foreground);
 }
 
 .dark.forest {
@@ -371,6 +434,15 @@
   --chart-3: oklch(0.7 0.1 130);
   --chart-4: oklch(0.75 0.08 85);
   --chart-5: oklch(0.6 0.15 145);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 255);
+  --file-icon-js: oklch(0.8 0.15 85);
+  --file-icon-json: oklch(0.75 0.13 75);
+  --file-icon-md: oklch(0.7 0.03 155);
+  --file-icon-css: oklch(0.7 0.18 300);
+  --file-icon-html: oklch(0.75 0.15 45);
+  --file-icon-folder: oklch(0.68 0.1 150);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -412,6 +484,15 @@
   --chart-3: oklch(0.65 0.15 60);
   --chart-4: oklch(0.75 0.08 85);
   --chart-5: oklch(0.55 0.2 25);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 255);
+  --file-icon-js: oklch(0.68 0.16 85);
+  --file-icon-json: oklch(0.55 0.15 65);
+  --file-icon-md: oklch(0.55 0.03 50);
+  --file-icon-css: oklch(0.5 0.18 320);
+  --file-icon-html: oklch(0.55 0.18 35);
+  --file-icon-folder: oklch(0.5 0.15 50);
+  --file-icon-default: var(--muted-foreground);
 }
 
 .dark.sunset {
@@ -450,6 +531,15 @@
   --chart-3: oklch(0.72 0.1 60);
   --chart-4: oklch(0.78 0.06 85);
   --chart-5: oklch(0.62 0.15 25);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 255);
+  --file-icon-js: oklch(0.8 0.15 85);
+  --file-icon-json: oklch(0.75 0.15 65);
+  --file-icon-md: oklch(0.7 0.03 50);
+  --file-icon-css: oklch(0.7 0.16 320);
+  --file-icon-html: oklch(0.75 0.17 35);
+  --file-icon-folder: oklch(0.72 0.13 50);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -491,6 +581,15 @@
   --chart-3: oklch(0.65 0.1 270);
   --chart-4: oklch(0.7 0.08 340);
   --chart-5: oklch(0.55 0.15 250);
+  /* File icons */
+  --file-icon-ts: oklch(0.48 0.17 270);
+  --file-icon-js: oklch(0.68 0.16 85);
+  --file-icon-json: oklch(0.55 0.13 75);
+  --file-icon-md: oklch(0.55 0.03 290);
+  --file-icon-css: oklch(0.5 0.2 300);
+  --file-icon-html: oklch(0.55 0.16 45);
+  --file-icon-folder: oklch(0.5 0.13 295);
+  --file-icon-default: var(--muted-foreground);
 }
 
 .dark.amethyst {
@@ -529,6 +628,15 @@
   --chart-3: oklch(0.6 0.08 270);
   --chart-4: oklch(0.75 0.06 340);
   --chart-5: oklch(0.62 0.12 250);
+  /* File icons */
+  --file-icon-ts: oklch(0.7 0.15 270);
+  --file-icon-js: oklch(0.8 0.15 85);
+  --file-icon-json: oklch(0.75 0.13 75);
+  --file-icon-md: oklch(0.7 0.03 290);
+  --file-icon-css: oklch(0.7 0.18 300);
+  --file-icon-html: oklch(0.75 0.15 45);
+  --file-icon-folder: oklch(0.7 0.13 295);
+  --file-icon-default: var(--muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -578,6 +686,14 @@
   --color-success: oklch(0.65 0.2 145);
   --color-warning: oklch(0.75 0.18 85);
   --color-error: oklch(0.6 0.22 25);
+  --color-file-ts: var(--file-icon-ts);
+  --color-file-js: var(--file-icon-js);
+  --color-file-json: var(--file-icon-json);
+  --color-file-md: var(--file-icon-md);
+  --color-file-css: var(--file-icon-css);
+  --color-file-html: var(--file-icon-html);
+  --color-file-folder: var(--file-icon-folder);
+  --color-file-default: var(--file-icon-default);
   --radius-sm: calc(var(--radius) * 0.5);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);

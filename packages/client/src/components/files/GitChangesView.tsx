@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Loader2, File, ChevronRight, Folder } from 'lucide-react';
 import type { FileEntry, GitDiffSummary } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
@@ -7,6 +7,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { useGitStatusQuery } from '@/hooks/queries';
 import { GitStatusBadge } from './GitStatusBadge';
+import { FOLDER_ICON_COLOR, fileIconColor } from './fileIcons';
+
+export interface GitChangesViewHandle {
+  focus: () => void;
+}
 
 interface GitChangesViewProps {
   workspaceId: string;
@@ -18,23 +23,6 @@ interface GitChangesViewProps {
 }
 
 type ChangedFile = { path: string; git: GitDiffSummary };
-
-const FILE_ICON_COLORS: Record<string, string> = {
-  '.ts': 'text-blue-500',
-  '.tsx': 'text-blue-500',
-  '.js': 'text-yellow-500',
-  '.jsx': 'text-yellow-500',
-  '.json': 'text-yellow-600',
-  '.md': 'text-gray-500',
-  '.css': 'text-purple-500',
-  '.html': 'text-orange-500',
-};
-
-function iconColorFor(path: string): string {
-  const dotIdx = path.lastIndexOf('.');
-  if (dotIdx === -1) return 'text-muted-foreground';
-  return FILE_ICON_COLORS[path.slice(dotIdx)] ?? 'text-muted-foreground';
-}
 
 function ChangedFileRow({
   path,
@@ -69,7 +57,7 @@ function ChangedFileRow({
       )}
       style={{ paddingLeft: `${indent + 8}px` }}
     >
-      <File className={iconColorFor(path)} />
+      <File className={fileIconColor(path)} />
       <span className="truncate flex-1 min-w-0">
         {dirPath && <span className="text-muted-foreground">{dirPath}</span>}
         <span>{fileName}</span>
@@ -144,7 +132,7 @@ function GroupedDirectory({
           )}
         >
           <ChevronRight className={cn('w-3 h-3 shrink-0 transition-transform', open && 'rotate-90')} />
-          <Folder className="text-amber-500" />
+          <Folder className={FOLDER_ICON_COLOR} />
           <span className="flex-1 min-w-0 truncate">{dir}</span>
           <span className="text-xs text-muted-foreground tabular-nums shrink-0">{dirFiles.length}</span>
         </button>
@@ -175,62 +163,74 @@ const REASON_LABELS: Record<string, string> = {
   git_error: 'Unable to read git status',
 };
 
-export function GitChangesView({
-  workspaceId,
-  sdkClient,
-  root,
-  mode,
-  onFileSelect,
-  width,
-}: GitChangesViewProps) {
-  const { data, isLoading, error } = useGitStatusQuery(sdkClient, workspaceId, root);
+export const GitChangesView = forwardRef<GitChangesViewHandle, GitChangesViewProps>(
+  ({ workspaceId, sdkClient, root, mode, onFileSelect, width }, ref) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { data, isLoading, error } = useGitStatusQuery(sdkClient, workspaceId, root);
 
-  if (isLoading) {
+    const focus = useCallback(() => {
+      const container = containerRef.current;
+      if (container) {
+        const firstNode = container.querySelector<HTMLButtonElement>('[data-file-node]');
+        if (firstNode) {
+          firstNode.focus();
+        } else {
+          container.focus();
+        }
+      }
+    }, []);
+
+    useImperativeHandle(ref, () => ({ focus }), [focus]);
+
+    if (isLoading) {
+      return (
+        <div ref={containerRef} className="flex items-center justify-center h-32 text-muted-foreground" tabIndex={-1}>
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Loading changes...
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div ref={containerRef} className="p-4 text-sm text-destructive" tabIndex={-1}>{error.message}</div>
+      );
+    }
+
+    const availability = data?.availability;
+    const files = data?.files ?? [];
+
+    if (availability && !availability.available) {
+      const label = availability.reason ? REASON_LABELS[availability.reason] ?? 'Git unavailable' : 'Git unavailable';
+      return (
+        <div ref={containerRef} className="p-4 text-sm text-muted-foreground text-center" tabIndex={-1}>{label}</div>
+      );
+    }
+
+    if (files.length === 0) {
+      return (
+        <div ref={containerRef} className="p-4 text-sm text-muted-foreground text-center" tabIndex={-1}>No changes</div>
+      );
+    }
+
     return (
-      <div className="flex items-center justify-center h-32 text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Loading changes...
+      <div ref={containerRef} className="flex-1 min-h-0 min-w-0 w-full outline-none" tabIndex={-1}>
+        <ScrollArea className="h-full">
+          <div className="px-2 pb-2 w-full min-w-0" style={width ? { width: `${width - 8}px` } : undefined}>
+            {mode === 'grouped' ? (
+              <GroupedChangedFiles files={files} onFileSelect={onFileSelect} />
+            ) : (
+              <div className="space-y-0.5">
+                {files.map((f) => (
+                  <ChangedFileRow key={f.path} path={f.path} git={f.git} onFileSelect={onFileSelect} />
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     );
   }
+);
 
-  if (error) {
-    return (
-      <div className="p-4 text-sm text-destructive">{error.message}</div>
-    );
-  }
-
-  const availability = data?.availability;
-  const files = data?.files ?? [];
-
-  if (availability && !availability.available) {
-    const label = availability.reason ? REASON_LABELS[availability.reason] ?? 'Git unavailable' : 'Git unavailable';
-    return (
-      <div className="p-4 text-sm text-muted-foreground text-center">{label}</div>
-    );
-  }
-
-  if (files.length === 0) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground text-center">No changes</div>
-    );
-  }
-
-  return (
-    <div className="flex-1 min-h-0 min-w-0 w-full outline-none">
-      <ScrollArea className="h-full">
-        <div className="px-2 pb-2 w-full min-w-0" style={width ? { width: `${width - 8}px` } : undefined}>
-          {mode === 'grouped' ? (
-            <GroupedChangedFiles files={files} onFileSelect={onFileSelect} />
-          ) : (
-            <div className="space-y-0.5">
-              {files.map((f) => (
-                <ChangedFileRow key={f.path} path={f.path} git={f.git} onFileSelect={onFileSelect} />
-              ))}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-    </div>
-  );
-}
+GitChangesView.displayName = 'GitChangesView';

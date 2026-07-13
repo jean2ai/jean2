@@ -4,6 +4,7 @@ import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FOLDER_ICON_COLOR } from './fileIcons';
 
 interface FileAutocompleteProps {
   workspaceId: string;
@@ -135,7 +136,7 @@ export function FileAutocomplete({
                 )}
               >
                 {file.type === 'directory' ? (
-                  <Folder className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <Folder className={cn('w-4 h-4 flex-shrink-0', FOLDER_ICON_COLOR)} />
                 ) : (
                   <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 )}
