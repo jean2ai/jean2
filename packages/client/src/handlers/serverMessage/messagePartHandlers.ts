@@ -1,6 +1,7 @@
 import type { Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { queryClient } from '@/components/providers/QueryProvider';
+import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 
@@ -11,7 +12,9 @@ const FILE_MUTATING_TOOLS = new Set([
 const SCHEDULER_TOOLS = new Set(['scheduler']);
 
 function invalidateFileQueries(): void {
-  queryClient.invalidateQueries({ queryKey: ['files'] });
+  queryClient.invalidateQueries({ queryKey: queryKeys.files.browsePrefix });
+  queryClient.invalidateQueries({ queryKey: queryKeys.files.searchPrefix });
+  queryClient.invalidateQueries({ queryKey: queryKeys.files.gitStatusPrefix });
 }
 
 function invalidateSchedulerQueries(): void {

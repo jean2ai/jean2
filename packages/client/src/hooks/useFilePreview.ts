@@ -12,6 +12,7 @@ interface UseFilePreviewOptions {
 interface UseFilePreviewResult {
   data: ReturnType<typeof useFilePreviewQuery>['data'] | null;
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
   reload: () => void;
 }
@@ -33,8 +34,9 @@ export function useFilePreview({
 
   return {
     data: data ?? null,
-    loading: isLoading || isFetching,
+    loading: isLoading,
+    refreshing: isFetching && !isLoading,
     error: error?.message ?? null,
-    reload: () => { refetch(); },
+    reload: () => { void refetch(); },
   };
 }

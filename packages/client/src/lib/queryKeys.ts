@@ -33,6 +33,14 @@ export const queryKeys = {
     status: (workspaceId: string) => ['mcp', 'status', workspaceId] as const,
   },
   files: {
+    // Prefix keys for targeted invalidation (prefix-matched by TanStack Query)
+    browsePrefix: ['files', 'browse'] as const,
+    searchPrefix: ['files', 'search'] as const,
+    browseFsPrefix: ['files', 'browseFs'] as const,
+    drivesPrefix: ['files', 'drives'] as const,
+    parentPrefix: ['files', 'parent'] as const,
+    gitStatusPrefix: ['files', 'git-status'] as const,
+    // Individual query key builders
     browse: (workspaceId: string, path?: string, opts?: { showHidden?: boolean; root?: string }) =>
       ['files', 'browse', workspaceId, path ?? '.', opts] as const,
     search: (workspaceId: string, query: string, root?: string) =>

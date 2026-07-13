@@ -15,6 +15,7 @@ import FilePreviewContent from './FilePreviewContent';
 import { useFilePreview } from '@/hooks/useFilePreview';
 import { useFileGitDiffQuery } from '@/hooks/queries';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface FilePreviewOverlayProps {
   workspaceId: string | undefined;
@@ -35,7 +36,7 @@ export default function FilePreviewOverlay({
   open,
   onOpenChange,
 }: FilePreviewOverlayProps) {
-  const { data, loading, error, reload } = useFilePreview({
+  const { data, loading, refreshing, error, reload } = useFilePreview({
     workspaceId,
     path: target?.path,
     root: target?.root,
@@ -51,11 +52,14 @@ export default function FilePreviewOverlay({
     open && !!target && !!workspaceId,
   );
 
+  const diffRefreshing = diffQuery.isFetching && !diffQuery.isLoading;
+  const isRefreshing = refreshing || diffRefreshing;
+
   const diffData = diffQuery.data?.diffAvailable ? diffQuery.data : undefined;
 
   const handleRefresh = () => {
     reload();
-    diffQuery.refetch();
+    void diffQuery.refetch();
   };
 
   if (!target) return null;
@@ -144,9 +148,10 @@ export default function FilePreviewOverlay({
             variant="ghost"
             size="icon-sm"
             onClick={handleRefresh}
+            disabled={isRefreshing}
             className="absolute right-12 top-4"
           >
-            <RefreshCw className="size-4" />
+            <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
           </Button>
           {data && (
             <div className="flex items-center gap-2 mt-1.5">

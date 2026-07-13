@@ -34,6 +34,7 @@ import { useServerDataStore } from '@/stores/serverDataStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { platform } from '@/platform';
 import { useFileSearchQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryKeys';
 
 interface FilesPanelProps {
   sdkClient: Jean2Client | null;
@@ -240,7 +241,12 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
 
     const handleRefresh = useCallback(() => {
       setIsRefreshing(true);
-      queryClient.invalidateQueries({ queryKey: ['files'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.browsePrefix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.searchPrefix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.browseFsPrefix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.parentPrefix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.drivesPrefix });
+      queryClient.invalidateQueries({ queryKey: queryKeys.files.gitStatusPrefix });
 
       if (sdkClient && workspaceId) {
         void sdkClient.http.workspaces

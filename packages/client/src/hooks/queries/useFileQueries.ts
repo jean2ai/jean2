@@ -81,7 +81,10 @@ export function useFilePreviewQuery(
     queryKey: queryKeys.files.preview(workspaceId ?? '', path ?? '', root),
     queryFn: () => sdkClient!.http.files.preview(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
-    staleTime: FILE_CONTENT_STALE_TIME_MS,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 }
 
@@ -96,7 +99,10 @@ export function useFileGitDiffQuery(
     queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? '', root),
     queryFn: () => sdkClient!.http.files.gitDiff(workspaceId!, path!, { root }),
     enabled: !!sdkClient && !!workspaceId && !!path && enabled,
-    staleTime: FILE_CONTENT_STALE_TIME_MS,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 }
 
