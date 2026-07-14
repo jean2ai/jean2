@@ -7,9 +7,9 @@
 </p>
 
 <p align="center">
-  Jean2 is an open-source AI agent platform. It runs on your machine, connects to any LLM,<br>
-  and ships with no default system prompt, no default tools, no fixed personality.<br>
-  You opt in to each layer. Memory, skills, session search, workflows, agents. Your call.
+  Jean is the server. Everything else — the LLM, the tools, the browser, the personality —<br>
+  is something you connect <strong>to</strong> it. No default system prompt, no default tools,<br>
+  no fixed personality. You opt in to each layer. Memory, skills, workflows, agents. Your call.
 </p>
 
 <p align="center">
@@ -77,7 +77,8 @@ By default, Jean2 is as bare as Codex or OpenCode. A blank prompt. No memory. No
 
 ## Why Jean2?
 
-You already have Cursor, Copilot, and Claude Code. Why run your own agent server?
+Jean connects **to** things. The browser. Your codebase. Any LLM. Jean2 is the hub.
+Everything else is a surface you choose to connect.
 
 - **No baked-in behavior.** Every AI coding agent ships with hidden system prompts you can't change. Claude Code has a long system prompt buried in the npm package. Cursor has behavior rules that override your preferences. Jean2 ships with none of that. The system prompt is composed from files you control. Every layer is visible and replaceable.
 
