@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  Jean is the server. Everything else — the LLM, the tools, the browser, the personality —<br>
+  Jean is the server. Everything else (the LLM, the tools, the browser, the personality)<br>
   is something you connect <strong>to</strong> it. No default system prompt, no default tools,<br>
   no fixed personality. You opt in to each layer. Memory, skills, workflows, agents. Your call.
 </p>
