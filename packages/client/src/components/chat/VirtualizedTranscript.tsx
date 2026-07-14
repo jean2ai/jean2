@@ -395,8 +395,9 @@ const MessageRow = memo(function MessageRow({
   }
 
   const isError = isAssistantMessage(item.message) && item.message.status === 'error';
+  const hasContentParts = item.parts.some(p => p.type === 'text' || p.type === 'reasoning' || p.type === 'tool');
 
-  if (isError) {
+  if (isError && !hasContentParts) {
     return (
       <ErrorMessageContent
         message={item.message as AssistantMessage}
@@ -412,45 +413,50 @@ const MessageRow = memo(function MessageRow({
   const isClearAll = revertMessageId === item.message.id;
 
   return (
-    <MessageBubble
-      message={item.message}
-      textContent={getTextContent(item.parts)}
-      isQueued={item.isQueued}
-      onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
-      canRevert={canRevert && revertMessageId !== null}
-      onRevert={revertMessageId ? () => onRevert?.(sessionId, revertMessageId) : undefined}
-      canFork={canRevert && revertMessageId !== null}
-      onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
-      canEdit={canRevert && !item.isQueued}
-      onEdit={onEditMessage ? (content) => onEditMessage(sessionId, item.message.id, content) : undefined}
-      isClearAll={isClearAll}
-      isPinned={isPinned}
-      canPin={canPin}
-      onTogglePin={onTogglePinMessage ? () => onTogglePinMessage(item.message) : undefined}
-      isPinningMessage={isPinningMessage}
-    >
-      {item.parts.length === 0 ? (
-        <span className="opacity-50">...</span>
-      ) : isAssistantMessage(item.message) && item.message.structuredOutput ? (
-        <StructuredOutputMessage
-          parts={item.parts}
-          structuredOutput={item.message.structuredOutput}
-          pendingAskRequests={pendingAskRequests}
-          onAskResponse={onAskResponse}
-          onNavigateToSubagent={onNavigateToSubagent}
-          serverUrl={serverUrl}
-        />
-      ) : (
-        <MessageParts
-          parts={item.parts}
-          pendingAskRequests={pendingAskRequests}
-          onAskResponse={onAskResponse}
-          onNavigateToSubagent={onNavigateToSubagent}
-          inverted={item.message.role === 'user'}
-          serverUrl={serverUrl}
-        />
+    <>
+      <MessageBubble
+        message={item.message}
+        textContent={getTextContent(item.parts)}
+        isQueued={item.isQueued}
+        onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
+        canRevert={canRevert && revertMessageId !== null}
+        onRevert={revertMessageId ? () => onRevert?.(sessionId, revertMessageId) : undefined}
+        canFork={canRevert && revertMessageId !== null}
+        onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
+        canEdit={canRevert && !item.isQueued}
+        onEdit={onEditMessage ? (content) => onEditMessage(sessionId, item.message.id, content) : undefined}
+        isClearAll={isClearAll}
+        isPinned={isPinned}
+        canPin={canPin}
+        onTogglePin={onTogglePinMessage ? () => onTogglePinMessage(item.message) : undefined}
+        isPinningMessage={isPinningMessage}
+      >
+        {item.parts.length === 0 ? (
+          <span className="opacity-50">...</span>
+        ) : isAssistantMessage(item.message) && item.message.structuredOutput ? (
+          <StructuredOutputMessage
+            parts={item.parts}
+            structuredOutput={item.message.structuredOutput}
+            pendingAskRequests={pendingAskRequests}
+            onAskResponse={onAskResponse}
+            onNavigateToSubagent={onNavigateToSubagent}
+            serverUrl={serverUrl}
+          />
+        ) : (
+          <MessageParts
+            parts={item.parts}
+            pendingAskRequests={pendingAskRequests}
+            onAskResponse={onAskResponse}
+            onNavigateToSubagent={onNavigateToSubagent}
+            inverted={item.message.role === 'user'}
+            serverUrl={serverUrl}
+          />
+        )}
+      </MessageBubble>
+      {isError && (
+        <ErrorMessageContent message={item.message as AssistantMessage} />
       )}
-    </MessageBubble>
+    </>
   );
 }, areMessageRowPropsEqual);
 
