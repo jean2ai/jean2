@@ -7,8 +7,9 @@ import type {
   AskResponse,
 } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
-import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
+import type { PendingSessionCreateIntent } from '@/stores/sessionBoardStore';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import type { ResumeSessionOptions } from '@/stores/sessionStore';
 import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
@@ -19,23 +20,18 @@ interface UseSessionCommandsParams {
   sessions: Session[];
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
-  currentModel: string;
   streamingSessionIds: Set<string>;
-  isCompacting: boolean;
   primaryPreconfigs: Preconfig[];
   setActiveWorkspace: (workspace: Workspace | null) => void;
-  setCompactionSuccess: (success: boolean) => void;
-  setCurrentModel: (model: string) => void;
-  setSelectedVariant: (variant: string | null) => void;
   removePendingAskRequest: (toolCallId: string) => void;
   removePendingPermissionRequest: (requestId: string, toolCallId?: string) => void;
   clearPendingAskRequestsBySessionId: (sessionId: string) => void;
   clearStreamingSessions: () => void;
-  pendingSessionCreateRef: React.RefObject<boolean>;
+  pendingSessionCreateRef: React.RefObject<PendingSessionCreateIntent | null>;
   partAppendRafRef: React.RefObject<number | null>;
   pendingPartAppendsRef: React.RefObject<Map<string, string>>;
   skipFinishSoundSessionIdsRef: React.RefObject<Set<string>>;
-  navigate: (opts: { to: string; params?: Record<string, string> }) => void;
+  navigate: (opts: { to: string; params?: Record<string, string>; search?: Record<string, unknown> }) => void;
   serverId: string;
   viewPath: string;
 }
@@ -43,6 +39,7 @@ interface UseSessionCommandsParams {
 interface UseSessionCommandsReturn {
   createSession: (preconfigId?: string, title?: string) => void;
   resumeSession: (sessionId: string, options?: ResumeSessionOptions) => void;
+  openAlongside: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
@@ -55,11 +52,16 @@ interface UseSessionCommandsReturn {
   addToQueue: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
+  sendChatMessageForSession: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
+  handleInterruptSessionById: (sessionId: string) => void;
   updateSessionPreconfig: (preconfigId: string) => void;
+  updateSessionPreconfigForSession: (sessionId: string, preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
+  updateSessionModelForSession: (sessionId: string, modelId: string, providerId: string) => void;
   updateSessionVariant: (variant: string | null) => void;
+  updateSessionVariantForSession: (sessionId: string, variant: string | null) => void;
   handleNavigateBack: () => void;
   refreshPermissions: () => void;
   createSessionInWorkspace: (workspaceId: string) => void;
@@ -77,22 +79,17 @@ export function useSessionCommands({
   sessions,
   workspaces,
   activeWorkspace,
-  currentModel,
   streamingSessionIds,
-  isCompacting,
   primaryPreconfigs,
   setActiveWorkspace,
-  setCompactionSuccess,
-  setCurrentModel,
-  setSelectedVariant,
   removePendingAskRequest,
   removePendingPermissionRequest,
   clearPendingAskRequestsBySessionId: _clearPendingAskRequestsBySessionId,
-  clearStreamingSessions,
+  clearStreamingSessions: _clearStreamingSessions,
   pendingSessionCreateRef,
   partAppendRafRef,
   pendingPartAppendsRef,
-  skipFinishSoundSessionIdsRef,
+  skipFinishSoundSessionIdsRef: _skipFinishSoundSessionIdsRef,
   navigate,
   serverId,
   viewPath,
@@ -100,7 +97,9 @@ export function useSessionCommands({
 
   const createSession = useCallback((preconfigId?: string, title?: string) => {
     const client = clientRef.current;
-    pendingSessionCreateRef.current = true;
+    pendingSessionCreateRef.current = activeWorkspace
+      ? { workspaceId: activeWorkspace.id, boardAction: 'replace-focused' }
+      : null;
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
       partAppendRafRef.current = null;
@@ -113,20 +112,18 @@ export function useSessionCommands({
         workspaceId: activeWorkspace?.id,
       });
     }
-    setCompactionSuccess(false);
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, activeWorkspace, setCompactionSuccess]);
+  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, activeWorkspace]);
 
   const resumeSession = useCallback((sessionId: string, options?: ResumeSessionOptions) => {
     const client = clientRef.current;
     const store = useSessionStore.getState();
-    store.setNavigationIntent(
+    store.setNavigationIntentForSession(
+      sessionId,
       options?.targetMessageId
         ? { mode: 'target-message', messageId: options.targetMessageId }
         : { mode: 'follow' }
     );
-    skipFinishSoundSessionIdsRef.current = new Set(useConnectionStore.getState().streamingSessionIds);
-    clearStreamingSessions();
-    setCompactionSuccess(false);
+    store.setCompactionSuccessForSession(sessionId, false);
     const session = sessions.find(s => s.id === sessionId);
     if (session?.workspaceId && session.workspaceId !== activeWorkspace?.id) {
       const targetWorkspace = workspaces.find(w => w.id === session.workspaceId);
@@ -134,12 +131,6 @@ export function useSessionCommands({
         setActiveWorkspace(targetWorkspace);
       }
     }
-    if (partAppendRafRef.current !== null) {
-      cancelAnimationFrame(partAppendRafRef.current);
-      partAppendRafRef.current = null;
-    }
-    pendingPartAppendsRef.current.clear();
-
     const contentMeta = store.contentMetaBySession[sessionId];
     const hasCachedContent = contentMeta?.status === 'ready' && !!store.messagesBySession[sessionId];
 
@@ -158,12 +149,62 @@ export function useSessionCommands({
     if (client && client.connected) {
       client.sessions.resume(sessionId);
     }
+    // Update board state: if already open, just focus; otherwise replace focused pane
+    const board = useSessionBoardStore.getState();
+    if (board.openSessionIds.includes(sessionId)) {
+      board.focusSession(sessionId);
+    } else {
+      board.openInFocusedPane(sessionId);
+    }
+
+    // Build navigation URL with open param
+    const newBoard = useSessionBoardStore.getState();
+    const openParam = newBoard.openSessionIds.length > 1
+      ? newBoard.openSessionIds.join(',')
+      : undefined;
     navigate({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       to: `/server/$serverId${viewPath}/session/$sessionId` as any,
-      params: { serverId, sessionId },
+      params: { serverId, sessionId: newBoard.focusedSessionId ?? sessionId },
+      ...(openParam ? { search: { open: openParam } as Record<string, unknown> } : {}),
     });
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, skipFinishSoundSessionIdsRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, clearStreamingSessions, setCompactionSuccess, navigate, serverId, viewPath]);
+  }, [clientRef, sessions, workspaces, activeWorkspace, setActiveWorkspace, navigate, serverId, viewPath]);
+
+  const openAlongside = useCallback((sessionId: string) => {
+    const client = clientRef.current;
+    const store = useSessionStore.getState();
+    const board = useSessionBoardStore.getState();
+
+    // If already open, just focus
+    if (board.openSessionIds.includes(sessionId)) {
+      board.focusSession(sessionId);
+    } else {
+      board.openAlongside(sessionId);
+    }
+
+    // Load content if needed
+    const contentMeta = store.contentMetaBySession[sessionId];
+    const hasCachedContent = contentMeta?.status === 'ready' && !!store.messagesBySession[sessionId];
+    if (!hasCachedContent) {
+      store.beginSessionContentLoad(sessionId);
+    }
+
+    if (client && client.connected) {
+      client.sessions.resume(sessionId);
+    }
+
+    // Navigate with open param
+    const newBoard = useSessionBoardStore.getState();
+    const openParam = newBoard.openSessionIds.length > 1
+      ? newBoard.openSessionIds.join(',')
+      : undefined;
+    navigate({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to: `/server/$serverId${viewPath}/session/$sessionId` as any,
+      params: { serverId, sessionId: newBoard.focusedSessionId ?? sessionId },
+      ...(openParam ? { search: { open: openParam } as Record<string, unknown> } : {}),
+    });
+  }, [clientRef, navigate, serverId, viewPath]);
 
   const closeSession = useCallback((sessionId: string) => {
     const client = clientRef.current;
@@ -219,33 +260,55 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
-  const updateSessionPreconfig = useCallback((preconfigId: string) => {
+  const updateSessionPreconfigForSession = useCallback((sessionId: string, preconfigId: string) => {
     const client = clientRef.current;
-    if (client && client.connected && currentSession) {
-      client.sessions.update(currentSession.id, { preconfigId });
+    if (client && client.connected) {
+      client.sessions.update(sessionId, { preconfigId });
     }
-  }, [clientRef, currentSession]);
+  }, [clientRef]);
+
+  const updateSessionPreconfig = useCallback((preconfigId: string) => {
+    if (currentSession) {
+      updateSessionPreconfigForSession(currentSession.id, preconfigId);
+    }
+  }, [currentSession, updateSessionPreconfigForSession]);
+
+  const updateSessionModelForSession = useCallback((sessionId: string, modelId: string, providerId: string) => {
+    const client = clientRef.current;
+    const store = useSessionStore.getState();
+    store.setModelForSession(sessionId, modelId);
+    store.setVariantForSession(sessionId, null);
+    if (client && client.connected) {
+      client.sessions.updateModel(sessionId, { modelId, providerId });
+    }
+  }, [clientRef]);
 
   const updateSessionModel = useCallback((modelId: string, providerId: string) => {
-    const client = clientRef.current;
-    setCurrentModel(modelId);
-    setSelectedVariant(null);
-    if (client && client.connected && currentSession) {
-      client.sessions.updateModel(currentSession.id, { modelId, providerId });
+    if (currentSession) {
+      updateSessionModelForSession(currentSession.id, modelId, providerId);
     }
-  }, [clientRef, currentSession, setCurrentModel, setSelectedVariant]);
+  }, [currentSession, updateSessionModelForSession]);
 
-  const updateSessionVariant = useCallback((variant: string | null) => {
+  const updateSessionVariantForSession = useCallback((sessionId: string, variant: string | null) => {
     const client = clientRef.current;
-    if (client && client.connected && currentSession) {
-      client.sessions.updateModel(currentSession.id, {
-        modelId: currentSession.selectedModel || currentModel,
-        providerId: currentSession.selectedProvider || 'openai',
+    const session = sessions.find(s => s.id === sessionId);
+    const store = useSessionStore.getState();
+    const sessionModel = session?.selectedModel || store.getModelForSession(sessionId);
+    if (client && client.connected && session) {
+      client.sessions.updateModel(sessionId, {
+        modelId: sessionModel,
+        providerId: session.selectedProvider || 'openai',
         variant: variant ?? undefined,
       });
-      setSelectedVariant(variant);
+      store.setVariantForSession(sessionId, variant);
     }
-  }, [clientRef, currentSession, currentModel, setSelectedVariant]);
+  }, [clientRef, sessions]);
+
+  const updateSessionVariant = useCallback((variant: string | null) => {
+    if (currentSession) {
+      updateSessionVariantForSession(currentSession.id, variant);
+    }
+  }, [currentSession, updateSessionVariantForSession]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     const client = clientRef.current;
@@ -283,21 +346,27 @@ export function useSessionCommands({
     }
   }, [clientRef]);
 
-  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => {
+  const sendChatMessageForSession = useCallback((sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => {
     const client = clientRef.current;
-    if (!currentSession || isCompacting) return;
-    if (currentSession.runningAt || streamingSessionIds.has(currentSession.id)) {
-      addToQueue(currentSession.id, content, attachments, responseFormatId);
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session || session.compacting) return;
+    if (session.runningAt || streamingSessionIds.has(sessionId)) {
+      addToQueue(sessionId, content, attachments, responseFormatId);
     } else {
       if (client && client.connected) {
         client.chat.send(
-          currentSession.id,
+          sessionId,
           content,
           { attachments, responseFormatId, goalCondition: goal?.condition, goalMaxTurns: goal?.maxTurns },
         );
       }
     }
-  }, [clientRef, currentSession, streamingSessionIds, isCompacting, addToQueue]);
+  }, [clientRef, sessions, streamingSessionIds, addToQueue]);
+
+  const sendChatMessage = useCallback((content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => {
+    if (!currentSession) return;
+    sendChatMessageForSession(currentSession.id, content, attachments, responseFormatId, goal);
+  }, [currentSession, sendChatMessageForSession]);
 
   const handleAskResponse = useCallback((toolCallId: string, response: AskResponse, requestId?: string) => {
     const client = clientRef.current;
@@ -317,12 +386,18 @@ export function useSessionCommands({
     }
   }, [clientRef, removePendingAskRequest, removePendingPermissionRequest]);
 
-  const handleInterruptSession = useCallback(() => {
+  const handleInterruptSessionById = useCallback((sessionId: string) => {
     const client = clientRef.current;
-    if (client && client.connected && currentSession) {
-      client.sessions.interrupt(currentSession.id);
+    if (client && client.connected) {
+      client.sessions.interrupt(sessionId);
     }
-  }, [clientRef, currentSession]);
+  }, [clientRef]);
+
+  const handleInterruptSession = useCallback(() => {
+    if (currentSession) {
+      handleInterruptSessionById(currentSession.id);
+    }
+  }, [currentSession, handleInterruptSessionById]);
 
   const refreshPermissions = useCallback(() => {
     const client = clientRef.current;
@@ -335,7 +410,10 @@ export function useSessionCommands({
     const client = clientRef.current;
     const ws = workspaces.find(w => w.id === workspaceId) || null;
     setActiveWorkspace(ws);
-    pendingSessionCreateRef.current = true;
+    pendingSessionCreateRef.current = {
+      workspaceId,
+      boardAction: 'replace-focused',
+    };
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
       partAppendRafRef.current = null;
@@ -347,8 +425,7 @@ export function useSessionCommands({
     if (client && client.connected) {
       client.sessions.create({ preconfigId: defaultId, workspaceId });
     }
-    setCompactionSuccess(false);
-  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace, setCompactionSuccess]);
+  }, [clientRef, partAppendRafRef, pendingPartAppendsRef, pendingSessionCreateRef, workspaces, primaryPreconfigs, setActiveWorkspace]);
 
   const revokePermission = useCallback((permissionId: string) => {
     const client = clientRef.current;
@@ -395,6 +472,7 @@ export function useSessionCommands({
   return {
     createSession,
     resumeSession,
+    openAlongside,
     closeSession,
     reopenSession,
     permanentlyDeleteSession,
@@ -407,11 +485,16 @@ export function useSessionCommands({
     addToQueue,
     removeFromQueue,
     sendChatMessage,
+    sendChatMessageForSession,
     handleAskResponse,
     handleInterruptSession,
+    handleInterruptSessionById,
     updateSessionPreconfig,
+    updateSessionPreconfigForSession,
     updateSessionModel,
+    updateSessionModelForSession,
     updateSessionVariant,
+    updateSessionVariantForSession,
     handleNavigateBack,
     refreshPermissions,
     createSessionInWorkspace,

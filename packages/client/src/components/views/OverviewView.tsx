@@ -1,15 +1,20 @@
 import { useCallback } from 'react';
-import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
+import { WorkspaceBoardToolbar } from '@/components/app/WorkspaceBoardToolbar';
 import { AppPanels } from '@/components/app/AppPanels';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useOverviewSessions } from '@/hooks/useOverviewSessions';
 import { useInvalidateWorkspaceTags } from '@/hooks/queries';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
+import { useBoardRouteSync } from '@/hooks/useBoardRouteSync';
+import { useFocusedSessionWorkspaceContext } from '@/hooks/useFocusedSessionWorkspaceContext';
+import { useOverviewRouteSessionLoader } from '@/hooks/useOverviewRouteSessionLoader';
 import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
+import { SessionBoard } from '@/components/board/SessionBoard';
 
 export default function OverviewView() {
   const sessionManager = useSessionManager();
@@ -17,6 +22,18 @@ export default function OverviewView() {
   const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
   const updateSession = useSessionStore(s => s.updateSession);
   const invalidateWorkspaceTags = useInvalidateWorkspaceTags();
+
+  const openSessionIds = useSessionBoardStore(s => s.openSessionIds);
+  const hasMultipleOpenSessions = openSessionIds.length > 1;
+
+  // Overview scope: sessions from any accessible workspace are valid.
+  useBoardRouteSync({ scope: { kind: 'overview' } });
+
+  // Synchronize focused session's workspace to shared workspace context.
+  useFocusedSessionWorkspaceContext();
+
+  // Fetch unknown route session IDs directly (F5 restoration).
+  useOverviewRouteSessionLoader(sessionManager.sdkClient, sidebarData.connected);
 
   const {
     sessionsByWorkspace,
@@ -35,6 +52,7 @@ export default function OverviewView() {
   const {
     sdkClient,
     resumeSession,
+    openAlongside,
     closeSession,
     reopenSession,
     permanentlyDeleteSession,
@@ -72,6 +90,7 @@ export default function OverviewView() {
       workspaces={sidebarData.workspaces}
       activeWorkspace={sidebarData.activeWorkspace}
       onResumeSession={resumeSession}
+      onOpenAlongside={openAlongside}
       onCloseSession={closeSession}
       onReopenSession={reopenSession}
       onDeleteSession={permanentlyDeleteSession}
@@ -104,14 +123,20 @@ export default function OverviewView() {
       <main
         className="flex-1 flex flex-col overflow-hidden min-h-0 p-2"
         style={{
-          // AppHeader already handles safe-area-inset-top — don't double-count it
           paddingTop: '0.5rem',
           paddingBottom: '0.5rem',
         }}
       >
         <div className="flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border">
-          <WorkspaceHeader />
-          <Outlet />
+          {hasMultipleOpenSessions ? (
+            <WorkspaceBoardToolbar showWorkspaceContext />
+          ) : (
+            <WorkspaceHeader />
+          )}
+          <SessionBoard
+            sdkClient={sessionManager.sdkClient}
+            serverUrl={sessionManager.serverUrl}
+          />
           <AppPanels
             sdkClient={sessionManager.sdkClient}
             terminalPanelRef={terminalPanelRef}

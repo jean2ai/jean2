@@ -1,5 +1,6 @@
 import type { Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
+import { useSessionStore } from '@/stores/sessionStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
@@ -31,14 +32,15 @@ export function handleMessageCreated(
     setPartsBySession,
     addStreamingSession,
     removeInterruptedSession,
-    currentSessionIdRef,
     clearCompletion,
   } = ctx;
 
   // Clear completion state when activity happens in this session
   clearCompletion(message.sessionId);
 
-  if (message.sessionId === currentSessionIdRef.current) {
+  // Write to any session that has content loaded (multi-pane safe)
+  const hasContent = useSessionStore.getState().messagesBySession[message.sessionId] !== undefined;
+  if (hasContent) {
     setMessagesBySession(prev => ({
       ...prev,
       [message.sessionId]: [...(prev[message.sessionId] || []), message],
@@ -52,7 +54,7 @@ export function handleMessageCreated(
     }));
   }
 
-  if (message.sessionId === currentSessionIdRef.current && 'status' in message && message.status === 'streaming') {
+  if (hasContent && 'status' in message && message.status === 'streaming') {
     addStreamingSession(message.sessionId);
     removeInterruptedSession(message.sessionId);
   }
@@ -69,14 +71,15 @@ export function handleMessageUpdated(
     partAppendRafRef,
     partAppendTimeoutRef,
     flushPendingPartAppends,
-    currentSessionIdRef,
     sessionsRef,
     setCompletion,
     chatFinishSoundEnabledRef,
     playChatFinishSound,
   } = ctx;
 
-  if (message.sessionId === currentSessionIdRef.current) {
+  // Write to any session that has content loaded (multi-pane safe)
+  const hasContent = useSessionStore.getState().messagesBySession[message.sessionId] !== undefined;
+  if (hasContent) {
     if ('status' in message && message.status !== 'streaming') {
       if (partAppendRafRef.current !== null) {
         cancelAnimationFrame(partAppendRafRef.current);
@@ -118,11 +121,13 @@ export function handlePartCreated(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, part } = msg;
-  const { setPartsBySession, partIdIndexRef, currentSessionIdRef, clearCompletion } = ctx;
+  const { setPartsBySession, partIdIndexRef, clearCompletion } = ctx;
 
   clearCompletion(sessionId);
 
-  if (sessionId === currentSessionIdRef.current) {
+  // Write to any session that has content loaded (multi-pane safe)
+  const hasContent = useSessionStore.getState().partsBySession[sessionId] !== undefined;
+  if (hasContent) {
     setPartsBySession(prev => {
       const sessionParts = prev[sessionId] || {};
       const messageParts = sessionParts[part.messageId] || [];
@@ -154,11 +159,13 @@ export function handlePartUpdated(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, part } = msg;
-  const { setPartsBySession, partIdIndexRef, currentSessionIdRef, clearCompletion } = ctx;
+  const { setPartsBySession, partIdIndexRef, clearCompletion } = ctx;
 
   clearCompletion(sessionId);
 
-  if (sessionId === currentSessionIdRef.current) {
+  // Write to any session that has content loaded (multi-pane safe)
+  const hasContent = useSessionStore.getState().partsBySession[sessionId] !== undefined;
+  if (hasContent) {
     const partLocation = partIdIndexRef.current.get(part.id);
     if (partLocation) {
       setPartsBySession(prev => {
@@ -222,7 +229,6 @@ export function handlePartAppend(
     pendingPartAppendsRef,
     partAppendRafRef,
     interruptedSessions,
-    currentSessionIdRef,
     flushPendingPartAppends,
     clearCompletion,
   } = ctx;
@@ -230,17 +236,17 @@ export function handlePartAppend(
   // Clear completion state when activity happens in this session
   clearCompletion(sessionId);
 
-  if (sessionId === currentSessionIdRef.current && !interruptedSessions.has(sessionId)) {
+  if (!interruptedSessions.has(sessionId)) {
     addStreamingSession(sessionId);
   }
 
-  if (sessionId === currentSessionIdRef.current) {
+  // Write to any session that has content loaded (multi-pane safe)
+  const hasContent = useSessionStore.getState().partsBySession[sessionId] !== undefined;
+  if (hasContent) {
     const existing = pendingPartAppendsRef.current.get(partId);
     pendingPartAppendsRef.current.set(partId, (existing || '') + delta);
 
     // Flush on next animation frame — no throttle batching.
-    // Per-token updates produce smaller DOM changes, reducing visible content shift
-    // during streaming in free-look mode.
     if (partAppendRafRef.current === null) {
       partAppendRafRef.current = requestAnimationFrame(() => {
         flushPendingPartAppends();
@@ -254,16 +260,14 @@ export function handleChatUsage(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId, usage, model } = msg;
-  const { setSessionUsage, setCurrentModel, currentSessionIdRef } = ctx;
+  const { setUsageForSession, setModelForSession } = ctx;
 
-  if (sessionId !== currentSessionIdRef.current) return;
-
-  setSessionUsage({
+  setUsageForSession(sessionId, {
     promptTokens: usage.promptTokens,
     completionTokens: usage.completionTokens,
     totalTokens: usage.totalTokens,
   });
-  setCurrentModel(model);
+  setModelForSession(sessionId, model);
 }
 
 export function handleCompactionComplete(
@@ -271,13 +275,11 @@ export function handleCompactionComplete(
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId } = msg;
-  const { setCompactionSuccess, currentSessionIdRef } = ctx;
+  const { setCompactionSuccessForSession } = ctx;
 
   usePendingOperationsStore.getState().clearOperation(sessionId, 'compact');
 
-  if (sessionId === currentSessionIdRef.current) {
-    setCompactionSuccess(true);
-  }
+  setCompactionSuccessForSession(sessionId, true);
 }
 
 export function handleError(

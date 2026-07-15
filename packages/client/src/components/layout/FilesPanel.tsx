@@ -237,6 +237,13 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
       }
     }, [activeWorkspace, filesPanelRoot, setFilesPanelRoot]);
 
+    // Clear search query when the workspace changes to avoid running
+    // the previous workspace's search against the new workspace.
+    const workspaceIdForReset = activeWorkspace?.id;
+    useEffect(() => {
+      setSearchQuery('');
+    }, [workspaceIdForReset]);
+
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = useCallback(() => {

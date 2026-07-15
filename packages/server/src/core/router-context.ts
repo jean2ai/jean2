@@ -3,7 +3,7 @@ import type { ServerWebSocket } from 'bun';
 import { checkControllerGate } from './session-control-registry';
 
 export interface ClientEntry {
-  sessionId?: string;
+  sessionIds: Set<string>;
   missedPings: number;
 }
 

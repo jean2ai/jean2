@@ -1,0 +1,116 @@
+import { useMemo } from 'react';
+import { X } from 'lucide-react';
+import type { Session, Preconfig, Workspace } from '@jean2/sdk';
+import { ChatHeader } from '@/components/chat/ChatHeader';
+import { Button } from '@/components/ui/button';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { useSessionCommands } from '@/contexts/SessionCommandsContext';
+import { getWorkspacePreconfigs } from '@/lib/workspacePreconfigs';
+import { useServerDataStore } from '@/stores/serverDataStore';
+
+interface Model {
+  id: string;
+  name: string;
+  contextWindow: number;
+  tier: 'budget' | 'standard' | 'premium';
+  providerId: string;
+  providerName: string;
+  variants?: Record<string, { providerOptions: Record<string, unknown> }>;
+}
+
+export interface SessionPaneHeaderProps {
+  sessionId: string;
+  onRemove: () => void;
+}
+
+/**
+ * Per-pane session header for the multi-session board.
+ * Wraps ChatHeader and binds every callback to the pane's sessionId.
+ * All state is resolved per-session from keyed stores, never from singletons.
+ *
+ * Workspace-specific data (preconfigs and lockPreconfig) is resolved
+ * from the session's own workspaceId, not the global activeWorkspace.
+ */
+export function SessionPaneHeader({ sessionId, onRemove }: SessionPaneHeaderProps) {
+  const commands = useSessionCommands();
+
+  const session = useSessionStore(s => s.sessions.find(sess => sess.id === sessionId) as Session | undefined);
+  const usageBySessionId = useSessionStore(s => s.usageBySessionId);
+  const modelBySessionId = useSessionStore(s => s.modelBySessionId);
+  const variantBySessionId = useSessionStore(s => s.variantBySessionId);
+  const sessionMessages = useSessionStore(s => s.messagesBySession[sessionId]);
+  const streamingSessionIds = useConnectionStore(s => s.streamingSessionIds);
+
+  const allPreconfigs = useServerDataStore(s => s.preconfigs);
+  const models = useServerDataStore(s => s.models) as Model[];
+  const defaultModel = useServerDataStore(s => s.defaultModel);
+  const allWorkspaces = useServerDataStore(s => s.workspaces);
+
+  // Resolve the workspace from the session's own workspaceId.
+  // This ensures each pane shows its correct workspace preconfigs and label,
+  // even for non-focused panes in a mixed-workspace board.
+  const sessionWorkspace: Workspace | null = useMemo(() => {
+    if (!session?.workspaceId) return null;
+    return allWorkspaces.find(w => w.id === session.workspaceId) ?? null;
+  }, [session?.workspaceId, allWorkspaces]);
+
+  const preconfigs = useMemo(
+    () => getWorkspacePreconfigs(sessionWorkspace, allPreconfigs) as Preconfig[],
+    [sessionWorkspace, allPreconfigs],
+  );
+
+  const lockPreconfig = !!sessionWorkspace?.settings?.isAgentHome;
+
+  if (!session) return null;
+
+  const sessionUsage = usageBySessionId[sessionId] ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const currentModel = modelBySessionId[sessionId] ?? '';
+  const selectedVariant = variantBySessionId[sessionId] ?? null;
+  const currentModelInfo = models.find(m => m.id === currentModel);
+  const compactableMessageCount = (sessionMessages ?? []).filter(m => m.role !== 'system').length;
+  const isCompacting = session.compacting ?? false;
+
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-muted/30 shrink-0">
+
+      <ChatHeader
+        session={session}
+        preconfigs={preconfigs}
+        models={models}
+        defaultModel={defaultModel}
+        usage={sessionUsage}
+        modelName={currentModel}
+        onChangePreconfig={(preconfigId) => commands.updateSessionPreconfigForSession(sessionId, preconfigId)}
+        onChangeModel={(modelId, providerId) => commands.updateSessionModelForSession(sessionId, modelId, providerId)}
+        onChangeVariant={(variant) => commands.updateSessionVariantForSession(sessionId, variant)}
+        onRename={commands.handleRenameSession}
+        onNavigateBack={
+          session.parentId
+            ? () => commands.resumeSession(session.parentId!)
+            : undefined
+        }
+        isStreaming={streamingSessionIds.has(sessionId) || !!session.runningAt}
+        onCompact={compactableMessageCount >= 2 ? () => commands.compactSession(sessionId) : undefined}
+        isCompacting={isCompacting}
+        canCompact={compactableMessageCount >= 2}
+        selectedVariant={selectedVariant}
+        variants={currentModelInfo?.variants}
+        onClaimControl={commands.claimControl}
+        onReleaseControl={commands.releaseControl}
+        onRequestTakeover={commands.requestTakeover}
+        onRespondTakeover={commands.respondTakeover}
+        lockPreconfig={lockPreconfig}
+      />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6 shrink-0"
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        title="Remove from board"
+      >
+        <X className="size-3.5" />
+      </Button>
+    </div>
+  );
+}

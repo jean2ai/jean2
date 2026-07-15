@@ -22,7 +22,7 @@ export interface RegisteredConnection {
   connectedAt: number;
   lastSeenAt: number;
   ws: ServerWebSocket;
-  activeSessionId?: string;
+  activeSessionIds: Set<string>;
 }
 
 // ── Registries ────────────────────────────────────────────────
@@ -43,6 +43,7 @@ export function registerConnection(ws: ServerWebSocket): string {
     connectedAt: now,
     lastSeenAt: now,
     ws,
+    activeSessionIds: new Set(),
   };
 
   connectionsByConnectionId.set(connectionId, entry);
@@ -236,7 +237,7 @@ export function getConnectionsForClient(clientId: string): RegisteredConnection[
 export function getAllConnectionsWithActiveSession(sessionId: string): RegisteredConnection[] {
   const result: RegisteredConnection[] = [];
   for (const conn of connectionsByConnectionId.values()) {
-    if (conn.activeSessionId === sessionId) {
+    if (conn.activeSessionIds.has(sessionId)) {
       result.push(conn);
     }
   }

@@ -497,7 +497,12 @@ export async function handleChat(
 
   if (interruptManager.isSessionActive(sessionId)) {
     const queuedMessage = addMessageToQueue(sessionId, content, attachments);
-    ctx.clients.set(ws, { sessionId, missedPings: 0 });
+    const existingEntry = ctx.clients.get(ws);
+    if (existingEntry) {
+      existingEntry.sessionIds.add(sessionId);
+    } else {
+      ctx.clients.set(ws, { sessionIds: new Set([sessionId]), missedPings: 0 });
+    }
     ctx.send(ws, { type: 'queue.added', sessionId, message: queuedMessage });
     return;
   }

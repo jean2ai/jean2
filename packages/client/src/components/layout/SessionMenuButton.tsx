@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square, Tag, Plus, XIcon, Sparkles } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, RotateCcw, Trash2, X, Loader2, CheckCircle, XCircle, Pause, AlertTriangle, Pencil, CheckSquare, Square, Tag, Plus, XIcon, Sparkles, Columns2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import React from 'react';
 import type { Session } from '@jean2/sdk';
@@ -40,6 +40,7 @@ interface SessionMenuButtonProps {
   isActive: boolean;
   currentSessionId: string | null;
   onResumeSession: (sessionId: string) => void;
+  onOpenAlongside?: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -67,6 +68,7 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   onAddTag,
   onRemoveTag,
   sessionId,
+  onOpenAlongside,
 }: {
   isClosed: boolean;
   isEditing: boolean;
@@ -81,6 +83,7 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
   onAddTag?: (tag: string) => void;
   onRemoveTag?: (tag: string) => void;
   sessionId: string;
+  onOpenAlongside?: () => void;
 }) {
   const [tagInputOpen, setTagInputOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
@@ -134,6 +137,12 @@ const SessionActionsDropdown = React.memo(function SessionActionsDropdown({
         </SidebarMenuAction>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">
+        {onOpenAlongside && (
+          <DropdownMenuItem onClick={onOpenAlongside}>
+            <Columns2 className="size-4" />
+            Open alongside
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={onRename}>
           <Pencil className="size-4" />
           Rename
@@ -278,6 +287,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
   isActive,
   currentSessionId,
   onResumeSession,
+  onOpenAlongside,
   onCloseSession,
   onReopenSession,
   onDeleteSession,
@@ -493,6 +503,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
               onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
               sessionId={session.id}
+              onOpenAlongside={onOpenAlongside ? () => onOpenAlongside(session.id) : undefined}
             />
           </div>
         </SidebarMenuItem>
@@ -587,6 +598,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
               onAddTag={onAddTag ? (tag) => onAddTag(session.id, tag) : undefined}
               onRemoveTag={onRemoveTag ? (tag) => onRemoveTag(session.id, tag) : undefined}
               sessionId={session.id}
+              onOpenAlongside={onOpenAlongside ? () => onOpenAlongside(session.id) : undefined}
             />
           </div>
 
@@ -601,6 +613,7 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
                   isActive={currentSessionId === child.id}
                   currentSessionId={currentSessionId}
                   onResumeSession={onResumeSession}
+                  onOpenAlongside={onOpenAlongside}
                   onCloseSession={onCloseSession}
                   onReopenSession={onReopenSession}
                   onDeleteSession={onDeleteSession}

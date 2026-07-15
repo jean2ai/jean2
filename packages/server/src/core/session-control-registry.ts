@@ -711,7 +711,7 @@ export function handleSessionResume(
 
   addParticipant(sessionId, connectionId, clientId ?? '');
   if (conn) {
-    conn.activeSessionId = sessionId;
+    conn.activeSessionIds.add(sessionId);
   }
 
   const record = ensureControlRecord(sessionId);
@@ -753,30 +753,35 @@ export function handleConnectionDisconnect(ws: ServerWebSocket): DisconnectTrans
   const conn = getConnectionByWs(ws);
   if (!conn) return [];
 
-  const { clientId, connectionId, activeSessionId } = conn;
+  const { clientId, connectionId, activeSessionIds } = conn;
   const transitions: DisconnectTransition[] = [];
 
-  if (activeSessionId && clientId) {
-    removeParticipant(activeSessionId, connectionId, clientId);
+  // Process grace/takeover for every session this connection was participating in
+  for (const activeSessionId of activeSessionIds) {
+    if (clientId) {
+      removeParticipant(activeSessionId, connectionId, clientId);
 
-    const participants = participantsBySessionId.get(activeSessionId);
-    const clientEntry = participants?.get(clientId);
-    if (!clientEntry || clientEntry.connectionIds.size === 0) {
-      if (isController(activeSessionId, clientId)) {
-        enterGrace(activeSessionId);
-        transitions.push({ sessionId: activeSessionId, reason: 'grace_entered' });
-      } else if (isControllingClient(activeSessionId, clientId)) {
-        const record = controlBySessionId.get(activeSessionId);
-        if (record?.status === 'takeover_requested') {
-          autoApproveTakeover(activeSessionId);
-          transitions.push({ sessionId: activeSessionId, reason: 'takeover_auto_approved' });
+      const participants = participantsBySessionId.get(activeSessionId);
+      const clientEntry = participants?.get(clientId);
+      if (!clientEntry || clientEntry.connectionIds.size === 0) {
+        if (isController(activeSessionId, clientId)) {
+          enterGrace(activeSessionId);
+          transitions.push({ sessionId: activeSessionId, reason: 'grace_entered' });
+        } else if (isControllingClient(activeSessionId, clientId)) {
+          const record = controlBySessionId.get(activeSessionId);
+          if (record?.status === 'takeover_requested') {
+            autoApproveTakeover(activeSessionId);
+            transitions.push({ sessionId: activeSessionId, reason: 'takeover_auto_approved' });
+          }
         }
       }
     }
   }
 
+  // Secondary cleanup: remove participant entries from ALL sessions
+  // (covers any sessions that might not be in activeSessionIds)
   controlBySessionId.forEach((_record, sessionId) => {
-    if (sessionId !== activeSessionId && clientId) {
+    if (!activeSessionIds.has(sessionId) && clientId) {
       removeParticipant(sessionId, connectionId, clientId);
     }
   });

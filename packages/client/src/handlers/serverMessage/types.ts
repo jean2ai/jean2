@@ -55,6 +55,10 @@ export interface SessionHandlersContext {
   setSessionUsage: (usage: SessionUsage) => void;
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
+  setUsageForSession: (sessionId: string, usage: SessionUsage) => void;
+  setModelForSession: (sessionId: string, model: string) => void;
+  setVariantForSession: (sessionId: string, variant: string | null) => void;
+  setCompactionSuccessForSession: (sessionId: string, success: boolean) => void;
   addStreamingSession: (sessionId: string) => void;
   removeStreamingSession: (sessionId: string) => void;
   addInterruptedSession: (sessionId: string) => void;
@@ -67,7 +71,7 @@ export interface SessionHandlersContext {
   setCompletion: (sessionId: string, record: CompletionRecord) => void;
   clearCompletion: (sessionId: string) => void;
   clearAllCompletions: () => void;
-  pendingSessionCreateRef: React.MutableRefObject<boolean>;
+  pendingSessionCreateRef: React.MutableRefObject<import('@/stores/sessionBoardStore').PendingSessionCreateIntent | null>;
   sessionAccessTimesRef: React.MutableRefObject<Map<string, number>>;
   partIdIndexRef: React.MutableRefObject<Map<string, PartIndexEntry>>;
   partAppendRafRef: React.MutableRefObject<number | null>;
@@ -93,6 +97,7 @@ export interface SessionHandlersContext {
   chatFinishSoundEnabledRef: React.MutableRefObject<boolean>;
   playChatFinishSound: () => void;
   navigateToSession: (sessionId: string) => void;
+  navigateToSessionWithOpen: (sessionId: string, openParam?: string) => void;
   navigateToParent: () => void;
   serverId: string;
   // Ask related

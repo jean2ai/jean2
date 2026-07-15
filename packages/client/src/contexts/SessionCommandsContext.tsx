@@ -15,6 +15,7 @@ import type { ResumeSessionOptions } from '@/stores/sessionStore';
 export interface SessionCommandsValue {
   createSession: (preconfigId?: string, title?: string) => void;
   resumeSession: (sessionId: string, options?: ResumeSessionOptions) => void;
+  openAlongside: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
@@ -31,11 +32,22 @@ export interface SessionCommandsValue {
     responseFormatId?: string,
     goal?: { condition: string; maxTurns?: number },
   ) => void;
+  sendChatMessageForSession: (
+    sessionId: string,
+    content: string,
+    attachments?: Array<{ id: string; kind: AttachmentKind }>,
+    responseFormatId?: string,
+    goal?: { condition: string; maxTurns?: number },
+  ) => void;
   handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
+  handleInterruptSessionById: (sessionId: string) => void;
   updateSessionPreconfig: (preconfigId: string) => void;
+  updateSessionPreconfigForSession: (sessionId: string, preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
+  updateSessionModelForSession: (sessionId: string, modelId: string, providerId: string) => void;
   updateSessionVariant: (variant: string | null) => void;
+  updateSessionVariantForSession: (sessionId: string, variant: string | null) => void;
   handleNavigateBack: () => void;
 
   selectWorkspace: (workspace: Workspace) => void;

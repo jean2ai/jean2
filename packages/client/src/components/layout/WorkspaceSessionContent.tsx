@@ -39,6 +39,7 @@ interface WorkspaceSessionContentProps {
   isFetchingNextPage?: boolean;
   onLoadMore?: () => void;
   onResumeSession: (sessionId: string) => void;
+  onOpenAlongside?: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -69,6 +70,7 @@ export function WorkspaceSessionContent({
   sessionDerivedValues,
   currentSessionId,
   onResumeSession,
+  onOpenAlongside,
   onCloseSession,
   onReopenSession,
   onDeleteSession,
@@ -179,6 +181,7 @@ export function WorkspaceSessionContent({
       isActive={currentSessionId === session.id}
       currentSessionId={currentSessionId}
       onResumeSession={onResumeSession}
+      onOpenAlongside={onOpenAlongside}
       onCloseSession={onCloseSession}
       onReopenSession={onReopenSession}
       onDeleteSession={onDeleteSession}
@@ -410,6 +413,7 @@ export function WorkspaceSessionContent({
                       isActive={currentSessionId === session.id}
                       currentSessionId={currentSessionId}
                       onResumeSession={onResumeSession}
+                      onOpenAlongside={onOpenAlongside}
                       onCloseSession={onCloseSession}
                       onReopenSession={onReopenSession}
                       onDeleteSession={onDeleteSession}

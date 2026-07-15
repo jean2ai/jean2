@@ -64,7 +64,13 @@ export async function handleCreateSession(
     agentName: null,
     autoApproveSeverity: workspaceAutoApprove,
   });
-  ctx.clients.set(ws, { sessionId: session.id, missedPings: 0 });
+  // Add to connection's active session set
+  const existingEntry = ctx.clients.get(ws);
+  if (existingEntry) {
+    existingEntry.sessionIds.add(session.id);
+  } else {
+    ctx.clients.set(ws, { sessionIds: new Set([session.id]), missedPings: 0 });
+  }
 
   if (msg.preconfigId) {
     const preconfig = await getPreconfigOrAgent(msg.preconfigId);
@@ -95,7 +101,13 @@ export async function handleResumeSession(
     ctx.send(ws, { type: 'error', code: 'not_found', message: 'Session not found' });
     return;
   }
-  ctx.clients.set(ws, { sessionId: session.id, missedPings: 0 });
+  // Add to connection's active session set (multi-session safe)
+  const existingEntry = ctx.clients.get(ws);
+  if (existingEntry) {
+    existingEntry.sessionIds.add(session.id);
+  } else {
+    ctx.clients.set(ws, { sessionIds: new Set([session.id]), missedPings: 0 });
+  }
 
   const controlResult = handleControlSessionResume(session.id, ws);
 

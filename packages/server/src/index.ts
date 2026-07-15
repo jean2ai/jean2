@@ -351,7 +351,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
           }
           return;
         }
-        clients.set(ws, { missedPings: 0 });
+        clients.set(ws, { sessionIds: new Set(), missedPings: 0 });
         registryRegisterConnection(ws);
       },
 

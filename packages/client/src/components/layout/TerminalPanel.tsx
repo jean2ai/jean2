@@ -201,6 +201,11 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return;
     }
 
+    // Generation guard: if a newer workspace switch happens before
+    // the async subscribeEvents resolves, dispose the stale result
+    // immediately and do not install it.
+    let cancelled = false;
+
     // Clean up previous workspace's terminals before setting up new workspace
     if (activeConnectionRef.current) {
       activeConnectionRef.current.disconnect();
@@ -212,6 +217,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     previousTabIdsRef.current = new Set(tabsRef.current.map(t => t.serverSessionId));
 
     sdkClient.terminal.subscribeEvents(workspaceId).then(({ conn, initialSessions }) => {
+      // If the workspace changed while we were subscribing, dispose immediately.
+      if (cancelled) {
+        conn.dispose();
+        return;
+      }
+
       eventsConnRef.current = conn;
 
       // Process initial snapshot immediately (before registering listeners)
@@ -241,10 +252,13 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         console.error('[TerminalPanel] Events connection error:', error.message);
       });
     }).catch(err => {
-      console.error('[TerminalPanel] Failed to subscribe to terminal events:', err);
+      if (!cancelled) {
+        console.error('[TerminalPanel] Failed to subscribe to terminal events:', err);
+      }
     });
 
     return () => {
+      cancelled = true;
       if (eventsConnRef.current) {
         eventsConnRef.current.dispose();
         eventsConnRef.current = null;

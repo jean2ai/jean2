@@ -20,6 +20,7 @@ import type { SessionHandlersContext, ModelInfo } from '@/handlers/serverMessage
 
 import { useServerContext } from '@/contexts/ServerContext';
 import { useSessionStore, type ResumeSessionOptions, type SessionUsage, evictToBudget } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
@@ -37,7 +38,7 @@ import { usePermissionAutoApprove } from '@/hooks/usePermissionAutoApprove';
 export interface UseServerSessionManagerParams {
   serverId: string;
   activeServer: SavedServer | null;
-  navigate: (opts: { to: string; params?: Record<string, string> }) => void;
+  navigate: (opts: { to: string; params?: Record<string, string>; search?: Record<string, unknown> }) => void;
   removeFromQuickConnectionsByWorkspace: (workspaceId: string) => void;
   quickConnections: QuickConnection[];
 }
@@ -81,6 +82,7 @@ export interface UseServerSessionManagerReturn {
 
   createSession: (preconfigId?: string, title?: string) => void;
   resumeSession: (sessionId: string, options?: ResumeSessionOptions) => void;
+  openAlongside: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
   reopenSession: (sessionId: string) => void;
   permanentlyDeleteSession: (sessionId: string) => void;
@@ -92,11 +94,16 @@ export interface UseServerSessionManagerReturn {
   compactSession: (sessionId: string) => void;
   removeFromQueue: (queueId: string) => void;
   sendChatMessage: (content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
+  sendChatMessageForSession: (sessionId: string, content: string, attachments?: Array<{ id: string; kind: AttachmentKind }>, responseFormatId?: string, goal?: { condition: string; maxTurns?: number }) => void;
   handleAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   handleInterruptSession: () => void;
+  handleInterruptSessionById: (sessionId: string) => void;
   updateSessionPreconfig: (preconfigId: string) => void;
+  updateSessionPreconfigForSession: (sessionId: string, preconfigId: string) => void;
   updateSessionModel: (modelId: string, providerId: string) => void;
+  updateSessionModelForSession: (sessionId: string, modelId: string, providerId: string) => void;
   updateSessionVariant: (variant: string | null) => void;
+  updateSessionVariantForSession: (sessionId: string, variant: string | null) => void;
   handleNavigateBack: () => void;
   refreshPermissions: () => void;
   createSessionInWorkspace: (workspaceId: string) => void;
@@ -146,7 +153,7 @@ export function useServerSessionManager({
   const lastPartAppendFlushAtRef = useRef<number>(0);
   const partAppendTimeoutRef = useRef<number | null>(null);
   const skipFinishSoundSessionIdsRef = useRef<Set<string>>(new Set());
-  const pendingSessionCreateRef = useRef(false);
+  const pendingSessionCreateRef = useRef<import('@/stores/sessionBoardStore').PendingSessionCreateIntent | null>(null);
   const handlerContextRef = useRef<SessionHandlersContext | null>(null);
 
   const { sessions, setSessions } = useSessionStore(
@@ -187,13 +194,39 @@ export function useServerSessionManager({
 
   const isSessionLoading = sessionIdFromUrl != null && currentSession == null;
 
-  // Sync URL-derived session to the store so AppMainContent (which reads from store) stays consistent
+  // Focused-session adapter: synchronizes singleton compat state from the
+  // focused session's keyed state. This is the ONLY place singleton values
+  // (usage, model, variant, compaction, navigation intent) are derived from
+  // per-session data. Server event handlers must not write singletons directly.
+  const focusedSessionId = currentSession?.id ?? null;
+  const focusedKeyedUsage = useSessionStore(s => focusedSessionId ? s.usageBySessionId[focusedSessionId] : undefined);
+  const focusedKeyedModel = useSessionStore(s => focusedSessionId ? s.modelBySessionId[focusedSessionId] : undefined);
+  const focusedKeyedVariant = useSessionStore(s => focusedSessionId ? s.variantBySessionId[focusedSessionId] : undefined);
+  const focusedKeyedCompaction = useSessionStore(s => focusedSessionId ? s.compactionSuccessBySessionId[focusedSessionId] : undefined);
+  const focusedKeyedNav = useSessionStore(s => focusedSessionId ? s.navigationIntentBySessionId[focusedSessionId] : undefined);
   useEffect(() => {
-    const storeSession = useSessionStore.getState().currentSession;
-    if (currentSession?.id !== storeSession?.id) {
+    const store = useSessionStore.getState();
+    if (currentSession?.id !== store.currentSession?.id) {
       setCurrentSession(currentSession);
     }
-  }, [currentSession, setCurrentSession]);
+    if (focusedSessionId) {
+      if (focusedKeyedUsage && focusedKeyedUsage !== store.sessionUsage) {
+        store.setSessionUsage(focusedKeyedUsage);
+      }
+      if (focusedKeyedModel && focusedKeyedModel !== store.currentModel) {
+        store.setCurrentModel(focusedKeyedModel);
+      }
+      if (focusedKeyedVariant !== undefined && focusedKeyedVariant !== store.selectedVariant) {
+        store.setSelectedVariant(focusedKeyedVariant);
+      }
+      if (focusedKeyedCompaction !== undefined && focusedKeyedCompaction !== store.compactionSuccess) {
+        store.setCompactionSuccess(focusedKeyedCompaction);
+      }
+      if (focusedKeyedNav && focusedKeyedNav !== store.navigationIntent) {
+        store.setNavigationIntent(focusedKeyedNav);
+      }
+    }
+  }, [currentSession, focusedSessionId, focusedKeyedUsage, focusedKeyedModel, focusedKeyedVariant, focusedKeyedCompaction, focusedKeyedNav, setCurrentSession]);
 
   const activeSessionId = currentSession?.id;
 
@@ -400,6 +433,11 @@ export function useServerSessionManager({
 
     const streamingIds = useConnectionStore.getState().streamingSessionIds;
     const protectedSessionIds = new Set<string>(streamingIds);
+    // Protect all board-visible sessions from eviction
+    const boardOpenIds = useSessionBoardStore.getState().openSessionIds;
+    for (const id of boardOpenIds) {
+      protectedSessionIds.add(id);
+    }
     const evictedIds = evictToBudget(activeSessionId ?? null, protectedSessionIds);
     if (evictedIds.length > 0) {
       for (const id of evictedIds) {
@@ -503,6 +541,7 @@ export function useServerSessionManager({
     useServerDataStore.getState().setActiveWorkspace(workspace);
     localStorage.setItem('activeWorkspaceId', workspace.id);
     setCurrentSession(null);
+    useSessionBoardStore.getState().clearBoard();
     navigate({ to: '/server/$serverId/workspace', params: { serverId: _serverId } });
   }, [setCurrentSession, navigate, _serverId]);
 
@@ -686,6 +725,10 @@ export function useServerSessionManager({
       removeQueuedMessageById,
       clearQueuedMessages,
       setCompactionSuccess,
+      setUsageForSession: useSessionStore.getState().setUsageForSession,
+      setModelForSession: useSessionStore.getState().setModelForSession,
+      setVariantForSession: useSessionStore.getState().setVariantForSession,
+      setCompactionSuccessForSession: useSessionStore.getState().setCompactionSuccessForSession,
       setCompletion,
       clearCompletion,
       clearAllCompletions,
@@ -717,6 +760,14 @@ export function useServerSessionManager({
       navigateToSession: (sessionId: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         navigate({ to: `/server/$serverId${viewPath}/session/$sessionId` as any, params: { serverId: _serverId, sessionId } });
+      },
+      navigateToSessionWithOpen: (sessionId: string, openParam?: string) => {
+        navigate({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          to: `/server/$serverId${viewPath}/session/$sessionId` as any,
+          params: { serverId: _serverId, sessionId },
+          ...(openParam ? { search: { open: openParam } as Record<string, unknown> } : {}),
+        });
       },
       navigateToParent: () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -779,6 +830,7 @@ export function useServerSessionManager({
   const {
     createSession,
     resumeSession,
+    openAlongside,
     closeSession,
     reopenSession,
     permanentlyDeleteSession,
@@ -790,11 +842,16 @@ export function useServerSessionManager({
     compactSession,
     removeFromQueue,
     sendChatMessage,
+    sendChatMessageForSession,
     handleAskResponse,
     handleInterruptSession,
+    handleInterruptSessionById,
     updateSessionPreconfig,
+    updateSessionPreconfigForSession,
     updateSessionModel,
+    updateSessionModelForSession,
     updateSessionVariant,
+    updateSessionVariantForSession,
     handleNavigateBack,
     refreshPermissions,
     createSessionInWorkspace,
@@ -810,14 +867,9 @@ export function useServerSessionManager({
     sessions,
     workspaces,
     activeWorkspace,
-    currentModel,
     streamingSessionIds,
-    isCompacting,
     primaryPreconfigs,
     setActiveWorkspace: (ws: Workspace | null) => useServerDataStore.getState().setActiveWorkspace(ws),
-    setCompactionSuccess,
-    setCurrentModel,
-    setSelectedVariant,
     removePendingAskRequest,
     removePendingPermissionRequest: removePendingPermissionAskRequest,
     clearPendingAskRequestsBySessionId,
@@ -879,6 +931,7 @@ export function useServerSessionManager({
 
     createSession,
     resumeSession,
+    openAlongside,
     closeSession,
     reopenSession,
     permanentlyDeleteSession,
@@ -890,11 +943,16 @@ export function useServerSessionManager({
     compactSession,
     removeFromQueue,
     sendChatMessage,
+    sendChatMessageForSession,
     handleAskResponse,
     handleInterruptSession,
+    handleInterruptSessionById,
     updateSessionPreconfig,
+    updateSessionPreconfigForSession,
     updateSessionModel,
+    updateSessionModelForSession,
     updateSessionVariant,
+    updateSessionVariantForSession,
     handleNavigateBack,
     refreshPermissions,
     createSessionInWorkspace,

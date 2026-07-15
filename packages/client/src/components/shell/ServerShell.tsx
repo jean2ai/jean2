@@ -37,7 +37,7 @@ export default function ServerShell() {
     serverId,
     activeServer,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    navigate: (opts: { to: string; params?: Record<string, string> }) => router.navigate({ to: opts.to as any, params: opts.params as any }),
+    navigate: (opts: { to: string; params?: Record<string, string>; search?: Record<string, unknown> }) => router.navigate({ to: opts.to as any, params: opts.params as any, search: opts.search as any }),
     removeFromQuickConnectionsByWorkspace,
     quickConnections,
   });

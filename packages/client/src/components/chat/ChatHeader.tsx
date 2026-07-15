@@ -8,7 +8,7 @@ import { TokenMeter } from './TokenMeter';
 import { ModelVariantConfigSelector } from './ModelVariantConfigSelector';
 import { SessionControlButton } from './SessionControlButton';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
-import { useServerDataStore } from '@/stores/serverDataStore';
+
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import {useIsCompact, useIsMobile} from '@/hooks/use-mobile';
 
@@ -47,6 +47,8 @@ interface ChatHeaderProps {
   onReleaseControl?: (sessionId: string) => void;
   onRequestTakeover?: (sessionId: string) => void;
   onRespondTakeover?: (sessionId: string, requesterClientId: string, decision: 'approve' | 'deny') => void;
+  /** When true, locks the preconfig selector (e.g. agent-home workspaces). */
+  lockPreconfig?: boolean;
 }
 
 type ControlUiState =
@@ -93,14 +95,13 @@ export function ChatHeader({
   onReleaseControl,
   onRequestTakeover,
   onRespondTakeover,
+  lockPreconfig,
 }: ChatHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(session.title || '');
   const inputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
   const isCompact = useIsCompact();
-
-  const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
 
   const controlState = useSessionControlStore((s) => s.controlBySessionId[session.id]);
   const myClientId = useClientIdentityStore((s) => s.clientId);
@@ -217,7 +218,7 @@ export function ChatHeader({
               selectedPreconfigId={session.preconfigId}
               onChangePreconfig={onChangePreconfig}
               disabled={session.status === 'closed' || !!session.parentId || isObserver}
-              lockPreconfig={!!activeWorkspace?.settings?.isAgentHome}
+              lockPreconfig={lockPreconfig}
               iconOnly={isMobile}
               compact={isCompact}
             />

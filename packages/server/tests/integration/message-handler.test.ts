@@ -29,18 +29,25 @@ import type { AssistantMessage, ToolPart, ServerMessage } from '@jean2/sdk';
 const broadcastMock = createMockBroadcast();
 
 mock.module('@/core/model-utils', () => {
-  const { MockLanguageModelV3 } = require('ai/test');
+  const { MockLanguageModelV3, convertArrayToReadableStream } = require('ai/test');
   return {
     getModelWithMetadata: async () => ({
       model: new MockLanguageModelV3({
-        doGenerate: async () => ({
-          content: [{ type: 'text' as const, text: '## Summary\n\nCompacted conversation summary.' }],
-          finishReason: { unified: 'stop' as const, raw: undefined },
-          usage: {
-            inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
-            outputTokens: { total: 20, text: 20, reasoning: undefined },
-          },
-          warnings: [],
+        doStream: async () => ({
+          stream: convertArrayToReadableStream([
+            { type: 'stream-start', warnings: [] },
+            { type: 'text-start', id: 'summary' },
+            { type: 'text-delta', id: 'summary', delta: '## Summary\n\nCompacted conversation summary.' },
+            { type: 'text-end', id: 'summary' },
+            {
+              type: 'finish',
+              finishReason: { unified: 'stop', raw: undefined },
+              usage: {
+                inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+                outputTokens: { total: 20, text: 20, reasoning: undefined },
+              },
+            },
+          ]),
         }),
       }),
     }),

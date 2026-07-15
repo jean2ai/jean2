@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { useSessionCommands } from '@/contexts/SessionCommandsContext';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { getWorkspacePreconfigs } from '@/lib/workspacePreconfigs';
 
@@ -16,18 +17,41 @@ export function WorkspaceHeader() {
   const showFilesPanel = useChatLayoutStore((s) => s.showFilesPanel);
   const setShowFilesPanel = useChatLayoutStore((s) => s.setShowFilesPanel);
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
-  const allPreconfigs = useServerDataStore((s) => s.preconfigs);
-  const models = useServerDataStore((s) => s.models);
-  const defaultModel = useServerDataStore((s) => s.defaultModel);
+  const allPreconfigs = useServerDataStore(s => s.preconfigs);
+  const models = useServerDataStore(s => s.models);
+  const defaultModel = useServerDataStore(s => s.defaultModel);
+  const allWorkspaces = useServerDataStore(s => s.workspaces);
   const { toggleSidebar, state: sidebarState } = useSidebar();
   const sessionManager = useSessionCommands();
 
-  const preconfigs = getWorkspacePreconfigs(activeWorkspace, allPreconfigs);
+  const focusedSessionId = useSessionBoardStore(s => s.focusedSessionId);
+  const openSessionIds = useSessionBoardStore(s => s.openSessionIds);
+  const displayedSessionId = focusedSessionId ?? openSessionIds[0] ?? null;
+  const allSessions = useSessionStore(s => s.sessions);
+  const currentSession = useMemo(
+    () => displayedSessionId ? allSessions.find(s => s.id === displayedSessionId) ?? null : null,
+    [displayedSessionId, allSessions],
+  );
 
-  const currentSession = useSessionStore((s) => s.currentSession);
-  const sessionUsage = useSessionStore((s) => s.sessionUsage);
-  const currentModel = useSessionStore((s) => s.currentModel);
-  const selectedVariant = useSessionStore((s) => s.selectedVariant);
+  // Resolve the workspace from the displayed session's workspaceId,
+  // not from the global activeWorkspace which may not have synced yet.
+  const sessionWorkspace = useMemo(() => {
+    if (currentSession?.workspaceId) {
+      const resolved = allWorkspaces.find(w => w.id === currentSession.workspaceId);
+      if (resolved) return resolved;
+    }
+    return activeWorkspace;
+  }, [currentSession?.workspaceId, allWorkspaces, activeWorkspace]);
+
+  const preconfigs = getWorkspacePreconfigs(sessionWorkspace, allPreconfigs);
+  const lockPreconfig = !!sessionWorkspace?.settings?.isAgentHome;
+
+  const usageBySessionId = useSessionStore(s => s.usageBySessionId);
+  const modelBySessionId = useSessionStore(s => s.modelBySessionId);
+  const variantBySessionId = useSessionStore(s => s.variantBySessionId);
+  const sessionUsage = (currentSession ? usageBySessionId[currentSession.id] : undefined) ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const currentModel = currentSession ? modelBySessionId[currentSession.id] ?? '' : '';
+  const selectedVariant = currentSession ? variantBySessionId[currentSession.id] ?? null : null;
   const currentSessionMessages = useSessionStore((s) =>
     currentSession ? s.messagesBySession[currentSession.id] : undefined,
   );
@@ -66,6 +90,7 @@ export function WorkspaceHeader() {
 
         {/* Center: Merged ChatHeader content — fills space even when empty */}
         <div className="flex-1 flex items-center min-w-0 px-2">
+
           {hasSession && currentSession && (
             <ChatHeader
               session={currentSession}
@@ -74,11 +99,15 @@ export function WorkspaceHeader() {
               defaultModel={defaultModel}
               usage={sessionUsage}
               modelName={currentModel}
-              onChangePreconfig={sessionManager.updateSessionPreconfig}
-              onChangeModel={sessionManager.updateSessionModel}
-              onChangeVariant={sessionManager.updateSessionVariant}
+              onChangePreconfig={(preconfigId) => sessionManager.updateSessionPreconfigForSession(currentSession.id, preconfigId)}
+              onChangeModel={(modelId, providerId) => sessionManager.updateSessionModelForSession(currentSession.id, modelId, providerId)}
+              onChangeVariant={(variant) => sessionManager.updateSessionVariantForSession(currentSession.id, variant)}
               onRename={sessionManager.handleRenameSession}
-              onNavigateBack={sessionManager.handleNavigateBack}
+              onNavigateBack={
+                currentSession.parentId
+                  ? () => sessionManager.resumeSession(currentSession.parentId!)
+                  : undefined
+              }
               isStreaming={streamingSessionIds.has(currentSession.id) || !!currentSession.runningAt}
               onCompact={compactableMessageCount >= 2 ? () => sessionManager.compactSession(currentSession.id) : undefined}
               isCompacting={isCompacting}
@@ -89,12 +118,13 @@ export function WorkspaceHeader() {
               onReleaseControl={sessionManager.releaseControl}
               onRequestTakeover={sessionManager.requestTakeover}
               onRespondTakeover={sessionManager.respondTakeover}
+              lockPreconfig={lockPreconfig}
             />
           )}
         </div>
 
         {/* Right: Files / Explorer toggle section */}
-        {activeWorkspace && (
+        {sessionWorkspace && (
           <>
             <div className="w-px bg-border shrink-0" />
             <div className={`flex items-center px-1 shrink-0 ${showFilesPanel ? 'bg-muted' : ''}`}>

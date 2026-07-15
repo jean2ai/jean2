@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import { Outlet } from '@tanstack/react-router';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { useSidebarData } from '@/hooks/useSidebarData';
@@ -9,14 +8,18 @@ import { useWorkspaceSessions } from '@/hooks/useWorkspaceSessions';
 import { useWorkspaceTagsQuery, useInvalidateWorkspaceTags } from '@/hooks/queries';
 import { useScheduledJobs, usePauseScheduledJob, useResumeScheduledJob, useTriggerScheduledJob, useDeleteScheduledJob } from '@/hooks/queries';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useBoardRouteSync } from '@/hooks/useBoardRouteSync';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { useUIStore } from '@/stores/uiStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { WorkspaceBoardToolbar } from '@/components/app/WorkspaceBoardToolbar';
 import { WorkspaceHeader } from '@/components/app/WorkspaceHeader';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
 import { PinnedMessagesPanel } from '@/components/layout/PinnedMessagesPanel';
 import { AppPanels } from '@/components/app/AppPanels';
+import { SessionBoard } from '@/components/board/SessionBoard';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 import { hasCapability } from '@/platform';
 import {
@@ -40,11 +43,18 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
   const activeWorkspace = useServerDataStore(s => s.activeWorkspace);
   const allPreconfigs = useServerDataStore(s => s.preconfigs);
 
+  const openSessionIds = useSessionBoardStore(s => s.openSessionIds);
+  const hasMultipleOpenSessions = openSessionIds.length > 1;
+
+  // Sync board state with URL search params
+  useBoardRouteSync({ scope: { kind: 'workspace', workspaceId: activeWorkspace?.id ?? null } });
+
   const {
     sdkClient,
     primaryPreconfigs,
     createSession,
     resumeSession,
+    openAlongside,
     closeSession,
     reopenSession,
     permanentlyDeleteSession,
@@ -186,6 +196,7 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSessionId={sidebarData.currentSessionId}
       onResumeSession={resumeSession}
+      onOpenAlongside={openAlongside}
       onCloseSession={closeSession}
       onReopenSession={reopenSession}
       onDeleteSession={permanentlyDeleteSession}
@@ -251,8 +262,11 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
         } : undefined}
       >
         <div className={hasCapability('multiView') ? 'flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border' : 'flex flex-1 flex-col overflow-hidden min-h-0 bg-background'}>
-          <WorkspaceHeader />
-          <Outlet />
+          {hasMultipleOpenSessions ? <WorkspaceBoardToolbar /> : <WorkspaceHeader />}
+          <SessionBoard
+            sdkClient={sdkClient}
+            serverUrl={sessionManager.serverUrl}
+          />
           <AppPanels
             sdkClient={sdkClient}
             terminalPanelRef={terminalPanelRef}

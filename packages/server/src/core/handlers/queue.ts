@@ -24,7 +24,12 @@ export function handleQueueAdd(
   }
 
   const queuedMessage = addMessageToQueue(msg.sessionId, msg.content, msg.attachments);
-  ctx.clients.set(ws, { sessionId: msg.sessionId, missedPings: 0 });
+  const existingEntry = ctx.clients.get(ws);
+  if (existingEntry) {
+    existingEntry.sessionIds.add(msg.sessionId);
+  } else {
+    ctx.clients.set(ws, { sessionIds: new Set([msg.sessionId]), missedPings: 0 });
+  }
 
   ctx.send(ws, {
     type: 'queue.added',

@@ -73,7 +73,11 @@ export default function FilePreviewOverlay({
   const renderContent = () => {
     if (loading) {
       return (
-        <div className="flex items-center justify-center h-full">
+        <div
+          role="status"
+          aria-label="Loading file preview"
+          className="flex items-center justify-center h-full"
+        >
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       );

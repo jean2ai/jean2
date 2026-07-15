@@ -2,6 +2,7 @@ import type { Session, MessageWithParts, SessionControlState } from '@jean2/sdk'
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
@@ -56,10 +57,6 @@ export function handleSessionCreated(
   const { session } = msg;
   const {
     setSessions,
-    setCurrentSession,
-    setSessionUsage,
-    setCurrentModel,
-    setSelectedVariant,
     pendingSessionCreateRef,
     sessionAccessTimesRef,
     partIdIndexRef,
@@ -69,14 +66,35 @@ export function handleSessionCreated(
   setSessions(prev => [session, ...prev]);
 
   if (pendingSessionCreateRef.current) {
-    setCurrentSession(session);
+    const intent = pendingSessionCreateRef.current;
     ctx.replaceSessionContent(session.id, []);
-    partIdIndexRef.current.clear();
-    setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-    setCurrentModel(session.selectedModel || defaultModel);
-    setSelectedVariant(session.selectedVariant ?? null);
-    pendingSessionCreateRef.current = false;
-    ctx.navigateToSession(session.id);
+    // Remove only this session's entries (new session, nothing should exist)
+    for (const [partId, entry] of partIdIndexRef.current) {
+      if (entry.sessionId === session.id) {
+        partIdIndexRef.current.delete(partId);
+      }
+    }
+    ctx.setUsageForSession(session.id, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+    ctx.setModelForSession(session.id, session.selectedModel || defaultModel);
+    ctx.setVariantForSession(session.id, session.selectedVariant ?? null);
+
+    // Apply board action based on the pending intent.
+    // This preserves the existing open panes while adding the new session.
+    const board = useSessionBoardStore.getState();
+    if (intent.boardAction === 'open-alongside') {
+      board.openAlongside(session.id);
+    } else {
+      board.openInFocusedPane(session.id);
+    }
+
+    pendingSessionCreateRef.current = null;
+
+    // Navigate with the updated open list preserved.
+    const newBoard = useSessionBoardStore.getState();
+    const openParam = newBoard.openSessionIds.length > 1
+      ? newBoard.openSessionIds.join(',')
+      : undefined;
+    ctx.navigateToSessionWithOpen(session.id, openParam);
     ctx.resumeSessionAfterCreate(session.id);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
@@ -110,14 +128,13 @@ export function handleSessionResumed(
   const { session, messages, transcript, usage, isRunning, control } = msg;
   mark('session-resumed:received');
   const {
-    setCurrentSession,
     removeInterruptedSession,
     addStreamingSession,
     removeStreamingSession,
     skipFinishSoundSessionIdsRef,
-    setSessionUsage,
-    setCurrentModel,
-    setSelectedVariant,
+    setUsageForSession,
+    setModelForSession,
+    setVariantForSession,
     sessionAccessTimesRef,
     partIdIndexRef,
     models,
@@ -125,7 +142,6 @@ export function handleSessionResumed(
     clearCompletion,
   } = ctx;
 
-  setCurrentSession(session);
   removeInterruptedSession(session.id);
   // Clear completion state when session is opened
   clearCompletion(session.id);
@@ -144,7 +160,12 @@ export function handleSessionResumed(
       newestSequence: transcript.pagination.newestSequence,
     });
 
-    partIdIndexRef.current.clear();
+    // Remove only this session's entries from the part index instead of clearing all
+    for (const [partId, entry] of partIdIndexRef.current) {
+      if (entry.sessionId === session.id) {
+        partIdIndexRef.current.delete(partId);
+      }
+    }
     for (const mwp of transcript.messages) {
       for (let i = 0; i < mwp.parts.length; i++) {
         partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -157,7 +178,11 @@ export function handleSessionResumed(
   } else if (messages) {
     ctx.replaceSessionContent(session.id, messages);
 
-    partIdIndexRef.current.clear();
+    for (const [partId, entry] of partIdIndexRef.current) {
+      if (entry.sessionId === session.id) {
+        partIdIndexRef.current.delete(partId);
+      }
+    }
     for (const mwp of messages) {
       for (let i = 0; i < mwp.parts.length; i++) {
         partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -169,14 +194,16 @@ export function handleSessionResumed(
     }
   }
 
-  setSessionUsage(usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-  setCurrentModel(session.selectedModel || defaultModel);
-  setSelectedVariant(session.selectedVariant || null);
+  const restoredUsage = usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const restoredModel = session.selectedModel || defaultModel;
+  setUsageForSession(session.id, restoredUsage);
+  setModelForSession(session.id, restoredModel);
+  setVariantForSession(session.id, session.selectedVariant || null);
 
   const restoredModelId = session.selectedModel || defaultModel;
   const restoredVariants = models.find(m => m.id === restoredModelId)?.variants;
   if (session.selectedVariant && restoredVariants && !restoredVariants[session.selectedVariant]) {
-    setSelectedVariant(null);
+    setVariantForSession(session.id, null);
   }
   sessionAccessTimesRef.current.set(session.id, Date.now());
 
@@ -194,7 +221,6 @@ export function handleSessionClosed(
   const { sessionId } = msg;
   const {
     setSessions,
-    setCurrentSession,
     partIdIndexRef,
     partAppendRafRef,
     pendingPartAppendsRef,
@@ -225,10 +251,12 @@ export function handleSessionClosed(
     }
   }
   sessionAccessTimesRef.current.delete(sessionId);
-  if (currentSessionIdRef.current === sessionId) {
-    setCurrentSession(null);
-    ctx.navigateToParent();
+
+  const board = useSessionBoardStore.getState();
+  if (board.openSessionIds.includes(sessionId)) {
+    board.removeFromBoard(sessionId);
   }
+
   const wsId = findWorkspaceId(ctx.sessionsRef.current, sessionId);
   if (wsId) {
     invalidateSessionQueriesForWorkspace(wsId);
@@ -242,14 +270,11 @@ export function handleSessionReopened(
   ctx: SessionHandlersContext,
 ): void {
   const { session } = msg;
-  const { setSessions, setCurrentSession, currentSessionIdRef } = ctx;
+  const { setSessions } = ctx;
 
   setSessions(prev => prev.map(s =>
     s.id === session.id ? session : s
   ));
-  if (currentSessionIdRef.current === session.id) {
-    setCurrentSession(session);
-  }
   if (session.workspaceId) {
     invalidateSessionQueriesForWorkspace(session.workspaceId);
   }
@@ -265,8 +290,6 @@ export function handleSessionDeleted(
     removeInterruptedSession,
     partIdIndexRef,
     sessionAccessTimesRef,
-    setCurrentSession,
-    currentSessionIdRef,
     clearCompletion,
   } = ctx;
 
@@ -275,6 +298,7 @@ export function handleSessionDeleted(
   clearCompletion(sessionId);
   useSessionStore.getState().evictSessionContent(sessionId);
   removeInterruptedSession(sessionId);
+  useSessionBoardStore.getState().removeFromBoard(sessionId);
 
   for (const [partId, entry] of partIdIndexRef.current) {
     if (entry.sessionId === sessionId) {
@@ -284,10 +308,6 @@ export function handleSessionDeleted(
   sessionAccessTimesRef.current.delete(sessionId);
   usePendingOperationsStore.getState().clearOperation(sessionId, 'delete');
 
-  if (currentSessionIdRef.current === sessionId) {
-    setCurrentSession(null);
-    ctx.navigateToParent();
-  }
   const wsId = findWorkspaceId(ctx.sessionsRef.current, sessionId);
   if (wsId) {
     invalidateSessionQueriesForWorkspace(wsId);
@@ -301,20 +321,19 @@ export function handleSessionUpdated(
   ctx: SessionHandlersContext,
 ): void {
   const { session } = msg;
-  const { setSessions, setCurrentSession, setSelectedVariant, setCurrentModel, currentSessionIdRef } = ctx;
+  const { setSessions, setModelForSession, setVariantForSession } = ctx;
 
   setSessions(prev => prev.map(s =>
     s.id === session.id ? session : s
   ));
-  if (currentSessionIdRef.current === session.id) {
-    setCurrentSession(session);
-    if (session.selectedVariant !== undefined) {
-      setSelectedVariant(session.selectedVariant);
-    }
-    if (session.selectedModel) {
-      setCurrentModel(session.selectedModel);
-    }
+
+  if (session.selectedModel) {
+    setModelForSession(session.id, session.selectedModel);
   }
+  if (session.selectedVariant !== undefined) {
+    setVariantForSession(session.id, session.selectedVariant);
+  }
+
   if (session.workspaceId) {
     invalidateSessionsAndTagsForWorkspace(session.workspaceId);
   }
@@ -325,7 +344,7 @@ export function handleSessionRenamed(
   ctx: SessionHandlersContext,
 ): void {
   const { session } = msg;
-  const { setSessions, setCurrentSession, currentSessionIdRef } = ctx;
+  const { setSessions } = ctx;
 
   setSessions(prev => prev.map(s =>
     s.id === session.id ? session : s
@@ -333,9 +352,6 @@ export function handleSessionRenamed(
   usePendingOperationsStore.getState().clearOperation(session.id, 'rename');
   usePendingOperationsStore.getState().clearOperation(session.id, 'regenerate_title');
 
-  if (currentSessionIdRef.current === session.id) {
-    setCurrentSession(session);
-  }
   if (session.workspaceId) {
     invalidateSessionQueriesForWorkspace(session.workspaceId);
   }
@@ -376,8 +392,6 @@ export function handleSessionForked(
   const { forkedSession, messages: forkedMessages } = msg;
   const {
     setSessions,
-    setCurrentSession,
-    setSessionUsage,
     sessionAccessTimesRef,
     partIdIndexRef,
     clearCompletion,
@@ -386,7 +400,14 @@ export function handleSessionForked(
   setSessions(prev => [forkedSession, ...prev]);
   ctx.replaceSessionContent(forkedSession.id, forkedMessages);
 
-  partIdIndexRef.current.clear();
+  useSessionBoardStore.getState().replaceSessionId(msg.originalSessionId, forkedSession.id);
+
+  // Remove only the forked session's entries (new session, so nothing should exist, but clean anyway)
+  for (const [partId, entry] of partIdIndexRef.current) {
+    if (entry.sessionId === forkedSession.id) {
+      partIdIndexRef.current.delete(partId);
+    }
+  }
   for (const mwp of forkedMessages) {
     for (let i = 0; i < mwp.parts.length; i++) {
       partIdIndexRef.current.set(mwp.parts[i].id, {
@@ -398,10 +419,9 @@ export function handleSessionForked(
   }
   usePendingOperationsStore.getState().clearSessionOperations(msg.originalSessionId);
 
-  setCurrentSession(forkedSession);
+  ctx.setUsageForSession(forkedSession.id, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   ctx.navigateToSession(forkedSession.id);
   ctx.resumeSessionAfterCreate(forkedSession.id);
-  setSessionUsage({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());
   clearCompletion(forkedSession.id);
   if (forkedSession.workspaceId) {
@@ -425,6 +445,7 @@ export function handleSessionState(
     clearCompletion,
   } = ctx;
 
+  // Flush pending appends for this session before replacing content
   if (currentSessionIdRef.current === sessionId) {
     if (partAppendRafRef.current !== null) {
       cancelAnimationFrame(partAppendRafRef.current);
@@ -433,18 +454,21 @@ export function handleSessionState(
     flushPendingPartAppends();
   }
 
-  if (currentSessionIdRef.current === sessionId) {
-    ctx.replaceSessionContent(sessionId, messages);
+  // Always replace and reindex content for the event's session
+  ctx.replaceSessionContent(sessionId, messages);
 
-    partIdIndexRef.current.clear();
-    for (const mwp of messages) {
-      for (let i = 0; i < mwp.parts.length; i++) {
-        partIdIndexRef.current.set(mwp.parts[i].id, {
-          sessionId: sessionId,
-          messageId: mwp.message.id,
-          index: i,
-        });
-      }
+  for (const [partId, entry] of partIdIndexRef.current) {
+    if (entry.sessionId === sessionId) {
+      partIdIndexRef.current.delete(partId);
+    }
+  }
+  for (const mwp of messages) {
+    for (let i = 0; i < mwp.parts.length; i++) {
+      partIdIndexRef.current.set(mwp.parts[i].id, {
+        sessionId: sessionId,
+        messageId: mwp.message.id,
+        index: i,
+      });
     }
   }
   skipFinishSoundSessionIdsRef.current.add(sessionId);

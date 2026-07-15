@@ -40,6 +40,7 @@ interface WorkspaceOverviewProps {
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
   onResumeSession: (sessionId: string) => void;
+  onOpenAlongside?: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onReopenSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
@@ -67,6 +68,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   workspaces,
   activeWorkspace,
   onResumeSession,
+  onOpenAlongside,
   onCloseSession,
   onReopenSession,
   onDeleteSession,
@@ -110,6 +112,7 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
       isActive={currentSession?.id === session.id}
       currentSessionId={currentSessionId}
       onResumeSession={onResumeSession}
+      onOpenAlongside={onOpenAlongside}
       onCloseSession={onCloseSession}
       onReopenSession={onReopenSession}
       onDeleteSession={onDeleteSession}

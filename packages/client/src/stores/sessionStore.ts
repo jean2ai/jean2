@@ -88,11 +88,18 @@ interface SessionState {
   // --- Session List ---
   sessions: Session[];
 
-  // --- Chat Session ---
+  // --- Chat Session (singleton, backward compat) ---
   sessionUsage: SessionUsage;
   currentModel: string;
   selectedVariant: string | null;
   compactionSuccess: boolean;
+
+  // --- Per-session keyed state (multi-pane) ---
+  usageBySessionId: Record<string, SessionUsage>;
+  modelBySessionId: Record<string, string>;
+  variantBySessionId: Record<string, string | null>;
+  compactionSuccessBySessionId: Record<string, boolean>;
+  navigationIntentBySessionId: Record<string, SessionNavigationIntent>;
 
   // --- Session Content ---
   messagesBySession: MessagesBySessionState;
@@ -102,7 +109,7 @@ interface SessionState {
   // --- Message Queue ---
   queuedMessages: Record<string, QueuedMessage[]>;
 
-  // --- Navigation ---
+  // --- Navigation (singleton, backward compat) ---
   navigationIntent: SessionNavigationIntent;
 }
 
@@ -121,12 +128,25 @@ interface SessionActions {
   removeSessionById: (sessionId: string) => void;
   clearSessions: () => void;
 
-  // --- Chat Session ---
+  // --- Chat Session (singleton, backward compat) ---
   setSessionUsage: (usage: SessionUsage) => void;
   setCurrentModel: (model: string) => void;
   setSelectedVariant: (variant: string | null) => void;
   setCompactionSuccess: (success: boolean) => void;
   clearChatSession: () => void;
+
+  // --- Per-session keyed state (multi-pane) ---
+  setUsageForSession: (sessionId: string, usage: SessionUsage) => void;
+  setModelForSession: (sessionId: string, model: string) => void;
+  setVariantForSession: (sessionId: string, variant: string | null) => void;
+  setCompactionSuccessForSession: (sessionId: string, success: boolean) => void;
+  setNavigationIntentForSession: (sessionId: string, intent: SessionNavigationIntent) => void;
+  getUsageForSession: (sessionId: string) => SessionUsage;
+  getModelForSession: (sessionId: string) => string;
+  getVariantForSession: (sessionId: string) => string | null;
+  getCompactionSuccessForSession: (sessionId: string) => boolean;
+  getNavigationIntentForSession: (sessionId: string) => SessionNavigationIntent;
+  clearSessionKeyedState: (sessionId: string) => void;
 
   // --- Session Content ---
   setMessagesBySession: (updater: MessagesBySessionUpdater) => void;
@@ -233,7 +253,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   clearSessions: () => set({ sessions: [] }),
 
-  // --- Chat Session ---
+  // --- Chat Session (singleton, backward compat) ---
   sessionUsage: { ...DEFAULT_USAGE },
   currentModel: 'gpt-4o',
   selectedVariant: null,
@@ -249,6 +269,69 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       currentModel: 'gpt-4o',
       selectedVariant: null,
       compactionSuccess: false,
+    }),
+
+  // --- Per-session keyed state (multi-pane) ---
+  usageBySessionId: {},
+  modelBySessionId: {},
+  variantBySessionId: {},
+  compactionSuccessBySessionId: {},
+  navigationIntentBySessionId: {},
+
+  setUsageForSession: (sessionId, usage) =>
+    set((state) => ({
+      usageBySessionId: { ...state.usageBySessionId, [sessionId]: usage },
+    })),
+
+  setModelForSession: (sessionId, model) =>
+    set((state) => ({
+      modelBySessionId: { ...state.modelBySessionId, [sessionId]: model },
+    })),
+
+  setVariantForSession: (sessionId, variant) =>
+    set((state) => ({
+      variantBySessionId: { ...state.variantBySessionId, [sessionId]: variant },
+    })),
+
+  setCompactionSuccessForSession: (sessionId, success) =>
+    set((state) => ({
+      compactionSuccessBySessionId: { ...state.compactionSuccessBySessionId, [sessionId]: success },
+    })),
+
+  setNavigationIntentForSession: (sessionId, intent) =>
+    set((state) => ({
+      navigationIntentBySessionId: { ...state.navigationIntentBySessionId, [sessionId]: intent },
+    })),
+
+  getUsageForSession: (sessionId) => get().usageBySessionId[sessionId] ?? DEFAULT_USAGE,
+
+  getModelForSession: (sessionId) => get().modelBySessionId[sessionId] ?? get().currentModel,
+
+  getVariantForSession: (sessionId) => get().variantBySessionId[sessionId] ?? get().selectedVariant,
+
+  getCompactionSuccessForSession: (sessionId) => get().compactionSuccessBySessionId[sessionId] ?? false,
+
+  getNavigationIntentForSession: (sessionId) => get().navigationIntentBySessionId[sessionId] ?? { mode: 'follow' },
+
+  clearSessionKeyedState: (sessionId) =>
+    set((state) => {
+      const newUsage = { ...state.usageBySessionId };
+      const newModel = { ...state.modelBySessionId };
+      const newVariant = { ...state.variantBySessionId };
+      const newCompaction = { ...state.compactionSuccessBySessionId };
+      const newNav = { ...state.navigationIntentBySessionId };
+      delete newUsage[sessionId];
+      delete newModel[sessionId];
+      delete newVariant[sessionId];
+      delete newCompaction[sessionId];
+      delete newNav[sessionId];
+      return {
+        usageBySessionId: newUsage,
+        modelBySessionId: newModel,
+        variantBySessionId: newVariant,
+        compactionSuccessBySessionId: newCompaction,
+        navigationIntentBySessionId: newNav,
+      };
     }),
 
   // --- Session Content ---

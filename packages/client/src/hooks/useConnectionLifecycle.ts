@@ -4,6 +4,7 @@ import type { ClientDescriptor } from '@jean2/sdk';
 import type { SessionHandlersContext } from '@/handlers/serverMessage';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { useAskStore } from '@/stores/askStore';
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
@@ -91,25 +92,41 @@ export function useConnectionLifecycle({
         // Clear pending ask requests on reconnection (including permission asks)
         useAskStore.getState().clearPendingRequests();
 
-        // During reconnection, React state cascades may clear currentSessionIdRef:
-        // dispose() → clientRef=null → sdkClient=null → useWorkspaceSessions clears
-        // sessions → currentSession=null → currentSessionIdRef=null.  The ref may be
-        // stale by the time this handler fires.  Fall back to the session store which
-        // still holds the last active session from before the disconnect.
-        const sessionId = currentSessionIdRef.current
-          ?? useSessionStore.getState().currentSession?.id;
+        // Resume all board-visible sessions (multi-session support).
+        // Fall back to single-session resume for backward compat if no board state.
+        const boardState = useSessionBoardStore.getState();
+        const openSessionIds = boardState.openSessionIds;
 
-        if (sessionId) {
-          const wasNull = currentSessionIdRef.current === null;
-          currentSessionIdRef.current = sessionId;
-          const hasContent = !!useSessionStore.getState().messagesBySession[sessionId]?.length;
-          if (!hasContent) {
-            useSessionStore.getState().beginSessionContentLoad(sessionId);
+        if (openSessionIds.length > 0) {
+          // Resume all open board sessions
+          for (const sid of openSessionIds) {
+            const hasContent = !!useSessionStore.getState().messagesBySession[sid]?.length;
+            if (!hasContent) {
+              useSessionStore.getState().beginSessionContentLoad(sid);
+            }
+            client.sessions.resume(sid);
           }
-          console.log('[reconnect] Resuming session:', sessionId, wasNull ? '(restored from store)' : '(from ref)');
-          client.sessions.resume(sessionId);
+          // Ensure currentSessionIdRef is set for backward compat
+          const focusedId = boardState.focusedSessionId ?? openSessionIds[0];
+          currentSessionIdRef.current = focusedId;
+          console.log('[reconnect] Resumed board sessions:', openSessionIds.length);
         } else {
-          console.log('[reconnect] No session to resume (ref:', currentSessionIdRef.current, ', store:', useSessionStore.getState().currentSession?.id, ')');
+          // Fall back to single-session resume for backward compat
+          const sessionId = currentSessionIdRef.current
+            ?? useSessionStore.getState().currentSession?.id;
+
+          if (sessionId) {
+            const wasNull = currentSessionIdRef.current === null;
+            currentSessionIdRef.current = sessionId;
+            const hasContent = !!useSessionStore.getState().messagesBySession[sessionId]?.length;
+            if (!hasContent) {
+              useSessionStore.getState().beginSessionContentLoad(sessionId);
+            }
+            console.log('[reconnect] Resuming session:', sessionId, wasNull ? '(restored from store)' : '(from ref)');
+            client.sessions.resume(sessionId);
+          } else {
+            console.log('[reconnect] No session to resume (ref:', currentSessionIdRef.current, ', store:', useSessionStore.getState().currentSession?.id, ')');
+          }
         }
       });
 
