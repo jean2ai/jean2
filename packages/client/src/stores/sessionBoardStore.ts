@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export const MAX_PANES = 3;
+export const MAX_PANES = 6;
 
 export type LayoutMode = 'auto' | 'single';
 
@@ -31,6 +31,8 @@ export interface SessionBoardActions {
   openAlongside: (sessionId: string) => void;
   /** Remove a pane from the board, focusing nearest neighbor. */
   removeFromBoard: (sessionId: string) => void;
+  /** Move an open session to a new row-major board position. */
+  reorderSession: (sessionId: string, targetIndex: number) => void;
   /** Remove any session IDs that are not in the valid set. */
   removeInvalidSessions: (validIds: Set<string>) => void;
   /** Replace an old session ID with a new one (e.g. after fork). */
@@ -50,9 +52,11 @@ type SessionBoardStore = SessionBoardState & SessionBoardActions;
 function chooseNextFocus(openIds: string[], removedId: string): string | null {
   const idx = openIds.indexOf(removedId);
   if (idx === -1) return openIds[0] ?? null;
-  if (openIds.length <= 1) return null;
-  // Prefer left neighbor, otherwise right
-  return openIds[Math.max(0, idx - 1)] ?? openIds[idx + 1] ?? null;
+
+  const remainingIds = openIds.filter(id => id !== removedId);
+  if (remainingIds.length === 0) return null;
+
+  return remainingIds[Math.max(0, idx - 1)] ?? remainingIds[0] ?? null;
 }
 
 export const useSessionBoardStore = create<SessionBoardStore>((set, get) => ({
@@ -119,6 +123,21 @@ export const useSessionBoardStore = create<SessionBoardStore>((set, get) => ({
       newFocus = chooseNextFocus(state.openSessionIds, sessionId);
     }
     set({ openSessionIds: newOpenIds, focusedSessionId: newFocus });
+  },
+
+  reorderSession: (sessionId, targetIndex) => {
+    const state = get();
+    const sourceIndex = state.openSessionIds.indexOf(sessionId);
+    if (sourceIndex === -1) return;
+
+    const boundedTargetIndex = Math.max(0, Math.min(targetIndex, state.openSessionIds.length - 1));
+    if (sourceIndex === boundedTargetIndex) return;
+
+    const newOpenIds = [...state.openSessionIds];
+    const movedSessionId = newOpenIds.splice(sourceIndex, 1)[0];
+    if (!movedSessionId) return;
+    newOpenIds.splice(boundedTargetIndex, 0, movedSessionId);
+    set({ openSessionIds: newOpenIds });
   },
 
   removeInvalidSessions: (validIds) => {

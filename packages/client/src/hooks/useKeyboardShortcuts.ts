@@ -14,6 +14,8 @@ export interface KeyboardShortcutsConfig {
   onFocusChatInput: () => void;
   onStopStreaming: () => void;
   onToggleAutoFollow: () => void;
+  onFocusPane: (index: number) => void;
+  onCyclePane: (direction: -1 | 1) => void;
 }
 
 const isMac = typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC') === true;
@@ -90,7 +92,20 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
         return;
       }
 
-      const { onCloseFocusedPanel, onFocusChatInput, onStopStreaming, onOpenSidebar, onOpenTerminal, onOpenFilesPanel, onNewWindow, onNewSession, onToggleViewMode, onToggleAutoFollow } = configRef.current;
+      const {
+        onCloseFocusedPanel,
+        onFocusChatInput,
+        onStopStreaming,
+        onOpenSidebar,
+        onOpenTerminal,
+        onOpenFilesPanel,
+        onNewWindow,
+        onNewSession,
+        onToggleViewMode,
+        onToggleAutoFollow,
+        onFocusPane,
+        onCyclePane,
+      } = configRef.current;
 
       if (e.shiftKey && e.key === 'Escape') {
         e.preventDefault();
@@ -118,6 +133,24 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
 
         e.preventDefault();
         onFocusChatInput();
+        return;
+      }
+
+      if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && /^Digit[1-6]$/.test(e.code)) {
+        e.preventDefault();
+        onFocusPane(Number(e.code.slice(-1)) - 1);
+        return;
+      }
+
+      if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === 'ArrowLeft') {
+        e.preventDefault();
+        onCyclePane(-1);
+        return;
+      }
+
+      if (e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && e.code === 'ArrowRight') {
+        e.preventDefault();
+        onCyclePane(1);
         return;
       }
 

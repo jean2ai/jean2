@@ -115,13 +115,19 @@ export const AppSidebar = forwardRef<AppSidebarHandle, AppSidebarProps>((props, 
       }
       case 'Enter': {
         if (document.activeElement instanceof HTMLButtonElement) {
-          document.activeElement.click();
+          e.preventDefault();
+          document.activeElement.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+          }));
         }
         break;
       }
       case 'Escape': {
         e.preventDefault();
-        (document.activeElement as HTMLElement)?.blur();
+        (e.target as HTMLElement)?.blur();
         onEscape?.();
         break;
       }

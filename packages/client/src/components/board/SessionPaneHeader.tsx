@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { X } from 'lucide-react';
+import { GripVertical, X } from 'lucide-react';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import type { Session, Preconfig, Workspace } from '@jean2/sdk';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { Button } from '@/components/ui/button';
@@ -19,9 +20,16 @@ interface Model {
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
 
+export interface SessionPaneDragHandleProps {
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
+  setActivatorNodeRef: (element: HTMLButtonElement | null) => void;
+}
+
 export interface SessionPaneHeaderProps {
   sessionId: string;
   onRemove: () => void;
+  dragHandle?: SessionPaneDragHandleProps;
 }
 
 /**
@@ -32,7 +40,7 @@ export interface SessionPaneHeaderProps {
  * Workspace-specific data (preconfigs and lockPreconfig) is resolved
  * from the session's own workspaceId, not the global activeWorkspace.
  */
-export function SessionPaneHeader({ sessionId, onRemove }: SessionPaneHeaderProps) {
+export function SessionPaneHeader({ sessionId, onRemove, dragHandle }: SessionPaneHeaderProps) {
   const commands = useSessionCommands();
 
   const session = useSessionStore(s => s.sessions.find(sess => sess.id === sessionId) as Session | undefined);
@@ -73,7 +81,21 @@ export function SessionPaneHeader({ sessionId, onRemove }: SessionPaneHeaderProp
 
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-muted/30 shrink-0">
-
+      {dragHandle && (
+        <Button
+          ref={dragHandle.setActivatorNodeRef}
+          variant="ghost"
+          size="icon"
+          className="size-6 shrink-0 cursor-grab touch-none active:cursor-grabbing"
+          onMouseDown={(event) => event.stopPropagation()}
+          title={`Reorder ${session.title || 'session'}`}
+          aria-label={`Reorder ${session.title || 'session'}`}
+          {...dragHandle.attributes}
+          {...dragHandle.listeners}
+        >
+          <GripVertical className="size-3.5" />
+        </Button>
+      )}
       <ChatHeader
         session={session}
         preconfigs={preconfigs}

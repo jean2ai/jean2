@@ -2,6 +2,7 @@ const isMac = typeof navigator !== 'undefined' &&
   ((navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform === 'macOS' ||
    /mac|iphone|ipad|ipod/i.test(navigator.userAgent));
 const mod = isMac ? '⌘' : 'Ctrl';
+const alt = isMac ? '⌥' : 'Alt';
 
 const SHORTCUTS = [
   { keys: [mod, '1'], description: 'Open session list' },
@@ -11,6 +12,11 @@ const SHORTCUTS = [
   { keys: [mod, 'N'], description: 'New session' },
   { keys: [mod, 'Shift', 'N'], description: 'New window' },
   { keys: [mod, 'Shift', 'F'], description: 'Toggle follow/free mode' },
+  { keys: [mod, 'Click'], description: 'Open session alongside' },
+  { keys: [mod, 'Enter'], description: 'Open selected session alongside' },
+  { keys: [alt, '1–6'], description: 'Focus session pane' },
+  { keys: [alt, 'Shift', '←'], description: 'Focus previous pane' },
+  { keys: [alt, 'Shift', '→'], description: 'Focus next pane' },
   { keys: ['Shift', 'Esc'], description: 'Close focused panel' },
   { keys: ['Shift', 'Enter'], description: 'New line in input' },
   { keys: ['Enter'], description: 'Send message' },

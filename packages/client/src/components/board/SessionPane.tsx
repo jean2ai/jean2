@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useEffect } from 'react';
+import { useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { Part, Message } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
@@ -18,7 +18,7 @@ import {
   usePinMessageMutation,
   useUnpinMessageMutation,
 } from '@/hooks/queries';
-import { SessionPaneHeader } from './SessionPaneHeader';
+import { SessionPaneHeader, type SessionPaneDragHandleProps } from './SessionPaneHeader';
 import { useSessionPaneRegistry } from '@/contexts/SessionPaneRegistryContext';
 import type { SessionPaneHandle } from '@/contexts/SessionPaneRegistryContext';
 import type { QueuedMessage } from '@jean2/sdk';
@@ -35,6 +35,7 @@ export interface SessionPaneProps {
   isCompact: boolean;
   showPaneChrome: boolean;
   onRemoveFromBoard?: (sessionId: string) => void;
+  dragHandle?: SessionPaneDragHandleProps;
 }
 
 export function SessionPane({
@@ -45,6 +46,7 @@ export function SessionPane({
   isCompact: _isCompact,
   showPaneChrome,
   onRemoveFromBoard,
+  dragHandle,
 }: SessionPaneProps) {
   const sessionManager = useSessionManager();
   const commands = useSessionCommands();
@@ -119,7 +121,7 @@ export function SessionPane({
 
   const registry = useSessionPaneRegistry();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     registry.register(sessionId, handle);
     return () => {
       registry.unregister(sessionId);
@@ -247,6 +249,7 @@ export function SessionPane({
       <SessionPaneHeader
         sessionId={sessionId}
         onRemove={handleRemove}
+        dragHandle={dragHandle}
       />
       {content}
     </div>

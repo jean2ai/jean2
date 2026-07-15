@@ -406,9 +406,11 @@ export const SessionMenuButton = React.memo(function SessionMenuButton({
     }
   };
 
-  const handleRowClick = () => {
+  const handleRowClick = (event?: React.MouseEvent) => {
     if (selectionMode && onToggleSelect) {
       onToggleSelect(session.id);
+    } else if ((event?.metaKey || event?.ctrlKey) && onOpenAlongside) {
+      onOpenAlongside(session.id);
     } else {
       onResumeSession(session.id);
     }

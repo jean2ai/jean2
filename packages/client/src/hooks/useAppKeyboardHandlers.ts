@@ -8,6 +8,9 @@ import type {AppSidebarHandle} from '@/components/layout/AppSidebar';
 import type {Preconfig, Workspace} from '@jean2/sdk';
 import { platform, hasCapability } from '@/platform';
 import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
+import { useBoardFocus } from '@/hooks/useBoardFocus';
+import { useSessionPaneRegistry } from '@/contexts/SessionPaneRegistryContext';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 
 export interface AppKeyboardHandlersConfig {
   sidebarRef: React.RefObject<AppSidebarHandle | null>;
@@ -36,6 +39,9 @@ export function useAppKeyboardHandlers({
   setSidebarOpen,
   onToggleAutoFollow,
 }: AppKeyboardHandlersConfig) {
+  const paneRegistry = useSessionPaneRegistry();
+  const focusBoard = useBoardFocus();
+
   const focusSidebarSessionPanel = useCallback(() => {
     setSidebarOpen(true);
     requestAnimationFrame(() => {
@@ -90,8 +96,18 @@ export function useAppKeyboardHandlers({
   });
 
   const focusChatInput = useCallback(() => {
+    const focusedSessionId = useSessionBoardStore.getState().focusedSessionId;
+    const focusedPane = focusedSessionId
+      ? paneRegistry.getHandle(focusedSessionId)
+      : undefined;
+
+    if (focusedPane) {
+      focusedPane.focusInput();
+      return;
+    }
+
     chatInputRef.current?.focus();
-  }, [chatInputRef]);
+  }, [chatInputRef, paneRegistry]);
 
   const handleNewSession = useCallback(() => {
     if (activeWorkspace) {
@@ -133,6 +149,53 @@ export function useAppKeyboardHandlers({
     handleInterruptSession();
   }, [handleInterruptSession]);
 
+  const focusPaneInput = useCallback((sessionId: string) => {
+    const state = useSessionBoardStore.getState();
+    if (sessionId !== state.focusedSessionId) {
+      focusBoard(sessionId);
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        paneRegistry.getHandle(sessionId)?.focusInput();
+      });
+    });
+  }, [focusBoard, paneRegistry]);
+
+  const handleFocusPane = useCallback((index: number) => {
+    const sessionId = useSessionBoardStore.getState().openSessionIds[index];
+    if (sessionId) focusPaneInput(sessionId);
+  }, [focusPaneInput]);
+
+  const handleCyclePane = useCallback((direction: -1 | 1) => {
+    const state = useSessionBoardStore.getState();
+    if (state.openSessionIds.length < 2) return;
+
+    const currentIndex = state.focusedSessionId
+      ? state.openSessionIds.indexOf(state.focusedSessionId)
+      : 0;
+    const normalizedIndex = currentIndex === -1 ? 0 : currentIndex;
+    const targetIndex = (
+      normalizedIndex + direction + state.openSessionIds.length
+    ) % state.openSessionIds.length;
+    const sessionId = state.openSessionIds[targetIndex];
+    if (sessionId) focusPaneInput(sessionId);
+  }, [focusPaneInput]);
+
+  const handleToggleAutoFollow = useCallback(() => {
+    const focusedSessionId = useSessionBoardStore.getState().focusedSessionId;
+    const focusedPane = focusedSessionId
+      ? paneRegistry.getHandle(focusedSessionId)
+      : undefined;
+
+    if (focusedPane) {
+      focusedPane.toggleAutoFollow();
+      return;
+    }
+
+    onToggleAutoFollow?.();
+  }, [onToggleAutoFollow, paneRegistry]);
+
   useKeyboardShortcuts({
     onOpenSidebar: () => focusSidebarSessionPanelRef.current(),
     onOpenTerminal: () => focusTerminalPanelRef.current(),
@@ -143,7 +206,9 @@ export function useAppKeyboardHandlers({
     onCloseFocusedPanel: handleCloseFocusedPanel,
     onFocusChatInput: focusChatInput,
     onStopStreaming: handleStopStreaming,
-    onToggleAutoFollow: () => onToggleAutoFollow?.(),
+    onToggleAutoFollow: handleToggleAutoFollow,
+    onFocusPane: handleFocusPane,
+    onCyclePane: handleCyclePane,
   });
 
   useLayoutEffect(() => {
