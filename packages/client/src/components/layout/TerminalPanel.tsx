@@ -222,12 +222,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return;
     }
 
+    const terminalClient = sdkClient;
+    const terminalWorkspaceId = workspaceId;
     let cancelled = false;
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let currentConn: TerminalEventsConnection | null = null;
-    let subscribe: () => void;
-
     if (activeConnectionRef.current) {
       activeConnectionRef.current.disconnect();
       activeConnectionRef.current = null;
@@ -254,8 +254,8 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       conn?.dispose();
     };
 
-    subscribe = () => {
-      sdkClient.terminal.subscribeEvents(workspaceId).then(({ conn, initialSessions }) => {
+    function subscribe() {
+      terminalClient.terminal.subscribeEvents(terminalWorkspaceId).then(({ conn, initialSessions }) => {
         if (cancelled) {
           conn.dispose();
           return;
@@ -295,7 +295,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         const error = err instanceof Error ? err : new Error(String(err));
         scheduleRetry(error);
       });
-    };
+    }
 
     subscribe();
 
