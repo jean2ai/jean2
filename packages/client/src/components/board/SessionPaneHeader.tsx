@@ -20,16 +20,12 @@ interface Model {
   variants?: Record<string, { providerOptions: Record<string, unknown> }>;
 }
 
-export interface SessionPaneDragHandleProps {
-  attributes: DraggableAttributes;
-  listeners: DraggableSyntheticListeners;
-  setActivatorNodeRef: (element: HTMLButtonElement | null) => void;
-}
-
 export interface SessionPaneHeaderProps {
   sessionId: string;
   onRemove: () => void;
-  dragHandle?: SessionPaneDragHandleProps;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: DraggableSyntheticListeners;
+  setDragActivatorNode?: (element: HTMLButtonElement | null) => void;
 }
 
 /**
@@ -40,7 +36,13 @@ export interface SessionPaneHeaderProps {
  * Workspace-specific data (preconfigs and lockPreconfig) is resolved
  * from the session's own workspaceId, not the global activeWorkspace.
  */
-export function SessionPaneHeader({ sessionId, onRemove, dragHandle }: SessionPaneHeaderProps) {
+export function SessionPaneHeader({
+  sessionId,
+  onRemove,
+  dragAttributes,
+  dragListeners,
+  setDragActivatorNode,
+}: SessionPaneHeaderProps) {
   const commands = useSessionCommands();
 
   const session = useSessionStore(s => s.sessions.find(sess => sess.id === sessionId) as Session | undefined);
@@ -81,17 +83,17 @@ export function SessionPaneHeader({ sessionId, onRemove, dragHandle }: SessionPa
 
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-muted/30 shrink-0">
-      {dragHandle && (
+      {dragAttributes && (
         <Button
-          ref={dragHandle.setActivatorNodeRef}
+          ref={setDragActivatorNode}
           variant="ghost"
           size="icon"
           className="size-6 shrink-0 cursor-grab touch-none active:cursor-grabbing"
           onMouseDown={(event) => event.stopPropagation()}
           title={`Reorder ${session.title || 'session'}`}
           aria-label={`Reorder ${session.title || 'session'}`}
-          {...dragHandle.attributes}
-          {...dragHandle.listeners}
+          {...dragAttributes}
+          {...dragListeners}
         >
           <GripVertical className="size-3.5" />
         </Button>

@@ -1,7 +1,7 @@
 import { useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
-import type { Part, Message } from '@jean2/sdk';
-import type { Jean2Client } from '@jean2/sdk';
+import type { Part, Message, Jean2Client } from '@jean2/sdk';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 import { ChatView } from '@/components/chat/ChatView';
 import type { MessageInputHandle } from '@/components/chat/MessageInput';
 import { ChatLoadingState } from '@/components/shared/LoadingSkeleton';
@@ -18,7 +18,7 @@ import {
   usePinMessageMutation,
   useUnpinMessageMutation,
 } from '@/hooks/queries';
-import { SessionPaneHeader, type SessionPaneDragHandleProps } from './SessionPaneHeader';
+import { SessionPaneHeader } from './SessionPaneHeader';
 import { useSessionPaneRegistry } from '@/contexts/SessionPaneRegistryContext';
 import type { SessionPaneHandle } from '@/contexts/SessionPaneRegistryContext';
 import type { QueuedMessage } from '@jean2/sdk';
@@ -35,7 +35,9 @@ export interface SessionPaneProps {
   isCompact: boolean;
   showPaneChrome: boolean;
   onRemoveFromBoard?: (sessionId: string) => void;
-  dragHandle?: SessionPaneDragHandleProps;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: DraggableSyntheticListeners;
+  setDragActivatorNode?: (element: HTMLButtonElement | null) => void;
 }
 
 export function SessionPane({
@@ -46,7 +48,9 @@ export function SessionPane({
   isCompact: _isCompact,
   showPaneChrome,
   onRemoveFromBoard,
-  dragHandle,
+  dragAttributes,
+  dragListeners,
+  setDragActivatorNode,
 }: SessionPaneProps) {
   const sessionManager = useSessionManager();
   const commands = useSessionCommands();
@@ -249,7 +253,9 @@ export function SessionPane({
       <SessionPaneHeader
         sessionId={sessionId}
         onRemove={handleRemove}
-        dragHandle={dragHandle}
+        dragAttributes={dragAttributes}
+        dragListeners={dragListeners}
+        setDragActivatorNode={setDragActivatorNode}
       />
       {content}
     </div>

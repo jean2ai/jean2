@@ -8,6 +8,8 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
 } from '@dnd-kit/core';
 import {
   horizontalListSortingStrategy,
@@ -23,7 +25,6 @@ import { useSessionBoardStore, serializeOpenSessionIds } from '@/stores/sessionB
 import { useSessionStore } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import { SessionPane } from './SessionPane';
-import type { SessionPaneDragHandleProps } from './SessionPaneHeader';
 import { useBoardSessionLoader } from '@/hooks/useBoardSessionLoader';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useBoardFocus } from '@/hooks/useBoardFocus';
@@ -168,7 +169,7 @@ export function SessionBoard({ sdkClient, serverUrl }: SessionBoardProps) {
 
     return (
       <SortableSessionPane key={sessionId} sessionId={sessionId}>
-        {(dragHandle) => (
+        {(dragAttributes, dragListeners, setDragActivatorNode) => (
           <SessionPane
             sessionId={sessionId}
             sdkClient={sdkClient}
@@ -177,7 +178,9 @@ export function SessionBoard({ sdkClient, serverUrl }: SessionBoardProps) {
             isCompact={false}
             showPaneChrome={showPaneChrome}
             onRemoveFromBoard={handleRemoveFromBoard}
-            dragHandle={dragHandle}
+            dragAttributes={dragAttributes}
+            dragListeners={dragListeners}
+            setDragActivatorNode={setDragActivatorNode}
           />
         )}
       </SortableSessionPane>
@@ -235,7 +238,11 @@ export function SessionBoard({ sdkClient, serverUrl }: SessionBoardProps) {
 
 interface SortableSessionPaneProps {
   sessionId: string;
-  children: (dragHandle: SessionPaneDragHandleProps) => React.ReactNode;
+  children: (
+    dragAttributes: DraggableAttributes,
+    dragListeners: DraggableSyntheticListeners,
+    setDragActivatorNode: (element: HTMLButtonElement | null) => void,
+  ) => React.ReactNode;
 }
 
 function SortableSessionPane({ sessionId, children }: SortableSessionPaneProps) {
@@ -260,7 +267,7 @@ function SortableSessionPane({ sessionId, children }: SortableSessionPaneProps) 
         zIndex: isDragging ? 10 : undefined,
       }}
     >
-      {children({ attributes, listeners, setActivatorNodeRef })}
+      {children(attributes, listeners, setActivatorNodeRef)}
     </div>
   );
 }
