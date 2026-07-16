@@ -20,6 +20,7 @@ export interface ProviderStatus {
   redirectStrategy?: string;
   redirectUri?: string;
   error?: string;
+  reauthRequired?: boolean;
   connectedAt?: string;
   accountId?: string;
   displayName?: string;
@@ -48,4 +49,5 @@ export interface CodexProviderConfig extends OAuthTokenConfig {
 export interface GmailProviderConfig extends OAuthTokenConfig {
   provider: 'gmail';
   email?: string;
+  reauthRequired?: boolean;
 }
