@@ -130,8 +130,8 @@ export function subscribeToServerEvents(
     permissionQueueHandlers['queue.sending']({ type: 'queue.sending', sessionId: sessionId as string, queueId: queueId as string }, ctx()!);
   });
 
-  add('provider.status', (provider: unknown, connected: unknown, authorizationUrl: unknown, error: unknown) => {
-    providerHandlers['provider.status']({ type: 'provider.status', provider: provider as string, connected: connected as boolean, authorizationUrl: authorizationUrl as string | undefined, error: error as string | undefined }, ctx()!);
+  add('provider.status', (provider: unknown, connected: unknown, authorizationUrl: unknown, error: unknown, reauthRequired: unknown) => {
+    providerHandlers['provider.status']({ type: 'provider.status', provider: provider as string, connected: connected as boolean, authorizationUrl: authorizationUrl as string | undefined, error: error as string | undefined, reauthRequired: reauthRequired as boolean | undefined }, ctx()!);
   });
   add('provider.connected', (provider: unknown, connected: unknown, connectedAt: unknown, accountId: unknown) => {
     providerHandlers['provider.connected']({ type: 'provider.connected', provider: provider as string, connected: connected as boolean, connectedAt: connectedAt as string | undefined, accountId: accountId as string | undefined }, ctx()!);

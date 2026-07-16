@@ -150,6 +150,7 @@ export interface SdkEventMap {
     connected: ProviderStatusMessage['connected'],
     authorizationUrl: ProviderStatusMessage['authorizationUrl'],
     error: ProviderStatusMessage['error'],
+    reauthRequired: ProviderStatusMessage['reauthRequired'],
   ];
   'provider.connected': [
     provider: ProviderConnectedMessage['provider'],
@@ -308,7 +309,14 @@ export function routeServerMessage(
       emitter.emit('queue.sending', msg.sessionId, msg.queueId);
       break;
     case 'provider.status':
-      emitter.emit('provider.status', msg.provider, msg.connected, msg.authorizationUrl, msg.error);
+      emitter.emit(
+        'provider.status',
+        msg.provider,
+        msg.connected,
+        msg.authorizationUrl,
+        msg.error,
+        msg.reauthRequired,
+      );
       break;
     case 'provider.connected':
       emitter.emit('provider.connected', msg.provider, msg.connected, msg.connectedAt, msg.accountId);

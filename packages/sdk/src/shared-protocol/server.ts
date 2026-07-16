@@ -330,6 +330,7 @@ export interface ProviderStatusMessage {
   redirectStrategy?: string;
   redirectUri?: string;
   error?: string;
+  reauthRequired?: boolean;
 }
 
 export interface ProviderConnectedMessage {

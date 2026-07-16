@@ -9,6 +9,7 @@
  * so tools never need to handle token refresh logic.
  */
 import type { GmailProviderConfig, ProviderStatus } from '@jean2/sdk';
+import { broadcastEvent } from '@/core/broadcast';
 import { registerProvider } from './registry';
 import type { ConnectableProvider, TokenResponse } from './registry';
 import { loadProviderConfig, saveProviderConfig, deleteProviderConfig } from './storage';
@@ -17,6 +18,7 @@ import {
   initiateOAuthFlow,
   setOAuthCompletionCallback,
   refreshTokens,
+  OAuthTokenRefreshError,
 } from './oauth-manager';
 
 const GMAIL_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -30,6 +32,7 @@ const GMAIL_SCOPES = [
 const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
 // How often to check whether a refresh is needed.
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const REAUTH_REQUIRED_MESSAGE = 'Gmail authorization expired or was revoked. Reconnect Gmail to continue.';
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let isRefreshing = false;
@@ -77,7 +80,7 @@ async function refreshGmailTokenIfNeeded(force = false): Promise<void> {
   if (isRefreshing) return;
 
   const config = loadProviderConfig<GmailProviderConfig>('gmail');
-  if (!config) return;
+  if (!config || config.reauthRequired) return;
 
   const shouldRefresh = force || config.expires < Date.now() + REFRESH_BUFFER_MS;
   if (!shouldRefresh) return;
@@ -91,14 +94,25 @@ async function refreshGmailTokenIfNeeded(force = false): Promise<void> {
       config.refresh = tokens.refresh_token;
     }
     config.expires = Date.now() + (tokens.expires_in ?? 3600) * 1000;
+    delete config.reauthRequired;
     saveProviderConfig('gmail', config);
     console.debug('[gmail] Token refreshed proactively');
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[gmail] Background token refresh failed:', message);
-    // Don't delete the config on refresh failure. The existing token might still
-    // work briefly or the refresh endpoint might be temporarily unavailable.
-    // The user can manually reconnect if needed.
+
+    if (err instanceof OAuthTokenRefreshError && err.code === 'invalid_grant') {
+      config.reauthRequired = true;
+      saveProviderConfig('gmail', config);
+      stopBackgroundRefresh();
+      broadcastEvent({
+        type: 'provider.status',
+        provider: 'gmail',
+        connected: false,
+        reauthRequired: true,
+        error: REAUTH_REQUIRED_MESSAGE,
+      });
+    }
   } finally {
     isRefreshing = false;
   }
@@ -123,7 +137,8 @@ function stopBackgroundRefresh(): void {
 }
 
 // Start background refresh if Gmail is already connected from a previous session.
-if (loadProviderConfig<GmailProviderConfig>('gmail')) {
+const savedGmailConfig = loadProviderConfig<GmailProviderConfig>('gmail');
+if (savedGmailConfig && !savedGmailConfig.reauthRequired) {
   startBackgroundRefresh();
 }
 
@@ -141,6 +156,18 @@ const gmailProvider: ConnectableProvider = {
     const config = loadProviderConfig<GmailProviderConfig>('gmail');
     if (!config) {
       return { provider: 'gmail', connected: false };
+    }
+    if (config.reauthRequired) {
+      return {
+        provider: 'gmail',
+        connected: false,
+        reauthRequired: true,
+        error: REAUTH_REQUIRED_MESSAGE,
+        connectedAt: config.connectedAt,
+        displayName: 'Gmail',
+        authType: 'oauth',
+        connectable: true,
+      };
     }
     return {
       provider: 'gmail',

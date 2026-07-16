@@ -9,6 +9,30 @@ import type { OAuthProviderConfig, OAuthRedirectStrategy } from '@jean2/sdk';
 import type { TokenResponse } from './registry';
 import { getProvider } from './registry';
 
+export interface OAuthTokenRefreshErrorData {
+  providerId: string;
+  status: number;
+  code?: string;
+  description?: string;
+}
+
+export class OAuthTokenRefreshError extends Error {
+  readonly providerId: string;
+  readonly status: number;
+  readonly code?: string;
+  readonly description?: string;
+
+  constructor({ providerId, status, code, description }: OAuthTokenRefreshErrorData) {
+    const details = [code, description].filter(Boolean).join(': ');
+    super(`Token refresh failed for ${providerId}: ${status}${details ? ` - ${details}` : ''}`);
+    this.name = 'OAuthTokenRefreshError';
+    this.providerId = providerId;
+    this.status = status;
+    this.code = code;
+    this.description = description;
+  }
+}
+
 interface PkceCodes {
   verifier: string;
   challenge: string;
@@ -402,8 +426,29 @@ export async function refreshTokens(
   });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    throw new Error(`Token refresh failed: ${response.status} - ${errorText}`);
+    const errorText = await response.text().catch(() => '');
+    let code: string | undefined;
+    let description: string | undefined;
+
+    try {
+      const errorBody = JSON.parse(errorText) as unknown;
+      if (typeof errorBody === 'object' && errorBody !== null) {
+        const errorRecord = errorBody as Record<string, unknown>;
+        code = typeof errorRecord.error === 'string' ? errorRecord.error : undefined;
+        description = typeof errorRecord.error_description === 'string'
+          ? errorRecord.error_description
+          : undefined;
+      }
+    } catch {
+      // Ignore non-JSON error bodies.
+    }
+
+    throw new OAuthTokenRefreshError({
+      providerId,
+      status: response.status,
+      code,
+      description,
+    });
   }
 
   return response.json() as Promise<TokenResponse>;

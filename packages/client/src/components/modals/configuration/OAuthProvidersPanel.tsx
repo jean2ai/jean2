@@ -1,9 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Jean2Client } from '@jean2/sdk';
+import type { Jean2Client, ProviderStatus } from '@jean2/sdk';
 import { useProvidersQuery, useConnectProvider, useDisconnectProvider, useCompleteOAuth } from '@/hooks/queries';
-import { Loader2, Unplug, Copy, Check, ClipboardPaste } from 'lucide-react';
+import { Loader2, Unplug, Copy, Check, ClipboardPaste, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ProviderStatus } from '@jean2/sdk';
 
 interface PanelProps {
   sdkClient: Jean2Client | null;
@@ -182,18 +181,22 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
             <div key={provider.provider} className="rounded-lg border p-3 sm:p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className={`size-2 rounded-full ${provider.connected ? 'bg-green-500' : 'bg-muted-foreground'}`} />
+                  <div className={`size-2 rounded-full ${provider.reauthRequired ? 'bg-amber-500' : provider.connected ? 'bg-green-500' : 'bg-muted-foreground'}`} />
                   <span className="text-sm font-medium">
                     {provider.displayName || provider.provider}
                   </span>
                 </div>
-                {provider.connected && (
+                {provider.reauthRequired ? (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">Reauthentication required</span>
+                ) : provider.connected ? (
                   <span className="text-xs text-muted-foreground">Connected</span>
-                )}
+                ) : null}
               </div>
 
               {provider.error && (
-                <p className="text-xs text-destructive">{provider.error}</p>
+                <p className={`text-xs ${provider.reauthRequired ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'}`}>
+                  {provider.error}
+                </p>
               )}
 
               {provider.connected && provider.connectedAt && (
@@ -203,7 +206,7 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
               )}
 
               <div className="flex gap-2">
-                {!provider.connected && pendingAuth?.providerId !== provider.provider && (
+                {!provider.connected && !provider.reauthRequired && pendingAuth?.providerId !== provider.provider && (
                   <Button
                     size="sm"
                     onClick={() => handleConnect(provider.provider)}
@@ -214,6 +217,31 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
                     ) : null}
                     Connect
                   </Button>
+                )}
+
+                {provider.reauthRequired && pendingAuth?.providerId !== provider.provider && (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleConnect(provider.provider)}
+                      disabled={connectingId === provider.provider}
+                    >
+                      {connectingId === provider.provider ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-3" />
+                      )}
+                      Reconnect
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDisconnect(provider.provider)}
+                    >
+                      <Unplug className="size-3" />
+                      <span className="hidden sm:inline">Disconnect</span>
+                    </Button>
+                  </>
                 )}
 
                 {provider.connected && (

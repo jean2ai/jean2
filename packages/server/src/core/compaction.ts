@@ -374,7 +374,7 @@ async function defaultGenerateSummary(
   effectiveModelId: string;
   effectiveProviderId: string;
 }> {
-  const { model, omitMaxOutputTokens, providerOptions, useProviderInstructions } = await getModelWithMetadata({
+  const { model, omitMaxOutputTokens, providerOptions } = await getModelWithMetadata({
     modelId: policy.modelId ?? undefined,
     providerId: policy.providerId ?? undefined,
     systemPrompt: prompt,

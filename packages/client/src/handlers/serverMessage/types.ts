@@ -148,7 +148,7 @@ export type PermissionQueueHandlers = {
 };
 
 export type ProviderHandlers = {
-  'provider.status': (msg: { type: 'provider.status'; provider: string; connected: boolean; authorizationUrl?: string; error?: string }, ctx: SessionHandlersContext) => void;
+  'provider.status': (msg: { type: 'provider.status'; provider: string; connected: boolean; authorizationUrl?: string; error?: string; reauthRequired?: boolean }, ctx: SessionHandlersContext) => void;
   'provider.connected': (msg: { type: 'provider.connected'; provider: string; connected: boolean; connectedAt?: string; accountId?: string }, ctx: SessionHandlersContext) => void;
 };
 
