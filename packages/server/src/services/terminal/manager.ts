@@ -16,6 +16,8 @@ interface OutputChunk {
   timestamp: number;
 }
 
+type TerminalReconnectResult = 'connected' | 'not_found' | 'workspace_mismatch';
+
 interface TerminalSession {
   id: string;
   pty: IPty;
@@ -267,12 +269,26 @@ export class TerminalManager {
     }
   }
 
-  reconnectSession(ws: ServerWebSocket, sessionId: string): boolean {
+  reconnectSession(
+    ws: ServerWebSocket,
+    sessionId: string,
+    workspaceId: string
+  ): TerminalReconnectResult {
     const session = this.sessions.get(sessionId);
-    if (!session) return false;
+    if (!session) return 'not_found';
+    if (session.workspaceId !== workspaceId) return 'workspace_mismatch';
 
     this.wsToSessionId.set(ws, sessionId);
     session.clients.add(ws);
+
+    return 'connected';
+  }
+
+  replaySession(ws: ServerWebSocket): void {
+    const sessionId = this.wsToSessionId.get(ws);
+    if (!sessionId) return;
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
 
     this.flushBuffer(session, ws);
 
@@ -284,8 +300,6 @@ export class TerminalManager {
         // WS might be closed
       }
     }
-
-    return true;
   }
 
   addClient(ws: ServerWebSocket, sessionId: string): boolean {
