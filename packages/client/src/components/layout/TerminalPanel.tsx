@@ -69,6 +69,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const isDraggingRef = useRef(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
+  const reconnectAttemptRef = useRef(0);
 
   const terminalCacheRef = useRef<TerminalCache>(createTerminalCache());
   const activeConnectionRef = useRef<{
@@ -81,7 +82,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const handleTerminalEventRef = useRef<(event: TerminalEvent) => void>(() => {});
   const autoCreateRef = useRef(false);
   const autoCreateResetRef = useRef<string | undefined>(undefined);
-  const previousTabIdsRef = useRef<Set<string>>(new Set());
+  const activeTabByWorkspaceRef = useRef<Map<string, string>>(new Map());
   const addTabRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -91,22 +92,37 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const handleTerminalEvent = useCallback((event: TerminalEvent) => {
     switch (event.type) {
       case 'snapshot': {
-        const previousIds = previousTabIdsRef.current;
-
-        setTabs(event.sessions.map(s => ({
-          serverSessionId: s.id,
-          title: s.title,
-          status: s.status === 'exited' ? 'exited' : 'disconnected',
-          cwd: s.cwd,
-          shell: s.shell,
-        })));
+        setTabs(prev => event.sessions.map(s => {
+          const existing = prev.find(tab => tab.serverSessionId === s.id);
+          return {
+            serverSessionId: s.id,
+            title: s.title,
+            status: s.status === 'exited' ? 'exited' : existing?.status ?? 'disconnected',
+            cwd: s.cwd,
+            shell: s.shell,
+          };
+        }));
 
         if (event.sessions.length > 0) {
+          const rememberedId = workspaceId
+            ? activeTabByWorkspaceRef.current.get(workspaceId)
+            : undefined;
           setActiveTabServerId(prev => {
-            if (prev && event.sessions.some(s => s.id === prev)) return prev;
-            return event.sessions[0].id;
+            let selectedId = event.sessions[0].id;
+            if (rememberedId && event.sessions.some(s => s.id === rememberedId)) {
+              selectedId = rememberedId;
+            } else if (prev && event.sessions.some(s => s.id === prev)) {
+              selectedId = prev;
+            }
+            if (workspaceId) {
+              activeTabByWorkspaceRef.current.set(workspaceId, selectedId);
+            }
+            return selectedId;
           });
         } else {
+          if (workspaceId) {
+            activeTabByWorkspaceRef.current.delete(workspaceId);
+          }
           setActiveTabServerId(null);
           if (!autoCreateRef.current) {
             autoCreateRef.current = true;
@@ -114,13 +130,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           }
         }
 
-        if (previousIds.size > 0) {
-          const snapshotIds = new Set(event.sessions.map(s => s.id));
-          const lostIds = [...previousIds].filter(id => !snapshotIds.has(id));
-          for (const _lostId of lostIds) {
-            addTabRef.current();
-          }
-        }
         break;
       }
       case 'created': {
@@ -136,6 +145,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             shell: event.session.shell,
           }];
         });
+        if (workspaceId) {
+          activeTabByWorkspaceRef.current.set(workspaceId, event.session.id);
+        }
         setActiveTabServerId(event.session.id);
         break;
       }
@@ -145,7 +157,15 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         setActiveTabServerId(prev => {
           if (prev !== event.sessionId) return prev;
           const remaining = tabsRef.current.filter(t => t.serverSessionId !== event.sessionId);
-          return remaining.length > 0 ? remaining[0].serverSessionId : null;
+          const nextId = remaining.length > 0 ? remaining[0].serverSessionId : null;
+          if (workspaceId) {
+            if (nextId) {
+              activeTabByWorkspaceRef.current.set(workspaceId, nextId);
+            } else {
+              activeTabByWorkspaceRef.current.delete(workspaceId);
+            }
+          }
+          return nextId;
         });
         break;
       }
@@ -166,15 +186,17 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
         break;
       }
       case 'status_changed': {
-        setTabs(prev => prev.map(t =>
-          t.serverSessionId === event.sessionId
-            ? { ...t, status: event.status === 'exited' ? 'exited' : 'connected' }
-            : t
-        ));
+        if (event.status === 'exited') {
+          setTabs(prev => prev.map(t =>
+            t.serverSessionId === event.sessionId
+              ? { ...t, status: 'exited' }
+              : t
+          ));
+        }
         break;
       }
     }
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     handleTerminalEventRef.current = handleTerminalEvent;
@@ -184,7 +206,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     if (!workspaceId || !isOpen || !sdkClient) {
       setTabs([]);
       setActiveTabServerId(null);
-      previousTabIdsRef.current = new Set();
       autoCreateRef.current = false;
 
       if (activeConnectionRef.current) {
@@ -201,12 +222,12 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       return;
     }
 
-    // Generation guard: if a newer workspace switch happens before
-    // the async subscribeEvents resolves, dispose the stale result
-    // immediately and do not install it.
     let cancelled = false;
+    let retryAttempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentConn: TerminalEventsConnection | null = null;
+    let subscribe: () => void;
 
-    // Clean up previous workspace's terminals before setting up new workspace
     if (activeConnectionRef.current) {
       activeConnectionRef.current.disconnect();
       activeConnectionRef.current = null;
@@ -214,55 +235,78 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     setConnectionTarget(null);
     terminalCacheRef.current.disposeAll();
 
-    previousTabIdsRef.current = new Set(tabsRef.current.map(t => t.serverSessionId));
+    const scheduleRetry = (error: Error) => {
+      if (cancelled || retryTimer) return;
+      console.error('[TerminalPanel] Terminal events connection failed:', error.message);
 
-    sdkClient.terminal.subscribeEvents(workspaceId).then(({ conn, initialSessions }) => {
-      // If the workspace changed while we were subscribing, dispose immediately.
-      if (cancelled) {
-        conn.dispose();
-        return;
+      const delay = Math.min(1000 * 2 ** retryAttempt, 10000);
+      retryAttempt++;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        subscribe();
+      }, delay);
+
+      const conn = currentConn;
+      currentConn = null;
+      if (eventsConnRef.current === conn) {
+        eventsConnRef.current = null;
       }
+      conn?.dispose();
+    };
 
-      eventsConnRef.current = conn;
+    subscribe = () => {
+      sdkClient.terminal.subscribeEvents(workspaceId).then(({ conn, initialSessions }) => {
+        if (cancelled) {
+          conn.dispose();
+          return;
+        }
 
-      // Process initial snapshot immediately (before registering listeners)
-      handleTerminalEventRef.current({ type: 'snapshot', sessions: initialSessions });
+        retryAttempt = 0;
+        currentConn = conn;
+        eventsConnRef.current = conn;
+        handleTerminalEventRef.current({ type: 'snapshot', sessions: initialSessions });
 
-      // Register listeners for future events
-      conn.on('snapshot', (sessions) => {
-        handleTerminalEventRef.current({ type: 'snapshot', sessions });
+        conn.on('snapshot', (sessions) => {
+          handleTerminalEventRef.current({ type: 'snapshot', sessions });
+        });
+        conn.on('created', (session) => {
+          handleTerminalEventRef.current({ type: 'created', session });
+        });
+        conn.on('destroyed', (sessionId) => {
+          handleTerminalEventRef.current({ type: 'destroyed', sessionId });
+        });
+        conn.on('exited', (sessionId, exitCode) => {
+          handleTerminalEventRef.current({ type: 'exited', sessionId, exitCode });
+        });
+        conn.on('title_changed', (sessionId, title) => {
+          handleTerminalEventRef.current({ type: 'title_changed', sessionId, title });
+        });
+        conn.on('status_changed', (sessionId, status) => {
+          handleTerminalEventRef.current({ type: 'status_changed', sessionId, status });
+        });
+        conn.on('close', () => {
+          scheduleRetry(new Error('Terminal events connection closed'));
+        });
+        conn.on('error', (error) => {
+          scheduleRetry(error);
+        });
+      }).catch((err: unknown) => {
+        if (cancelled) return;
+        const error = err instanceof Error ? err : new Error(String(err));
+        scheduleRetry(error);
       });
-      conn.on('created', (session) => {
-        handleTerminalEventRef.current({ type: 'created', session });
-      });
-      conn.on('destroyed', (sessionId) => {
-        handleTerminalEventRef.current({ type: 'destroyed', sessionId });
-      });
-      conn.on('exited', (sessionId, exitCode) => {
-        handleTerminalEventRef.current({ type: 'exited', sessionId, exitCode });
-      });
-      conn.on('title_changed', (sessionId, title) => {
-        handleTerminalEventRef.current({ type: 'title_changed', sessionId, title });
-      });
-      conn.on('status_changed', (sessionId, status) => {
-        handleTerminalEventRef.current({ type: 'status_changed', sessionId, status });
-      });
+    };
 
-      conn.on('error', (error) => {
-        console.error('[TerminalPanel] Events connection error:', error.message);
-      });
-    }).catch(err => {
-      if (!cancelled) {
-        console.error('[TerminalPanel] Failed to subscribe to terminal events:', err);
-      }
-    });
+    subscribe();
 
     return () => {
       cancelled = true;
-      if (eventsConnRef.current) {
-        eventsConnRef.current.dispose();
-        eventsConnRef.current = null;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
       }
+      currentConn?.dispose();
+      currentConn = null;
+      eventsConnRef.current = null;
     };
   }, [workspaceId, isOpen, sdkClient]);
 
@@ -272,6 +316,9 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   }, []);
 
   const onStatusChange = useCallback((serverSessionId: string) => (status: TerminalStatus) => {
+    if (status === 'connected') {
+      reconnectAttemptRef.current = 0;
+    }
     setTabs(prev => prev.map(t =>
       t.serverSessionId === serverSessionId
         ? { ...t, status }
@@ -365,6 +412,41 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     }
   }, [connectionTarget, connect, disconnect, destroy]);
 
+  const activeTabStatus = tabs.find(t => t.serverSessionId === activeTabServerId)?.status;
+
+  useEffect(() => {
+    reconnectAttemptRef.current = 0;
+  }, [workspaceId, activeTabServerId]);
+
+  useEffect(() => {
+    if (
+      !isOpen ||
+      !activeTabServerId ||
+      activeTabStatus !== 'disconnected' ||
+      reconnectAttemptRef.current >= 5
+    ) return;
+
+    const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 10000);
+    reconnectAttemptRef.current++;
+    const retryTimer = setTimeout(() => {
+      connect(activeTabServerId);
+    }, delay);
+
+    return () => clearTimeout(retryTimer);
+  }, [workspaceId, isOpen, activeTabServerId, activeTabStatus, connect]);
+
+  const selectTerminalTab = useCallback((serverSessionId: string) => {
+    if (workspaceId) {
+      activeTabByWorkspaceRef.current.set(workspaceId, serverSessionId);
+    }
+    if (serverSessionId === activeTabServerId && activeTabStatus === 'disconnected') {
+      reconnectAttemptRef.current = 0;
+      connect(serverSessionId);
+      return;
+    }
+    setActiveTabServerId(serverSessionId);
+  }, [workspaceId, activeTabServerId, activeTabStatus, connect]);
+
   const addTab = useCallback(async () => {
     if (!workspaceId || !workspacePath || !sdkClient) return;
 
@@ -402,10 +484,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       autoCreateResetRef.current = workspaceId;
       autoCreateRef.current = false;
     }
-  }, [workspaceId]);
-
-  useEffect(() => {
-    previousTabIdsRef.current = new Set();
   }, [workspaceId]);
 
   useEffect(() => {
@@ -497,7 +575,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
               ? 'bg-accent text-accent-foreground border-border'
               : 'text-muted-foreground hover:bg-muted'
           )}
-          onClick={() => setActiveTabServerId(tab.serverSessionId)}
+          onClick={() => selectTerminalTab(tab.serverSessionId)}
         >
           <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusIndicator(tab.status))} />
           <span>{shortName} {tab.title}</span>
@@ -598,7 +676,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                     ? 'bg-accent text-accent-foreground border-border'
                     : 'text-muted-foreground hover:bg-muted'
                 )}
-                onClick={() => setActiveTabServerId(tab.serverSessionId)}
+                onClick={() => selectTerminalTab(tab.serverSessionId)}
               >
                 <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusIndicator(tab.status))} />
                 <span>{shortName} {tab.title}</span>
