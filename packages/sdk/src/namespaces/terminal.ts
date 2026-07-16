@@ -98,7 +98,11 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
 
     switch (opcode) {
       case TERMINAL_OPCODES.OUTPUT:
-        this.emit('output', payload);
+        if (this.listenerCount('output') > 0) {
+          this.emit('output', payload);
+        } else {
+          this._preInitOutput.push(payload);
+        }
         break;
 
       case TERMINAL_OPCODES.EXIT: {

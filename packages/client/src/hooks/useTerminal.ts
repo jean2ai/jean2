@@ -167,7 +167,7 @@ export function useTerminalConnection(
     const existingConn = connectionRef.current;
     if (existingConn) {
       existingConn.removeAllListeners();
-      existingConn.close();
+      existingConn.dispose();
       connectionRef.current = null;
     }
 
@@ -186,7 +186,7 @@ export function useTerminalConnection(
       });
 
       if (connectionGenerationRef.current !== generation) {
-        connection.close();
+        connection.dispose();
         return;
       }
 

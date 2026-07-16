@@ -295,9 +295,17 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
         if (wsData?.path === '/ws/terminal') {
           const sessionId = wsData.params?.sessionId;
           if (sessionId) {
-            const reconnected = getTerminalManager().reconnectSession(ws as unknown as ServerWebSocket, sessionId);
-            if (!reconnected) {
-              const errorPayload = new TextEncoder().encode(JSON.stringify({ message: 'Session not found' }));
+            const workspaceId = wsData.params?.workspaceId || '';
+            const reconnectResult = getTerminalManager().reconnectSession(
+              ws as unknown as ServerWebSocket,
+              sessionId,
+              workspaceId
+            );
+            if (reconnectResult !== 'connected') {
+              const message = reconnectResult === 'workspace_mismatch'
+                ? 'Terminal session does not belong to this workspace'
+                : 'Session not found';
+              const errorPayload = new TextEncoder().encode(JSON.stringify({ message }));
               ws.send(encodeFrame(OPCODES.ERROR, errorPayload));
               ws.close();
               return;
@@ -319,6 +327,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
                 inAlternateScreen: session.inAlternateScreen,
               }));
               ws.send(encodeFrame(OPCODES.INIT_ACK, initPayload));
+              getTerminalManager().replaySession(ws as unknown as ServerWebSocket);
             }
           } else {
             const createdId = getTerminalManager().createSession(ws as unknown as ServerWebSocket, {
