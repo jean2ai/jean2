@@ -6,30 +6,13 @@ import { getWorkspace } from '@/store';
 import { listDirectory, searchFiles, isPathWithinWorkspace } from '@/services/files';
 import { getFilePreview } from '@/services/filePreview';
 import { getGitStatus, attachGitStatusToEntries, getGitFileDiff } from '@/services/gitStatus';
+import { readEditableFile, saveFile } from '@/services/fileMutations';
+import { validate } from './validate';
+import { saveFileSchema } from './schemas';
+import type { SaveFileRequest } from '@jean2/sdk';
 
 import { NotFoundError, BadRequestError, ForbiddenError } from '@/utils/http-errors';
-import { expandPath } from '@/utils/paths';
-
-/**
- * Resolves an optional `root` query param to an allowed absolute root path.
- * When `root` is provided it must exactly match either the workspace.path or
- * one of additionalPaths. Falls back to workspace.path when missing/invalid.
- * Returns the selected root and a boolean indicating whether it is the main
- * workspace path.
- */
-function resolveRoot(
-  workspace: { path: string; additionalPaths: string[] },
-  rootQuery?: string,
-): { root: string; isMain: boolean } {
-  const main = resolve(workspace.path);
-  if (!rootQuery) return { root: main, isMain: true };
-  const resolved = resolve(rootQuery);
-  if (resolved === main) return { root: main, isMain: true };
-  for (const p of workspace.additionalPaths) {
-    if (resolve(p) === resolved) return { root: resolved, isMain: false };
-  }
-  return { root: main, isMain: true };
-}
+import { expandPath, resolveRoot } from '@/utils/paths';
 
 export function registerFileRoutes(app: Hono): void {
   app.get('/api/workspaces/:id/files', async (c) => {
@@ -163,6 +146,41 @@ export function registerFileRoutes(app: Hono): void {
       throw new NotFoundError(message);
     }
   });
+
+  app.get('/api/workspaces/:id/file', async (c) => {
+    const workspaceId = c.req.param('id');
+    const path = c.req.query('path');
+    const rootQuery = c.req.query('root');
+
+    if (!path) {
+      throw new BadRequestError('Path query parameter is required');
+    }
+
+    const workspace = getWorkspace(workspaceId);
+    if (!workspace) {
+      throw new NotFoundError('Workspace not found');
+    }
+
+    const file = await readEditableFile(workspace, path, rootQuery);
+    return c.json(file);
+  });
+
+  app.put(
+    '/api/workspaces/:id/file',
+    validate('json', saveFileSchema),
+    async (c) => {
+      const workspaceId = c.req.param('id');
+      const body = c.req.valid('json') as SaveFileRequest;
+
+      const workspace = getWorkspace(workspaceId);
+      if (!workspace) {
+        throw new NotFoundError('Workspace not found');
+      }
+
+      const result = await saveFile(workspace, body);
+      return c.json(result);
+    },
+  );
 
   app.get('/api/workspaces/:id/git/diff', async (c) => {
     const workspaceId = c.req.param('id');

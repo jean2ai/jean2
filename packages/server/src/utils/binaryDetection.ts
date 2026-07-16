@@ -69,9 +69,32 @@ export function isBinaryExtension(ext: string | undefined): boolean {
   return BINARY_EXTENSIONS.has(ext.toLowerCase());
 }
 
+export function isBinaryBuffer(buffer: Uint8Array): boolean {
+  if (buffer.length === 0) return false;
+
+  const sniff = buffer.subarray(0, FILE_PREVIEW_BINARY_SNIFF_BYTES);
+  let nonPrintableCount = 0;
+
+  for (const byte of sniff) {
+    if (byte === 0x00) return true;
+
+    const isPrintable =
+      (byte >= 0x20 && byte <= 0x7e) ||
+      byte === 0x09 ||
+      byte === 0x0a ||
+      byte === 0x0d;
+
+    if (!isPrintable) {
+      nonPrintableCount++;
+    }
+  }
+
+  return nonPrintableCount / sniff.length > 0.3;
+}
+
 export async function isBinaryFile(
   filePath: string,
-  fileSize: number
+  fileSize: number,
 ): Promise<boolean> {
   const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
   if (isBinaryExtension(ext)) {
@@ -85,33 +108,5 @@ export async function isBinaryFile(
   const file = Bun.file(filePath);
   const bytesToRead = Math.min(FILE_PREVIEW_BINARY_SNIFF_BYTES, fileSize);
   const buffer = Buffer.from(await file.slice(0, bytesToRead).arrayBuffer());
-
-  let nullByteFound = false;
-  let nonPrintableCount = 0;
-
-  for (let i = 0; i < buffer.length; i++) {
-    const byte = buffer[i];
-
-    if (byte === 0x00) {
-      nullByteFound = true;
-      break;
-    }
-
-    const isPrintable =
-      (byte >= 0x20 && byte <= 0x7e) ||
-      byte === 0x09 ||
-      byte === 0x0a ||
-      byte === 0x0d;
-
-    if (!isPrintable) {
-      nonPrintableCount++;
-    }
-  }
-
-  if (nullByteFound) {
-    return true;
-  }
-
-  const nonPrintableRatio = nonPrintableCount / buffer.length;
-  return nonPrintableRatio > 0.3;
+  return isBinaryBuffer(buffer);
 }

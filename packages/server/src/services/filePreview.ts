@@ -128,6 +128,11 @@ export function getLanguageForPath(filePath: string): string | undefined {
   return getLanguage(ext);
 }
 
+export function getMimeTypeForPath(filePath: string): string | undefined {
+  const ext = extname(filePath);
+  return ext ? MIME_MAP[ext.toLowerCase()] : undefined;
+}
+
 export async function getFilePreview(
   workspacePath: string,
   relativePath: string,

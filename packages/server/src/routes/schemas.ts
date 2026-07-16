@@ -97,6 +97,16 @@ export const setToolEnvSchema = z.object({
   value: z.string().min(1, { message: 'Value must be a non-empty string' }),
 });
 
+// ── File save schema ───────────────────────────────────────────
+
+export const saveFileSchema = z.object({
+  path: z.string().min(1, { message: 'path is required' }),
+  content: z.string(),
+  expectedRevision: z.string().min(1, { message: 'expectedRevision is required' }),
+  root: z.string().optional(),
+  force: z.boolean().optional(),
+}).loose();
+
 // ── Agent memory schemas ───────────────────────────────────────
 
 export const updateAgentMemorySchema = z.object({
