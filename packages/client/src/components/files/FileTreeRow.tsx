@@ -14,6 +14,7 @@ interface FileTreeRowProps {
   onFileSelect?: (file: FileEntry) => void;
   onPrefetch: (fullPath: string) => void;
   isFocused: boolean;
+  isActive?: boolean;
 }
 
 export const FileTreeRow = memo(function FileTreeRow({
@@ -22,6 +23,7 @@ export const FileTreeRow = memo(function FileTreeRow({
   onFileSelect,
   onPrefetch,
   isFocused,
+  isActive = false,
 }: FileTreeRowProps) {
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { entry, depth, isExpanded, isLoading, fullPath } = node;
@@ -76,6 +78,7 @@ export const FileTreeRow = memo(function FileTreeRow({
         'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
         'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
+        isActive && 'bg-primary/10 text-primary',
         '[&_svg]:size-4 [&_svg]:shrink-0',
       )}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -99,6 +102,7 @@ export const FileTreeRow = memo(function FileTreeRow({
   return (
     prev.node === next.node &&
     prev.isFocused === next.isFocused &&
+    prev.isActive === next.isActive &&
     prev.onToggle === next.onToggle &&
     prev.onFileSelect === next.onFileSelect &&
     prev.onPrefetch === next.onPrefetch

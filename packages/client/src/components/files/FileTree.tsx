@@ -16,6 +16,10 @@ interface FileTreeProps {
   showHidden?: boolean;
   width?: number;
   root?: string;
+  /** Currently active file path (relative), for active row styling. */
+  activePath?: string;
+  /** Root the activePath is relative to ('' or undefined for main root). */
+  activeRoot?: string;
 }
 
 export interface FileTreeHandle {
@@ -24,7 +28,7 @@ export interface FileTreeHandle {
 }
 
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
-  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root }, ref) => {
+  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root, activePath, activeRoot }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
@@ -142,6 +146,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
       onPrefetch: prefetchDirectory,
     };
 
+    // Determine whether the active file lives under this tree's root.
+    const rootMatches = (activeRoot ?? '') === (root ?? '');
+    const isActivePath = !!(activePath && rootMatches);
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-32 text-muted-foreground">
@@ -189,6 +197,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                 node={item}
                 {...rowCommon}
                 isFocused={focusedIndex === index}
+                isActive={isActivePath && item.fullPath === activePath}
               />
             )}
             estimatedItemSize={36}
@@ -219,6 +228,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                   node={node}
                   {...rowCommon}
                   isFocused={focusedIndex === index}
+                  isActive={isActivePath && node.fullPath === activePath}
                 />
               ))}
             </div>

@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState, useEffect } from 'react';
 import { X, RefreshCw, Search, ChevronDown, Folder, Check } from 'lucide-react';
+import { useParams } from '@tanstack/react-router';
 import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { FileTree, type FileTreeHandle, GitChangesView, type GitChangesViewHandle } from '@/components/files';
@@ -31,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useFileEditorStore } from '@/stores/fileEditorStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { platform } from '@/platform';
 import { useFileSearchQuery } from '@/hooks/queries';
@@ -223,7 +225,25 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     const setFilesPanelGitMode = useChatLayoutStore((s) => s.setFilesPanelGitMode);
     const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
     const workspaceId = activeWorkspace?.id;
+    const routeParams = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
+    const serverId = routeParams?.serverId as string | undefined;
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Active editor doc (for highlighting the open file in the tree).
+    const activeEditorPath = useFileEditorStore((s) => {
+      if (!s.activeDocId) return undefined;
+      const d = s.docs[s.activeDocId];
+      if (!d) return undefined;
+      if (d.identity.serverId !== (serverId ?? '') || d.identity.workspaceId !== (workspaceId ?? '')) return undefined;
+      return d.identity.path;
+    });
+    const activeEditorRoot = useFileEditorStore((s) => {
+      if (!s.activeDocId) return undefined;
+      const d = s.docs[s.activeDocId];
+      if (!d) return undefined;
+      if (d.identity.serverId !== (serverId ?? '') || d.identity.workspaceId !== (workspaceId ?? '')) return undefined;
+      return d.identity.root ?? '';
+    });
 
     // Resolve the effective selected root (fall back to workspace.path).
     const selectedRoot = filesPanelRoot ?? activeWorkspace?.path ?? '';
@@ -295,7 +315,29 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     const openFilePreview = useUIStore((s) => s.openFilePreview);
 
     const handleFileSelect = useCallback((file: FileEntry) => {
-      if (file.type === 'file' && workspaceId) {
+      if (file.type !== 'file') return;
+      // Normal file selection opens the internal editor when we have a
+      // serverId + workspaceId. Fall back to the platform/preview flow only
+      // when the editor cannot be targeted (e.g. missing route context).
+      if (workspaceId && serverId) {
+        useFileEditorStore.getState().openDoc(
+          {
+            serverId,
+            workspaceId,
+            root: isMainRoot ? '' : selectedRoot,
+            path: file.path,
+          },
+          file.name,
+        );
+        // On mobile close the Files sheet after opening.
+        if (isMobile) {
+          setShowFilesPanel(false);
+        }
+        return;
+      }
+
+      // Fallback for contexts without an active server/workspace identity.
+      if (workspaceId) {
         if (platform.capabilities.fileOpen && platform.openFile) {
           const rootPath = isMainRoot ? (activeWorkspace?.path ?? '') : selectedRoot;
           const absPath = rootPath ? `${rootPath}/${file.path}` : file.path;
@@ -309,7 +351,7 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
           });
         }
       }
-    }, [workspaceId, openFilePreview, activeWorkspace?.path, isMainRoot, selectedRoot]);
+    }, [workspaceId, serverId, isMainRoot, selectedRoot, isMobile, setShowFilesPanel, openFilePreview, activeWorkspace?.path]);
 
     const headerContent = activeWorkspace ? (
       <div className="flex flex-col gap-2 px-2 pt-2 pb-2">
@@ -376,6 +418,8 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
             width={filesPanelWidth}
             root={isMainRoot ? undefined : selectedRoot}
             onFileSelect={handleFileSelect}
+            activePath={activeEditorPath}
+            activeRoot={activeEditorRoot}
           />
         )
       ) : (
