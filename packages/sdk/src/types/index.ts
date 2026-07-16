@@ -250,6 +250,9 @@ export type {
   FilePreviewKind,
   FilePreviewResponse,
   FilePreviewContentResponse,
+  EditableFileResponse,
+  FileRevisionConflictDetails,
+  SaveFileRequest,
 } from '../shared';
 
 // MCP types
@@ -310,6 +313,8 @@ export type {
   BrowseFilesResponse,
   SearchFilesResponse,
   PreviewFileResponse,
+  ReadEditableFileResponse,
+  SaveFileResponse,
   BrowseFsResponse,
   FsParentResponse,
   ListDrivesResponse,
