@@ -3,21 +3,21 @@ import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
 
 export function handleProviderStatus(
-  msg: { type: 'provider.status'; provider: string; connected: boolean; authorizationUrl?: string; error?: string },
+  msg: { type: 'provider.status'; provider: string; connected: boolean; authorizationUrl?: string; error?: string; reauthRequired?: boolean },
   ctx: SessionHandlersContext,
 ): void {
-  const { provider, connected, authorizationUrl, error } = msg;
+  const { provider, connected, authorizationUrl, error, reauthRequired } = msg;
   const { setProviderStatuses } = ctx;
 
   setProviderStatuses(prev => {
     const existing = prev.find(s => s.provider === provider);
     if (existing) {
       return prev.map(s => s.provider === provider
-        ? { ...s, connected, authorizationUrl, error }
+        ? { ...s, connected, authorizationUrl, error, reauthRequired }
         : s
       );
     }
-    return [...prev, { provider, connected, authorizationUrl, error }];
+    return [...prev, { provider, connected, authorizationUrl, error, reauthRequired }];
   });
   queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.all });
   queryClient.invalidateQueries({ queryKey: queryKeys.config.providers.credentials });
@@ -32,7 +32,7 @@ export function handleProviderConnected(
 
   setProviderStatuses(prev =>
     prev.map(s => s.provider === provider
-      ? { ...s, connected, connectedAt, accountId }
+      ? { ...s, connected, connectedAt, accountId, error: undefined, reauthRequired: undefined }
       : s
     )
   );
