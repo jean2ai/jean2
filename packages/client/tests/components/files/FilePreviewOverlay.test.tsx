@@ -3,11 +3,21 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import type { Jean2Client } from '@jean2/sdk';
+import { Jean2Client, ServerError } from '@jean2/sdk';
 import FilePreviewOverlay from '@/components/files/FilePreviewOverlay';
 import type { FilePreviewTarget } from '@/stores/uiStore';
 
-vi.mock('@jean2/sdk', () => ({ Jean2Client: vi.fn() }));
+vi.mock('@jean2/sdk', () => ({
+  Jean2Client: vi.fn(),
+  ServerError: class MockServerError extends Error {
+    statusCode: number;
+    constructor(message: string, statusCode: number) {
+      super(message);
+      this.name = 'ServerError';
+      this.statusCode = statusCode;
+    }
+  },
+}));
 
 const mockPreviewFn = vi.fn();
 const mockGitDiffFn = vi.fn();
@@ -156,3 +166,151 @@ describe('FilePreviewOverlay - scroll stability', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 5: deleted-file Preview detection. A modified diff with deletions
+// must NOT be treated as a deleted file when the preview merely errors.
+// Only explicit `deleted` git status or a confirmed file-not-found with a
+// deletion diff renders the deletion-only state.
+// ---------------------------------------------------------------------------
+
+function deletionDiffResponse() {
+  return {
+    diffAvailable: true,
+    additions: 0,
+    deletions: 5,
+    hunks: [
+      {
+        oldStart: 1,
+        oldLines: 5,
+        newStart: 1,
+        newLines: 0,
+        changes: [
+          { type: 'removed', content: 'gone1' },
+          { type: 'removed', content: 'gone2' },
+        ],
+      },
+    ],
+    status: { status: 'modified', staged: false, unstaged: true, additions: 0, deletions: 5 },
+  };
+}
+
+describe('FilePreviewOverlay - deleted-file detection', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    mockPreviewFn.mockReset();
+    mockGitDiffFn.mockReset();
+  });
+
+  test('a modified diff with deletions plus an ordinary error keeps Retry and is not marked deleted', async () => {
+    mockPreviewFn.mockRejectedValue(new Error('Something went wrong'));
+    mockGitDiffFn.mockResolvedValue(deletionDiffResponse());
+
+    renderOverlay(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+    });
+
+    // Must NOT render the deletion-only state
+    expect(screen.queryByText(/This file was deleted/)).not.toBeInTheDocument();
+    expect(screen.queryByText('deleted')).not.toBeInTheDocument();
+    // The real error message should be shown instead
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+  });
+
+  test('a modified diff with deletions plus a network (ConnectionError-like) failure keeps Retry', async () => {
+    mockPreviewFn.mockRejectedValue(new Error('Network error'));
+    mockGitDiffFn.mockResolvedValue(deletionDiffResponse());
+
+    renderOverlay(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/This file was deleted/)).not.toBeInTheDocument();
+    expect(screen.getByText('Network error')).toBeInTheDocument();
+  });
+
+  test('a non-404 server error with deletions keeps Retry and is not deleted', async () => {
+    // A 500 server error is not a file-not-found, so even with deletions the
+    // file must not be classified as deleted.
+    mockPreviewFn.mockRejectedValue(new ServerError('Internal server error', 500));
+    mockGitDiffFn.mockResolvedValue(deletionDiffResponse());
+
+    renderOverlay(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/This file was deleted/)).not.toBeInTheDocument();
+    expect(screen.getByText('Internal server error')).toBeInTheDocument();
+  });
+
+  test('explicit deleted git status renders the deletion diff despite preview failure', async () => {
+    mockPreviewFn.mockRejectedValue(new ServerError('File not found', 404));
+    mockGitDiffFn.mockResolvedValue({
+      diffAvailable: true,
+      additions: 0,
+      deletions: 3,
+      hunks: [
+        {
+          oldStart: 1,
+          oldLines: 3,
+          newStart: 1,
+          newLines: 0,
+          changes: [{ type: 'removed', content: 'deleted line' }],
+        },
+      ],
+      status: { status: 'deleted', staged: false, unstaged: true, additions: 0, deletions: 3 },
+    });
+
+    renderOverlay(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByText(/This file was deleted/)).toBeInTheDocument();
+    });
+
+    // The deletion diff content is rendered
+    expect(screen.getByText('deleted line')).toBeInTheDocument();
+    // Retry must NOT be shown for the confirmed deleted-file state
+    expect(screen.queryByText('Retry')).not.toBeInTheDocument();
+  });
+
+  test('deleted status with deletions shows the deletion header and totals', async () => {
+    mockPreviewFn.mockRejectedValue(new ServerError('File not found', 404));
+    mockGitDiffFn.mockResolvedValue({
+      diffAvailable: true,
+      additions: 0,
+      deletions: 7,
+      hunks: [
+        {
+          oldStart: 1,
+          oldLines: 7,
+          newStart: 1,
+          newLines: 0,
+          changes: [{ type: 'removed', content: 'removed content' }],
+        },
+      ],
+      status: { status: 'deleted', staged: false, unstaged: true, additions: 0, deletions: 7 },
+    });
+
+    renderOverlay(queryClient);
+
+    await waitFor(() => {
+      expect(screen.getByText('deleted')).toBeInTheDocument();
+    });
+
+    // Deletion total badge is present
+    expect(screen.getByText('-7')).toBeInTheDocument();
+    // Showing the deletion diff
+    expect(screen.getByText('removed content')).toBeInTheDocument();
+  });
+});
+

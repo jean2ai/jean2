@@ -1,4 +1,4 @@
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, FileX, FilePenLine } from 'lucide-react';
 import type { Jean2Client } from '@jean2/sdk';
 import type { FilePreviewTarget } from '@/stores/uiStore';
 import {
@@ -23,10 +23,16 @@ interface FilePreviewOverlayProps {
   sdkClient: Jean2Client | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenEdit?: () => void;
 }
 
 function hasContent(preview: { kind: string }): preview is { kind: 'code' | 'text' | 'markdown'; content: string } {
   return preview.kind === 'code' || preview.kind === 'text' || preview.kind === 'markdown';
+}
+
+function isFileNotFoundError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  return 'statusCode' in error && error.statusCode === 404;
 }
 
 export default function FilePreviewOverlay({
@@ -35,8 +41,9 @@ export default function FilePreviewOverlay({
   sdkClient,
   open,
   onOpenChange,
+  onOpenEdit,
 }: FilePreviewOverlayProps) {
-  const { data, loading, refreshing, error, reload } = useFilePreview({
+  const { data, loading, refreshing, error, errorCause, reload } = useFilePreview({
     workspaceId,
     path: target?.path,
     root: target?.root,
@@ -56,6 +63,14 @@ export default function FilePreviewOverlay({
   const isRefreshing = refreshing || diffRefreshing;
 
   const diffData = diffQuery.data?.diffAvailable ? diffQuery.data : undefined;
+
+  const isDeletedFile =
+    !!error &&
+    !!diffData &&
+    (
+      diffData.status?.status === 'deleted' ||
+      (isFileNotFoundError(errorCause) && diffData.deletions > 0)
+    );
 
   const handleRefresh = () => {
     reload();
@@ -79,6 +94,27 @@ export default function FilePreviewOverlay({
           className="flex items-center justify-center h-full"
         >
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    // Deleted-file diff-only state: the file no longer exists on disk but
+    // the Git diff shows the removal. Render the diff instead of the error.
+    if (isDeletedFile && diffData) {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
+            <FileX className="size-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              This file was deleted. Showing the deletion diff.
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <FileCodeView
+              content=""
+              diff={{ hunks: diffData.hunks, additions: diffData.additions, deletions: diffData.deletions }}
+            />
+          </div>
         </div>
       );
     }
@@ -141,13 +177,23 @@ export default function FilePreviewOverlay({
         showCloseButton={true}
         className="sm:max-w-5xl w-[min(92vw,1100px)] h-[85vh] flex flex-col p-0 gap-0"
       >
-        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border shrink-0">
+        <DialogHeader className="px-6 pt-5 pb-3 pr-40 border-b border-border shrink-0">
           <DialogTitle className="text-base font-semibold truncate">
             {target.name}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground truncate">
             {target.path}
           </DialogDescription>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onOpenEdit}
+            disabled={!onOpenEdit || isDeletedFile}
+            className="absolute right-24 top-4"
+          >
+            <FilePenLine data-icon="inline-start" />
+            Edit
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -169,6 +215,11 @@ export default function FilePreviewOverlay({
                 {formatSize(data.size)}
                 {data.language && ` · ${data.language}`}
               </span>
+              {diffData?.status?.oldPath && (
+                <span className="text-xs text-muted-foreground" title="Renamed from">
+                  from {diffData.status.oldPath}
+                </span>
+              )}
               {diffData && (
                 <>
                   <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-600">
@@ -178,6 +229,21 @@ export default function FilePreviewOverlay({
                     -{diffData.deletions}
                   </span>
                 </>
+              )}
+            </div>
+          )}
+          {isDeletedFile && diffData && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/10 text-red-600">
+                deleted
+              </span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-red-500/10 text-red-600">
+                -{diffData.deletions}
+              </span>
+              {diffData.status?.oldPath && (
+                <span className="text-xs text-muted-foreground" title="Renamed from">
+                  from {diffData.status.oldPath}
+                </span>
               )}
             </div>
           )}

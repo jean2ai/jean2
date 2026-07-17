@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertCircle, X, Save, RotateCcw, Eye, Code2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, AlertCircle, X, Save, RotateCcw, Eye, Code2, RefreshCw, GitBranch, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Jean2Client, FileRevisionConflictDetails } from '@jean2/sdk';
 import { ApiError } from '@jean2/sdk';
@@ -12,7 +12,13 @@ import {
 } from '@/stores/fileEditorStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
+import { useUIStore } from '@/stores/uiStore';
+import { useEditorGitDiffQuery } from '@/hooks/queries';
 import { CodeMirrorEditor } from './CodeMirrorEditor';
+import {
+  isGitDiffRemovedContentTruncated,
+  type EditorGitDiff,
+} from './gitDiffExtension';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { Button } from '@/components/ui/button';
 import {
@@ -174,12 +180,20 @@ export function FileEditorSurface({ sdkClient, serverId, workspaceId }: FileEdit
         saveSuccess(docId, result);
 
         // Invalidate Git status, Git diff for the path, and browse queries so
-        // other surfaces reflect the saved file. Do not touch preview queries.
+        // other surfaces reflect the saved file.
         queryClient.invalidateQueries({ queryKey: queryKeys.files.gitStatusPrefix });
         queryClient.invalidateQueries({
           queryKey: queryKeys.files.gitDiff(workspaceId, normalizePath(identity.path), identity.root || undefined),
         });
         queryClient.invalidateQueries({ queryKey: queryKeys.files.browsePrefix });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.files.preview(
+            workspaceId,
+            identity.path,
+            identity.root || undefined,
+          ),
+          refetchType: 'all',
+        });
       } catch (err: unknown) {
         if (err instanceof ApiError && err.statusCode === 409 && isConflictDetails(err.details)) {
           setConflict(docId, err.details);
@@ -362,6 +376,7 @@ export function FileEditorSurface({ sdkClient, serverId, workspaceId }: FileEdit
           >
             <ActiveFileBody
               doc={doc}
+              isActive={isActive}
               mdView={mdView}
               setMdView={setMdView}
               onChange={(content) => updateContent(id, content)}
@@ -370,6 +385,7 @@ export function FileEditorSurface({ sdkClient, serverId, workspaceId }: FileEdit
               onReload={() => handleConflictReload(id)}
               onCancelConflict={() => handleConflictCancel(id)}
               onRetry={() => markLoading(id)}
+              sdkClient={sdkClient}
             />
           </div>
         );
@@ -404,6 +420,7 @@ export function FileEditorSurface({ sdkClient, serverId, workspaceId }: FileEdit
 
 interface ActiveFileBodyProps {
   doc: FileDocState;
+  isActive: boolean;
   mdView: 'source' | 'preview';
   setMdView: (v: 'source' | 'preview') => void;
   onChange: (content: string) => void;
@@ -412,10 +429,12 @@ interface ActiveFileBodyProps {
   onReload: () => void;
   onCancelConflict: () => void;
   onRetry: () => void;
+  sdkClient: Jean2Client | null;
 }
 
 function ActiveFileBody({
   doc,
+  isActive,
   mdView,
   setMdView,
   onChange,
@@ -424,11 +443,49 @@ function ActiveFileBody({
   onReload,
   onCancelConflict,
   onRetry,
+  sdkClient,
 }: ActiveFileBodyProps) {
   const docId = buildDocId(doc.identity);
   const isMd = isMarkdownFile(doc.identity.path, doc.language);
   const dirty = isDocDirty(doc);
   const saving = doc.status === 'saving';
+  const [showGitDiff, setShowGitDiff] = useState(true);
+
+  const normalizedPath = normalizePath(doc.identity.path);
+  const normalizedRoot = doc.identity.root || undefined;
+
+  // Only the active hydrated document owns a live Git diff observer.
+  const diffEnabled = isActive && doc.status === 'loaded';
+  const { data: diffData, isFetching: diffFetching } = useEditorGitDiffQuery(
+    sdkClient,
+    doc.identity.workspaceId,
+    normalizedPath,
+    normalizedRoot,
+    diffEnabled,
+  );
+
+  const gitDiff = useMemo<EditorGitDiff | null>(() => {
+    if (!diffData?.diffAvailable || diffData.hunks.length === 0) return null;
+    return {
+      hunks: diffData.hunks,
+      additions: diffData.additions,
+      deletions: diffData.deletions,
+    };
+  }, [diffData]);
+  const removedContentTruncated = useMemo(
+    () => gitDiff ? isGitDiffRemovedContentTruncated(gitDiff.hunks) : false,
+    [gitDiff],
+  );
+
+  const handleRefreshDiff = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.files.gitDiff(
+        doc.identity.workspaceId,
+        normalizedPath,
+        normalizedRoot,
+      ),
+    });
+  }, [doc.identity.workspaceId, normalizedPath, normalizedRoot]);
 
   if (doc.status === 'loading') {
     return (
@@ -443,21 +500,82 @@ function ActiveFileBody({
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <AlertCircle className="size-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{doc.error ?? 'Failed to load file'}</p>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Retry
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              useUIStore.getState().openFilePreview({
+                workspaceId: doc.identity.workspaceId,
+                path: doc.identity.path,
+                name: doc.name,
+                root: doc.identity.root || undefined,
+              })
+            }
+          >
+            <Eye className="size-3.5" />
+            Open Preview
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Toolbar: markdown toggle + save + conflict */}
+      {/* Toolbar: path, git diff controls, markdown toggle, save */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1">
         <span className="truncate text-xs text-muted-foreground" title={doc.identity.path}>
           {doc.identity.path}
         </span>
         <div className="ml-auto flex items-center gap-1">
+          {/* Git diff controls */}
+          {(gitDiff || diffFetching || diffData) && (
+            <>
+              {gitDiff && (
+                <span className="flex items-center gap-1 text-[10px] font-medium shrink-0">
+                  {gitDiff.additions > 0 && (
+                    <span className="text-green-600 dark:text-green-400">+{gitDiff.additions}</span>
+                  )}
+                  {gitDiff.deletions > 0 && (
+                    <span className="text-red-600 dark:text-red-400">-{gitDiff.deletions}</span>
+                  )}
+                </span>
+              )}
+              {removedContentTruncated && (
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  Removed details limited
+                </span>
+              )}
+              {diffFetching && (
+                <RefreshCw className="size-3 animate-spin text-muted-foreground" />
+              )}
+              {gitDiff && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() => setShowGitDiff((v) => !v)}
+                  title={showGitDiff ? 'Hide Git diff' : 'Show Git diff'}
+                  className="shrink-0"
+                >
+                  {showGitDiff ? <EyeOff className="size-3" /> : <GitBranch className="size-3" />}
+                </Button>
+              )}
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={handleRefreshDiff}
+                title="Refresh Git diff"
+                disabled={diffFetching}
+                className="shrink-0"
+              >
+                <RefreshCw className={cn('size-3', diffFetching && 'animate-spin')} />
+              </Button>
+            </>
+          )}
           {isMd && (
             <Tabs value={mdView} onValueChange={(v) => setMdView(v as 'source' | 'preview')}>
               <TabsList className="h-7">
@@ -507,6 +625,8 @@ function ActiveFileBody({
             mimeType={doc.mimeType}
             onChange={onChange}
             readOnly={saving}
+            gitDiff={gitDiff}
+            showGitDiff={showGitDiff}
           />
         )}
       </div>

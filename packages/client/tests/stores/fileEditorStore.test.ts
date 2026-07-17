@@ -170,7 +170,7 @@ describe('fileEditorStore', () => {
       reloadFromConflict(id);
       const doc = useFileEditorStore.getState().docs[id];
       expect(doc.conflict).toBeUndefined();
-      expect(doc.revision).toBe('r9');
+      expect(doc.revision).toBe('rev-9');
       expect(doc.baseContent).toBe('const a = 999;\n');
       expect(doc.content).toBe('const a = 999;\n');
       expect(isDocDirty(doc)).toBe(false);

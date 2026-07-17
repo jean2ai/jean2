@@ -46,6 +46,17 @@ function isInside(child: string, parent: string): boolean {
   return child.startsWith(parent + sep);
 }
 
+function isInsideUnselectedAdditionalRoot(
+  candidate: string,
+  selectedRoot: string,
+  additionalPaths: string[],
+): boolean {
+  return additionalPaths.some((path) => {
+    const additionalRoot = resolve(path);
+    return additionalRoot !== selectedRoot && isInside(candidate, additionalRoot);
+  });
+}
+
 /** SHA-256 hex digest of exact file bytes. */
 function hashBytes(buf: Uint8Array): string {
   return createHash('sha256').update(buf).digest('hex');
@@ -95,7 +106,13 @@ export async function readEditableFile(
   const lexicalRoot = resolve(root);
   const candidate = resolveCandidate(root, inputPath);
 
-  if (!isInside(candidate, lexicalRoot)) {
+  if (
+    !isInside(candidate, lexicalRoot)
+    || (
+      isAbsolute(inputPath)
+      && isInsideUnselectedAdditionalRoot(candidate, lexicalRoot, workspace.additionalPaths)
+    )
+  ) {
     throw new ForbiddenError('Path outside workspace');
   }
 
@@ -203,7 +220,13 @@ export async function saveFile(
   const candidate = resolveCandidate(root, input.path);
   const rootRelative = toRootRelative(candidate, root);
 
-  if (!isInside(candidate, lexicalRoot)) {
+  if (
+    !isInside(candidate, lexicalRoot)
+    || (
+      isAbsolute(input.path)
+      && isInsideUnselectedAdditionalRoot(candidate, lexicalRoot, workspace.additionalPaths)
+    )
+  ) {
     throw new ForbiddenError('Path outside workspace');
   }
 

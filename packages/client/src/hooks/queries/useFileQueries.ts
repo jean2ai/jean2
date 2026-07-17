@@ -106,6 +106,31 @@ export function useFileGitDiffQuery(
   });
 }
 
+/**
+ * Editor-specific Git diff query with a finite stale time so active editor
+ * documents refresh on focus, reconnect, and explicit invalidation.
+ *
+ * Uses the same queryKey as `useFileGitDiffQuery` so cache identity is shared,
+ * but with different caching semantics for the editor lifecycle.
+ */
+export function useEditorGitDiffQuery(
+  sdkClient: Jean2Client | null,
+  workspaceId: string | undefined,
+  path: string | undefined,
+  root: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.files.gitDiff(workspaceId ?? '', path ?? '', root),
+    queryFn: ({ signal }) => sdkClient!.http.files.gitDiff(workspaceId!, path!, { root, signal }),
+    enabled: !!sdkClient && !!workspaceId && !!path && enabled,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useGitStatusQuery(
   sdkClient: Jean2Client | null,
   workspaceId: string | undefined,

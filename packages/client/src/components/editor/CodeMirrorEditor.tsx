@@ -16,6 +16,7 @@ import {
   foldGutter,
   indentOnInput,
   indentUnit,
+  StreamLanguage,
   syntaxHighlighting,
 } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
@@ -25,8 +26,15 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { css } from '@codemirror/lang-css';
 import { html } from '@codemirror/lang-html';
+import { go } from '@codemirror/lang-go';
+import { java } from '@codemirror/lang-java';
+import { php } from '@codemirror/lang-php';
+import { python } from '@codemirror/lang-python';
+import { sql } from '@codemirror/lang-sql';
+import { kotlin } from '@codemirror/legacy-modes/mode/clike';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { cn } from '@/lib/utils';
+import { createGitDiffExtension, type EditorGitDiff, type GitDiffExtensionController } from './gitDiffExtension';
 
 interface CodeMirrorEditorProps {
   /** Document identity string; when it changes the editor resets via setState. */
@@ -37,6 +45,10 @@ interface CodeMirrorEditorProps {
   readOnly?: boolean;
   onChange: (value: string) => void;
   className?: string;
+  /** Git diff data for inline decorations. Pass null when no diff exists. */
+  gitDiff?: EditorGitDiff | null;
+  /** When false, diff decorations are hidden but cached data is preserved. */
+  showGitDiff?: boolean;
 }
 
 /** Light theme built from CSS variables. */
@@ -158,6 +170,23 @@ function buildLanguageExtension(language?: string, mimeType?: string): Extension
     case 'xml':
     case 'svg':
       return [html()];
+    case 'go':
+    case 'golang':
+      return [go()];
+    case 'python':
+    case 'py':
+    case 'pyw':
+      return [python()];
+    case 'php':
+      return [php()];
+    case 'kotlin':
+    case 'kt':
+    case 'kts':
+      return [StreamLanguage.define(kotlin)];
+    case 'java':
+      return [java()];
+    case 'sql':
+      return [sql()];
     default:
       return [];
   }
@@ -180,12 +209,18 @@ export function CodeMirrorEditor({
   readOnly = false,
   onChange,
   className,
+  gitDiff = null,
+  showGitDiff = true,
 }: CodeMirrorEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const languageCompartmentRef = useRef<Compartment | null>(null);
   const themeCompartmentRef = useRef<Compartment | null>(null);
   const readOnlyCompartmentRef = useRef<Compartment | null>(null);
+  const gitDiffControllerRef = useRef<GitDiffExtensionController | null>(null);
+  const previousDocIdRef = useRef(docId);
+  const appliedGitDiffRef = useRef<EditorGitDiff | null>(gitDiff);
+  const appliedGitDiffVisibilityRef = useRef(showGitDiff);
 
   const { resolvedMode } = useTheme();
   const isDark = resolvedMode === 'dark';
@@ -203,6 +238,7 @@ export function CodeMirrorEditor({
     themeCompartment: Compartment,
     languageCompartment: Compartment,
     readOnlyCompartment: Compartment,
+    gitDiffController: GitDiffExtensionController,
     initialLanguage: string | undefined,
     initialMime: string | undefined,
     initialReadOnly: boolean,
@@ -218,6 +254,7 @@ export function CodeMirrorEditor({
     indentUnit.of('  '),
     EditorView.lineWrapping,
     highlightExtensions,
+    gitDiffController.extension,
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,
@@ -245,9 +282,11 @@ export function CodeMirrorEditor({
     const themeCompartment = new Compartment();
     const languageCompartment = new Compartment();
     const readOnlyCompartment = new Compartment();
+    const gitDiffController = createGitDiffExtension();
     languageCompartmentRef.current = languageCompartment;
     themeCompartmentRef.current = themeCompartment;
     readOnlyCompartmentRef.current = readOnlyCompartment;
+    gitDiffControllerRef.current = gitDiffController;
 
     const state = EditorState.create({
       doc: value,
@@ -255,6 +294,7 @@ export function CodeMirrorEditor({
         themeCompartment,
         languageCompartment,
         readOnlyCompartment,
+        gitDiffController,
         language,
         mimeType,
         readOnly,
@@ -266,12 +306,19 @@ export function CodeMirrorEditor({
     viewRef.current = view;
     lastEmittedRef.current = value;
 
+    if (gitDiff && showGitDiff) {
+      gitDiffController.setDiff(view, gitDiff);
+    }
+    appliedGitDiffRef.current = gitDiff;
+    appliedGitDiffVisibilityRef.current = showGitDiff;
+
     return () => {
       view.destroy();
       viewRef.current = null;
       languageCompartmentRef.current = null;
       themeCompartmentRef.current = null;
       readOnlyCompartmentRef.current = null;
+      gitDiffControllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -280,17 +327,22 @@ export function CodeMirrorEditor({
   // so undo history does not leak across files. We reuse the same Compartment
   // instances so theme/language/readOnly reconfigure effects keep working.
   useEffect(() => {
+    if (previousDocIdRef.current === docId) return;
+    previousDocIdRef.current = docId;
+
     const view = viewRef.current;
     const themeCompartment = themeCompartmentRef.current;
     const languageCompartment = languageCompartmentRef.current;
     const readOnlyCompartment = readOnlyCompartmentRef.current;
-    if (!view || !themeCompartment || !languageCompartment || !readOnlyCompartment) return;
+    const gitDiffController = gitDiffControllerRef.current;
+    if (!view || !themeCompartment || !languageCompartment || !readOnlyCompartment || !gitDiffController) return;
     const state = EditorState.create({
       doc: value,
       extensions: buildExtensions(
         themeCompartment,
         languageCompartment,
         readOnlyCompartment,
+        gitDiffController,
         language,
         mimeType,
         readOnly,
@@ -299,6 +351,11 @@ export function CodeMirrorEditor({
     });
     view.setState(state);
     lastEmittedRef.current = value;
+    if (gitDiff && showGitDiff) {
+      gitDiffController.setDiff(view, gitDiff);
+    }
+    appliedGitDiffRef.current = gitDiff;
+    appliedGitDiffVisibilityRef.current = showGitDiff;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId]);
 
@@ -343,13 +400,15 @@ export function CodeMirrorEditor({
     const themeCompartment = themeCompartmentRef.current;
     const languageCompartment = languageCompartmentRef.current;
     const readOnlyCompartment = readOnlyCompartmentRef.current;
-    if (!themeCompartment || !languageCompartment || !readOnlyCompartment) return;
+    const gitDiffController = gitDiffControllerRef.current;
+    if (!themeCompartment || !languageCompartment || !readOnlyCompartment || !gitDiffController) return;
     const state = EditorState.create({
       doc: value,
       extensions: buildExtensions(
         themeCompartment,
         languageCompartment,
         readOnlyCompartment,
+        gitDiffController,
         language,
         mimeType,
         readOnly,
@@ -358,8 +417,38 @@ export function CodeMirrorEditor({
     });
     view.setState(state);
     lastEmittedRef.current = value;
+    if (gitDiff && showGitDiff) {
+      gitDiffController.setDiff(view, gitDiff);
+    }
+    appliedGitDiffRef.current = gitDiff;
+    appliedGitDiffVisibilityRef.current = showGitDiff;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
+  // Replace decorations only when the authoritative diff or visibility changes.
+  useEffect(() => {
+    const view = viewRef.current;
+    const controller = gitDiffControllerRef.current;
+    if (!view || !controller) return;
+
+    const visibilityChanged = appliedGitDiffVisibilityRef.current !== showGitDiff;
+    const diffChanged = appliedGitDiffRef.current !== gitDiff;
+
+    if (!showGitDiff) {
+      if (visibilityChanged) {
+        controller.setDiff(view, null);
+      }
+      appliedGitDiffRef.current = gitDiff;
+      appliedGitDiffVisibilityRef.current = false;
+      return;
+    }
+
+    if (visibilityChanged || diffChanged) {
+      controller.setDiff(view, gitDiff);
+      appliedGitDiffRef.current = gitDiff;
+      appliedGitDiffVisibilityRef.current = true;
+    }
+  }, [gitDiff, showGitDiff]);
 
   return (
     <div

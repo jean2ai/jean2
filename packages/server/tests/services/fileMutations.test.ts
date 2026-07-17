@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, writeFileSync, rmSync, symlinkSync, chmodSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, symlinkSync, chmodSync, lstatSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { createHash } from 'crypto';
@@ -208,23 +208,24 @@ describe('fileMutations - saveFile', () => {
     expect(details.currentContent).toBe(changed);
   });
 
-  test('forces a save over a stale revision when force is true', async () => {
+  test('rejects a stale revision when force is true', async () => {
     const filePath = join(workspaceDir, 'force.txt');
     writeFileSync(filePath, 'original\n', 'utf-8');
 
-    const result = await saveFile(
-      { path: workspaceDir, additionalPaths: [] },
-      {
-        path: 'force.txt',
-        content: 'forced\n',
-        expectedRevision: 'stale-revision',
-        force: true,
-      },
-    );
+    await expect(
+      saveFile(
+        { path: workspaceDir, additionalPaths: [] },
+        {
+          path: 'force.txt',
+          content: 'forced\n',
+          expectedRevision: 'stale-revision',
+          force: true,
+        },
+      ),
+    ).rejects.toBeInstanceOf(ConflictError);
 
-    expect(result.revision).toBe(sha256('forced\n'));
     const onDisk = Bun.file(filePath);
-    expect(await onDisk.text()).toBe('forced\n');
+    expect(await onDisk.text()).toBe('original\n');
   });
 
   test('rejects a missing target file', async () => {
@@ -339,4 +340,16 @@ describe('fileMutations - saveFile', () => {
     symlinkSync(targetFile, linkPath);
 
     const read = await readEditableFile(
-      { path: workspaceDir, additionalPaths: [] },                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+      { path: workspaceDir, additionalPaths: [] },
+      'link.txt',
+    );
+
+    await saveFile(
+      { path: workspaceDir, additionalPaths: [] },
+      { path: 'link.txt', content: 'updated through link\n', expectedRevision: read.revision },
+    );
+
+    expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+    expect(readFileSync(targetFile, 'utf-8')).toBe('updated through link\n');
+  });
+});

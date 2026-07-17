@@ -16,6 +16,8 @@ const CODE_EXTENSIONS: Record<string, string> = {
   cjs: 'javascript',
   json: 'json',
   jsonc: 'json',
+  md: 'markdown',
+  markdown: 'markdown',
   css: 'css',
   scss: 'scss',
   sass: 'sass',

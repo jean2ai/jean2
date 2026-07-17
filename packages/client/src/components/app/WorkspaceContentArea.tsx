@@ -153,7 +153,7 @@ export function WorkspaceContentArea({ sdkClient, serverUrl }: WorkspaceContentA
   if (isMobile) {
     return (
       <div ref={containerRef} className="relative flex flex-1 min-h-0">
-        <div className={cn('flex-1 min-h-0', mobileShowEditor && 'hidden')}>
+        <div className={cn('flex flex-1 min-h-0', mobileShowEditor && 'hidden')}>
           <SessionBoard sdkClient={sdkClient} serverUrl={serverUrl} />
         </div>
         {hasEditorDocs && mobileShowEditor && (
@@ -196,7 +196,7 @@ export function WorkspaceContentArea({ sdkClient, serverUrl }: WorkspaceContentA
 
   return (
     <div ref={containerRef} className="flex flex-1 min-h-0">
-      <div style={{ width: `${boardWidthPct}%` }} className="min-h-0 min-w-0">
+      <div style={{ width: `${boardWidthPct}%` }} className="flex min-h-0 min-w-0">
         <SessionBoard sdkClient={sdkClient} serverUrl={serverUrl} />
       </div>
       <div

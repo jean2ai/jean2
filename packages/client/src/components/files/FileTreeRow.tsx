@@ -1,8 +1,12 @@
 import { memo, useRef, useCallback } from 'react';
 import { ChevronRight, Folder, FolderOpen, File, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/sdk';
 import { cn } from '@/lib/utils';
 import { GitStatusBadge } from './GitStatusBadge';
+import {
+  FileEntryContextMenu,
+  type FileEntryActionTarget,
+  type FileEntryActions,
+} from './FileEntryContextMenu';
 import { FOLDER_ICON_COLOR, fileIconColor } from './fileIcons';
 import type { VisibleFileNode } from '@/hooks/useFlatFileTree';
 
@@ -11,10 +15,12 @@ const PREFETCH_DELAY_MS = 200;
 interface FileTreeRowProps {
   node: VisibleFileNode;
   onToggle: (fullPath: string) => void;
-  onFileSelect?: (file: FileEntry) => void;
+  onFileSelect?: (target: FileEntryActionTarget) => void;
   onPrefetch: (fullPath: string) => void;
   isFocused: boolean;
   isActive?: boolean;
+  contextActions?: FileEntryActions;
+  root?: string;
 }
 
 export const FileTreeRow = memo(function FileTreeRow({
@@ -24,6 +30,8 @@ export const FileTreeRow = memo(function FileTreeRow({
   onPrefetch,
   isFocused,
   isActive = false,
+  contextActions,
+  root,
 }: FileTreeRowProps) {
   const prefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { entry, depth, isExpanded, isLoading, fullPath } = node;
@@ -48,9 +56,12 @@ export const FileTreeRow = memo(function FileTreeRow({
     if (isDirectory) {
       onToggle(fullPath);
     } else if (onFileSelect) {
-      onFileSelect({ ...entry, path: fullPath });
+      onFileSelect({
+        entry: { ...entry, path: fullPath },
+        root,
+      });
     }
-  }, [isDirectory, fullPath, onToggle, onFileSelect, entry]);
+  }, [isDirectory, fullPath, onToggle, onFileSelect, entry, root]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter') {
@@ -62,7 +73,7 @@ export const FileTreeRow = memo(function FileTreeRow({
   const Icon = isDirectory ? (isExpanded ? FolderOpen : Folder) : File;
   const iconColor = isDirectory ? FOLDER_ICON_COLOR : (fullPath ? fileIconColor(fullPath) : 'text-muted-foreground');
 
-  return (
+  const button = (
     <button
       data-file-node
       data-file-type={isDirectory ? 'directory' : 'file'}
@@ -98,6 +109,21 @@ export const FileTreeRow = memo(function FileTreeRow({
       {entry.git && <GitStatusBadge git={entry.git} />}
     </button>
   );
+
+  // Only file rows get the context menu in this checkpoint.
+  // Directory menus are added when real directory actions ship.
+  if (!isDirectory && contextActions) {
+    return (
+      <FileEntryContextMenu
+        target={{ entry: { ...entry, path: fullPath }, root }}
+        actions={contextActions}
+      >
+        {button}
+      </FileEntryContextMenu>
+    );
+  }
+
+  return button;
 }, (prev, next) => {
   return (
     prev.node === next.node &&
@@ -105,6 +131,8 @@ export const FileTreeRow = memo(function FileTreeRow({
     prev.isActive === next.isActive &&
     prev.onToggle === next.onToggle &&
     prev.onFileSelect === next.onFileSelect &&
-    prev.onPrefetch === next.onPrefetch
+    prev.onPrefetch === next.onPrefetch &&
+    prev.contextActions === next.contextActions &&
+    prev.root === next.root
   );
 });
