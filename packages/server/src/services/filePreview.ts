@@ -16,6 +16,8 @@ const CODE_EXTENSIONS: Record<string, string> = {
   cjs: 'javascript',
   json: 'json',
   jsonc: 'json',
+  md: 'markdown',
+  markdown: 'markdown',
   css: 'css',
   scss: 'scss',
   sass: 'sass',
@@ -126,6 +128,11 @@ function getLanguage(ext: string | undefined): string | undefined {
 export function getLanguageForPath(filePath: string): string | undefined {
   const ext = extname(filePath);
   return getLanguage(ext);
+}
+
+export function getMimeTypeForPath(filePath: string): string | undefined {
+  const ext = extname(filePath);
+  return ext ? MIME_MAP[ext.toLowerCase()] : undefined;
 }
 
 export async function getFilePreview(

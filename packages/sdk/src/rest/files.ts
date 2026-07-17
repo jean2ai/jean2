@@ -8,7 +8,10 @@ import type {
   BrowseFsResponse,
   FsParentResponse,
   ListDrivesResponse,
+  ReadEditableFileResponse,
+  SaveFileResponse,
 } from '../types/rest-responses';
+import type { SaveFileRequest } from '../shared';
 
 interface BrowseOptions {
   path?: string;
@@ -26,6 +29,15 @@ interface SearchOptions {
 }
 
 interface PreviewOptions {
+  signal?: AbortSignal;
+}
+
+interface ReadEditableOptions {
+  root?: string;
+  signal?: AbortSignal;
+}
+
+interface SaveOptions {
   signal?: AbortSignal;
 }
 
@@ -94,6 +106,23 @@ export class FilesRestNamespace {
     }
     return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/file-preview`, {
       params,
+      signal: options?.signal,
+    });
+  }
+
+  async readEditable(workspaceId: string, path: string, options?: ReadEditableOptions): Promise<ReadEditableFileResponse> {
+    const params: Record<string, string> = { path };
+    if (options?.root !== undefined) {
+      params.root = options.root;
+    }
+    return this.http.get(`/workspaces/${encodeURIComponent(workspaceId)}/file`, {
+      params,
+      signal: options?.signal,
+    });
+  }
+
+  async save(workspaceId: string, request: SaveFileRequest, options?: SaveOptions): Promise<SaveFileResponse> {
+    return this.http.put(`/workspaces/${encodeURIComponent(workspaceId)}/file`, request, {
       signal: options?.signal,
     });
   }

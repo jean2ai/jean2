@@ -1,4 +1,4 @@
-import { AuthError, ConnectionError, RateLimitError, ServerError, ValidationError } from '../errors';
+import { ApiError, AuthError, ConnectionError, RateLimitError, ServerError, ValidationError } from '../errors';
 
 export interface HttpClientConfig {
   url: string;
@@ -76,11 +76,21 @@ export class HttpClient {
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
+      let errorCode: string | undefined;
+      let errorDetails: unknown;
+      let parsed = false;
       try {
-        const errorBody = await response.json() as { message?: string };
+        const errorBody = await response.json() as { error?: string; message?: string; details?: unknown };
         if (errorBody.message) errorMessage = errorBody.message;
+        if (errorBody.error) errorCode = errorBody.error;
+        if (errorBody.details !== undefined) errorDetails = errorBody.details;
+        parsed = true;
       } catch {
         // Ignore parse error for error body
+      }
+
+      if (parsed && errorCode) {
+        throw new ApiError(errorMessage, response.status, errorCode, { details: errorDetails });
       }
 
       if (response.status >= 500) {

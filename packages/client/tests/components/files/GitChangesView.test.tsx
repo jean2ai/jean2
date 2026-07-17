@@ -1,7 +1,8 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { FileEntry, GitDiffSummary } from '@jean2/sdk';
+import type { GitDiffSummary } from '@jean2/sdk';
+import type { FileEntryActionTarget } from '@/components/files/FileEntryContextMenu';
 
 const mockUseGitStatusQuery = vi.fn();
 
@@ -342,10 +343,12 @@ describe('GitChangesView - grouped mode rendering', () => {
     await user.click(screen.getByText('dialog.tsx'));
 
     expect(onFileSelect).toHaveBeenCalledTimes(1);
-    const fileArg = onFileSelect.mock.calls[0]![0] as FileEntry;
-    expect(fileArg.path).toBe('src/components/ui/dialog.tsx');
-    expect(fileArg.name).toBe('dialog.tsx');
-    expect(fileArg.type).toBe('file');
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.entry.path).toBe('src/components/ui/dialog.tsx');
+    expect(target.entry.name).toBe('dialog.tsx');
+    expect(target.entry.type).toBe('file');
+    // Main root uses undefined at the opener boundary.
+    expect(target.root).toBeUndefined();
   });
 
   test('root-level files remain selectable', async () => {
@@ -366,9 +369,11 @@ describe('GitChangesView - grouped mode rendering', () => {
     await user.click(screen.getByText('README.md'));
 
     expect(onFileSelect).toHaveBeenCalledTimes(1);
-    const fileArg = onFileSelect.mock.calls[0]![0] as FileEntry;
-    expect(fileArg.path).toBe('README.md');
-    expect(fileArg.name).toBe('README.md');
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.entry.path).toBe('README.md');
+    expect(target.entry.name).toBe('README.md');
+    expect(target.entry.type).toBe('file');
+    expect(target.root).toBeUndefined();
   });
 
   test('directory count badge shows recursive file count', async () => {
@@ -454,7 +459,214 @@ describe('GitChangesView - flat mode', () => {
     await user.click(screen.getByText('file.ts'));
 
     expect(onFileSelect).toHaveBeenCalledTimes(1);
-    const fileArg = onFileSelect.mock.calls[0]![0] as FileEntry;
-    expect(fileArg.path).toBe('src/deep/nested/file.ts');
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.entry.path).toBe('src/deep/nested/file.ts');
+    expect(target.root).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 4: The opener receives a complete FileEntryActionTarget carrying the
+// root of the selected row, so actions target the exact root regardless of
+// the currently selected panel root.
+// ---------------------------------------------------------------------------
+
+describe('GitChangesView - FileEntryActionTarget root preservation', () => {
+  beforeEach(() => {
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [],
+        root: '',
+      },
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  function renderWithRoot(root: string | undefined) {
+    const onFileSelect = vi.fn();
+    render(
+      <GitChangesView
+        workspaceId="ws-1"
+        sdkClient={null}
+        root={root}
+        mode="flat"
+        onFileSelect={onFileSelect}
+      />,
+    );
+    return { onFileSelect };
+  }
+
+  test('the callback target carries the additional root passed to the view', async () => {
+    const user = userEvent.setup();
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [makeFile('src/app.ts')],
+        root: '/extra/root',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { onFileSelect } = renderWithRoot('/extra/root');
+
+    await user.click(screen.getByText('app.ts'));
+
+    expect(onFileSelect).toHaveBeenCalledTimes(1);
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.root).toBe('/extra/root');
+    expect(target.entry.path).toBe('src/app.ts');
+  });
+
+  test('main root is represented as undefined in the target', async () => {
+    const user = userEvent.setup();
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [makeFile('README.md')],
+        root: '',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { onFileSelect } = renderWithRoot(undefined);
+
+    await user.click(screen.getByText('README.md'));
+
+    expect(onFileSelect).toHaveBeenCalledTimes(1);
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    // Main root uses undefined at the opener boundary.
+    expect(target.root).toBeUndefined();
+  });
+
+  test('grouped mode preserves the additional root through nested directories', async () => {
+    const user = userEvent.setup();
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [makeFile('src/components/ui/dialog.tsx')],
+        root: '/workspace/extra',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const onFileSelect = vi.fn();
+    render(
+      <GitChangesView
+        workspaceId="ws-1"
+        sdkClient={null}
+        root="/workspace/extra"
+        mode="grouped"
+        onFileSelect={onFileSelect}
+      />,
+    );
+
+    await user.click(screen.getByText('src'));
+    await user.click(screen.getByText('components'));
+    await user.click(screen.getByText('ui'));
+    await user.click(screen.getByText('dialog.tsx'));
+
+    expect(onFileSelect).toHaveBeenCalledTimes(1);
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.root).toBe('/workspace/extra');
+    expect(target.entry.path).toBe('src/components/ui/dialog.tsx');
+  });
+
+  test('the target includes git metadata from the changed file', async () => {
+    const user = userEvent.setup();
+    const customGit: GitDiffSummary = {
+      status: 'modified',
+      staged: false,
+      unstaged: true,
+      additions: 3,
+      deletions: 1,
+    };
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [{ path: 'src/app.ts', git: customGit }],
+        root: '',
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { onFileSelect } = renderWithRoot('');
+
+    await user.click(screen.getByText('app.ts'));
+
+    const target = onFileSelect.mock.calls[0]![0] as FileEntryActionTarget;
+    expect(target.entry.git).toEqual(customGit);
+  });
+});
+
+describe('GitChangesView - search', () => {
+  beforeEach(() => {
+    mockUseGitStatusQuery.mockReturnValue({
+      data: {
+        availability: { available: true },
+        files: [
+          makeFile('src/components/Dialog.tsx'),
+          makeFile('src/app.ts'),
+          makeFile('README.md'),
+        ],
+        root: '',
+      },
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  test('filters paths case-insensitively and expands grouped matches', () => {
+    render(
+      <GitChangesView
+        workspaceId="ws-1"
+        sdkClient={null}
+        mode="grouped"
+        searchQuery="DIALOG"
+        onFileSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('src')).toBeInTheDocument();
+    expect(screen.getByText('components')).toBeInTheDocument();
+    expect(screen.getByText('Dialog.tsx')).toBeInTheDocument();
+    expect(screen.queryByText('app.ts')).not.toBeInTheDocument();
+    expect(screen.queryByText('README.md')).not.toBeInTheDocument();
+  });
+
+  test('preserves flat mode while filtering', () => {
+    render(
+      <GitChangesView
+        workspaceId="ws-1"
+        sdkClient={null}
+        mode="flat"
+        searchQuery="src/"
+        onFileSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Dialog.tsx')).toBeInTheDocument();
+    expect(screen.getByText('app.ts')).toBeInTheDocument();
+    expect(screen.queryByText('README.md')).not.toBeInTheDocument();
+  });
+
+  test('distinguishes no matches from no changes', () => {
+    render(
+      <GitChangesView
+        workspaceId="ws-1"
+        sdkClient={null}
+        mode="grouped"
+        searchQuery="missing"
+        onFileSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('No matching files')).toBeInTheDocument();
+    expect(screen.queryByText('No changes')).not.toBeInTheDocument();
   });
 });

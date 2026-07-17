@@ -125,3 +125,38 @@ export interface GitFileDiffResponse {
   deletions: number;
   language?: string;
 }
+
+export interface FileRevisionConflictDetails {
+  path: string;
+  expectedRevision: string;
+  actualRevision: string;
+  currentContent: string;
+}
+
+export interface EditableFileResponse {
+  path: string;
+  name: string;
+  extension?: string;
+  size: number;
+  content: string;
+  revision: string;
+  readOnly: false;
+  mimeType?: string;
+  language?: string;
+  encoding: 'utf-8';
+}
+
+export interface SaveFileRequest {
+  path: string;
+  content: string;
+  expectedRevision: string;
+  root?: string;
+  force?: boolean;
+}
+
+export interface SaveFileResponse {
+  path: string;
+  revision: string;
+  size: number;
+  modifiedAt: string;
+}

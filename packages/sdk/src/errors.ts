@@ -55,3 +55,24 @@ export class ValidationError extends Jean2Error {
     this.statusCode = statusCode;
   }
 }
+
+export class ApiError extends Jean2Error {
+  readonly statusCode: number;
+  readonly code: string;
+  readonly details?: unknown;
+
+  constructor(
+    message: string,
+    statusCode: number,
+    code: string,
+    options?: ErrorOptions & { details?: unknown },
+  ) {
+    super(message, options);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.code = code;
+    if (options?.details !== undefined) {
+      this.details = options.details;
+    }
+  }
+}

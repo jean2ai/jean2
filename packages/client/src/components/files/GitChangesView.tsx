@@ -7,7 +7,17 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { useGitStatusQuery } from '@/hooks/queries';
 import { GitStatusBadge } from './GitStatusBadge';
+import {
+  FileEntryContextMenu,
+  type FileEntryActionTarget,
+  type FileEntryActions,
+} from './FileEntryContextMenu';
 import { FOLDER_ICON_COLOR, fileIconColor } from './fileIcons';
+import {
+  buildFilePathTree,
+  type FilePathDirectoryNode,
+  type FilePathTree,
+} from './filePathTree';
 
 export interface GitChangesViewHandle {
   focus: () => void;
@@ -18,104 +28,21 @@ interface GitChangesViewProps {
   sdkClient: Jean2Client | null;
   root?: string;
   mode: 'grouped' | 'flat';
-  onFileSelect: (file: FileEntry) => void;
+  searchQuery?: string;
+  onFileSelect: (target: FileEntryActionTarget) => void;
   width?: number;
+  contextActions?: FileEntryActions;
 }
 
 type ChangedFile = { path: string; git: GitDiffSummary };
 
 // --- Tree model ---
 
-export interface ChangedDirectoryNode {
-  name: string;
-  path: string;
-  directories: ChangedDirectoryNode[];
-  files: ChangedFile[];
-  fileCount: number;
-}
+export type ChangedDirectoryNode = FilePathDirectoryNode<ChangedFile>;
+export type ChangedFilesTree = FilePathTree<ChangedFile>;
 
-export interface ChangedFilesTree {
-  directories: ChangedDirectoryNode[];
-  files: ChangedFile[];
-}
-
-function getFileName(path: string): string {
-  const idx = path.lastIndexOf('/');
-  return idx === -1 ? path : path.slice(idx + 1);
-}
-
-/**
- * Build a recursive directory tree from a flat list of changed files.
- * Every directory segment in a file's path becomes a node.
- * Directories are sorted before files at every level, both alphabetically.
- * The input array is not mutated.
- */
 export function buildChangedFilesTree(files: ChangedFile[]): ChangedFilesTree {
-  interface BuilderDir {
-    name: string;
-    path: string;
-    directories: Map<string, BuilderDir>;
-    files: ChangedFile[];
-  }
-
-  const root: BuilderDir = {
-    name: '',
-    path: '',
-    directories: new Map(),
-    files: [],
-  };
-
-  for (const f of files) {
-    const segments = f.path.split('/');
-    const dirSegments = segments.slice(0, -1);
-    const fileName = segments[segments.length - 1];
-
-    if (!fileName) continue;
-
-    let current = root;
-    for (const seg of dirSegments) {
-      if (!seg) continue;
-      let child = current.directories.get(seg);
-      if (!child) {
-        child = {
-          name: seg,
-          path: current.path ? `${current.path}/${seg}` : seg,
-          directories: new Map(),
-          files: [],
-        };
-        current.directories.set(seg, child);
-      }
-      current = child;
-    }
-    current.files.push(f);
-  }
-
-  function convert(dir: BuilderDir): ChangedDirectoryNode {
-    const directories = Array.from(dir.directories.values())
-      .map(convert)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const sortedFiles = [...dir.files].sort((a, b) =>
-      getFileName(a.path).localeCompare(getFileName(b.path)),
-    );
-    const fileCount =
-      sortedFiles.length + directories.reduce((sum, d) => sum + d.fileCount, 0);
-    return {
-      name: dir.name,
-      path: dir.path,
-      directories,
-      files: sortedFiles,
-      fileCount,
-    };
-  }
-
-  return {
-    directories: Array.from(root.directories.values())
-      .map(convert)
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    files: [...root.files].sort((a, b) =>
-      getFileName(a.path).localeCompare(getFileName(b.path)),
-    ),
-  };
+  return buildFilePathTree(files);
 }
 
 // --- File row ---
@@ -127,24 +54,33 @@ function ChangedFileRow({
   depth = 0,
   showChevronSpacer = false,
   showDirPrefix = true,
+  contextActions,
+  root,
 }: {
   path: string;
   git: GitDiffSummary;
-  onFileSelect: (file: FileEntry) => void;
+  onFileSelect: (target: FileEntryActionTarget) => void;
   depth?: number;
   showChevronSpacer?: boolean;
   showDirPrefix?: boolean;
+  contextActions?: FileEntryActions;
+  root?: string;
 }) {
   const lastSlash = path.lastIndexOf('/');
   const fileName = lastSlash === -1 ? path : path.slice(lastSlash + 1);
   const dirPath = lastSlash === -1 ? '' : path.slice(0, lastSlash + 1);
 
   const handleClick = () => {
-    const ext = fileName.lastIndexOf('.') !== -1 ? fileName.slice(fileName.lastIndexOf('.')) : undefined;
-    onFileSelect({ name: fileName, type: 'file', path, extension: ext, git });
+    const extension = fileName.lastIndexOf('.') !== -1
+      ? fileName.slice(fileName.lastIndexOf('.'))
+      : undefined;
+    onFileSelect({
+      entry: { name: fileName, type: 'file', path, extension, git },
+      root,
+    });
   };
 
-  return (
+  const button = (
     <button
       data-file-node
       data-file-type="file"
@@ -166,6 +102,27 @@ function ChangedFileRow({
       <GitStatusBadge git={git} />
     </button>
   );
+
+  const entry: FileEntry = {
+    name: fileName,
+    type: 'file',
+    path,
+    extension: fileName.lastIndexOf('.') !== -1 ? fileName.slice(fileName.lastIndexOf('.')) : undefined,
+    git,
+  };
+
+  if (contextActions) {
+    return (
+      <FileEntryContextMenu
+        target={{ entry, root }}
+        actions={contextActions}
+      >
+        {button}
+      </FileEntryContextMenu>
+    );
+  }
+
+  return button;
 }
 
 // --- Grouped mode ---
@@ -173,16 +130,22 @@ function ChangedFileRow({
 function GroupedChangedFiles({
   files,
   onFileSelect,
+  contextActions,
+  root,
+  defaultExpanded,
 }: {
   files: ChangedFile[];
-  onFileSelect: (file: FileEntry) => void;
+  onFileSelect: (target: FileEntryActionTarget) => void;
+  contextActions?: FileEntryActions;
+  root?: string;
+  defaultExpanded: boolean;
 }) {
   const tree = useMemo(() => buildChangedFilesTree(files), [files]);
 
   return (
     <div className="space-y-0.5">
       {tree.directories.map((dir) => (
-        <GroupedDirectoryNode key={dir.path} node={dir} depth={0} onFileSelect={onFileSelect} />
+        <GroupedDirectoryNode key={dir.path} node={dir} depth={0} onFileSelect={onFileSelect} contextActions={contextActions} root={root} defaultExpanded={defaultExpanded} />
       ))}
       {tree.files.map((f) => (
         <ChangedFileRow
@@ -193,6 +156,8 @@ function GroupedChangedFiles({
           showChevronSpacer
           showDirPrefix={false}
           onFileSelect={onFileSelect}
+          contextActions={contextActions}
+          root={root}
         />
       ))}
     </div>
@@ -203,12 +168,18 @@ function GroupedDirectoryNode({
   node,
   depth,
   onFileSelect,
+  contextActions,
+  root,
+  defaultExpanded,
 }: {
   node: ChangedDirectoryNode;
   depth: number;
-  onFileSelect: (file: FileEntry) => void;
+  onFileSelect: (target: FileEntryActionTarget) => void;
+  contextActions?: FileEntryActions;
+  root?: string;
+  defaultExpanded: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultExpanded);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -234,7 +205,7 @@ function GroupedDirectoryNode({
       <CollapsibleContent>
         <div className="space-y-0.5">
           {node.directories.map((child) => (
-            <GroupedDirectoryNode key={child.path} node={child} depth={depth + 1} onFileSelect={onFileSelect} />
+            <GroupedDirectoryNode key={child.path} node={child} depth={depth + 1} onFileSelect={onFileSelect} contextActions={contextActions} root={root} defaultExpanded={defaultExpanded} />
           ))}
           {node.files.map((f) => (
             <ChangedFileRow
@@ -245,6 +216,8 @@ function GroupedDirectoryNode({
               showChevronSpacer
               showDirPrefix={false}
               onFileSelect={onFileSelect}
+              contextActions={contextActions}
+              root={root}
             />
           ))}
         </div>
@@ -262,7 +235,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 export const GitChangesView = forwardRef<GitChangesViewHandle, GitChangesViewProps>(
-  ({ workspaceId, sdkClient, root, mode, onFileSelect, width }, ref) => {
+  ({ workspaceId, sdkClient, root, mode, searchQuery = '', onFileSelect, width, contextActions }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const { data, isLoading, error } = useGitStatusQuery(sdkClient, workspaceId, root);
 
@@ -297,6 +270,10 @@ export const GitChangesView = forwardRef<GitChangesViewHandle, GitChangesViewPro
 
     const availability = data?.availability;
     const files = data?.files ?? [];
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+    const filteredFiles = normalizedSearchQuery
+      ? files.filter((file) => file.path.toLowerCase().includes(normalizedSearchQuery))
+      : files;
 
     if (availability && !availability.available) {
       const label = availability.reason ? REASON_LABELS[availability.reason] ?? 'Git unavailable' : 'Git unavailable';
@@ -311,16 +288,22 @@ export const GitChangesView = forwardRef<GitChangesViewHandle, GitChangesViewPro
       );
     }
 
+    if (filteredFiles.length === 0) {
+      return (
+        <div ref={containerRef} className="p-4 text-sm text-muted-foreground text-center" tabIndex={-1}>No matching files</div>
+      );
+    }
+
     return (
       <div ref={containerRef} className="flex-1 min-h-0 min-w-0 w-full outline-none" tabIndex={-1}>
         <ScrollArea className="h-full">
           <div className="px-2 pb-2 w-full min-w-0" style={width ? { width: `${width - 8}px` } : undefined}>
             {mode === 'grouped' ? (
-              <GroupedChangedFiles files={files} onFileSelect={onFileSelect} />
+              <GroupedChangedFiles key={normalizedSearchQuery ? 'search' : 'browse'} files={filteredFiles} onFileSelect={onFileSelect} contextActions={contextActions} root={root} defaultExpanded={normalizedSearchQuery.length > 0} />
             ) : (
               <div className="space-y-0.5">
-                {files.map((f) => (
-                  <ChangedFileRow key={f.path} path={f.path} git={f.git} onFileSelect={onFileSelect} />
+                {filteredFiles.map((f) => (
+                  <ChangedFileRow key={f.path} path={f.path} git={f.git} onFileSelect={onFileSelect} contextActions={contextActions} root={root} />
                 ))}
               </div>
             )}

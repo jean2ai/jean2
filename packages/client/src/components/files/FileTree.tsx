@@ -1,21 +1,27 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
-import type { FileEntry } from '@jean2/sdk';
 import type { Jean2Client } from '@jean2/sdk';
 import { LegendList } from '@legendapp/list/react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeRow } from './FileTreeRow';
+import type { FileEntryActionTarget, FileEntryActions } from './FileEntryContextMenu';
 import { useFlatFileTree, type VisibleFileNode } from '@/hooks/useFlatFileTree';
 import { RENDER_BUDGETS } from '@/lib/renderBudgets';
 
 interface FileTreeProps {
   workspaceId: string;
   sdkClient: Jean2Client | null;
-  onFileSelect?: (file: FileEntry) => void;
+  onFileSelect?: (target: FileEntryActionTarget) => void;
   showHidden?: boolean;
   width?: number;
   root?: string;
+  /** Currently active file path (relative), for active row styling. */
+  activePath?: string;
+  /** Root the activePath is relative to ('' or undefined for main root). */
+  activeRoot?: string;
+  /** Context menu actions for file rows. */
+  contextActions?: FileEntryActions;
 }
 
 export interface FileTreeHandle {
@@ -24,7 +30,7 @@ export interface FileTreeHandle {
 }
 
 export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
-  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root }, ref) => {
+  ({ workspaceId, sdkClient, onFileSelect, showHidden = true, width, root, activePath, activeRoot, contextActions }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
@@ -123,7 +129,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
           if (currentNode.entry.type === 'directory') {
             toggleExpanded(currentNode.fullPath);
           } else {
-            onFileSelect?.({ ...currentNode.entry, path: currentNode.fullPath });
+            onFileSelect?.({
+              entry: { ...currentNode.entry, path: currentNode.fullPath },
+              root,
+            });
           }
           break;
         }
@@ -134,13 +143,19 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
           break;
         }
       }
-    }, [visibleNodes, focusedIndex, toggleExpanded, onFileSelect, focusNode]);
+    }, [visibleNodes, focusedIndex, toggleExpanded, onFileSelect, focusNode, root]);
 
     const rowCommon = {
       onToggle: toggleExpanded,
       onFileSelect,
       onPrefetch: prefetchDirectory,
+      contextActions,
+      root,
     };
+
+    // Determine whether the active file lives under this tree's root.
+    const rootMatches = (activeRoot ?? '') === (root ?? '');
+    const isActivePath = !!(activePath && rootMatches);
 
     if (isLoading) {
       return (
@@ -189,6 +204,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                 node={item}
                 {...rowCommon}
                 isFocused={focusedIndex === index}
+                isActive={isActivePath && item.fullPath === activePath}
               />
             )}
             estimatedItemSize={36}
@@ -219,6 +235,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(
                   node={node}
                   {...rowCommon}
                   isFocused={focusedIndex === index}
+                  isActive={isActivePath && node.fullPath === activePath}
                 />
               ))}
             </div>

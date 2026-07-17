@@ -1,8 +1,10 @@
 import { Suspense, lazy } from 'react';
+import { useParams } from '@tanstack/react-router';
 import { useShallow } from 'zustand/react/shallow';
 import type { Jean2Client, WorkspaceSettings, PermissionGrant } from '@jean2/sdk';
 import { useUIStore } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useFileEditorStore } from '@/stores/fileEditorStore';
 
 const ConfigurationDialog = lazy(() =>
   import('@/components/modals/ConfigurationDialog').then((m) => ({ default: m.ConfigurationDialog })),
@@ -50,6 +52,11 @@ export function ServerDialogs({
   onUpdateWorkspaceSettings,
   isUpdatingWorkspace = {},
 }: ServerDialogsProps) {
+  const params = useParams({
+    from: '/server/$serverId',
+    strict: false,
+  } as unknown as Parameters<typeof useParams>[0]);
+  const serverId = params?.serverId as string | undefined;
   const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
 
   const {
@@ -127,13 +134,25 @@ export function ServerDialogs({
 
           {filePreviewTarget !== null && (
             <FilePreviewOverlay
-              workspaceId={activeWorkspace?.id}
+              workspaceId={filePreviewTarget.workspaceId}
               target={filePreviewTarget}
               sdkClient={sdkClient}
               open={filePreviewTarget !== null}
               onOpenChange={(open) => {
                 if (!open) closeFilePreview();
               }}
+              onOpenEdit={serverId ? () => {
+                useFileEditorStore.getState().openDoc(
+                  {
+                    serverId,
+                    workspaceId: filePreviewTarget.workspaceId,
+                    root: filePreviewTarget.root ?? '',
+                    path: filePreviewTarget.path,
+                  },
+                  filePreviewTarget.name,
+                );
+                closeFilePreview();
+              } : undefined}
             />
           )}
         </Suspense>

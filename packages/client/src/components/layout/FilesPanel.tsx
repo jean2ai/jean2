@@ -1,9 +1,11 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState, useEffect } from 'react';
-import { X, RefreshCw, Search, ChevronDown, Folder, Check } from 'lucide-react';
-import type { FileEntry } from '@jean2/sdk';
-import type { Jean2Client } from '@jean2/sdk';
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState, useEffect, useMemo } from 'react';
+import { X, RefreshCw, Search, ChevronDown, ChevronRight, Folder, File, Check } from 'lucide-react';
+import { useParams } from '@tanstack/react-router';
+import type { FileEntry, Jean2Client } from '@jean2/sdk';
 import { FileTree, type FileTreeHandle, GitChangesView, type GitChangesViewHandle } from '@/components/files';
-import { FOLDER_ICON_COLOR } from '@/components/files/fileIcons';
+import { FileEntryContextMenu, type FileEntryActions, type FileEntryActionTarget } from '@/components/files/FileEntryContextMenu';
+import { FOLDER_ICON_COLOR, fileIconColor } from '@/components/files/fileIcons';
+import { buildFilePathTree, type FilePathDirectoryNode } from '@/components/files/filePathTree';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,10 +29,12 @@ import {
   PanelResizeHandle,
 } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useChatLayoutStore } from '@/stores/chatLayoutStore';
-import { useUIStore } from '@/stores/uiStore';
+import { useUIStore, type DefaultFileOpenMode } from '@/stores/uiStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useFileEditorStore } from '@/stores/fileEditorStore';
 import { queryClient } from '@/components/providers/QueryProvider';
 import { platform } from '@/platform';
 import { useFileSearchQuery } from '@/hooks/queries';
@@ -99,21 +103,125 @@ function PathSwitcher({
   );
 }
 
-/**
- * Debounced search results list (flat), reusing the server search endpoint.
- */
+function SearchResultFileRow({
+  file,
+  depth,
+  root,
+  onFileSelect,
+  contextActions,
+}: {
+  file: FileEntry;
+  depth: number;
+  root: string | undefined;
+  onFileSelect: (target: FileEntryActionTarget) => void;
+  contextActions?: FileEntryActions;
+}) {
+  const button = (
+    <button
+      data-file-node
+      data-file-type="file"
+      onClick={() => onFileSelect({ entry: file, root })}
+      className={cn(
+        'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
+        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
+        '[&_svg]:size-4 [&_svg]:shrink-0',
+      )}
+      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+    >
+      <span className="size-3 shrink-0" aria-hidden />
+      <File className={fileIconColor(file.path)} />
+      <span className="truncate flex-1 min-w-0">{file.name}</span>
+    </button>
+  );
+
+  if (!contextActions) return button;
+
+  return (
+    <FileEntryContextMenu target={{ entry: file, root }} actions={contextActions}>
+      {button}
+    </FileEntryContextMenu>
+  );
+}
+
+function SearchResultDirectory({
+  node,
+  depth,
+  root,
+  onFileSelect,
+  contextActions,
+}: {
+  node: FilePathDirectoryNode<FileEntry>;
+  depth: number;
+  root: string | undefined;
+  onFileSelect: (target: FileEntryActionTarget) => void;
+  contextActions?: FileEntryActions;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          data-file-node
+          data-file-type="directory"
+          data-file-is-open={open || undefined}
+          className={cn(
+            'flex items-center gap-2 w-full min-w-0 overflow-hidden rounded-md p-2 text-left text-sm',
+            'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            'focus:ring-1 focus:ring-inset ring-sidebar-ring outline-hidden',
+            '[&_svg]:size-4 [&_svg]:shrink-0',
+          )}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          <ChevronRight className={cn('size-3 shrink-0 transition-transform', open && 'rotate-90')} />
+          <Folder className={FOLDER_ICON_COLOR} />
+          <span className="truncate flex-1 min-w-0">{node.name}</span>
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0">{node.fileCount}</span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="flex flex-col gap-0.5">
+          {node.directories.map((directory) => (
+            <SearchResultDirectory
+              key={directory.path}
+              node={directory}
+              depth={depth + 1}
+              root={root}
+              onFileSelect={onFileSelect}
+              contextActions={contextActions}
+            />
+          ))}
+          {node.files.map((file) => (
+            <SearchResultFileRow
+              key={file.path}
+              file={file}
+              depth={depth + 1}
+              root={root}
+              onFileSelect={onFileSelect}
+              contextActions={contextActions}
+            />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function SearchResults({
   workspaceId,
   sdkClient,
   query,
   root,
   onFileSelect,
+  contextActions,
 }: {
   workspaceId: string;
   sdkClient: Jean2Client | null;
   query: string;
   root: string | undefined;
-  onFileSelect: (file: FileEntry) => void;
+  onFileSelect: (target: FileEntryActionTarget) => void;
+  contextActions?: FileEntryActions;
 }) {
   const normalizedQuery = query.trim();
   const [debouncedQuery, setDebouncedQuery] = useState(normalizedQuery);
@@ -138,7 +246,11 @@ function SearchResults({
     effectiveQuery,
     root,
   );
-  const results = data?.files ?? [];
+  const fileResults = useMemo(
+    () => (data?.files ?? []).filter((entry) => entry.type === 'file'),
+    [data?.files],
+  );
+  const resultTree = useMemo(() => buildFilePathTree(fileResults), [fileResults]);
   const loading = normalizedQuery.length >= 2 && (
     effectiveQuery !== normalizedQuery || isFetching
   );
@@ -168,7 +280,7 @@ function SearchResults({
     );
   }
 
-  if (results.length === 0) {
+  if (fileResults.length === 0) {
     return (
       <div className="p-3 text-xs text-muted-foreground">
         No files found matching &quot;{query}&quot;
@@ -178,30 +290,27 @@ function SearchResults({
 
   return (
     <ScrollArea className="h-full">
-      <div className="px-2 pb-2 space-y-0.5">
-        {results.map((file) => {
-          const lastSlash = file.path.lastIndexOf('/');
-          const fileName = lastSlash === -1 ? file.path : file.path.slice(lastSlash + 1);
-          const dirPath = lastSlash === -1 ? '' : file.path.slice(0, lastSlash + 1);
-          return (
-            <button
-              key={file.path}
-              onClick={() => onFileSelect(file)}
-              className={cn(
-                'flex items-center gap-2 w-full min-w-0 px-2 py-1.5 rounded-md text-sm text-left',
-                'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-              )}
-            >
-              <span className="truncate flex-1 min-w-0">
-                {dirPath && <span className="text-muted-foreground">{dirPath}</span>}
-                <span>{fileName}</span>
-              </span>
-              {file.extension && (
-                <span className="text-[10px] text-muted-foreground shrink-0">{file.extension}</span>
-              )}
-            </button>
-          );
-        })}
+      <div className="flex flex-col gap-0.5 px-2 pb-2">
+        {resultTree.directories.map((directory) => (
+          <SearchResultDirectory
+            key={`${effectiveQuery}:${directory.path}`}
+            node={directory}
+            depth={0}
+            root={root}
+            onFileSelect={onFileSelect}
+            contextActions={contextActions}
+          />
+        ))}
+        {resultTree.files.map((file) => (
+          <SearchResultFileRow
+            key={file.path}
+            file={file}
+            depth={0}
+            root={root}
+            onFileSelect={onFileSelect}
+            contextActions={contextActions}
+          />
+        ))}
       </div>
     </ScrollArea>
   );
@@ -223,7 +332,26 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     const setFilesPanelGitMode = useChatLayoutStore((s) => s.setFilesPanelGitMode);
     const activeWorkspace = useServerDataStore((s) => s.activeWorkspace);
     const workspaceId = activeWorkspace?.id;
-    const [searchQuery, setSearchQuery] = useState('');
+    const routeParams = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
+    const serverId = routeParams?.serverId as string | undefined;
+    const [projectSearchQuery, setProjectSearchQuery] = useState('');
+    const [changesSearchQuery, setChangesSearchQuery] = useState('');
+
+    // Active editor doc (for highlighting the open file in the tree).
+    const activeEditorPath = useFileEditorStore((s) => {
+      if (!s.activeDocId) return undefined;
+      const d = s.docs[s.activeDocId];
+      if (!d) return undefined;
+      if (d.identity.serverId !== (serverId ?? '') || d.identity.workspaceId !== (workspaceId ?? '')) return undefined;
+      return d.identity.path;
+    });
+    const activeEditorRoot = useFileEditorStore((s) => {
+      if (!s.activeDocId) return undefined;
+      const d = s.docs[s.activeDocId];
+      if (!d) return undefined;
+      if (d.identity.serverId !== (serverId ?? '') || d.identity.workspaceId !== (workspaceId ?? '')) return undefined;
+      return d.identity.root ?? '';
+    });
 
     // Resolve the effective selected root (fall back to workspace.path).
     const selectedRoot = filesPanelRoot ?? activeWorkspace?.path ?? '';
@@ -241,7 +369,8 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     // the previous workspace's search against the new workspace.
     const workspaceIdForReset = activeWorkspace?.id;
     useEffect(() => {
-      setSearchQuery('');
+      setProjectSearchQuery('');
+      setChangesSearchQuery('');
     }, [workspaceIdForReset]);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -293,23 +422,65 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
     useImperativeHandle(ref, () => ({ focus }), [focus]);
 
     const openFilePreview = useUIStore((s) => s.openFilePreview);
+    const defaultFileOpenMode = useUIStore((s) => s.defaultFileOpenMode);
 
-    const handleFileSelect = useCallback((file: FileEntry) => {
-      if (file.type === 'file' && workspaceId) {
-        if (platform.capabilities.fileOpen && platform.openFile) {
-          const rootPath = isMainRoot ? (activeWorkspace?.path ?? '') : selectedRoot;
-          const absPath = rootPath ? `${rootPath}/${file.path}` : file.path;
-          void platform.openFile(absPath);
-        } else {
+    // Centralized mode-aware file opener.
+    // Preview opens the read-only FilePreviewOverlay.
+    // Edit opens or focuses the persistent editor document.
+    const openFile = useCallback((target: FileEntryActionTarget, mode?: DefaultFileOpenMode) => {
+      const { entry, root } = target;
+      if (entry.type !== 'file') return;
+      if (entry.git?.status === 'deleted' && mode === 'edit') return;
+
+      const effectiveMode = entry.git?.status === 'deleted'
+        ? 'preview'
+        : mode ?? defaultFileOpenMode;
+
+      if (workspaceId) {
+        if (effectiveMode === 'preview') {
           openFilePreview({
             workspaceId,
-            path: file.path,
-            name: file.name,
-            root: isMainRoot ? undefined : selectedRoot,
+            path: entry.path,
+            name: entry.name,
+            root,
           });
+          if (isMobile) {
+            setShowFilesPanel(false);
+          }
+          return;
+        }
+
+        if (serverId) {
+          useFileEditorStore.getState().openDoc(
+            {
+              serverId,
+              workspaceId,
+              root: root ?? '',
+              path: entry.path,
+            },
+            entry.name,
+          );
+          if (isMobile) {
+            setShowFilesPanel(false);
+          }
+          return;
+        }
+
+        if (platform.capabilities.fileOpen && platform.openFile) {
+          const rootPath = root ?? activeWorkspace?.path ?? '';
+          const absPath = rootPath ? `${rootPath}/${entry.path}` : entry.path;
+          void platform.openFile(absPath);
         }
       }
-    }, [workspaceId, openFilePreview, activeWorkspace?.path, isMainRoot, selectedRoot]);
+    }, [workspaceId, serverId, isMobile, setShowFilesPanel, openFilePreview, defaultFileOpenMode, activeWorkspace?.path]);
+
+    const handleFileSelect = useCallback((target: FileEntryActionTarget) => {
+      openFile(target);
+    }, [openFile]);
+
+    const contextActions: FileEntryActions = useMemo(() => ({
+      open: openFile,
+    }), [openFile]);
 
     const headerContent = activeWorkspace ? (
       <div className="flex flex-col gap-2 px-2 pt-2 pb-2">
@@ -338,33 +509,45 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={projectSearchQuery}
+              onChange={(e) => setProjectSearchQuery(e.target.value)}
               placeholder="Search files..."
               className="h-7 pl-7 pr-2 text-sm"
             />
           </div>
         )}
         {filesPanelTab === 'changes' && (
-          <Tabs value={filesPanelGitMode} onValueChange={(v) => setFilesPanelGitMode(v as 'grouped' | 'flat')}>
-            <TabsList variant="line" className="w-full">
-              <TabsTrigger value="grouped" className="flex-1">Grouped</TabsTrigger>
-              <TabsTrigger value="flat" className="flex-1">Flat</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={changesSearchQuery}
+                onChange={(e) => setChangesSearchQuery(e.target.value)}
+                placeholder="Search changes..."
+                className="h-7 pl-7 pr-2 text-sm"
+              />
+            </div>
+            <Tabs value={filesPanelGitMode} onValueChange={(v) => setFilesPanelGitMode(v as 'grouped' | 'flat')}>
+              <TabsList variant="line" className="w-full">
+                <TabsTrigger value="grouped" className="flex-1">Grouped</TabsTrigger>
+                <TabsTrigger value="flat" className="flex-1">Flat</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </>
         )}
       </div>
     ) : null;
 
     const content = workspaceId ? (
       filesPanelTab === 'project' ? (
-        searchQuery.trim().length >= 2 ? (
+        projectSearchQuery.trim().length >= 2 ? (
           <SearchResults
             workspaceId={workspaceId}
             sdkClient={sdkClient}
-            query={searchQuery.trim()}
+            query={projectSearchQuery.trim()}
             root={isMainRoot ? undefined : selectedRoot}
             onFileSelect={handleFileSelect}
+            contextActions={contextActions}
           />
         ) : (
           <FileTree
@@ -376,6 +559,9 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
             width={filesPanelWidth}
             root={isMainRoot ? undefined : selectedRoot}
             onFileSelect={handleFileSelect}
+            activePath={activeEditorPath}
+            activeRoot={activeEditorRoot}
+            contextActions={contextActions}
           />
         )
       ) : (
@@ -385,8 +571,10 @@ export const FilesPanel = forwardRef<FilesPanelHandle, FilesPanelProps>(
           sdkClient={sdkClient}
           root={isMainRoot ? undefined : selectedRoot}
           mode={filesPanelGitMode}
+          searchQuery={changesSearchQuery}
           onFileSelect={handleFileSelect}
           width={filesPanelWidth}
+          contextActions={contextActions}
         />
       )
     ) : null;

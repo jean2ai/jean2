@@ -936,3 +936,122 @@ main {
   transition: none !important;
   animation: none !important;
 }
+
+/* ==========================================================================
+   CODEMIRROR EDITOR STYLING
+   ========================================================================== */
+
+.cm-editor {
+  height: 100%;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+/* Thin scrollbar for the CodeMirror scroller, matching the app aesthetic. */
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  border-radius: 3px;
+  border: none;
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+}
+
+.cm-editor .cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+}
+
+/* Fold gutter placeholder styling */
+.cm-editor .cm-foldPlaceholder {
+  background-color: var(--muted);
+  border: none;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/*
+ * Robust selection styling. With drawSelection(), CodeMirror renders its own
+ * selection layer (.cm-selectionBackground) instead of relying on the native
+ * ::selection. Using !important ensures our theme color wins over the
+ * defaultHighlightStyle / built-in CM defaults across all browsers.
+ */
+.cm-editor .cm-selectionBackground {
+  background-color: color-mix(in oklch, var(--primary) 25%, transparent) !important;
+}
+
+.cm-editor.cm-focused .cm-selectionBackground {
+  background-color: color-mix(in oklch, var(--primary) 30%, transparent) !important;
+}
+
+.cm-editor .cm-cursor {
+  border-left-color: var(--primary) !important;
+}
+
+/* ==========================================================================
+   CODEMIRROR GIT DIFF DECORATIONS
+   ========================================================================== */
+
+/* Added line background */
+.cm-editor .cm-git-added-line {
+  background-color: color-mix(in oklch, var(--diff-added, green) 12%, transparent);
+}
+
+/* Modified line background (replace+add hunk) */
+.cm-editor .cm-git-modified-line {
+  background-color: color-mix(in oklch, var(--diff-added, green) 10%, transparent);
+}
+
+/* Git diff gutter markers */
+.cm-editor .cm-git-diff-gutter {
+  width: 4px;
+}
+
+.cm-editor .cm-git-added-gutter {
+  background-color: color-mix(in oklch, var(--diff-added, green) 50%, transparent);
+}
+
+.cm-editor .cm-git-modified-gutter {
+  background-color: color-mix(in oklch, var(--diff-added, green) 50%, transparent);
+}
+
+.cm-editor .cm-git-deleted-gutter {
+  background-color: color-mix(in oklch, var(--diff-removed, red) 50%, transparent);
+}
+
+/* Removed line block widgets */
+.cm-editor .cm-git-removed-widget {
+  margin: 0;
+  padding: 0;
+  background-color: color-mix(in oklch, var(--diff-removed, red) 10%, transparent);
+  border-left: 2px solid color-mix(in oklch, var(--diff-removed, red) 40%, transparent);
+}
+
+.cm-editor .cm-git-removed-line {
+  padding: 0 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in oklch, var(--diff-removed, red) 70%, var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-all;
+  opacity: 0.8;
+}

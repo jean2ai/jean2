@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import type { Jean2Client } from '@jean2/sdk';
-import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard, Wrench } from 'lucide-react';
+import { Key, Boxes, FileText, Layers, Link2, Braces, Terminal, User, Palette, Keyboard, Wrench, FolderOpen } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ const ToolsPanel = lazy(() => import('./tools/ToolsPanel').then((m) => ({ defaul
 const AccountPanel = lazy(() => import('./configuration/AccountPanel').then((m) => ({ default: m.AccountPanel })));
 const AppearancePanel = lazy(() => import('./configuration/AppearancePanel').then((m) => ({ default: m.AppearancePanel })));
 const KeybindsPanel = lazy(() => import('./configuration/KeybindsPanel').then((m) => ({ default: m.KeybindsPanel })));
+const FilesPanelPreferences = lazy(() => import('./configuration/FilesPanelPreferences').then((m) => ({ default: m.FilesPanelPreferences })));
 
 function PanelLoadingFallback() {
   return (
@@ -64,6 +65,7 @@ const SECTIONS: SectionDef[] = [
   { value: 'account', label: 'Account', icon: User, group: 'preferences' },
   { value: 'appearance', label: 'Appearance', icon: Palette, group: 'preferences' },
   { value: 'keybinds', label: 'Keybinds', icon: Keyboard, group: 'preferences' },
+  { value: 'files', label: 'Files', icon: FolderOpen, group: 'preferences' },
   // Server
   { value: 'providers', label: 'Credentials', icon: Key, group: 'server' },
   { value: 'oauth', label: 'OAuth', icon: Link2, group: 'server' },
@@ -86,6 +88,8 @@ function renderPanel(value: ConfigurationSection, sdkClient: Jean2Client | null,
             return <AppearancePanel />;
           case 'keybinds':
             return <KeybindsPanel />;
+          case 'files':
+            return <FilesPanelPreferences />;
           case 'providers':
             return <ProviderCredentialsPanel sdkClient={sdkClient} />;
           case 'oauth':

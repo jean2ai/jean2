@@ -18,7 +18,7 @@ import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { WorkspaceSessionContent } from '@/components/layout/WorkspaceSessionContent';
 import { PinnedMessagesPanel } from '@/components/layout/PinnedMessagesPanel';
 import { AppPanels } from '@/components/app/AppPanels';
-import { SessionBoard } from '@/components/board/SessionBoard';
+import { WorkspaceContentArea } from '@/components/app/WorkspaceContentArea';
 import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 import { getWorkspaceDefaultPreconfigId } from '@/lib/workspacePreconfigs';
 import { hasCapability } from '@/platform';
@@ -263,7 +263,7 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
       >
         <div className={hasCapability('multiView') ? 'flex flex-1 flex-col overflow-hidden min-h-0 rounded-xl bg-background shadow-sm ring-1 ring-border' : 'flex flex-1 flex-col overflow-hidden min-h-0 bg-background'}>
           {hasMultipleOpenSessions ? <WorkspaceBoardToolbar /> : <WorkspaceHeader />}
-          <SessionBoard
+          <WorkspaceContentArea
             sdkClient={sdkClient}
             serverUrl={sessionManager.serverUrl}
           />

@@ -8,6 +8,7 @@ export type ConfigurationSection =
   | 'account'
   | 'appearance'
   | 'keybinds'
+  | 'files'
   // Server
   | 'providers'
   | 'oauth'
@@ -17,6 +18,9 @@ export type ConfigurationSection =
   | 'response-formats'
   | 'env'
   | 'tools';
+
+// --- Default File Open Mode ---
+export type DefaultFileOpenMode = 'preview' | 'edit';
 
 interface ConfigurationSectionState {
   configurationSection: ConfigurationSection;
@@ -75,6 +79,7 @@ interface SchedulerModalActions {
 // --- Settings ---
 const CHAT_FINISH_SOUND_KEY = 'jean2_sound_chat_finish_enabled';
 const PERMISSION_SOUND_KEY = 'jean2_sound_permission_enabled';
+const DEFAULT_FILE_OPEN_MODE_KEY = 'jean2_default_file_open_mode';
 
 const getStoredBoolean = (key: string, fallback: boolean): boolean => {
   if (typeof window === 'undefined') return fallback;
@@ -82,14 +87,22 @@ const getStoredBoolean = (key: string, fallback: boolean): boolean => {
   return stored !== null ? stored === 'true' : fallback;
 };
 
+function getStoredFileOpenMode(): DefaultFileOpenMode {
+  if (typeof window === 'undefined') return 'preview';
+  const stored = localStorage.getItem(DEFAULT_FILE_OPEN_MODE_KEY);
+  return stored === 'edit' ? 'edit' : 'preview';
+}
+
 interface SettingsState {
   chatFinishSoundEnabled: boolean;
   permissionSoundEnabled: boolean;
+  defaultFileOpenMode: DefaultFileOpenMode;
 }
 
 interface SettingsActions {
   setChatFinishSoundEnabled: (enabled: boolean) => void;
   setPermissionSoundEnabled: (enabled: boolean) => void;
+  setDefaultFileOpenMode: (mode: DefaultFileOpenMode) => void;
 }
 
 // --- Auto-Approve Severity ---
@@ -147,6 +160,7 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
   // --- Settings ---
   chatFinishSoundEnabled: getStoredBoolean(CHAT_FINISH_SOUND_KEY, true),
   permissionSoundEnabled: getStoredBoolean(PERMISSION_SOUND_KEY, true),
+  defaultFileOpenMode: getStoredFileOpenMode(),
 
   setChatFinishSoundEnabled: (enabled) => {
     if (typeof window !== 'undefined') {
@@ -159,6 +173,12 @@ export const useUIStore: UseBoundStore<StoreApi<UIStore>> = create<UIStore>((set
       localStorage.setItem(PERMISSION_SOUND_KEY, String(enabled));
     }
     set({ permissionSoundEnabled: enabled });
+  },
+  setDefaultFileOpenMode: (mode) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(DEFAULT_FILE_OPEN_MODE_KEY, mode);
+    }
+    set({ defaultFileOpenMode: mode });
   },
 
   // --- File Preview ---

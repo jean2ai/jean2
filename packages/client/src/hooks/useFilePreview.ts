@@ -14,6 +14,7 @@ interface UseFilePreviewResult {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
+  errorCause: unknown;
   reload: () => void;
 }
 
@@ -37,6 +38,7 @@ export function useFilePreview({
     loading: isLoading,
     refreshing: isFetching && !isLoading,
     error: error?.message ?? null,
+    errorCause: error ?? null,
     reload: () => { void refetch(); },
   };
 }

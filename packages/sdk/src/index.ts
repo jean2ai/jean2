@@ -13,6 +13,7 @@ export {
   TimeoutError,
   ServerError,
   ValidationError,
+  ApiError,
 } from './errors';
 
 export { version } from './version';
