@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import type { GitDiffChange, GitDiffHunk } from '@jean2/sdk';
 import {
+  createGitDiffExtension,
   isGitDiffRemovedContentTruncated,
   parseGitDiffHunks,
 } from '@/components/editor/gitDiffExtension';
@@ -132,5 +135,31 @@ describe('parseGitDiffHunks', () => {
       removedContentTruncated: false,
     });
     expect(isGitDiffRemovedContentTruncated([])).toBe(false);
+  });
+});
+
+describe('createGitDiffExtension', () => {
+  test('provides sorted block decorations directly from editor state', () => {
+    const controller = createGitDiffExtension();
+    const state = EditorState.create({
+      doc: 'new',
+      extensions: [controller.extension],
+    });
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({ state, parent });
+
+    try {
+      expect(() =>
+        controller.setDiff(view, {
+          hunks: [hunk(1, [change('removed', 'old'), change('added', 'new')])],
+          additions: 1,
+          deletions: 1,
+        }),
+      ).not.toThrow();
+    } finally {
+      view.destroy();
+      parent.remove();
+    }
   });
 });

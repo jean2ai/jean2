@@ -13,8 +13,6 @@ function getEnvFilePathForModule(): string {
 }
 
 const PROVIDER_CREDENTIALS: Array<{ provider: string; envKey: string }> = [
-  { provider: 'anthropic', envKey: 'JEAN2_LLM_ANTHROPIC_API_KEY' },
-  { provider: 'google', envKey: 'JEAN2_LLM_GOOGLE_API_KEY' },
   { provider: 'minimax', envKey: 'JEAN2_LLM_MINIMAX_API_KEY' },
   { provider: 'openai', envKey: 'JEAN2_LLM_OPENAI_API_KEY' },
   { provider: 'openrouter', envKey: 'JEAN2_LLM_OPENROUTER_API_KEY' },

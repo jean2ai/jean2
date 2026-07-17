@@ -1,9 +1,7 @@
 import { findModel } from '@/config';
 import {
   getLLMOpenAIApiKey,
-  getLLMAnthropicApiKey,
   getLLMOpenRouterApiKey,
-  getLLMGoogleApiKey,
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
@@ -12,12 +10,10 @@ import {
 import { getModelsConfig } from '@/config';
 import type { Session, Preconfig } from '@jean2/sdk';
 
-export type Provider = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'deepseek';
+export type Provider = 'openai' | 'openrouter' | 'minimax' | 'zhipu' | 'zhipu-coding' | 'deepseek';
 
 const PROVIDER_PREFIXES: Array<{ test: (m: string) => boolean; provider: string }> = [
   { test: (m) => m.includes('/'), provider: 'openrouter' },
-  { test: (m) => m.startsWith('claude-'), provider: 'anthropic' },
-  { test: (m) => m.startsWith('gemini-'), provider: 'google' },
   { test: (m) => m.startsWith('MiniMax-') || m.toLowerCase().includes('minimax'), provider: 'minimax' },
   { test: (m) => m.startsWith('deepseek-'), provider: 'deepseek' },
 ];
@@ -34,9 +30,7 @@ export function findProviderFromModel(modelId: string): string {
 
 const apiKeyGetterMap: Record<string, () => string | undefined> = {
   openai: getLLMOpenAIApiKey,
-  anthropic: getLLMAnthropicApiKey,
   openrouter: getLLMOpenRouterApiKey,
-  google: getLLMGoogleApiKey,
   minimax: getLLMMinimaxApiKey,
   zhipu: getLLMZhipuApiKey,
   'zhipu-coding': getLLMZhipuCodingApiKey,

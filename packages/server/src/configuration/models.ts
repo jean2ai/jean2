@@ -16,15 +16,13 @@ import type {
 } from '@jean2/sdk';
 
 const KNOWN_PROVIDERS = new Set([
-  'openai', 'anthropic', 'openrouter', 'google', 'minimax', 'zhipu', 'zhipu-coding',
+  'openai', 'openrouter', 'minimax', 'zhipu', 'zhipu-coding',
   'codex', 'deepseek',
 ]);
 
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   openai: 'JEAN2_LLM_OPENAI_API_KEY',
-  anthropic: 'JEAN2_LLM_ANTHROPIC_API_KEY',
   openrouter: 'JEAN2_LLM_OPENROUTER_API_KEY',
-  google: 'JEAN2_LLM_GOOGLE_API_KEY',
   minimax: 'JEAN2_LLM_MINIMAX_API_KEY',
   zhipu: 'JEAN2_LLM_ZHIPU_API_KEY',
   'zhipu-coding': 'JEAN2_LLM_ZHIPU_CODING_API_KEY',

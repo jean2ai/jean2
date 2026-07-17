@@ -28,9 +28,7 @@ import type { ServerWebSocket } from 'bun';
 import { validateToken, isAuthEnabled } from '@/auth/token';
 import {
   getLLMOpenAIApiKey,
-  getLLMAnthropicApiKey,
   getLLMOpenRouterApiKey,
-  getLLMGoogleApiKey,
   getLLMMinimaxApiKey,
   getLLMZhipuApiKey,
   getLLMZhipuCodingApiKey,
@@ -127,9 +125,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   const availableProviders: string[] = [];
   if (getLLMOpenAIApiKey()) availableProviders.push('openai');
-  if (getLLMAnthropicApiKey()) availableProviders.push('anthropic');
   if (getLLMOpenRouterApiKey()) availableProviders.push('openrouter');
-  if (getLLMGoogleApiKey()) availableProviders.push('google');
   if (getLLMMinimaxApiKey()) availableProviders.push('minimax');
   if (getLLMZhipuApiKey()) availableProviders.push('zhipu');
   if (getLLMZhipuCodingApiKey()) availableProviders.push('zhipu-coding');
@@ -139,7 +135,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     console.log(`Available providers: ${availableProviders.join(', ')}`);
   } else {
     console.warn('WARNING: No LLM API keys configured. Chat will not work.');
-    console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_ANTHROPIC_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_GOOGLE_API_KEY, JEAN2_LLM_MINIMAX_API_KEY, JEAN2_LLM_DEEPSEEK_API_KEY');
+    console.warn('Set at least one of: JEAN2_LLM_OPENAI_API_KEY, JEAN2_LLM_OPENROUTER_API_KEY, JEAN2_LLM_MINIMAX_API_KEY, JEAN2_LLM_DEEPSEEK_API_KEY');
   }
 
   console.log('Scanning for tools...');

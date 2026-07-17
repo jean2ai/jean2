@@ -1,6 +1,5 @@
 import { type LanguageModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
 import { findModel } from '@/config';
 import { findProviderFromModel, getApiKeyForProvider } from '@/core/provider-utils';
 import { getProvider, createModelForProvider } from '@/providers';
@@ -91,17 +90,6 @@ export async function getModelWithMetadata(
       const { createOpenRouter } = await import('@openrouter/ai-sdk-provider');
       const openrouter = createOpenRouter({ apiKey });
       return { model: openrouter.chat(model) as unknown as LanguageModel };
-    }
-
-    case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey });
-      return { model: anthropic.chat(model) as unknown as LanguageModel };
-    }
-
-    case 'google': {
-      const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-      const google = createGoogleGenerativeAI({ apiKey });
-      return { model: google.chat(model) as unknown as LanguageModel };
     }
 
     case 'minimax': {

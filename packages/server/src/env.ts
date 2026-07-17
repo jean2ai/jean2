@@ -70,16 +70,8 @@ export function getLLMOpenAIApiKey(): string | undefined {
   return envOverlay.get('JEAN2_LLM_OPENAI_API_KEY') ?? process.env.JEAN2_LLM_OPENAI_API_KEY;
 }
 
-export function getLLMAnthropicApiKey(): string | undefined {
-  return envOverlay.get('JEAN2_LLM_ANTHROPIC_API_KEY') ?? process.env.JEAN2_LLM_ANTHROPIC_API_KEY;
-}
-
 export function getLLMOpenRouterApiKey(): string | undefined {
   return envOverlay.get('JEAN2_LLM_OPENROUTER_API_KEY') ?? process.env.JEAN2_LLM_OPENROUTER_API_KEY;
-}
-
-export function getLLMGoogleApiKey(): string | undefined {
-  return envOverlay.get('JEAN2_LLM_GOOGLE_API_KEY') ?? process.env.JEAN2_LLM_GOOGLE_API_KEY;
 }
 
 export function getLLMMinimaxApiKey(): string | undefined {
@@ -125,9 +117,7 @@ export function getLLMSubagentMaxSteps(): number {
 export function getLLMApiKeys(): Record<string, string | undefined> {
   return {
     openai: getLLMOpenAIApiKey(),
-    anthropic: getLLMAnthropicApiKey(),
     openrouter: getLLMOpenRouterApiKey(),
-    google: getLLMGoogleApiKey(),
     minimax: getLLMMinimaxApiKey(),
     zhipu: getLLMZhipuApiKey(),
     'zhipu-coding': getLLMZhipuCodingApiKey(),

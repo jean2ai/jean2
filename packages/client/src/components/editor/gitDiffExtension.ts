@@ -224,11 +224,8 @@ function buildDecorationSet(
   lineEntries: LineEntry[],
   removedBlocks: RemovedBlock[],
 ): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
   const totalLines = state.doc.lines;
-
-  // Collect all ranges as positions, then sort and build.
-  const ranges: { from: number; to: number; value: Decoration; isWidget: boolean }[] = [];
+  const ranges: { from: number; to: number; value: Decoration }[] = [];
 
   for (const entry of lineEntries) {
     const lineNum = Math.min(entry.line + 1, totalLines);
@@ -238,7 +235,6 @@ function buildDecorationSet(
       from: lineObj.from,
       to: lineObj.from,
       value: entry.kind === 'added' ? addedLineDeco : modifiedLineDeco,
-      isWidget: false,
     });
   }
 
@@ -254,18 +250,13 @@ function buildDecorationSet(
         side: -1,
         block: true,
       }),
-      isWidget: true,
     });
   }
 
-  // Sort: by position, line decorations before widgets at same position.
-  ranges.sort((a, b) => a.from - b.from || (a.isWidget ? 1 : 0) - (b.isWidget ? 1 : 0));
-
-  for (const r of ranges) {
-    builder.add(r.from, r.to, r.value);
-  }
-
-  return builder.finish();
+  return Decoration.set(
+    ranges.map((range) => range.value.range(range.from, range.to)),
+    true,
+  );
 }
 
 /**
@@ -357,7 +348,7 @@ const diffField = StateField.define<DiffState>({
   },
 
   provide: (field) => [
-    EditorView.decorations.of((view) => view.state.field(field).decorations),
+    EditorView.decorations.from(field, (value) => value.decorations),
     gutter({
       class: 'cm-git-diff-gutter',
       markers: (view) => view.state.field(field).gutterMarkers,
