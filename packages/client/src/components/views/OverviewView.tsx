@@ -14,7 +14,7 @@ import { useBoardRouteSync } from '@/hooks/useBoardRouteSync';
 import { useFocusedSessionWorkspaceContext } from '@/hooks/useFocusedSessionWorkspaceContext';
 import { useOverviewRouteSessionLoader } from '@/hooks/useOverviewRouteSessionLoader';
 import { WorkspaceOverview } from '@/components/layout/WorkspaceOverview';
-import { SessionBoard } from '@/components/board/SessionBoard';
+import { WorkspaceContentArea } from '@/components/app/WorkspaceContentArea';
 
 export default function OverviewView() {
   const sessionManager = useSessionManager();
@@ -133,7 +133,7 @@ export default function OverviewView() {
           ) : (
             <WorkspaceHeader />
           )}
-          <SessionBoard
+          <WorkspaceContentArea
             sdkClient={sessionManager.sdkClient}
             serverUrl={sessionManager.serverUrl}
           />
