@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
+import { Loader2, Unplug, Copy, Check, ClipboardPaste, RefreshCw } from 'lucide-react';
 import type { Jean2Client, ProviderStatus } from '@jean2/sdk';
 import { useProvidersQuery, useConnectProvider, useDisconnectProvider, useCompleteOAuth } from '@/hooks/queries';
-import { Loader2, Unplug, Copy, Check, ClipboardPaste, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface PanelProps {
@@ -16,7 +17,7 @@ interface PendingAuth {
 }
 
 export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
-  const { data: providersData, isLoading: loading } = useProvidersQuery(sdkClient);
+  const { data: providersData, isLoading: loading, isFetching, refetch } = useProvidersQuery(sdkClient);
   const connectMut = useConnectProvider(sdkClient);
   const disconnectMut = useDisconnectProvider(sdkClient);
   const completeMut = useCompleteOAuth(sdkClient);
@@ -153,6 +154,29 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
     }
   }, [disconnectMut]);
 
+  const handleRefresh = useCallback(async () => {
+    setError(null);
+    try {
+      const result = await refetch({ throwOnError: true });
+      if (result.error) {
+        throw result.error;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh providers');
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    if (!pendingAuth || completing) return;
+    const provider = providers.find((p) => p.provider === pendingAuth.providerId);
+    if (provider?.connected) {
+      toast.success(`${provider.displayName || provider.provider} connected`);
+      setPendingAuth(null);
+      setPasteUrl('');
+      setError(null);
+    }
+  }, [pendingAuth, completing, providers]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -163,9 +187,20 @@ export function OAuthProvidersPanel({ sdkClient }: PanelProps) {
 
   return (
     <div className="p-3 sm:p-4 space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Connect subscription-based providers using OAuth. No API keys needed.
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          Connect subscription-based providers using OAuth. No API keys needed.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isFetching}
+        >
+          <RefreshCw className={isFetching ? 'animate-spin' : ''} data-icon="inline-start" />
+          Refresh
+        </Button>
+      </div>
 
       {error && (
         <div className="p-2 rounded bg-destructive/10 text-sm text-destructive">{error}</div>
