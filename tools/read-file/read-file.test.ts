@@ -122,7 +122,7 @@ describe('reading files', () => {
   });
 
   test('returns binary file error for .exe extension (no null bytes needed)', async () => {
-    // Extension-based detection now works — .exe is in binaryExts list
+    // Extension-based detection now works because .exe is in binaryExts list
     vfs.writeFile(`${WORKSPACE}/program.exe`, 'MZ\x00\x00');
     const result = await execute({ path: `${WORKSPACE}/program.exe` }, ctx);
     expect(result.success).toBe(false);
@@ -240,5 +240,79 @@ describe('read-file permissions', () => {
     vfs.writeFile('/tmp/external/file.txt', 'data');
     const _result = await execute({ path: '/tmp/external/file.txt' }, allowedCtx);
     expect(allowedCtx.ask).not.toHaveBeenCalled();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════
+// Revision metadata (Phase 2)
+// ══════════════════════════════════════════════════════════════════
+
+describe('revision metadata', () => {
+  test('same bytes produce the same revision', async () => {
+    vfs.writeFile(`${WORKSPACE}/a.txt`, 'hello\nworld');
+    vfs.writeFile(`${WORKSPACE}/b.txt`, 'hello\nworld');
+    const a = await execute({ path: `${WORKSPACE}/a.txt` }, ctx);
+    const b = await execute({ path: `${WORKSPACE}/b.txt` }, ctx);
+    const revA = (a.result as { revision: string }).revision;
+    const revB = (b.result as { revision: string }).revision;
+    expect(revA).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(revA).toBe(revB);
+  });
+
+  test('one byte change produces a different revision', async () => {
+    vfs.writeFile(`${WORKSPACE}/one.txt`, 'hello\nworld');
+    vfs.writeFile(`${WORKSPACE}/two.txt`, 'hello\nworld!');
+    const one = await execute({ path: `${WORKSPACE}/one.txt` }, ctx);
+    const two = await execute({ path: `${WORKSPACE}/two.txt` }, ctx);
+    expect((one.result as { revision: string }).revision).not.toBe(
+      (two.result as { revision: string }).revision
+    );
+  });
+
+  test('LF and CRLF content produce different revisions', async () => {
+    vfs.writeFile(`${WORKSPACE}/lf.txt`, 'a\nb\nc');
+    vfs.writeFile(`${WORKSPACE}/crlf.txt`, 'a\r\nb\r\nc');
+    const lf = await execute({ path: `${WORKSPACE}/lf.txt` }, ctx);
+    const crlf = await execute({ path: `${WORKSPACE}/crlf.txt` }, ctx);
+    expect((lf.result as { revision: string }).revision).not.toBe(
+      (crlf.result as { revision: string }).revision
+    );
+  });
+
+  test('paginated reads of the same unchanged file return the same revision', async () => {
+    vfs.writeFile(`${WORKSPACE}/paged.txt`, 'l1\nl2\nl3\nl4\nl5');
+    const page1 = await execute({ path: `${WORKSPACE}/paged.txt`, offset: 1, limit: 2 }, ctx);
+    const page2 = await execute({ path: `${WORKSPACE}/paged.txt`, offset: 3, limit: 2 }, ctx);
+    expect((page1.result as { revision: string }).revision).toBe(
+      (page2.result as { revision: string }).revision
+    );
+  });
+
+  test('revision is calculated from untruncated content', async () => {
+    const lines = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
+    const full = lines.join('\n');
+    vfs.writeFile(`${WORKSPACE}/big.txt`, full);
+
+    const partial = await execute({ path: `${WORKSPACE}/big.txt`, limit: 5 }, ctx);
+    const complete = await execute({ path: `${WORKSPACE}/big.txt` }, ctx);
+
+    // The truncated read must report the revision of the full file, not the page.
+    expect((partial.result as { revision: string }).revision).toBe(
+      (complete.result as { revision: string }).revision
+    );
+    // And report accurate read metadata.
+    expect((partial.result as { truncated: boolean }).truncated).toBe(true);
+    expect((partial.result as { linesReturned: number }).linesReturned).toBe(5);
+    expect((partial.result as { totalLines: number }).totalLines).toBe(30);
+    expect((partial.result as { offset: number }).offset).toBe(1);
+  });
+
+  test('directory reads do not claim a file revision', async () => {
+    vfs.writeFile(`${WORKSPACE}/src/file1.ts`, '');
+    vfs.writeFile(`${WORKSPACE}/src/file2.ts`, '');
+    vfs.addDir(`${WORKSPACE}/src`);
+    const result = await execute({ path: `${WORKSPACE}/src` }, ctx);
+    expect(result.success).toBe(true);
+    expect((result.result as { revision?: string }).revision).toBeUndefined();
   });
 });

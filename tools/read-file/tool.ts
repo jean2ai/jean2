@@ -1,11 +1,18 @@
 import type { ToolDefinition, ToolContext, ToolResult } from '@jean2/sdk';
 import type { NoneVisualization } from '@jean2/sdk';
 import { createFilePermissionAsk, SENSITIVE_FILE_PATTERNS } from '@jean2/sdk';
+import { createHash } from 'node:crypto';
 
 const DEFAULT_READ_LIMIT = 2000;
 const MAX_LINE_LENGTH = 2000;
 const MAX_LINE_SUFFIX = `... (line truncated to ${MAX_LINE_LENGTH} chars)`;
 const MAX_BYTES = 50 * 1024;
+
+function computeRevision(content: string | Uint8Array): string {
+  const hash = createHash('sha256');
+  hash.update(content);
+  return `sha256:${hash.digest('hex')}`;
+}
 
 interface Input {
   path: string;
@@ -15,7 +22,7 @@ interface Input {
 
 export const definition: ToolDefinition = {
   name: 'read-file',
-  description: 'Read a file or directory from the filesystem.\n\nUsage:\n- The path parameter should be an absolute path.\n- By default, returns up to 2000 lines from the start of the file.\n- The offset parameter is the line number to start from (1-indexed).\n- To read later sections, use a larger offset.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
+  description: 'Read a file or directory from the filesystem.\n\nUsage:\n- The path parameter should be an absolute path.\n- By default, returns up to 2000 lines from the start of the file.\n- The offset parameter is the line number to start from (1-indexed).\n- To read later sections, use a larger offset.\n\n## Revision metadata\n\nRegular-file results include a `revision` (SHA-256 of the complete file content) plus `totalLines`, `offset`, `linesReturned`, and `truncated`. The revision is computed from the untruncated bytes, including line endings and trailing newline state, so it is identical across paginated reads of an unchanged file. Pass the revision to `edit-range` to prove the file has not changed since it was read. Directory reads do not include a revision.\n\n## Permission Model\n\nThis tool requires explicit permission for:\n- Files outside the workspace\n- Sensitive files (.env, .pem, .key, credentials, etc.)',
   inputSchema: {
     type: 'object',
     properties: {
@@ -194,7 +201,18 @@ export async function execute(input: Input, ctx: ToolContext): Promise<ToolResul
       message: `Read: ${resolvedPath}`,
     };
 
-    return { success: true, result: { content: finalContent }, visualization };
+    return {
+      success: true,
+      result: {
+        content: finalContent,
+        revision: computeRevision(content),
+        totalLines,
+        offset: readOffset,
+        linesReturned: outputLines.length,
+        truncated,
+      },
+      visualization,
+    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, error: message };

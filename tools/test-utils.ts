@@ -75,6 +75,60 @@ export class VirtualFS {
     return this.files.has(path) || this.dirs.has(path);
   }
 
+  /**
+   * Remove a file or directory from the virtual FS.
+   * When recursive is true (or the path is a file), removes the entry and
+   * any descendant entries. Returns true if anything was removed.
+   */
+  remove(path: string, options?: { recursive?: boolean }): boolean {
+    let removed = false;
+    if (this.files.has(path)) {
+      this.files.delete(path);
+      removed = true;
+    }
+    if (this.dirs.has(path)) {
+      if (options?.recursive) {
+        // Remove any descendant files and dirs
+        const prefix = path.endsWith('/') ? path : path + '/';
+        for (const f of [...this.files.keys()]) {
+          if (f.startsWith(prefix)) {
+            this.files.delete(f);
+            removed = true;
+          }
+        }
+        for (const d of [...this.dirs]) {
+          if (d === path || d.startsWith(prefix)) {
+            this.dirs.delete(d);
+            removed = true;
+          }
+        }
+      } else {
+        // Only remove the dir entry if it has no children
+        const prefix = path.endsWith('/') ? path : path + '/';
+        const hasChildren =
+          [...this.files.keys()].some(f => f.startsWith(prefix)) ||
+          [...this.dirs].some(d => d !== path && d.startsWith(prefix));
+        if (!hasChildren) {
+          this.dirs.delete(path);
+          removed = true;
+        }
+      }
+    }
+    return removed;
+  }
+
+  /**
+   * Rename (move) a file from oldPath to newPath. Creates parent dirs of the
+   * destination. Returns true if the source existed and was moved.
+   */
+  rename(oldPath: string, newPath: string): boolean {
+    if (!this.files.has(oldPath)) return false;
+    const content = this.files.get(oldPath)!;
+    this.files.delete(oldPath);
+    this.writeFile(newPath, content);
+    return true;
+  }
+
   stat(path: string) {
     if (this.files.has(path)) {
       const content = this.files.get(path)!;
@@ -113,7 +167,7 @@ export interface MockContextOverrides {
 
 /**
  * Create a fully-mocked ToolContext.
- * All I/O is routed through the VirtualFS — nothing touches the real filesystem.
+ * All I/O is routed through the VirtualFS, nothing touches the real filesystem.
  */
 export function createMockContext(vfs: VirtualFS, overrides: MockContextOverrides = {}): ToolContext {
   const ws = overrides.workspacePath ?? WORKSPACE;
@@ -167,11 +221,14 @@ export function createMockContext(vfs: VirtualFS, overrides: MockContextOverride
       mkdir: mock(async (path: string) => {
         vfs.addDir(path);
       }),
-      rm: mock(async (path: string) => {
-        // Simple mock - just remove from virtual fs
-        void path;
+      rm: mock(async (path: string, options?: { recursive?: boolean }) => {
+        vfs.remove(path, options);
       }),
-      rename: mock(async () => {}),
+      rename: mock(async (oldPath: string, newPath: string) => {
+        if (!vfs.rename(oldPath, newPath)) {
+          throw new Error(`ENOENT: no such file or directory, rename '${oldPath}' -> '${newPath}'`);
+        }
+      }),
       detectLanguage: () => 'text',
       tempDir: '/tmp/jean2/test-session-123',
     },
