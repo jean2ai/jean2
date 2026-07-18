@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,12 +173,15 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Update VERSION file
+      - name: Create browser announcement pull request
         env:
+          GH_TOKEN: ${{ github.token }}
           V: ${{ needs.prepare-browser-release.outputs.version }}
         run: |
+          set -euo pipefail
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+          BRANCH="release/announce-browser-${V}"
+          git checkout -B "$BRANCH" "origin/$DEFAULT_BRANCH"
 
           CURRENT=$(cat packages/browser/VERSION | tr -d '[:space:]')
           if [ "$CURRENT" = "$V" ]; then
@@ -190,5 +194,14 @@ jobs:
           echo "$V" > packages/browser/VERSION
           git add packages/browser/VERSION
           git commit -m "chore(browser): announce $V"
-          git push origin "$DEFAULT_BRANCH"
-          echo "Announced browser extension $V"
+          git push --force origin "HEAD:$BRANCH"
+
+          if gh pr list --head "$BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH" \
+              --title "chore(browser): announce $V" \
+              --body "Announces browser extension $V after the GitHub release was published successfully."
+          else
+            echo "Announcement pull request already exists for $BRANCH"
+          fi

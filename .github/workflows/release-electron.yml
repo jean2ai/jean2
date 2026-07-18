@@ -17,6 +17,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  pull-requests: write
 
 concurrency:
   group: release-client-${{ github.workflow }}-${{ github.ref }}
@@ -272,7 +273,7 @@ jobs:
           gh release edit "$TAG" --draft=false $NOTES_FLAG
           echo "Release $TAG is now public."
 
-  # Final announcement: update VERSION on the default branch only after both
+  # Final announcement: open a VERSION update pull request only after both
   # distribution channels are public. VERSION never sources a build/tag/package
   # version; it only records the latest successfully published version.
   announce-version:
@@ -284,22 +285,34 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Update packages/client/VERSION
+      - name: Create client announcement pull request
         env:
+          GH_TOKEN: ${{ github.token }}
           V: ${{ needs.prepare-client-release.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git pull --ff-only origin "$DEFAULT_BRANCH"
+          BRANCH="release/announce-client-${V}"
+          git checkout -B "$BRANCH" "origin/$DEFAULT_BRANCH"
           CURRENT=$(tr -d '[:space:]' < packages/client/VERSION)
           if [ "$CURRENT" = "$V" ]; then
             echo "VERSION already $V; nothing to announce."
             exit 0
           fi
+
           printf '%s\n' "$V" > packages/client/VERSION
           git add packages/client/VERSION
           git commit -m "release(client): announce v$V"
-          git push origin "$DEFAULT_BRANCH"
-          echo "Announced client v$V."
+          git push --force origin "HEAD:$BRANCH"
+
+          if gh pr list --head "$BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH" \
+              --title "release(client): announce v$V" \
+              --body "Announces client $V after the desktop release and NPM package were published successfully."
+          else
+            echo "Announcement pull request already exists for $BRANCH"
+          fi

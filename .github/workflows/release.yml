@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}
@@ -223,14 +224,17 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Announce server version
+      - name: Create server announcement pull request
         env:
+          GH_TOKEN: ${{ github.token }}
           V: ${{ needs.prepare-server-release.outputs.version }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git pull --ff-only origin "$DEFAULT_BRANCH"
+          BRANCH="release/announce-server-${V}"
+          git checkout -B "$BRANCH" "origin/$DEFAULT_BRANCH"
           CURRENT=$(cat packages/server/VERSION 2>/dev/null | tr -d '[:space:]')
           if [ "$V" = "$CURRENT" ]; then
             echo "Server VERSION already at $V - nothing to announce"
@@ -240,7 +244,17 @@ jobs:
           echo "$V" > packages/server/VERSION
           git add packages/server/VERSION
           git commit -m "release: announce server $V"
-          git push origin "$DEFAULT_BRANCH"
+          git push --force origin "HEAD:$BRANCH"
+
+          if gh pr list --head "$BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH" \
+              --title "release: announce server $V" \
+              --body "Announces server $V after all release artifacts were published successfully."
+          else
+            echo "Announcement pull request already exists for $BRANCH"
+          fi
 
   release-tools:
     needs: prepare-releases
@@ -301,14 +315,17 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Announce tool versions
+      - name: Create tools announcement pull request
         env:
+          GH_TOKEN: ${{ github.token }}
           TOOLS_JSON: ${{ needs.prepare-releases.outputs.tools }}
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git pull --ff-only origin "$DEFAULT_BRANCH"
+          BRANCH="release/announce-tools"
+          git checkout -B "$BRANCH" "origin/$DEFAULT_BRANCH"
 
           CHANGED=0
           while IFS=$'\t' read -r TOOL V; do
@@ -330,4 +347,14 @@ jobs:
           fi
 
           git commit -m "release: announce tools"
-          git push origin "$DEFAULT_BRANCH"
+          git push --force origin "HEAD:$BRANCH"
+
+          if gh pr list --head "$BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH" \
+              --title "release: announce tools" \
+              --body "Announces tool versions after all selected tool releases were published successfully."
+          else
+            echo "Announcement pull request already exists for $BRANCH"
+          fi

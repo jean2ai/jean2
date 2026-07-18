@@ -8,6 +8,7 @@ on:
 permissions:
   id-token: write
   contents: write
+  pull-requests: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -101,12 +102,15 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Update VERSION file
+      - name: Create SDK announcement pull request
         env:
+          GH_TOKEN: ${{ github.token }}
           V: ${{ needs.publish.outputs.version }}
         run: |
+          set -euo pipefail
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+          BRANCH="release/announce-sdk-${V}"
+          git checkout -B "$BRANCH" "origin/$DEFAULT_BRANCH"
 
           CURRENT=$(cat packages/sdk/VERSION | tr -d '[:space:]')
           if [ "$CURRENT" = "$V" ]; then
@@ -119,5 +123,14 @@ jobs:
           echo "$V" > packages/sdk/VERSION
           git add packages/sdk/VERSION
           git commit -m "chore(sdk): announce $V"
-          git push origin "$DEFAULT_BRANCH"
-          echo "Announced SDK $V"
+          git push --force origin "HEAD:$BRANCH"
+
+          if gh pr list --head "$BRANCH" --base "$DEFAULT_BRANCH" --state open --json number --jq 'length' | grep -q '^0$'; then
+            gh pr create \
+              --base "$DEFAULT_BRANCH" \
+              --head "$BRANCH" \
+              --title "chore(sdk): announce $V" \
+              --body "Announces SDK $V after the NPM package was published successfully."
+          else
+            echo "Announcement pull request already exists for $BRANCH"
+          fi
