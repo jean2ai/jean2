@@ -189,14 +189,14 @@ async function handleLocalhostCallback(url: URL): Promise<Response> {
       }
     }
     return new Response(htmlError(errorMsg), {
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
   if (!code || !state) {
     return new Response(htmlError('Missing authorization code or state'), {
       status: 400,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
@@ -212,7 +212,7 @@ async function handleLocalhostCallback(url: URL): Promise<Response> {
   if (!matchedFlowId) {
     return new Response(htmlError('Invalid state — no matching OAuth flow'), {
       status: 400,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
@@ -223,13 +223,13 @@ async function handleLocalhostCallback(url: URL): Promise<Response> {
     stopLocalServerForPath(redirectUri);
     void result;
     return new Response(HTML_SUCCESS, {
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Token exchange failed';
     return new Response(htmlError(message), {
       status: 500,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 }
@@ -356,7 +356,7 @@ export async function handleServerCallback(
     const errorMsg = errorDescription || error;
     completionCallbacks.get(providerId)?.(false, errorMsg);
     return new Response(htmlError(errorMsg), {
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
@@ -364,7 +364,7 @@ export async function handleServerCallback(
     completionCallbacks.get(providerId)?.(false, 'Missing authorization code');
     return new Response(htmlError('Missing authorization code'), {
       status: 400,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
@@ -380,20 +380,20 @@ export async function handleServerCallback(
   if (!matchedFlowId) {
     return new Response(htmlError('Invalid state — no matching OAuth flow'), {
       status: 400,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
   try {
     await completeOAuthFlow(matchedFlowId, code, state!, getDefaultRedirectUri(providerId));
     return new Response(HTML_SUCCESS, {
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Token exchange failed';
     return new Response(htmlError(message), {
       status: 500,
-      headers: { 'Content-Type': 'text/html' },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 }
@@ -486,25 +486,40 @@ async function exchangeCodeForTokens(
 }
 
 const HTML_SUCCESS = `<!DOCTYPE html>
-<html>
-<head><title>Connection Successful</title></head>
-<body style="font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #1a1a2e; color: #eee;">
-  <div style="text-align: center;">
-    <h1 style="color: #4ade80;">✓ Connected Successfully</h1>
-    <p>You can close this window and return to jean2.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connected Successfully</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0f0f17; color: #e4e4e7;">
+  <div style="background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 48px 40px; max-width: 420px; width: calc(100% - 48px); text-align: center; box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);">
+    <div style="width: 64px; height: 64px; margin: 0 auto 24px; background: #052e16; border: 1px solid #14532d; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <h1 style="font-size: 22px; font-weight: 600; color: #f4f4f5; margin: 0 0 8px;">Connected Successfully</h1>
+    <p style="font-size: 15px; color: #a1a1aa; margin: 0; line-height: 1.5;">You can close this window and return to jean2.</p>
   </div>
 </body>
 </html>`;
 
 function htmlError(message: string): string {
+  const escaped = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!DOCTYPE html>
-<html>
-<head><title>Connection Failed</title></head>
-<body style="font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #1a1a2e; color: #eee;">
-  <div style="text-align: center;">
-    <h1 style="color: #f87171;">✗ Connection Failed</h1>
-    <p>${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
-    <p>Please try again.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connection Failed</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0f0f17; color: #e4e4e7;">
+  <div style="background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 48px 40px; max-width: 420px; width: calc(100% - 48px); text-align: center; box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);">
+    <div style="width: 64px; height: 64px; margin: 0 auto 24px; background: #450a0a; border: 1px solid #7f1d1d; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </div>
+    <h1 style="font-size: 22px; font-weight: 600; color: #f4f4f5; margin: 0 0 8px;">Connection Failed</h1>
+    <p style="font-size: 15px; color: #a1a1aa; margin: 0 0 8px; line-height: 1.5; word-break: break-word;">${escaped}</p>
+    <p style="font-size: 15px; color: #a1a1aa; margin: 0; line-height: 1.5;">Please try again.</p>
   </div>
 </body>
 </html>`;
