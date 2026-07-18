@@ -35,45 +35,13 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
+      injectRegister: false,
       workbox: {
         globPatterns: ['**/*.{js,mjs,cjs,css,html,ico,png,svg,woff2,json,mp3}'],
-        // Serve index.html for all navigation requests (SPA client-side routing)
-        // when the requested URL isn't in the precache — essential for offline deep links
         navigateFallback: 'index.html',
-        // Don't serve index.html for API/WebSocket/static asset paths
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
-        runtimeCaching: [
-          {
-            // JS/CSS bundles have content-hash filenames — immutable, cache-first
-            urlPattern: ({ request }) =>
-              request.destination === 'script' || request.destination === 'style',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-assets',
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // Fonts and images — cache-first, rarely change
-            urlPattern: ({ request }) =>
-              request.destination === 'font' || request.destination === 'image',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-media',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // HTML navigations — network-first, fallback to cache (offline support)
-            urlPattern: ({ request }) => request.destination === 'document',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'html-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 },
-            },
-          },
-        ],
+        cleanupOutdatedCaches: true,
       },
       manifest: {
         name: 'Jean2',

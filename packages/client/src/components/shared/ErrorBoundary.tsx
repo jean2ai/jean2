@@ -1,5 +1,11 @@
 import { Component, type ReactNode } from 'react';
 
+import {
+  isLikelyStaleBuildError,
+  reloadJean2,
+  resetDownloadedAppFiles,
+} from '@/pwa/recovery';
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -8,6 +14,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: unknown;
+  isRecovering: boolean;
 }
 
 function toError(value: unknown): Error {
@@ -19,11 +26,11 @@ function toError(value: unknown): Error {
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, isRecovering: false };
   }
 
   static getDerivedStateFromError(error: unknown): State {
-    return { hasError: true, error };
+    return { hasError: true, error, isRecovering: false };
   }
 
   componentDidCatch(error: unknown, errorInfo: unknown) {
@@ -41,6 +48,21 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('[ErrorBoundary] Error stack:', err.stack);
   }
 
+  private handleReload = (): void => {
+    this.setState({ isRecovering: true });
+    void reloadJean2();
+  };
+
+  private handleReset = (): void => {
+    const confirmed = window.confirm(
+      'Reset Jean2 downloaded app files? Your drafts, settings, and server data will be kept.',
+    );
+    if (!confirmed) return;
+
+    this.setState({ isRecovering: true });
+    void resetDownloadedAppFiles();
+  };
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -48,6 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       const err = toError(this.state.error);
+      const isStaleBuildError = isLikelyStaleBuildError(err);
 
       return (
         <div
@@ -75,7 +98,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 wordBreak: 'break-word',
               }}
             >
-              {err.message || 'Unknown error'}
+              {isStaleBuildError
+                ? 'Jean2 could not load the downloaded app files. Reload to use a consistent version.'
+                : err.message || 'Unknown error'}
             </p>
             <pre
               style={{
@@ -92,21 +117,54 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               {err.stack || 'No stack trace available'}
             </pre>
-            <button
-              onClick={() => this.setState({ hasError: false, error: null })}
+            <div
               style={{
+                display: 'flex',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
                 marginTop: '1rem',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.375rem',
-                border: '1px solid var(--vscode-button-border, #444)',
-                background: 'var(--vscode-button-background, #0078d4)',
-                color: 'var(--vscode-button-foreground, white)',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
               }}
             >
-              Try Again
-            </button>
+              <button
+                onClick={isStaleBuildError
+                  ? this.handleReload
+                  : () => this.setState({ hasError: false, error: null, isRecovering: false })}
+                disabled={this.state.isRecovering}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid var(--vscode-button-border, #444)',
+                  background: 'var(--vscode-button-background, #0078d4)',
+                  color: 'var(--vscode-button-foreground, white)',
+                  cursor: this.state.isRecovering ? 'default' : 'pointer',
+                  fontSize: '0.875rem',
+                  opacity: this.state.isRecovering ? 0.6 : 1,
+                }}
+              >
+                {isStaleBuildError
+                  ? (this.state.isRecovering ? 'Reloading...' : 'Reload Jean2')
+                  : 'Try Again'}
+              </button>
+              {isStaleBuildError && (
+                <button
+                  onClick={this.handleReset}
+                  disabled={this.state.isRecovering}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid var(--vscode-button-border, #444)',
+                    background: 'transparent',
+                    color: 'inherit',
+                    cursor: this.state.isRecovering ? 'default' : 'pointer',
+                    fontSize: '0.875rem',
+                    opacity: this.state.isRecovering ? 0.6 : 1,
+                  }}
+                >
+                  Reset downloaded app files
+                </button>
+              )}
+            </div>
           </div>
         </div>
       );

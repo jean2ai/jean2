@@ -4,9 +4,11 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { ThemedToaster } from '@/components/providers/ThemedToaster';
+import { PWAUpdateBanner } from '@/components/app/PWAUpdateBanner';
 import { RouterApp } from './router';
 import { VSCodeEntry } from '@/components/shell/VSCodeBootstrap';
 import { platform } from '@/platform';
+import { registerJean2ServiceWorker } from '@/pwa/registerServiceWorker';
 import './index.css';
 
 // Global error handlers for debugging uncaught errors
@@ -22,12 +24,17 @@ window.addEventListener('unhandledrejection', (event) => {
 document.addEventListener('dragover', (e) => e.preventDefault());
 document.addEventListener('drop', (e) => e.preventDefault());
 
+if (platform.id !== 'vscode') {
+  registerJean2ServiceWorker();
+}
+
 function App() {
   if (platform.id === 'vscode') {
     return <VSCodeEntry />;
   }
   return (
     <ErrorBoundary>
+      <PWAUpdateBanner />
       <RouterApp />
     </ErrorBoundary>
   );
