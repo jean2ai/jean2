@@ -1,4 +1,4 @@
-import { readdir, stat, copyFile, mkdir } from 'node:fs/promises';
+import { readdir, stat, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -65,22 +65,18 @@ async function ensureDir(path: string): Promise<void> {
   }
 }
 
-async function copyVersionFile(toolDir: string, outputDir: string): Promise<boolean> {
-  const versionSrc = join(toolDir, 'VERSION');
+async function writeVersionFile(toolDir: string, outputDir: string): Promise<void> {
+  const packageJsonPath = join(toolDir, 'package.json');
   const versionDest = join(outputDir, 'VERSION');
+  const raw = await readFile(packageJsonPath, 'utf-8');
+  const pkg = JSON.parse(raw) as { version?: unknown };
 
-  try {
-    const versionStat = await stat(versionSrc);
-    if (versionStat.isFile()) {
-      await ensureDir(outputDir);
-      await copyFile(versionSrc, versionDest);
-      return true;
-    }
-  } catch {
-    // VERSION file doesn't exist
+  if (typeof pkg.version !== 'string' || !pkg.version.trim()) {
+    throw new Error(`Missing version in ${packageJsonPath}`);
   }
 
-  return false;
+  await ensureDir(outputDir);
+  await writeFile(versionDest, `${pkg.version.trim()}\n`, 'utf-8');
 }
 
 function formatBytes(bytes: number): string {
@@ -131,7 +127,7 @@ async function buildTool(name: string, outputDir: string): Promise<BuildResult> 
 
     const outputStat = await stat(toolJsPath);
 
-    await copyVersionFile(toolDir, toolOutputDir);
+    await writeVersionFile(toolDir, toolOutputDir);
 
     return {
       name,

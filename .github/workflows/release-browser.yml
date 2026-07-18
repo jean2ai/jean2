@@ -21,6 +21,10 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: release-browser
+  cancel-in-progress: false
+
 jobs:
   prepare-browser-release:
     runs-on: ubuntu-latest
@@ -28,6 +32,7 @@ jobs:
     outputs:
       tag: ${{ steps.info.outputs.tag }}
       version: ${{ steps.info.outputs.version }}
+      prerelease: ${{ steps.info.outputs.prerelease }}
       should_skip: ${{ steps.info.outputs.should_skip }}
     steps:
       - uses: actions/checkout@v4
@@ -36,33 +41,57 @@ jobs:
 
       - id: info
         run: |
-          V=$(cat packages/browser/VERSION)
-          TAG="browser/v${V}"
+          V=$(node -p "require('./packages/browser/package.json').version")
           echo "version=$V" >> $GITHUB_OUTPUT
+
+          MANIFEST_V=$(node -p "require('./packages/browser/manifest.json').version")
+          if [ "$V" != "$MANIFEST_V" ]; then
+            echo "::error::packages/browser/manifest.json version ($MANIFEST_V) does not match packages/browser/package.json version ($V)"
+            exit 1
+          fi
+
+          TAG="browser/v${V}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          if gh release view "$TAG" 2>/dev/null; then
-            if [ "${{ inputs.force }}" != "true" ]; then
-              echo "should_skip=true" >> $GITHUB_OUTPUT
-              echo "Release $TAG already exists, skipping..."
-              exit 0
+          if [[ "$V" == *"-"* ]]; then
+            PRE=true
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            PRE=false
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+          RELEASE_STATE="none"
+          if DRAFT=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            if [ "$DRAFT" = "true" ]; then
+              RELEASE_STATE="draft"
             else
+              RELEASE_STATE="published"
+            fi
+          fi
+
+          if [ "${{ inputs.force }}" = "true" ]; then
+            if [ "$RELEASE_STATE" != "none" ]; then
               echo "Deleting existing release $TAG for force recreation..."
               gh release delete "$TAG" --yes || true
             fi
+          elif [ "$RELEASE_STATE" = "published" ]; then
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            echo "Release $TAG already exists, skipping build..."
+            exit 0
           fi
 
           echo "should_skip=false" >> $GITHUB_OUTPUT
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f "$TAG"
-          git push origin "$TAG" --force
 
-          if [[ "$V" == *"-"* ]]; then
-            PRE="--prerelease"
-          else
-            PRE=""
+          if [ "${{ inputs.force }}" = "true" ]; then
+            git tag -f "$TAG"
+            git push origin "$TAG" --force
+          elif ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag "$TAG"
+            git push origin "$TAG"
           fi
 
           NOTES_FLAG=""
@@ -70,8 +99,14 @@ jobs:
             NOTES_FLAG="--notes-file changelogs/browser/v${V}.md"
           fi
 
-          gh release create "$TAG" --title "Browser Extension $V" $PRE $NOTES_FLAG
-          echo "Release $TAG created successfully"
+          if [ "$RELEASE_STATE" = "draft" ] && [ "${{ inputs.force }}" != "true" ]; then
+            echo "Resuming draft release $TAG"
+          elif [ "$PRE" = "true" ]; then
+            gh release create "$TAG" --draft --title "Browser Extension $V" --prerelease $NOTES_FLAG
+          else
+            gh release create "$TAG" --draft --title "Browser Extension $V" $NOTES_FLAG
+          fi
+          echo "Draft release $TAG is ready"
 
   build-and-upload:
     needs: prepare-browser-release
@@ -112,3 +147,48 @@ jobs:
             "jean2-browser-v${V}.zip" \
             "jean2-browser-v${V}.zip.sha256" \
             --clobber
+
+  publish-release:
+    needs: [prepare-browser-release, build-and-upload]
+    runs-on: ubuntu-latest
+    if: ${{ always() && !cancelled() && needs.prepare-browser-release.result == 'success' && (needs.prepare-browser-release.outputs.should_skip == 'true' || needs.build-and-upload.result == 'success') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish GitHub release
+        env:
+          TAG: ${{ needs.prepare-browser-release.outputs.tag }}
+        run: |
+          gh release edit "$TAG" --draft=false
+          echo "Published release $TAG"
+
+  announce:
+    needs: [prepare-browser-release, publish-release]
+    runs-on: ubuntu-latest
+    if: always() && needs.publish-release.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Update VERSION file
+        env:
+          V: ${{ needs.prepare-browser-release.outputs.version }}
+        run: |
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
+
+          CURRENT=$(cat packages/browser/VERSION | tr -d '[:space:]')
+          if [ "$CURRENT" = "$V" ]; then
+            echo "VERSION already at $V, nothing to do"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "$V" > packages/browser/VERSION
+          git add packages/browser/VERSION
+          git commit -m "chore(browser): announce $V"
+          git push origin "$DEFAULT_BRANCH"
+          echo "Announced browser extension $V"

@@ -1,12 +1,20 @@
 name: Publish Client to NPM
 
+# Reusable workflow only. Invoked by release-electron.yml after both desktop
+# builds succeed so desktop and NPM can never release separately. There is no
+# release-event or manual trigger here on purpose (see Phase 2 of
+# docs/plans/package-version-release-announcements.md).
 on:
-  workflow_dispatch:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        description: 'Client version (from packages/client/package.json) to publish'
+        required: true
+        type: string
 
 permissions:
   id-token: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -14,7 +22,6 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/client/v')
     steps:
       - uses: actions/checkout@v4
 
@@ -27,24 +34,50 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Verify version input matches package.json
+        env:
+          V: ${{ inputs.version }}
+        run: |
+          PKG_V=$(node -p "require('./packages/client/package.json').version")
+          if [ "$V" != "$PKG_V" ]; then
+            echo "::error::Version input ($V) does not match packages/client/package.json ($PKG_V)."
+            exit 1
+          fi
+          echo "Publishing @jean2/client@$V"
+
       - name: Build client
         run: |
           cd packages/client
           bun run build:npx
 
       - name: Prepare package.json for npm
+        env:
+          V: ${{ inputs.version }}
         run: |
           cd packages/client
-          VERSION=$(cat VERSION | tr -d '[:space:]')
-          node -e "const p=require('./package.npm.json');p.version='$VERSION';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const p=require('./package.npm.json');p.version='$V';require('fs').writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
 
       - name: Setup npm auth
         run: |
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
+      - name: Check if version is already published (idempotent)
+        id: check
+        env:
+          V: ${{ inputs.version }}
+        run: |
+          if npm view "@jean2/client@$V" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "@jean2/client@$V is already published on npm; skipping publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
+        if: steps.check.outputs.already_published != 'true'
+        env:
+          V: ${{ inputs.version }}
         run: |
           cd packages/client
-          VERSION=$(cat VERSION | tr -d '[:space:]')
-          echo "Publishing version $VERSION"
+          echo "Publishing @jean2/client@$V"
           npm publish --provenance --access public
