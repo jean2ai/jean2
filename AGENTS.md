@@ -220,7 +220,7 @@ const JEAN2_LLM_MAX_TOKENS = parseInt(process.env.JEAN2_LLM_MAX_TOKENS || '4096'
 ### AI SDK (Server)
 
 - Server uses Vercel AI SDK (`ai` package) for all LLM interactions
-- Supported providers: Anthropic (`@ai-sdk/anthropic`), OpenAI (`@ai-sdk/openai`), Google (`@ai-sdk/google`), DeepSeek (`@ai-sdk/deepseek`), OpenRouter (`@openrouter/ai-sdk-provider`), MiniMax (`vercel-minimax-ai-provider`), Zhipu (`zhipu-ai-provider`)
+- Supported providers: OpenAI (`@ai-sdk/openai`), DeepSeek (`@ai-sdk/deepseek`), OpenRouter (`@openrouter/ai-sdk-provider`), MiniMax (`vercel-minimax-ai-provider`), Zhipu (`zhipu-ai-provider`)
 - Provider registry pattern in `packages/server/src/providers/`
 
 ### Sandbox CLI

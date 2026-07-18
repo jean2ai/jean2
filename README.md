@@ -68,7 +68,7 @@ By default, Jean2 is as bare as Codex or OpenCode. A blank prompt. No memory. No
 | **Scheduled Tasks** | Cron jobs that run as agent sessions. Daily code review, nightly dependency check, weekly changelog. No human in the loop. |
 | **Structured Responses** | Define a JSON schema, apply it to the next message. A yes/no question produces a yes/no answer. |
 | **Browser Automation** | Jean2Browser gives the agent real hands on Chrome: read, click, fill, navigate. Same interface as files and shell. |
-| **Any Model** | Anthropic, OpenAI, Google, DeepSeek, OpenRouter, or any OpenAI-compatible endpoint. Bring your own keys. |
+| **Bring Your Own Model** | OpenAI, DeepSeek, OpenRouter, MiniMax, Zhipu. Use API keys or your ChatGPT subscription via Codex. |
 | **MCP Integration** | Connect any MCP server. Full OAuth handled server-side. Tools appear alongside built-in tools. |
 | **Server-First** | Persistent 24/7 server. PWA on any device. Close your laptop. Open your phone. The agent never stops. |
 | **Open Source** | Apache 2.0. No telemetry. No lock-in. Prompts, tools, skills, and memory are files on disk. |
@@ -119,8 +119,8 @@ Everything else is a surface you choose to connect.
 │   <workspace>/.agents/skills/  (SKILL.md files)            │
 └───────────────────────────────────────────────────────────┘
                            │
-              LLM Providers (Anthropic, OpenAI, Google,
-                DeepSeek, OpenRouter, MiniMax, Zhipu)
+              LLM Providers (OpenAI, DeepSeek, OpenRouter,
+                MiniMax, Zhipu)
 ```
 
 ---
