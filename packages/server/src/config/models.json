@@ -216,7 +216,7 @@
         {
           "id": "gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
-          "contextWindow": 1050000,
+          "contextWindow": 372000,
           "maxOutputTokens": 128000,
           "tier": "premium",
           "capabilities": {
@@ -279,7 +279,7 @@
         {
           "id": "gpt-5.6-terra",
           "name": "GPT-5.6 Terra",
-          "contextWindow": 1050000,
+          "contextWindow": 372000,
           "maxOutputTokens": 128000,
           "tier": "standard",
           "capabilities": {
@@ -342,7 +342,7 @@
         {
           "id": "gpt-5.6-luna",
           "name": "GPT-5.6 Luna",
-          "contextWindow": 1050000,
+          "contextWindow": 372000,
           "maxOutputTokens": 128000,
           "tier": "budget",
           "capabilities": {
@@ -405,7 +405,7 @@
         {
           "id": "gpt-5.5",
           "name": "GPT-5.5",
-          "contextWindow": 1050000,
+          "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "premium",
           "capabilities": {
@@ -459,7 +459,7 @@
         {
           "id": "gpt-5.4",
           "name": "GPT-5.4",
-          "contextWindow": 1050000,
+          "contextWindow": 400000,
           "maxOutputTokens": 128000,
           "tier": "standard",
           "capabilities": {
