@@ -128,7 +128,14 @@ export async function getModelWithMetadata(
         apiKey,
         baseURL: getLLMBaseUrl() || undefined,
       });
-      return { model: openai.chat(model) as unknown as LanguageModel };
+      return {
+        model: openai.responses(model) as unknown as LanguageModel,
+        providerOptions: {
+          openai: {
+            store: false,
+          },
+        },
+      };
     }
   }
 }
