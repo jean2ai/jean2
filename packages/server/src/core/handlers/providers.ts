@@ -22,29 +22,6 @@ export async function handleProviderConnect(
       redirectStrategy: result.redirectStrategy,
       redirectUri: result.redirectUri,
     });
-
-    const provider = providerManager.getProvider(msg.provider);
-    if (provider?.onConnectComplete) {
-      provider.onConnectComplete((success, error) => {
-        if (success) {
-          const newStatus = providerManager.getProviderStatus(msg.provider);
-          ctx.broadcast({
-            type: 'provider.connected',
-            provider: msg.provider,
-            connected: true,
-            connectedAt: newStatus.connectedAt,
-            accountId: newStatus.accountId,
-          });
-        } else {
-          ctx.broadcast({
-            type: 'provider.status',
-            provider: msg.provider,
-            connected: false,
-            error: error || 'Connection flow failed',
-          });
-        }
-      });
-    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to connect provider';
     ctx.broadcast({

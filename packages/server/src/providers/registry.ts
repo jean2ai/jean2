@@ -47,8 +47,6 @@ export interface ConnectableProvider {
    * Only required for LLM providers (kind: 'llm'). Service providers can omit this.
    */
   createModel?(options: ModelFactoryOptions): Promise<ModelFactoryResult>;
-
-  onConnectComplete?: (callback: (success: boolean, error?: string) => void) => void;
 }
 
 /** Standard OAuth 2.0 token response. */

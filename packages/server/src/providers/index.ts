@@ -26,5 +26,4 @@ export {
   completeOAuthFlow,
   handleServerCallback,
   refreshTokens,
-  setOAuthCompletionCallback,
 } from './oauth-manager';

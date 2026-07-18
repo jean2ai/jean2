@@ -10,7 +10,6 @@ import { loadProviderConfig, saveProviderConfig, deleteProviderConfig } from './
 import {
   registerOAuthConfig,
   initiateOAuthFlow,
-  setOAuthCompletionCallback,
   refreshTokens,
   getDefaultRedirectUri,
 } from './oauth-manager';
@@ -227,10 +226,6 @@ const codexProvider: ConnectableProvider = {
         },
       },
     };
-  },
-
-  onConnectComplete(callback) {
-    setOAuthCompletionCallback('codex', callback);
   },
 };
 

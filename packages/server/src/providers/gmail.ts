@@ -16,7 +16,6 @@ import { loadProviderConfig, saveProviderConfig, deleteProviderConfig } from './
 import {
   registerOAuthConfig,
   initiateOAuthFlow,
-  setOAuthCompletionCallback,
   refreshTokens,
   OAuthTokenRefreshError,
 } from './oauth-manager';
@@ -229,10 +228,6 @@ const gmailProvider: ConnectableProvider = {
     };
     saveProviderConfig('gmail', config);
     startBackgroundRefresh();
-  },
-
-  onConnectComplete(callback) {
-    setOAuthCompletionCallback('gmail', callback);
   },
 };
 

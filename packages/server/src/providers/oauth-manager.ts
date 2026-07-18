@@ -6,8 +6,9 @@
  * The client-side handles receiving the redirect and posting the code back.
  */
 import type { OAuthProviderConfig, OAuthRedirectStrategy } from '@jean2/sdk';
+import { broadcastEvent } from '@/core/broadcast';
 import type { TokenResponse } from './registry';
-import { getProvider } from './registry';
+import { getProvider, getProviderStatus } from './registry';
 
 export interface OAuthTokenRefreshErrorData {
   providerId: string;
@@ -52,9 +53,6 @@ const oauthConfigs = new Map<string, OAuthProviderConfig>();
 /** Active pending OAuth flows, keyed by flowId. */
 const pendingFlows = new Map<string, PendingFlow>();
 
-/** Completion callbacks per provider, keyed by providerId. */
-const completionCallbacks = new Map<string, (success: boolean, error?: string) => void>();
-
 interface LocalServerEntry {
   server: ReturnType<typeof Bun.serve>;
   /** Registered callback paths (e.g. "/auth/callback", "/oauth/gmail/callback"). */
@@ -95,20 +93,6 @@ async function generatePKCE(): Promise<PkceCodes> {
  */
 export function registerOAuthConfig(providerId: string, config: OAuthProviderConfig): void {
   oauthConfigs.set(providerId, config);
-}
-
-/**
- * Set the completion callback for a provider (called when tokens are saved or flow fails).
- */
-export function setOAuthCompletionCallback(
-  providerId: string,
-  callback: ((success: boolean, error?: string) => void) | undefined,
-): void {
-  if (callback) {
-    completionCallbacks.set(providerId, callback);
-  } else {
-    completionCallbacks.delete(providerId);
-  }
 }
 
 /**
@@ -182,7 +166,12 @@ async function handleLocalhostCallback(url: URL): Promise<Response> {
     const errorMsg = errorDescription || error;
     for (const [flowId, flow] of pendingFlows) {
       if (flow.state === state) {
-        completionCallbacks.get(flow.providerId)?.(false, errorMsg);
+        broadcastEvent({
+          type: 'provider.status',
+          provider: flow.providerId,
+          connected: false,
+          error: errorMsg,
+        });
         clearTimeout(flow.timeout);
         pendingFlows.delete(flowId);
         break;
@@ -327,14 +316,44 @@ export async function completeOAuthFlow(
   clearTimeout(flow.timeout);
   pendingFlows.delete(flowId);
 
-  const tokens = await exchangeCodeForTokens(config, code, redirectUri, flow.pkce);
+  let tokens: TokenResponse;
+  try {
+    tokens = await exchangeCodeForTokens(config, code, redirectUri, flow.pkce);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Token exchange failed';
+    broadcastEvent({
+      type: 'provider.status',
+      provider: flow.providerId,
+      connected: false,
+      error: message,
+    });
+    throw err;
+  }
 
   const provider = getProvider(flow.providerId);
   if (provider) {
-    await provider.onTokensReceived(tokens);
+    try {
+      await provider.onTokensReceived(tokens);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Token persistence failed';
+      broadcastEvent({
+        type: 'provider.status',
+        provider: flow.providerId,
+        connected: false,
+        error: message,
+      });
+      throw err;
+    }
   }
 
-  completionCallbacks.get(flow.providerId)?.(true);
+  const status = getProviderStatus(flow.providerId);
+  broadcastEvent({
+    type: 'provider.connected',
+    provider: flow.providerId,
+    connected: status.connected,
+    connectedAt: status.connectedAt,
+    accountId: status.accountId,
+  });
 
   return { providerId: flow.providerId };
 }
@@ -354,14 +373,24 @@ export async function handleServerCallback(
 
   if (error) {
     const errorMsg = errorDescription || error;
-    completionCallbacks.get(providerId)?.(false, errorMsg);
+    broadcastEvent({
+      type: 'provider.status',
+      provider: providerId,
+      connected: false,
+      error: errorMsg,
+    });
     return new Response(htmlError(errorMsg), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
 
   if (!code) {
-    completionCallbacks.get(providerId)?.(false, 'Missing authorization code');
+    broadcastEvent({
+      type: 'provider.status',
+      provider: providerId,
+      connected: false,
+      error: 'Missing authorization code',
+    });
     return new Response(htmlError('Missing authorization code'), {
       status: 400,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
