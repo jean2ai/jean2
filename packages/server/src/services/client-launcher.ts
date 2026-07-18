@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { getClientDir } from '@/paths';
 import {
@@ -8,6 +7,7 @@ import {
   fetchPackageMetadata,
   extractIntegrity,
 } from '@/services/npm-utils';
+import { createStaticRequestHandler } from '@/services/client-static-server';
 
 const CLIENT_PACKAGE = '@jean2/client';
 const MANIFEST_FILE = '.client-manifest.json';
@@ -19,8 +19,8 @@ interface ClientManifest {
   integrity?: string;
 }
 
-function getClientManifestPath(): string {
-  return join(getClientDir(), MANIFEST_FILE);
+function getClientManifestPath(clientDir = getClientDir()): string {
+  return join(clientDir, MANIFEST_FILE);
 }
 
 function readClientManifest(): ClientManifest | null {
@@ -33,12 +33,13 @@ function readClientManifest(): ClientManifest | null {
   }
 }
 
-function writeClientManifest(manifest: ClientManifest): void {
-  writeFileSync(getClientManifestPath(), JSON.stringify(manifest, null, 2));
+function writeClientManifest(manifest: ClientManifest, clientDir = getClientDir()): void {
+  writeFileSync(getClientManifestPath(clientDir), JSON.stringify(manifest, null, 2));
 }
 
-async function installClientPackage(): Promise<{ version: string; integrity: string | null }> {
-  const clientDir = getClientDir();
+async function installClientPackage(
+  clientDir = getClientDir(),
+): Promise<{ version: string; integrity: string | null }> {
   mkdirSync(clientDir, { recursive: true });
 
   const pkgJsonPath = join(clientDir, 'package.json');
@@ -70,16 +71,48 @@ async function installClientPackage(): Promise<{ version: string; integrity: str
     installedAt: new Date().toISOString(),
     lastUpdateCheck: new Date().toISOString(),
     integrity: integrity ?? undefined,
-  });
+  }, clientDir);
 
   console.log(`[client] Installed @jean2/client@${version}${integrity ? ` (verified)` : ''}`);
   return { version, integrity };
 }
 
-function getCliPath(): string | null {
-  const clientDir = getClientDir();
+function getCliPath(clientDir = getClientDir()): string | null {
   const cliPath = join(clientDir, 'node_modules', CLIENT_PACKAGE, 'dist', 'cli.mjs');
   return existsSync(cliPath) ? cliPath : null;
+}
+
+async function installClientUpdate(): Promise<string> {
+  const clientDir = getClientDir();
+  const stagingDir = `${clientDir}.update-${process.pid}`;
+  const backupDir = `${clientDir}.backup-${process.pid}`;
+
+  rmSync(stagingDir, { recursive: true, force: true });
+  rmSync(backupDir, { recursive: true, force: true });
+
+  try {
+    const result = await installClientPackage(stagingDir);
+    if (!getCliPath(stagingDir)) {
+      throw new Error('Updated @jean2/client package does not contain a usable CLI');
+    }
+
+    renameSync(clientDir, backupDir);
+    try {
+      renameSync(stagingDir, clientDir);
+    } catch (err: unknown) {
+      renameSync(backupDir, clientDir);
+      throw err;
+    }
+
+    rmSync(backupDir, { recursive: true, force: true });
+    return result.version;
+  } catch (err: unknown) {
+    rmSync(stagingDir, { recursive: true, force: true });
+    if (!existsSync(clientDir) && existsSync(backupDir)) {
+      renameSync(backupDir, clientDir);
+    }
+    throw err;
+  }
 }
 
 function isInstalled(): boolean {
@@ -115,7 +148,6 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
   const http = await import('node:http');
   const https = await import('node:https');
   const fs = await import('node:fs');
-  const path = await import('node:path');
 
   const tlsEnabled = process.env.JEAN2_TLS_ENABLED === 'true';
   let tlsOptions: { cert: string; key: string } | undefined;
@@ -140,80 +172,7 @@ export async function runClientCommand(cliPath: string, port: number): Promise<v
     }
   }
 
-  const MIME_TYPES: Record<string, string> = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.mjs': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-  };
-
-  function getContentType(filePath: string): string {
-    const ext = path.extname(filePath).toLowerCase();
-    return MIME_TYPES[ext] || 'application/octet-stream';
-  }
-
-  function serveFile(res: ServerResponse, filePath: string, contentType: string): void {
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('Not Found');
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(data);
-    });
-  }
-
-  const requestHandler = (req: IncomingMessage, res: ServerResponse) => {
-    let urlPath = (req.url ?? '/').split('?')[0];
-
-    if (urlPath === '/') {
-      urlPath = '/index.html';
-    }
-
-    // Try to serve the exact file first (handles /assets/* requests)
-    const filePath = path.join(distPath, urlPath);
-
-    fs.stat(filePath, (err, stats) => {
-      if (!err && stats.isFile()) {
-        const contentType = getContentType(filePath);
-        serveFile(res, filePath, contentType);
-        return;
-      }
-
-      // With base='./', asset paths resolve relative to current URL.
-      // On /sessions/abc, the browser requests /sessions/assets/foo.js.
-      // Detect these missed asset requests and try /assets/<filename>.
-      const ext = path.extname(urlPath).toLowerCase();
-      if (ext && ext !== '.html') {
-        const filename = path.basename(urlPath);
-        const assetPath = path.join(distPath, 'assets', filename);
-        fs.stat(assetPath, (err2, stats2) => {
-          if (!err2 && stats2.isFile()) {
-            const contentType = getContentType(assetPath);
-            serveFile(res, assetPath, contentType);
-            return;
-          }
-          // Truly not found — serve index.html as last resort
-          const indexPath = path.join(distPath, 'index.html');
-          serveFile(res, indexPath, 'text/html');
-        });
-        return;
-      }
-
-      // No extension or .html — SPA fallback
-      const indexPath = path.join(distPath, 'index.html');
-      serveFile(res, indexPath, 'text/html');
-    });
-  };
+  const requestHandler = createStaticRequestHandler(distPath);
 
   const server = tlsOptions
     ? https.createServer(tlsOptions, requestHandler)
@@ -250,11 +209,49 @@ export interface LaunchResult {
 export interface ClientLauncher {
   ensureInstalled(): Promise<string | null>;
   checkForUpdate(): Promise<string | null>;
+  installUpdate(): Promise<string>;
   launch(port: number, serverPort: number, serverHost: string): Promise<LaunchResult>;
-  relaunch(port: number, serverPort: number, serverHost: string): Promise<LaunchResult>;
   stop(): void;
   isRunning(): boolean;
   getInstalledVersion(): string | null;
+}
+
+export interface PreparedClientResult {
+  version: string | null;
+  launchResult: LaunchResult | null;
+}
+
+export async function prepareAndLaunchClient(
+  launcher: ClientLauncher,
+  clientPort: number,
+  serverPort: number,
+  serverHost: string,
+): Promise<PreparedClientResult> {
+  let version = await launcher.ensureInstalled();
+  if (!version) return { version: null, launchResult: null };
+
+  try {
+    const latestVersion = await launcher.checkForUpdate();
+    if (latestVersion) {
+      console.log(`[client] Updating from ${version} to ${latestVersion}...`);
+      try {
+        version = await launcher.installUpdate();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[client] Update failed, launching installed version: ${message}`);
+        version = launcher.getInstalledVersion() ?? version;
+      }
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[client] Update check failed, launching installed version: ${message}`);
+  }
+
+  const launchResult = await launcher.launch(clientPort, serverPort, serverHost);
+  return {
+    version: launcher.getInstalledVersion() ?? version,
+    launchResult,
+  };
 }
 
 export function createClientLauncher(): ClientLauncher {
@@ -296,6 +293,11 @@ export function createClientLauncher(): ClientLauncher {
       }
 
       return null;
+    },
+
+    async installUpdate(): Promise<string> {
+      console.log('[client] Installing update...');
+      return installClientUpdate();
     },
 
     async launch(port: number, serverPort: number, serverHost: string): Promise<LaunchResult> {
@@ -370,25 +372,6 @@ export function createClientLauncher(): ClientLauncher {
         port,
         url,
       };
-    },
-
-    async relaunch(port: number, serverPort: number, serverHost: string): Promise<LaunchResult> {
-      this.stop();
-
-      console.log('[client] Updating...');
-      try {
-        await installClientPackage();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        return {
-          success: false,
-          port,
-          url: '',
-          error: `Failed to update client: ${message}`,
-        };
-      }
-
-      return this.launch(port, serverPort, serverHost);
     },
 
     stop(): void {

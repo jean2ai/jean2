@@ -40,7 +40,11 @@ import {
   getLLMDeepseekApiKey,
 } from '@/env';
 import { activateSandbox } from '@/sandbox';
-import { createClientLauncher, type ClientLauncher } from '@/services/client-launcher';
+import {
+  createClientLauncher,
+  prepareAndLaunchClient,
+  type ClientLauncher,
+} from '@/services/client-launcher';
 import { startScheduler, stopScheduler } from '@/scheduler';
 
 interface WsData {
@@ -436,33 +440,17 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   if (getClientEnabled()) {
     clientLauncher = createClientLauncher();
-    const clientVersion = await clientLauncher.ensureInstalled();
-    const clientPort = getClientPort();
+    const { version, launchResult } = await prepareAndLaunchClient(
+      clientLauncher,
+      getClientPort(),
+      port,
+      host,
+    );
 
-    if (clientVersion) {
-      // Launch immediately with whatever is installed
-      let result = await clientLauncher.launch(clientPort, port, host);
-      if (result.success) {
-        console.log(`[client] @jean2/client@${clientVersion} running at ${result.url}`);
-      } else {
-        console.warn(`[client] Failed to launch: ${result.error}`);
-      }
-
-      // Check for update in the background — if newer version found,
-      // stop the current client, reinstall, and relaunch
-      const launcher = clientLauncher;
-      const updateCheck = launcher.checkForUpdate().catch(() => null);
-      updateCheck.then(async (latestVersion) => {
-        if (latestVersion) {
-          console.log(`[client] Updating from ${clientVersion} to ${latestVersion}...`);
-          result = await launcher.relaunch(clientPort, port, host);
-          if (result.success) {
-            console.log(`[client] Updated to @jean2/client@${latestVersion} running at ${result.url}`);
-          } else {
-            console.warn(`[client] Update failed: ${result.error}`);
-          }
-        }
-      });
+    if (launchResult?.success) {
+      console.log(`[client] @jean2/client@${version} running at ${launchResult.url}`);
+    } else if (launchResult) {
+      console.warn(`[client] Failed to launch: ${launchResult.error}`);
     }
   } else {
     console.log('[client] Built-in client disabled (JEAN2_CLIENT_ENABLED=false)');
