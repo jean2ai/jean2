@@ -160,6 +160,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.92 0 0);
   --sidebar-ring: oklch(0.205 0 0);
+  /* Editor syntax */
+  --syntax-comment: oklch(0.5 0.02 250);
+  --syntax-keyword: var(--chart-1);
+  --syntax-string: oklch(0.42 0.13 150);
+  --syntax-number: oklch(0.48 0.15 65);
+  --syntax-constant: oklch(0.46 0.14 300);
+  --syntax-function: var(--chart-2);
+  --syntax-type: var(--chart-5);
+  --syntax-property: var(--chart-3);
+  --syntax-operator: color-mix(in oklch, var(--primary) 75%, var(--foreground));
+  --syntax-punctuation: color-mix(in oklch, var(--muted-foreground) 75%, var(--foreground));
+  --syntax-invalid: var(--destructive);
+  --diff-added: oklch(0.48 0.15 145);
+  --diff-removed: oklch(0.55 0.2 25);
   /* File icons */
   --file-icon-ts: oklch(0.48 0.17 255);
   --file-icon-js: oklch(0.68 0.16 85);
@@ -201,6 +215,20 @@
   --sidebar-accent-foreground: oklch(0.90 0 0);
   --sidebar-border: oklch(0.22 0 0);
   --sidebar-ring: oklch(0.3 0 0);
+  /* Editor syntax */
+  --syntax-comment: oklch(0.66 0.025 250);
+  --syntax-keyword: var(--chart-1);
+  --syntax-string: oklch(0.76 0.12 150);
+  --syntax-number: oklch(0.78 0.13 75);
+  --syntax-constant: oklch(0.76 0.12 305);
+  --syntax-function: var(--chart-2);
+  --syntax-type: var(--chart-5);
+  --syntax-property: var(--chart-3);
+  --syntax-operator: color-mix(in oklch, var(--primary) 80%, var(--foreground));
+  --syntax-punctuation: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
+  --syntax-invalid: var(--destructive);
+  --diff-added: oklch(0.7 0.14 145);
+  --diff-removed: oklch(0.7 0.17 25);
   /* File icons */
   --file-icon-ts: oklch(0.7 0.15 255);
   --file-icon-js: oklch(0.8 0.15 85);
@@ -992,7 +1020,7 @@ main {
  * Robust selection styling. With drawSelection(), CodeMirror renders its own
  * selection layer (.cm-selectionBackground) instead of relying on the native
  * ::selection. Using !important ensures our theme color wins over the
- * defaultHighlightStyle / built-in CM defaults across all browsers.
+ * CodeMirror-generated styles and built-in defaults across all browsers.
  */
 .cm-editor .cm-selectionBackground {
   background-color: color-mix(in oklch, var(--primary) 25%, transparent) !important;

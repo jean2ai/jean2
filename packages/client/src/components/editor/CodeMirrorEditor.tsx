@@ -12,7 +12,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import {
   bracketMatching,
-  defaultHighlightStyle,
+  HighlightStyle,
   foldGutter,
   indentOnInput,
   indentUnit,
@@ -32,6 +32,7 @@ import { php } from '@codemirror/lang-php';
 import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { kotlin } from '@codemirror/legacy-modes/mode/clike';
+import { tags } from '@lezer/highlight';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { cn } from '@/lib/utils';
 import { createGitDiffExtension, type EditorGitDiff, type GitDiffExtensionController } from './gitDiffExtension';
@@ -131,11 +132,32 @@ const darkTheme = EditorView.theme(
   { dark: true },
 );
 
+const editorHighlightStyle = HighlightStyle.define([
+  { tag: tags.comment, color: 'var(--syntax-comment)', fontStyle: 'italic' },
+  { tag: tags.keyword, color: 'var(--syntax-keyword)', fontWeight: '600' },
+  { tag: tags.string, color: 'var(--syntax-string)' },
+  { tag: tags.number, color: 'var(--syntax-number)' },
+  { tag: [tags.bool, tags.null, tags.atom], color: 'var(--syntax-constant)' },
+  { tag: [tags.regexp, tags.escape], color: 'var(--syntax-constant)' },
+  { tag: tags.function(tags.variableName), color: 'var(--syntax-function)' },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--syntax-type)' },
+  { tag: [tags.propertyName, tags.attributeName], color: 'var(--syntax-property)' },
+  { tag: [tags.tagName, tags.heading], color: 'var(--syntax-keyword)' },
+  { tag: tags.operator, color: 'var(--syntax-operator)' },
+  { tag: tags.punctuation, color: 'var(--syntax-punctuation)' },
+  { tag: [tags.link, tags.url], color: 'var(--syntax-function)', textDecoration: 'underline' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.inserted, color: 'var(--diff-added)' },
+  { tag: tags.deleted, color: 'var(--diff-removed)' },
+  { tag: tags.invalid, color: 'var(--syntax-invalid)', textDecoration: 'underline wavy' },
+]);
+
 const highlightExtensions: Extension[] = [
   highlightActiveLine(),
   highlightActiveLineGutter(),
   highlightSelectionMatches(),
-  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  syntaxHighlighting(editorHighlightStyle, { fallback: true }),
 ];
 
 function buildLanguageExtension(language?: string, mimeType?: string): Extension[] {
