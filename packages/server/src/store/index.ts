@@ -495,6 +495,47 @@ export function initializeSchema(db: Database): void {
     // Column already exists
   }
 
+  // ── Web Push tables ──────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      client_server_id TEXT NOT NULL,
+      client_origin TEXT NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      expiration_time INTEGER,
+      notify_completion INTEGER NOT NULL DEFAULT 1,
+      notify_permission INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_success_at INTEGER,
+      last_failure_at INTEGER,
+      last_failure_reason TEXT
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_client_server ON push_subscriptions(client_server_id)');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS push_deliveries (
+      event_id TEXT NOT NULL,
+      subscription_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      attempted_at INTEGER,
+      next_attempt_at INTEGER,
+      delivered_at INTEGER,
+      error TEXT,
+      PRIMARY KEY (event_id, subscription_id)
+    )
+  `);
+
+  db.run("CREATE INDEX IF NOT EXISTS idx_push_deliveries_retry ON push_deliveries(status, next_attempt_at) WHERE status = 'pending_retry'");
+
   // Initialize FTS table for session search
   initializeFts(db);
   migrateFtsForAgents(db);
@@ -672,3 +713,6 @@ export type { CleanupStats, VacuumResult } from './cleanup';
 
 // Re-export scheduled jobs
 export * from './scheduled-jobs';
+
+// Re-export web push store
+export * from './web-push';

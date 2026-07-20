@@ -273,3 +273,8 @@ export function getAutoApproveTakeover(): boolean {
 export function getBaseUrl(): string | undefined {
   return process.env.JEAN2_BASE_URL;
 }
+
+export function getPermissionTimeoutMs(): number {
+  const parsed = parseInt(process.env.JEAN2_PERMISSION_TIMEOUT_MS || '1800000', 10);
+  return Number.isFinite(parsed) && parsed >= 60_000 ? parsed : 1800000;
+}

@@ -27,6 +27,7 @@ import { executeCompaction } from '@/core/compaction-executor';
 import { revertToStep } from '@/core/revert';
 import { interruptManager } from '@/core/interrupt';
 import { runGoalLoop } from '@/core/goal-loop';
+import { notifyTerminalMessage } from '@/services/web-push/dispatch';
 import * as providerManager from '@/providers';
 import { isSandboxActive } from '@/sandbox';
 import type { ServerWebSocket } from 'bun';
@@ -253,6 +254,9 @@ async function runSingleChatTurn(
 
         case 'message.updated':
           updateMessage(event.message.id, event.message, { syncFts: false });
+          if (event.message.role === 'assistant') {
+            notifyTerminalMessage(event.message, sessionId);
+          }
           ctx.broadcastToSession(sessionId, event);
           break;
 
@@ -753,4 +757,3 @@ export async function handleSessionEditMessage(
     ctx.send(ws, { type: 'error', code: 'edit_error', message, sessionId: msg.sessionId });
   }
 }
-

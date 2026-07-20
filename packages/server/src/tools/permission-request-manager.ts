@@ -26,6 +26,8 @@ import {
   SHELL_FILESYSTEM_COMMANDS,
 } from '@jean2/sdk';
 import { getSession } from '@/store/sessions';
+import { getPermissionTimeoutMs } from '@/env';
+import { notifyPermissionRequired } from '@/services/web-push/dispatch';
 
 
 // =============================================================================
@@ -54,7 +56,7 @@ interface PermissionWaiter {
 const waiters = new Map<string, PermissionWaiter>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export const PERMISSION_TIMEOUT = 5 * 60 * 1000;
+export const PERMISSION_TIMEOUT = getPermissionTimeoutMs();
 
 const DEFAULT_ASK_AUTHORITY: AskAuthority = {
   visibilityScope: 'controller_only',
@@ -271,6 +273,14 @@ export async function requestPermission(params: RequestPermissionParams): Promis
     expiresAt: now + timeoutMs,
     createdAt: now,
   });
+
+  // Trigger web push notification for permission requests.
+  // Only for permission asks, not generic questions. Uses rootSessionId for
+  // routing so the notification opens the top-level session.
+  if (isPermissionAsk) {
+    const effectiveRoot = rootSessionId ?? sessionId;
+    notifyPermissionRequired(requestId, effectiveRoot);
+  }
 
   // Broadcast ask.request with requestId
   broadcastFn({

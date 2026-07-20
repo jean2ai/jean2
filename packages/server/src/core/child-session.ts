@@ -6,6 +6,7 @@ import { broadcastEvent, sendToControllerEvent, sendToAskTargetsEvent, type Broa
 import type { AskBroadcastFn } from '@/tools/ask-user-api';
 import { getLLMSubagentMaxSteps } from '@/env';
 import { streamChatWithRetry } from './retry';
+import { notifyTerminalMessage } from '@/services/web-push/dispatch';
 
 export async function executeChildSession(options: {
   parentSessionId: string;
@@ -151,6 +152,7 @@ export async function executeChildSession(options: {
         structuredOutput = event.message.structuredOutput as StructuredOutputData;
       }
       updateMessage(event.message.id, event.message, { syncFts: false });
+      notifyTerminalMessage(event.message, childSessionId);
       broadcastToSessionFn(event);
     } else if (event.type === 'usage') {
       const currentSession = getSession(childSessionId);

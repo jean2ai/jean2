@@ -22,7 +22,13 @@ import {
 import { handleQueueAdd, handleQueueRemove } from './handlers/queue';
 import { handlePermissionList, handlePermissionRevoke, handlePermissionRevokeAll } from './handlers/permissions';
 import { handleProviderConnect, handleProviderDisconnect } from './handlers/providers';
-import { handleClientRegister, handlePong, handleAskResponse, handleSandboxRespond } from './handlers/misc';
+import {
+  handleClientRegister,
+  handlePong,
+  handleNotificationAcknowledge,
+  handleAskResponse,
+  handleSandboxRespond,
+} from './handlers/misc';
 
 // Re-export for external consumers
 export type { RouterContext, ClientEntry } from './router-context';
@@ -83,6 +89,7 @@ const handlers: Record<string, Handler> = {
   'queue.remove': cast(handleQueueRemove),
   'provider.connect': cast(handleProviderConnect),
   'provider.disconnect': cast(handleProviderDisconnect),
+  'notification.acknowledge': cast(handleNotificationAcknowledge),
   'pong': cast(handlePong),
   'ask.response': cast(handleAskResponse),
   'sandbox.respond': cast(handleSandboxRespond),

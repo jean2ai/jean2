@@ -6,7 +6,14 @@ import { getControlState } from '../session-control-registry';
 import { checkAskResponseEligibility } from '../capability-router';
 import { sandboxController } from '@/sandbox';
 import type { SandboxRespondMessage } from '@/sandbox';
-import type { ClientRegisterMessage, AskResponseMessage, AskAuthority, PongMessage } from '@jean2/sdk';
+import type {
+  ClientRegisterMessage,
+  AskResponseMessage,
+  AskAuthority,
+  NotificationAcknowledgeMessage,
+  PongMessage,
+} from '@jean2/sdk';
+import { acknowledgePendingNotification } from '@/services/web-push/dispatch';
 
 export function handleClientRegister(
   ctx: RouterContext,
@@ -25,6 +32,19 @@ export function handlePong(
   if (clientData) {
     clientData.missedPings = 0;
   }
+}
+
+export function handleNotificationAcknowledge(
+  _ctx: RouterContext,
+  ws: ServerWebSocket,
+  msg: NotificationAcknowledgeMessage,
+): void {
+  const clientId = getClientIdForWs(ws);
+  if (!clientId) {
+    return;
+  }
+
+  acknowledgePendingNotification(msg.eventId, msg.sessionId, clientId);
 }
 
 export function handleAskResponse(

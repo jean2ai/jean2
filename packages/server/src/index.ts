@@ -46,6 +46,7 @@ import {
   type ClientLauncher,
 } from '@/services/client-launcher';
 import { startScheduler, stopScheduler } from '@/scheduler';
+import { startPushRetryScheduler, stopPushRetryScheduler, cleanupPushData } from '@/services/web-push/retry-scheduler';
 
 interface WsData {
   path: string;
@@ -116,6 +117,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
   }
 
   backfillFts();
+  cleanupPushData();
 
   const port = options?.port ?? getPort();
   const host = options?.host ?? getHost();
@@ -435,6 +437,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
 
   // Start the scheduler tick loop (catches jobs that became due while offline)
   startScheduler();
+  startPushRetryScheduler();
 
   let clientLauncher: ClientLauncher | undefined;
 
@@ -473,6 +476,7 @@ async function startServer(options?: ServerOptions): Promise<ServerInstance> {
     clearInterval(heartbeatInterval);
     clearInterval(graceSweepInterval);
     stopScheduler();
+    stopPushRetryScheduler();
     clientLauncher?.stop();
     server.stop();
     getTerminalManager().destroyAllSessions();

@@ -227,3 +227,38 @@ export const modelsSyncSchema = z.object({
 }).loose();
 
 export const looseObjectSchema = z.record(z.string(), z.unknown());
+
+// ── Notification / Web Push schemas ────────────────────────────
+
+const httpsUrl = z.string().url().refine(
+  (url) => url.startsWith('https://'),
+  { message: 'Push endpoint must use HTTPS' },
+);
+
+export const upsertSubscriptionSchema = z.object({
+  clientId: z.string().min(1, { message: 'clientId is required' }).max(256),
+  clientServerId: z.string().min(1, { message: 'clientServerId is required' }).max(256),
+  clientOrigin: z.string().url().max(2048).refine(
+    (url) => url.startsWith('http://') || url.startsWith('https://'),
+    { message: 'clientOrigin must be a valid URL' },
+  ),
+  subscription: z.object({
+    endpoint: httpsUrl.max(2048, { message: 'Endpoint URL too long' }),
+    expirationTime: z.number().nullable().optional(),
+    keys: z.object({
+      p256dh: z.string().min(1, { message: 'p256dh key is required' }).max(256),
+      auth: z.string().min(1, { message: 'auth key is required' }).max(256),
+    }),
+  }),
+  preferences: z.object({
+    completion: z.boolean(),
+    permission: z.boolean(),
+  }),
+}).loose();
+
+export const updateSubscriptionPreferencesSchema = z.object({
+  preferences: z.object({
+    completion: z.boolean(),
+    permission: z.boolean(),
+  }),
+}).loose();

@@ -68,6 +68,10 @@ class PathsSingleton {
     return join(this.getDataDir(), 'auth-token.json');
   }
 
+  getWebPushCredentialsPath(): string {
+    return join(this.getDataDir(), 'web-push.json');
+  }
+
   getMcpAuthPath(): string {
     return join(this.getDataDir(), 'mcp-auth.json');
   }
@@ -153,6 +157,7 @@ export function getConfigPath(): string { return Paths.getConfigPath(); }
 export function getModelsConfigPath(): string { return Paths.getModelsConfigPath(); }
 export function getEnvFilePath(): string { return Paths.getEnvFilePath(); }
 export function getAuthTokenPath(): string { return Paths.getAuthTokenPath(); }
+export function getWebPushCredentialsPath(): string { return Paths.getWebPushCredentialsPath(); }
 export function getMcpAuthPath(): string { return Paths.getMcpAuthPath(); }
 export function getGlobalAgentsPath(): string { return Paths.getGlobalAgentsPath(); }
 export function getPidFilePath(): string { return Paths.getPidFilePath(); }
