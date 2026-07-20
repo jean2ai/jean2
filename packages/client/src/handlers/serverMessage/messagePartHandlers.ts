@@ -1,3 +1,4 @@
+import { getTerminalNotificationEventId } from '@jean2/sdk';
 import type { Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -5,6 +6,7 @@ import { queryClient } from '@/components/providers/QueryProvider';
 import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
+import { useSessionBoardStore } from '@/stores/sessionBoardStore';
 
 const FILE_MUTATING_TOOLS = new Set([
   'edit', 'multiedit', 'write-file', 'apply-patch', 'shell',
@@ -75,6 +77,8 @@ export function handleMessageUpdated(
     setCompletion,
     chatFinishSoundEnabledRef,
     playChatFinishSound,
+    currentSessionIdRef,
+    acknowledgeNotification,
   } = ctx;
 
   // Write to any session that has content loaded (multi-pane safe)
@@ -111,6 +115,23 @@ export function handleMessageUpdated(
       setCompletion(message.sessionId, { type: 'flash-only', flashStartedAt });
       if (!isError && chatFinishSoundEnabledRef.current) {
         playChatFinishSound();
+      }
+
+      const isDisplayed = useSessionBoardStore.getState().openSessionIds.includes(message.sessionId)
+        || currentSessionIdRef.current === message.sessionId;
+
+      if (
+        message.role === 'assistant'
+        && (message.status === 'completed' || message.status === 'error')
+        && !message.summary
+        && message.mode !== 'compaction'
+        && hasContent
+        && isDisplayed
+        && document.visibilityState === 'visible'
+        && document.hasFocus()
+      ) {
+        const eventId = getTerminalNotificationEventId(message.id, message.status);
+        acknowledgeNotification(eventId, message.sessionId);
       }
     }
   }

@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import type { ThemeScheme } from '@/components/providers/ThemeProvider';
 import { useUIStore } from '@/stores/uiStore';
+import { NotificationSettings } from './NotificationSettings';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -121,6 +122,10 @@ export function AppearancePanel() {
           </div>
         </div>
       </div>
+
+      <Separator />
+
+      <NotificationSettings />
 
       <Separator />
 

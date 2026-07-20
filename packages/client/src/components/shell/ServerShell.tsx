@@ -89,60 +89,60 @@ export default function ServerShell() {
 
   return (
     <SessionPaneRegistryContext.Provider value={paneRegistry}>
-      <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': platform.id === 'electron' ? '4.625rem' : '2.75rem' } as React.CSSProperties}>
-        <div className="bg-background">
-          <AppHeader />
-        </div>
+      <ServerClientProvider value={serverClientValue}>
+        <SidebarProvider panelId="sessions" defaultOpen={true} className="flex-col" style={{ '--sidebar-width': `${sessionsPanelWidth}px`, '--header-height': platform.id === 'electron' ? '4.625rem' : '2.75rem' } as React.CSSProperties}>
+          <div className="bg-background">
+            <AppHeader />
+          </div>
 
-        <div className="flex flex-1 min-h-0">
-          <SessionManagerContext.Provider value={sessionManager}>
-            <ServerClientProvider value={serverClientValue}>
+          <div className="flex flex-1 min-h-0">
+            <SessionManagerContext.Provider value={sessionManager}>
               <SessionCommandsProvider value={sessionManager}>
                 <ViewRefsContext.Provider value={viewRefs}>
                   <Outlet />
                 </ViewRefsContext.Provider>
               </SessionCommandsProvider>
-            </ServerClientProvider>
-          </SessionManagerContext.Provider>
+            </SessionManagerContext.Provider>
 
-          <FilesPanel
-            ref={filesPanelRef}
+            <FilesPanel
+              ref={filesPanelRef}
+              sdkClient={sessionManager.sdkClient}
+            />
+
+            <div
+              data-panel-gap="files"
+              className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
+              style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
+            />
+          </div>
+
+          <AppKeyboardHandlersMount
+            sidebarRef={sidebarRef}
+            terminalPanelRef={terminalPanelRef}
+            filesPanelRef={filesPanelRef}
+            chatInputRef={chatInputRef}
+            handleInterruptSession={sessionManager.handleInterruptSession}
+            serverId={serverId}
+            createSession={sessionManager.createSession}
+            onToggleAutoFollow={() => autoFollowToggleRef.current?.toggle()}
+          />
+
+          <ServerDialogs
+            apiToken={sessionManager.apiToken}
+            isConnected={sessionManager.connected}
             sdkClient={sessionManager.sdkClient}
+            onLogout={sessionManager.handleLogout}
+            onConfigurationClose={() => router.invalidate()}
+            permissions={sessionManager.permissions}
+            onRefreshPermissions={sessionManager.refreshPermissions}
+            onRevokePermission={sessionManager.revokePermission}
+            onRevokeAllPermissions={sessionManager.revokeAllPermissions}
+            onUpdateWorkspacePaths={sessionManager.updateWorkspacePaths}
+            onUpdateWorkspaceSettings={sessionManager.updateWorkspaceSettings}
+            isUpdatingWorkspace={sessionManager.isUpdatingWorkspace}
           />
-
-          <div
-            data-panel-gap="files"
-            className={`relative bg-transparent transition-[width] duration-200 ease-linear shrink-0 ${!showFilesPanel ? 'w-0' : ''}`}
-            style={{ width: showFilesPanel ? filesPanelWidth : 0 }}
-          />
-        </div>
-
-        <AppKeyboardHandlersMount
-          sidebarRef={sidebarRef}
-          terminalPanelRef={terminalPanelRef}
-          filesPanelRef={filesPanelRef}
-          chatInputRef={chatInputRef}
-          handleInterruptSession={sessionManager.handleInterruptSession}
-          serverId={serverId}
-          createSession={sessionManager.createSession}
-          onToggleAutoFollow={() => autoFollowToggleRef.current?.toggle()}
-        />
-
-        <ServerDialogs
-          apiToken={sessionManager.apiToken}
-          isConnected={sessionManager.connected}
-          sdkClient={sessionManager.sdkClient}
-          onLogout={sessionManager.handleLogout}
-          onConfigurationClose={() => router.invalidate()}
-          permissions={sessionManager.permissions}
-          onRefreshPermissions={sessionManager.refreshPermissions}
-          onRevokePermission={sessionManager.revokePermission}
-          onRevokeAllPermissions={sessionManager.revokeAllPermissions}
-          onUpdateWorkspacePaths={sessionManager.updateWorkspacePaths}
-          onUpdateWorkspaceSettings={sessionManager.updateWorkspaceSettings}
-          isUpdatingWorkspace={sessionManager.isUpdatingWorkspace}
-        />
-      </SidebarProvider>
+        </SidebarProvider>
+      </ServerClientProvider>
     </SessionPaneRegistryContext.Provider>
   );
 }

@@ -815,6 +815,12 @@ export function useServerSessionManager({
           });
         }
       },
+      acknowledgeNotification: (eventId: string, sessionId: string) => {
+        const client = sdkClientRef.current;
+        if (client && client.connected) {
+          client.notifications.acknowledge(eventId, sessionId);
+        }
+      },
       resumeSessionAfterCreate: (sessionId: string) => {
         const client = sdkClientRef.current;
         useSessionStore.getState().setNavigationIntent({ mode: 'follow' });
