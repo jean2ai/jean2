@@ -24,3 +24,4 @@ export * from './oauth';
 export * from './workflow';
 export * from './goal';
 export * from './scheduled-job';
+export * from './notification';

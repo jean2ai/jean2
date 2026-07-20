@@ -340,4 +340,8 @@ export type {
   CreatePromptConfigResponse,
   UpdatePromptConfigResponse,
   DeletePromptConfigResponse,
+  GetNotificationConfigResponse,
+  UpsertSubscriptionResponse,
+  UpdateSubscriptionPreferencesResponse,
+  DeleteSubscriptionResponse,
 } from './rest-responses';

@@ -283,6 +283,16 @@ export interface SessionControlRespondTakeoverMessage {
 }
 
 // =============================================================================
+// Notification Messages
+// =============================================================================
+
+export interface NotificationAcknowledgeMessage {
+  type: 'notification.acknowledge';
+  eventId: string;
+  sessionId: string;
+}
+
+// =============================================================================
 // Heartbeat Messages
 // =============================================================================
 
@@ -320,4 +330,5 @@ export type ClientMessage =
   | SessionControlReleaseMessage
   | SessionControlRequestTakeoverMessage
   | SessionControlRespondTakeoverMessage
+  | NotificationAcknowledgeMessage
   | PongMessage;

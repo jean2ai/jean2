@@ -12,6 +12,7 @@ import { QueueNamespace } from './namespaces/queue';
 import { ProvidersNamespace } from './namespaces/providers';
 import { ControlNamespace } from './namespaces/control';
 import { TerminalNamespace } from './namespaces/terminal';
+import { NotificationsNamespace } from './namespaces/notifications';
 import { HttpNamespace } from './rest/http-namespace';
 
 export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
@@ -28,6 +29,7 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
   readonly queue: QueueNamespace;
   readonly providers: ProvidersNamespace;
   readonly control: ControlNamespace;
+  readonly notifications: NotificationsNamespace;
   readonly http: HttpNamespace;
   readonly terminal: TerminalNamespace;
 
@@ -53,6 +55,7 @@ export class Jean2Client extends TypedEventEmitter<SdkEventMap> {
     this.queue = new QueueNamespace(send);
     this.providers = new ProvidersNamespace(send);
     this.control = new ControlNamespace(send);
+    this.notifications = new NotificationsNamespace(send);
     this.http = new HttpNamespace(this._httpClient);
     this.terminal = new TerminalNamespace({
       url: config.url,

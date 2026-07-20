@@ -33,6 +33,7 @@ export { PermissionsNamespace } from './namespaces/permissions';
 export { QueueNamespace } from './namespaces/queue';
 export { ProvidersNamespace } from './namespaces/providers';
 export { ControlNamespace } from './namespaces/control';
+export { NotificationsNamespace } from './namespaces/notifications';
 
 export {
   TerminalConnection,
@@ -66,6 +67,7 @@ export { ResponseFormatsRestNamespace } from './rest/response-formats';
 export type { CreateResponseFormatRequest, UpdateResponseFormatRequest } from './rest/response-formats';
 export { SchedulerRestNamespace } from './rest/scheduler';
 export type { ListScheduledJobsResponse, GetScheduledJobResponse } from './rest/scheduler';
+export { NotificationsRestNamespace } from './rest/notifications';
 export { HttpNamespace } from './rest/http-namespace';
 export type { LoadAllResult, CriticalServerData, SecondaryServerData } from './rest/http-namespace';
 

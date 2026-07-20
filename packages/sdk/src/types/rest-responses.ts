@@ -1,4 +1,5 @@
 import type { Session, Message, Workspace, ToolDefinition, ToolEnvVarStatus, PromptInfo, ModelWithStatus, Preconfig, ProviderStatus, ProviderCredentialStatus, ModelsConfigResponse, ModelsConfig, FileEntry, FilePreviewResponse, TerminalSessionInfo, McpServerConfig, McpStatus, PinnedMessage, GitAvailability, GitDiffSummary, GitFileDiffResponse, EditableFileResponse, SaveFileResponse as SaveFileResultResponse, Agent } from '../shared';
+import type { NotificationConfig, PushSubscriptionRecord } from '../shared-types/notification';
 
 /**
  * GET /api/sessions
@@ -602,5 +603,40 @@ export interface PinMessageResponse {
  * DELETE /api/workspaces/:id/pinned-messages/:messageId
  */
 export interface UnpinMessageResponse {
+  success: boolean;
+}
+
+// =============================================================================
+// Notifications Responses
+// =============================================================================
+
+/**
+ * GET /api/notifications/config
+ * Returns public notification configuration (VAPID public key, timeouts).
+ */
+export type GetNotificationConfigResponse = NotificationConfig;
+
+/**
+ * PUT /api/notifications/subscriptions
+ * Authenticated upsert using endpoint uniqueness.
+ * Returns an opaque subscription record without endpoint or encryption keys.
+ */
+export interface UpsertSubscriptionResponse {
+  subscription: PushSubscriptionRecord;
+}
+
+/**
+ * PATCH /api/notifications/subscriptions/:id
+ * Update event preferences for a subscription.
+ */
+export interface UpdateSubscriptionPreferencesResponse {
+  subscription: PushSubscriptionRecord;
+}
+
+/**
+ * DELETE /api/notifications/subscriptions/:id
+ * Delete the server registration.
+ */
+export interface DeleteSubscriptionResponse {
   success: boolean;
 }

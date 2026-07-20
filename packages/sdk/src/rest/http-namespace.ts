@@ -15,6 +15,7 @@ import { ConfigRestNamespace } from './config';
 import { ResponseFormatsRestNamespace } from './response-formats';
 import { SchedulerRestNamespace } from './scheduler';
 import { AgentsRestNamespace } from './agents';
+import { NotificationsRestNamespace } from './notifications';
 
 /**
  * Result of loading all initial server data.
@@ -51,6 +52,7 @@ export class HttpNamespace {
   readonly responseFormats: ResponseFormatsRestNamespace;
   readonly scheduler: SchedulerRestNamespace;
   readonly agents: AgentsRestNamespace;
+  readonly notifications: NotificationsRestNamespace;
 
   constructor(http: HttpClient) {
     this.sessions = new SessionsRestNamespace(http);
@@ -68,6 +70,7 @@ export class HttpNamespace {
     this.responseFormats = new ResponseFormatsRestNamespace(http);
     this.scheduler = new SchedulerRestNamespace(http);
     this.agents = new AgentsRestNamespace(http);
+    this.notifications = new NotificationsRestNamespace(http);
   }
 
   /**
