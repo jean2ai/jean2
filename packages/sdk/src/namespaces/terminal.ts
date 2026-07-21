@@ -11,6 +11,7 @@ export const TERMINAL_OPCODES = {
   ERROR: 0x06,
   INIT_ACK: 0x07,
   TITLE: 0x08,
+  REPLAY_COMPLETE: 0x09,
 } as const;
 
 export type TerminalOpcode = typeof TERMINAL_OPCODES[keyof typeof TERMINAL_OPCODES];
@@ -21,6 +22,7 @@ export interface TerminalEventMap {
   output: [data: Uint8Array];
   exit: [exitCode: number];
   title: [title: string];
+  replay_complete: [];
   close: [];
   error: [error: Error];
 }
@@ -51,6 +53,7 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
   private _closed = false;
   private _disposed = false;
   private _preInitOutput: Uint8Array[] = [];
+  private _pendingReplayComplete = false;
 
   constructor(ws: WebSocket, session: TerminalSessionInit, preInitOutput?: Uint8Array[]) {
     super();
@@ -73,6 +76,9 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
     const result = super.on(event, handler);
     if (event === 'output') {
       this.flushPreInitOutput();
+    } else if (event === 'replay_complete' && this._pendingReplayComplete) {
+      this._pendingReplayComplete = false;
+      this.emit('replay_complete');
     }
     return result;
   }
@@ -134,6 +140,14 @@ export class TerminalConnection extends TypedEventEmitter<TerminalEventMap> {
         this.emit('title', title);
         break;
       }
+
+      case TERMINAL_OPCODES.REPLAY_COMPLETE:
+        if (this.listenerCount('replay_complete') > 0) {
+          this.emit('replay_complete');
+        } else {
+          this._pendingReplayComplete = true;
+        }
+        break;
 
       case TERMINAL_OPCODES.ERROR: {
         const errorMessage = new TextDecoder().decode(payload);
