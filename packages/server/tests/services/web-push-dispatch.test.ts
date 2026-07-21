@@ -1,11 +1,14 @@
 import { describe, test, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
+import { seedWorkspace, seedSession } from '#tests/seed';
 import {
   upsertPushSubscription,
   listEnabledSubscriptionsForEvent,
   reserveDelivery,
   deleteStaleSubscription,
 } from '@/store/web-push';
+import { createScheduledJob, deleteScheduledJob } from '@/store/scheduled-jobs';
+import { createPendingAsk } from '@/store/pending-asks';
 
 const validKeys = { p256dh: 'p256dh-value', auth: 'auth-value' };
 const validEndpoint = 'https://fcm.googleapis.com/fcm/send/abc';
@@ -157,5 +160,339 @@ describe('web-push dispatch service', () => {
     });
 
     // No assertion needed here — the test passes if no errors are thrown
+  });
+
+  // ── Scheduled session gating ──────────────────────────────────
+
+  describe('scheduled session notification gating', () => {
+    test('normal top-level completion remains eligible', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+      const session = seedSession('ws1', { parentId: null });
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+
+      const msg = {
+        id: 'msg-normal-1',
+        sessionId: session.id,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage(msg, session.id);
+
+      const eventId = 'message:msg-normal-1:completed';
+      const acked = acknowledgePendingNotification(eventId, session.id, 'client-1');
+      expect(acked).toBe(true);
+    });
+
+    test('normal top-level failure remains eligible', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+      const session = seedSession('ws1', { parentId: null });
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+
+      const msg = {
+        id: 'msg-normal-error',
+        sessionId: session.id,
+        role: 'assistant' as const,
+        status: 'error' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage(msg, session.id);
+
+      const eventId = 'message:msg-normal-error:error';
+      const acked = acknowledgePendingNotification(eventId, session.id, 'client-1');
+      expect(acked).toBe(true);
+    });
+
+    test('scheduled completion is suppressed by default (notificationsEnabled=false)', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+
+      const job = createScheduledJob('ws1', {
+        name: 'Job',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+      });
+      expect(job.notificationsEnabled).toBe(false);
+
+      const session = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: job.id },
+      });
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+
+      const msg = {
+        id: 'msg-sched-off',
+        sessionId: session.id,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage(msg, session.id);
+
+      const eventId = 'message:msg-sched-off:completed';
+      const acked = acknowledgePendingNotification(eventId, session.id, 'client-1');
+      expect(acked).toBe(false); // Nothing was scheduled
+    });
+
+    test('scheduled completion is eligible when notificationsEnabled=true', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+
+      const job = createScheduledJob('ws1', {
+        name: 'Job',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        notificationsEnabled: true,
+      });
+
+      const session = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: job.id },
+      });
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+
+      const msg = {
+        id: 'msg-sched-on',
+        sessionId: session.id,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage(msg, session.id);
+
+      const eventId = 'message:msg-sched-on:completed';
+      const acked = acknowledgePendingNotification(eventId, session.id, 'client-1');
+      expect(acked).toBe(true);
+    });
+
+    test('scheduled failure respects the per-job notification setting', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+
+      const jobOff = createScheduledJob('ws1', {
+        name: 'Failure off',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+      });
+      const sessionOff = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: jobOff.id },
+      });
+
+      const jobOn = createScheduledJob('ws1', {
+        name: 'Failure on',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        notificationsEnabled: true,
+      });
+      const sessionOn = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: jobOn.id },
+      });
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+      const messageBase = {
+        role: 'assistant' as const,
+        status: 'error' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage({
+        ...messageBase,
+        id: 'msg-failure-off',
+        sessionId: sessionOff.id,
+      }, sessionOff.id);
+      expect(acknowledgePendingNotification(
+        'message:msg-failure-off:error',
+        sessionOff.id,
+        'client-1',
+      )).toBe(false);
+
+      notifyTerminalMessage({
+        ...messageBase,
+        id: 'msg-failure-on',
+        sessionId: sessionOn.id,
+      }, sessionOn.id);
+      expect(acknowledgePendingNotification(
+        'message:msg-failure-on:error',
+        sessionOn.id,
+        'client-1',
+      )).toBe(true);
+    });
+
+    test('scheduled completion fails closed when job is deleted', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        preferences: { completion: true, permission: true },
+      }));
+
+      const job = createScheduledJob('ws1', {
+        name: 'Job',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        notificationsEnabled: true,
+      });
+
+      const session = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: job.id },
+      });
+
+      // Delete the job so the session references a missing record
+      deleteScheduledJob(job.id);
+
+      const { notifyTerminalMessage, acknowledgePendingNotification } = await import('@/services/web-push/dispatch');
+
+      const msg = {
+        id: 'msg-sched-missing',
+        sessionId: session.id,
+        role: 'assistant' as const,
+        status: 'completed' as const,
+        modelId: 'test',
+        providerId: 'test',
+        tokens: { prompt: 0, completion: 0 },
+        cost: 0,
+        createdAt: Date.now(),
+        completedAt: Date.now(),
+      };
+
+      notifyTerminalMessage(msg, session.id);
+
+      const eventId = 'message:msg-sched-missing:completed';
+      const acked = acknowledgePendingNotification(eventId, session.id, 'client-1');
+      expect(acked).toBe(false);
+    });
+
+    test('scheduled permission request is suppressed when off, dispatched when on', async () => {
+      seedWorkspace({ id: 'ws1' });
+      upsertPushSubscription(makeSubscription({
+        clientId: 'client-perm',
+        preferences: { completion: true, permission: true },
+      }));
+
+      const jobOff = createScheduledJob('ws1', {
+        name: 'Off',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+      });
+
+      const sessionOff = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: jobOff.id },
+      });
+
+      const requestIdOff = 'perm-request-off';
+      createPendingAsk({
+        requestId: requestIdOff,
+        sessionId: sessionOff.id,
+        rootSessionId: sessionOff.id,
+        toolCallId: 'call-1',
+        toolName: 'test-tool',
+        ask: { type: 'permission', question: 'Allow?', risk: 'low', resource: 'test', action: 'run' },
+        status: 'pending',
+        isPermission: true,
+        createdAt: Date.now(),
+      });
+
+      const { dispatchPendingPermissionNotification } = await import('@/services/web-push/dispatch');
+      await dispatchPendingPermissionNotification(requestIdOff, sessionOff.id);
+
+      // No delivery row should have been created for the off-session
+      const subs = listEnabledSubscriptionsForEvent('permission_required');
+      const offDelivery = reserveDelivery({
+        eventId: 'permission:perm-request-off',
+        subscriptionId: subs[0].id,
+        eventType: 'permission_required',
+      });
+      expect(offDelivery).toBe(true); // Still available → nothing reserved it
+
+      // Now enable notifications and test the on case
+      const jobOn = createScheduledJob('ws1', {
+        name: 'On',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        notificationsEnabled: true,
+      });
+
+      const sessionOn = seedSession('ws1', {
+        parentId: null,
+        metadata: { scheduledJobId: jobOn.id },
+      });
+
+      const requestIdOn = 'perm-request-on';
+      createPendingAsk({
+        requestId: requestIdOn,
+        sessionId: sessionOn.id,
+        rootSessionId: sessionOn.id,
+        toolCallId: 'call-2',
+        toolName: 'test-tool',
+        ask: { type: 'permission', question: 'Allow?', risk: 'low', resource: 'test', action: 'run' },
+        status: 'pending',
+        isPermission: true,
+        createdAt: Date.now(),
+      });
+
+      await dispatchPendingPermissionNotification(requestIdOn, sessionOn.id);
+
+      // A delivery row should have been reserved by the server
+      const onDelivery = reserveDelivery({
+        eventId: 'permission:perm-request-on',
+        subscriptionId: subs[0].id,
+        eventType: 'permission_required',
+      });
+      expect(onDelivery).toBe(false); // Already reserved → dispatch happened
+    });
   });
 });

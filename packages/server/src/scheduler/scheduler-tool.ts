@@ -90,6 +90,10 @@ The prompt should be self-contained — it is the full instruction given to the 
         enum: ['off', 'none', 'low', 'medium', 'high'],
         description: 'Auto-approve severity for sessions created by this job. Omit or null to use workspace default.',
       },
+      notificationsEnabled: {
+        type: 'boolean' as const,
+        description: 'When true, scheduled runs may send completion, failure, and permission push notifications (subject to each browser subscription\'s existing preferences). Defaults to false (no notifications). (create/update)',
+      },
     },
     required: ['action'],
   },
@@ -254,6 +258,7 @@ function executeCreate(
     includeHistory: input.includeHistory as boolean | undefined,
     originSessionId: currentSessionId,
     autoApproveSeverity: input.autoApproveSeverity as ScheduledJob['autoApproveSeverity'],
+    notificationsEnabled: input.notificationsEnabled as boolean | undefined,
   });
   console.log(`[scheduler-tool] Job created: id=${job.id} state=${job.state} nextRunAt=${job.nextRunAt}`);
 
@@ -290,6 +295,7 @@ function executeUpdate(input: Record<string, unknown>): SchedulerToolResult {
   if (input.reuseSession !== undefined) updates.reuseSession = input.reuseSession;
   if (input.includeHistory !== undefined) updates.includeHistory = input.includeHistory;
   if (input.autoApproveSeverity !== undefined) updates.autoApproveSeverity = input.autoApproveSeverity;
+  if (input.notificationsEnabled !== undefined) updates.notificationsEnabled = input.notificationsEnabled;
 
   if (input.schedule) {
     const parsed = parseSchedule(input.schedule as Record<string, unknown>);

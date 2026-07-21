@@ -30,6 +30,7 @@ interface ScheduledJobRow {
   preconfig_id: string | null;
   origin_session_id: string | null;
   auto_approve_severity: string | null;
+  notifications_enabled: number;
   created_at: number;
   updated_at: number;
 }
@@ -55,6 +56,7 @@ function rowToScheduledJob(row: ScheduledJobRow): ScheduledJob {
     preconfigId: row.preconfig_id,
     originSessionId: row.origin_session_id,
     autoApproveSeverity: row.auto_approve_severity as ScheduledJob['autoApproveSeverity'],
+    notificationsEnabled: row.notifications_enabled === 1,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -72,8 +74,8 @@ export function createScheduledJob(
 
   db.run(
     `INSERT INTO scheduled_jobs
-      (id, workspace_id, name, prompt, schedule_kind, schedule_config, schedule_display, state, repeat_limit, run_count, next_run_at, last_run_at, last_run_session_id, last_error, reuse_session, include_history, preconfig_id, origin_session_id, auto_approve_severity, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, workspace_id, name, prompt, schedule_kind, schedule_config, schedule_display, state, repeat_limit, run_count, next_run_at, last_run_at, last_run_session_id, last_error, reuse_session, include_history, preconfig_id, origin_session_id, auto_approve_severity, notifications_enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       workspaceId,
@@ -89,6 +91,7 @@ export function createScheduledJob(
       input.preconfigId ?? null,
       input.originSessionId ?? null,
       input.autoApproveSeverity ?? null,
+      input.notificationsEnabled ? 1 : 0,
       now,
       now,
     ],
@@ -152,6 +155,10 @@ export function updateScheduledJob(
   if (updates.autoApproveSeverity !== undefined) {
     setClauses.push('auto_approve_severity = ?');
     values.push(updates.autoApproveSeverity);
+  }
+  if (updates.notificationsEnabled !== undefined) {
+    setClauses.push('notifications_enabled = ?');
+    values.push(updates.notificationsEnabled ? 1 : 0);
   }
   if (updates.state !== undefined) {
     setClauses.push('state = ?');

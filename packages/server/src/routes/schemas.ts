@@ -75,6 +75,7 @@ export const createScheduledJobSchema = z.object({
   reuseSession: z.boolean().optional(),
   includeHistory: z.boolean().optional(),
   autoApproveSeverity: z.enum(['off', 'none', 'low', 'medium', 'high']).nullable().optional(),
+  notificationsEnabled: z.boolean().optional(),
 }).loose();
 
 export const updateScheduledJobSchema = z.object({
@@ -89,6 +90,7 @@ export const updateScheduledJobSchema = z.object({
   includeHistory: z.boolean().optional(),
   autoApproveSeverity: z.enum(['off', 'none', 'low', 'medium', 'high']).nullable().optional(),
   enabled: z.boolean().optional(),
+  notificationsEnabled: z.boolean().optional(),
 }).loose();
 
 // ── Tool env schemas ───────────────────────────────────────────

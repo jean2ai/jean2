@@ -80,6 +80,47 @@ describe('Scheduler Routes', () => {
       expect(body.job.name).toBe('Daily Report');
       expect(body.job.id).toBeDefined();
       expect(body.job.state).toBe('active');
+      expect(body.job.notificationsEnabled).toBe(false);
+    });
+
+    test('creates a job with notificationsEnabled true', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1/scheduled-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Daily Report',
+          prompt: 'Generate a daily report',
+          scheduleKind: 'daily',
+          scheduleConfig: { type: 'daily', time: '09:00' },
+          notificationsEnabled: true,
+        }),
+      });
+
+      expect(res.status).toBe(201);
+      const body = await json(res);
+      expect(body.job.notificationsEnabled).toBe(true);
+    });
+
+    test('returns 400 for non-boolean notificationsEnabled', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const res = await app.request('/api/workspaces/ws1/scheduled-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Test',
+          prompt: 'test',
+          scheduleKind: 'daily',
+          scheduleConfig: { type: 'daily', time: '09:00' },
+          notificationsEnabled: 'yes',
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await json(res);
+      expect(body.error).toBe('bad_request');
     });
 
     test('returns 400 when name is missing', async () => {
@@ -183,6 +224,42 @@ describe('Scheduler Routes', () => {
       });
 
       expect(res.status).toBe(404);
+    });
+
+    test('toggles notificationsEnabled via patch', async () => {
+      seedWorkspace({ id: 'ws1' });
+
+      const createRes = await app.request('/api/workspaces/ws1/scheduled-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Toggle',
+          prompt: 'P',
+          scheduleKind: 'interval',
+          scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        }),
+      });
+      const created = await json(createRes);
+      const jobId = created.job.id;
+      expect(created.job.notificationsEnabled).toBe(false);
+
+      const enableRes = await app.request(`/api/workspaces/ws1/scheduled-jobs/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationsEnabled: true }),
+      });
+      expect(enableRes.status).toBe(200);
+      const enabled = await json(enableRes);
+      expect(enabled.job.notificationsEnabled).toBe(true);
+
+      const disableRes = await app.request(`/api/workspaces/ws1/scheduled-jobs/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationsEnabled: false }),
+      });
+      expect(disableRes.status).toBe(200);
+      const disabled = await json(disableRes);
+      expect(disabled.job.notificationsEnabled).toBe(false);
     });
   });
 

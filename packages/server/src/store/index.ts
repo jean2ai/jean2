@@ -429,7 +429,8 @@ export function initializeSchema(db: Database): void {
       preconfig_id TEXT,
       origin_session_id TEXT,
       created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+      updated_at INTEGER NOT NULL,
+      notifications_enabled INTEGER NOT NULL DEFAULT 0
     )
   `);
 
@@ -456,6 +457,13 @@ export function initializeSchema(db: Database): void {
   // Migrate: add auto_approve_severity column to scheduled_jobs if missing
   try {
     db.run('ALTER TABLE scheduled_jobs ADD COLUMN auto_approve_severity TEXT');
+  } catch {
+    // Column already exists
+  }
+
+  // Migrate: add notifications_enabled column to scheduled_jobs if missing
+  try {
+    db.run('ALTER TABLE scheduled_jobs ADD COLUMN notifications_enabled INTEGER NOT NULL DEFAULT 0');
   } catch {
     // Column already exists
   }

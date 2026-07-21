@@ -51,6 +51,7 @@ export function registerSchedulerRoutes(app: Hono): void {
         reuseSession: body.reuseSession ?? false,
         includeHistory: body.includeHistory ?? false,
         autoApproveSeverity: body.autoApproveSeverity ?? null,
+        notificationsEnabled: body.notificationsEnabled ?? false,
       });
       return c.json({ job }, 201);
     },

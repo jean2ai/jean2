@@ -11,9 +11,35 @@ import {
 } from '@/store/web-push';
 import { sendWebPush } from './credentials';
 import { getSession } from '@/store/sessions';
+import { getScheduledJob } from '@/store/scheduled-jobs';
 
 const PUSH_DISPATCH_DELAY_MS = 3_000;
 const PUSH_TTL_SECONDS = 2419200; // 28 days max
+
+/**
+ * Determine whether a session is eligible for scheduled-event notifications.
+ *
+ * - Normal sessions (no metadata.scheduledJobId) are always eligible.
+ * - Scheduled sessions are eligible only when their job exists and has
+ *   notificationsEnabled set to true. A missing job record fails closed.
+ */
+function canNotifyForSession(session: Session | null): boolean {
+  if (!session) {
+    return false;
+  }
+
+  const scheduledJobId = session.metadata?.scheduledJobId;
+  if (scheduledJobId === undefined || scheduledJobId === null) {
+    return true;
+  }
+
+  if (typeof scheduledJobId !== 'string' || scheduledJobId === '') {
+    return false;
+  }
+
+  const job = getScheduledJob(scheduledJobId);
+  return job?.notificationsEnabled === true;
+}
 
 interface PendingNotificationDispatch {
   sessionId: string;
@@ -231,6 +257,10 @@ function shouldNotifyTerminalMessage(
   }
 
   if (message.status === 'completed') {
+    // Scheduled sessions require per-job opt-in
+    if (!canNotifyForSession(session)) {
+      return null;
+    }
     return {
       eventType: 'session_completed',
       eventId: getTerminalNotificationEventId(message.id, 'completed'),
@@ -238,6 +268,10 @@ function shouldNotifyTerminalMessage(
   }
 
   if (message.status === 'error') {
+    // Scheduled sessions require per-job opt-in
+    if (!canNotifyForSession(session)) {
+      return null;
+    }
     return {
       eventType: 'session_failed',
       eventId: getTerminalNotificationEventId(message.id, 'error'),
@@ -272,31 +306,38 @@ export function notifyTerminalMessage(
 }
 
 /**
- * Trigger a permission-required notification after a pending permission ask
- * has been persisted.
- *
- * Delays dispatch briefly so a connected client's automatic permission
- * handler has time to resolve the request without producing a push.
- * Rechecks pending state before delivery.
+ * Dispatch a permission notification only when the ask remains pending and
+ * the root session is eligible. Exported separately so the delayed production
+ * path and focused tests use the same decision logic.
  */
+export async function dispatchPendingPermissionNotification(
+  requestId: string,
+  rootSessionId: string,
+): Promise<void> {
+  const { getPermissionRequestByRequestId } = await import('@/store/pending-asks');
+  const pending = getPermissionRequestByRequestId(requestId);
+  if (!pending || pending.status !== 'pending') {
+    return;
+  }
+
+  const session = getSession(rootSessionId);
+  if (!canNotifyForSession(session)) {
+    return;
+  }
+
+  await dispatchNotification({
+    eventId: `permission:${requestId}`,
+    eventType: 'permission_required',
+    sessionId: rootSessionId,
+  });
+}
+
 export function notifyPermissionRequired(
   requestId: string,
   rootSessionId: string,
 ): void {
   setTimeout(() => {
-    // Confirm the request is still pending before dispatching
-    import('@/store/pending-asks').then(({ getPermissionRequestByRequestId }) => {
-      const pending = getPermissionRequestByRequestId(requestId);
-      if (!pending || pending.status !== 'pending') {
-        return; // Already resolved or expired
-      }
-
-      return dispatchNotification({
-        eventId: `permission:${requestId}`,
-        eventType: 'permission_required',
-        sessionId: rootSessionId,
-      });
-    }).catch((err: unknown) => {
+    dispatchPendingPermissionNotification(requestId, rootSessionId).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[web-push] Permission dispatch failed: ${msg}`);
     });

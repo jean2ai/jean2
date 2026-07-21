@@ -1,6 +1,8 @@
+import { Database } from 'bun:sqlite';
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
+import { initializeSchema } from '@/store';
 import { seedWorkspace } from '#tests/seed';
 import {
   createScheduledJob,
@@ -25,6 +27,63 @@ describe('scheduled-jobs store', () => {
     resetTestDatabase();
   });
 
+  describe('migration', () => {
+    test('adds notifications_enabled to existing jobs with notifications disabled', () => {
+      const legacyDb = new Database(':memory:');
+      legacyDb.run(`
+        CREATE TABLE scheduled_jobs (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          schedule_kind TEXT NOT NULL,
+          schedule_config TEXT NOT NULL,
+          schedule_display TEXT NOT NULL,
+          state TEXT NOT NULL,
+          repeat_limit INTEGER,
+          run_count INTEGER NOT NULL DEFAULT 0,
+          next_run_at INTEGER,
+          last_run_at INTEGER,
+          last_run_session_id TEXT,
+          last_error TEXT,
+          reuse_session INTEGER NOT NULL DEFAULT 0,
+          include_history INTEGER NOT NULL DEFAULT 0,
+          preconfig_id TEXT,
+          origin_session_id TEXT,
+          auto_approve_severity TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      `);
+      legacyDb.run(
+        `INSERT INTO scheduled_jobs (
+          id, workspace_id, name, prompt, schedule_kind, schedule_config,
+          schedule_display, state, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          'legacy-job',
+          'ws1',
+          'Legacy job',
+          'Run',
+          'interval',
+          JSON.stringify({ type: 'interval', intervalMinutes: 60 }),
+          'Every 60m',
+          'active',
+          Date.now(),
+          Date.now(),
+        ],
+      );
+
+      initializeSchema(legacyDb);
+
+      const row = legacyDb
+        .query('SELECT notifications_enabled FROM scheduled_jobs WHERE id = ?')
+        .get('legacy-job') as { notifications_enabled: number };
+      expect(row.notifications_enabled).toBe(0);
+      legacyDb.close();
+    });
+  });
+
   describe('createScheduledJob', () => {
     test('creates a job with all fields and reads it back', () => {
       seedWorkspace({ id: 'ws1', name: 'Test', path: '/test' });
@@ -40,6 +99,7 @@ describe('scheduled-jobs store', () => {
         preconfigId: 'agent-1',
         originSessionId: 'session-1',
         autoApproveSeverity: 'low',
+        notificationsEnabled: true,
       });
 
       expect(job.id).toBeDefined();
@@ -61,6 +121,7 @@ describe('scheduled-jobs store', () => {
       expect(job.preconfigId).toBe('agent-1');
       expect(job.originSessionId).toBe('session-1');
       expect(job.autoApproveSeverity).toBe('low');
+      expect(job.notificationsEnabled).toBe(true);
       expect(job.createdAt).toBeDefined();
       expect(job.updatedAt).toBeDefined();
     });
@@ -81,6 +142,21 @@ describe('scheduled-jobs store', () => {
       expect(job.preconfigId).toBeNull();
       expect(job.originSessionId).toBeNull();
       expect(job.autoApproveSeverity).toBeNull();
+      expect(job.notificationsEnabled).toBe(false);
+    });
+
+    test('creates a job with notificationsEnabled true', () => {
+      seedWorkspace({ id: 'ws1', name: 'Test', path: '/test' });
+
+      const job = createScheduledJob('ws1', {
+        name: 'Notify job',
+        prompt: 'Do something',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 30 },
+        notificationsEnabled: true,
+      });
+
+      expect(job.notificationsEnabled).toBe(true);
     });
 
     test('computes nextRunAt for interval schedule', () => {
@@ -224,6 +300,37 @@ describe('scheduled-jobs store', () => {
 
     test('returns null for non-existent job', () => {
       expect(updateScheduledJob('nope', { name: 'x' })).toBeNull();
+    });
+
+    test('toggles notificationsEnabled in both directions', () => {
+      seedWorkspace({ id: 'ws1', name: 'Test', path: '/test' });
+      const job = createScheduledJob('ws1', {
+        name: 'J',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+      });
+      expect(job.notificationsEnabled).toBe(false);
+
+      const enabled = updateScheduledJob(job.id, { notificationsEnabled: true });
+      expect(enabled!.notificationsEnabled).toBe(true);
+
+      const disabled = updateScheduledJob(job.id, { notificationsEnabled: false });
+      expect(disabled!.notificationsEnabled).toBe(false);
+    });
+
+    test('unrelated update preserves notificationsEnabled', () => {
+      seedWorkspace({ id: 'ws1', name: 'Test', path: '/test' });
+      const job = createScheduledJob('ws1', {
+        name: 'J',
+        prompt: 'P',
+        scheduleKind: 'interval',
+        scheduleConfig: { type: 'interval', intervalMinutes: 60 },
+        notificationsEnabled: true,
+      });
+
+      const updated = updateScheduledJob(job.id, { name: 'Renamed' });
+      expect(updated!.notificationsEnabled).toBe(true);
     });
   });
 
