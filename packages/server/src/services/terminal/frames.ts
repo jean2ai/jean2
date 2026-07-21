@@ -7,6 +7,7 @@ export const OPCODES = {
   ERROR: 0x06,
   INIT_ACK: 0x07,
   TITLE: 0x08,
+  REPLAY_COMPLETE: 0x09,
 } as const;
 
 export type Opcode = typeof OPCODES[keyof typeof OPCODES];

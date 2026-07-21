@@ -292,6 +292,12 @@ export class TerminalManager {
 
     this.flushBuffer(session, ws);
 
+    try {
+      ws.send(encodeFrame(OPCODES.REPLAY_COMPLETE, new Uint8Array()));
+    } catch {
+      // WS might be closed
+    }
+
     if (session.status === 'exited' && session.exitCode !== null) {
       const payload = new TextEncoder().encode(JSON.stringify({ exitCode: session.exitCode }));
       try {
