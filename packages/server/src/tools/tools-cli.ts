@@ -14,8 +14,18 @@ import {
   getToolsBaseDir,
 } from './tool-installer';
 
+const INTERACTIVE_INSTALL_VISIBLE_ITEMS = 10;
+
 function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural || `${singular}s`);
+}
+
+export function excludeInstalledTools(
+  tools: RepositoryTool[],
+  installedNames: Iterable<string>,
+): RepositoryTool[] {
+  const installedSet = new Set(installedNames);
+  return tools.filter((tool) => !installedSet.has(tool.name));
 }
 
 export interface ListOptions {
@@ -131,12 +141,24 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     return { success: false, error: message };
   }
 
+  const toolsDir = getToolsBaseDir();
   let selected: RepositoryTool[];
 
   if (options.all) {
     selected = tools;
   } else if (isInteractive) {
-    const choices = tools.map((tool) => ({
+    const installedTools = await getInstalledTools(toolsDir);
+    const availableTools = excludeInstalledTools(
+      tools,
+      installedTools.map((tool) => tool.name),
+    );
+
+    if (availableTools.length === 0) {
+      log.step('All available tools are already installed.');
+      return { success: true };
+    }
+
+    const choices = availableTools.map((tool) => ({
       value: tool.name,
       label: tool.name,
       hint: `v${tool.version}   ${tool.description}`,
@@ -145,6 +167,7 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     const selectedNames = await multiselect({
       message: 'Select tools to install:',
       options: choices,
+      maxItems: INTERACTIVE_INSTALL_VISIBLE_ITEMS,
       required: false,
     });
 
@@ -160,7 +183,7 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
     }
 
     const nameSet = new Set(selectedNames as string[]);
-    selected = tools.filter((t) => nameSet.has(t.name));
+    selected = availableTools.filter((tool) => nameSet.has(tool.name));
   } else {
     const unknownNames = toolArgs.filter((n) => !tools.find((t) => t.name === n));
     if (unknownNames.length > 0) {
@@ -178,7 +201,6 @@ export async function toolsInstall(options: CliInstallOptions): Promise<ToolsCli
   log.step('jean2 tools · install');
   log.step('');
 
-  const toolsDir = getToolsBaseDir();
   const results: TaskResult[] = [];
 
   for (const tool of selected) {
