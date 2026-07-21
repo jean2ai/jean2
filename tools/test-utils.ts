@@ -15,6 +15,7 @@ export const WORKSPACE = '/workspace/project';
  */
 export class VirtualFS {
   private files = new Map<string, string>();
+  private modifiedAt = new Map<string, Date>();
   private dirs = new Set<string>();
 
   constructor() {
@@ -24,6 +25,7 @@ export class VirtualFS {
   /** Write a file into the virtual FS, creating parent dirs as needed. */
   writeFile(path: string, content: string): void {
     this.files.set(path, content);
+    this.modifiedAt.set(path, new Date());
     // Ensure parent dirs exist
     const parts = path.split('/');
     for (let i = 2; i <= parts.length; i++) {
@@ -84,6 +86,7 @@ export class VirtualFS {
     let removed = false;
     if (this.files.has(path)) {
       this.files.delete(path);
+      this.modifiedAt.delete(path);
       removed = true;
     }
     if (this.dirs.has(path)) {
@@ -93,6 +96,7 @@ export class VirtualFS {
         for (const f of [...this.files.keys()]) {
           if (f.startsWith(prefix)) {
             this.files.delete(f);
+            this.modifiedAt.delete(f);
             removed = true;
           }
         }
@@ -125,6 +129,7 @@ export class VirtualFS {
     if (!this.files.has(oldPath)) return false;
     const content = this.files.get(oldPath)!;
     this.files.delete(oldPath);
+    this.modifiedAt.delete(oldPath);
     this.writeFile(newPath, content);
     return true;
   }
@@ -132,12 +137,13 @@ export class VirtualFS {
   stat(path: string) {
     if (this.files.has(path)) {
       const content = this.files.get(path)!;
+      const timestamp = this.modifiedAt.get(path) ?? new Date();
       return {
         size: new TextEncoder().encode(content).length,
         isDirectory: false,
         isFile: true,
-        modifiedAt: new Date(),
-        createdAt: new Date(),
+        modifiedAt: timestamp,
+        createdAt: timestamp,
       };
     }
     if (this.dirs.has(path)) {
@@ -154,6 +160,7 @@ export class VirtualFS {
 
   reset(): void {
     this.files.clear();
+    this.modifiedAt.clear();
     this.dirs.clear();
     this.dirs.add(WORKSPACE);
   }
