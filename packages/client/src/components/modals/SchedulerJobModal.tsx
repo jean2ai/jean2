@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useServerDataStore } from '@/stores/serverDataStore';
 import {
   useCreateScheduledJob,
@@ -70,6 +71,7 @@ export function SchedulerJobModal({
   const [reuseSession, setReuseSession] = useState(false);
   const [includeHistory, setIncludeHistory] = useState(false);
   const [autoApproveSeverity, setAutoApproveSeverity] = useState<AutoApproveSeverity | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateScheduledJob(sdkClient, workspaceId);
@@ -99,6 +101,7 @@ export function SchedulerJobModal({
       setReuseSession(editingJob.reuseSession);
       setIncludeHistory(editingJob.includeHistory);
       setAutoApproveSeverity(editingJob.autoApproveSeverity);
+      setNotificationsEnabled(editingJob.notificationsEnabled === true);
     } else {
       setName('');
       setPrompt('');
@@ -114,6 +117,7 @@ export function SchedulerJobModal({
       setReuseSession(false);
       setIncludeHistory(false);
       setAutoApproveSeverity(null);
+      setNotificationsEnabled(false);
     }
   }, [open, editingJob]);
 
@@ -155,6 +159,7 @@ export function SchedulerJobModal({
             reuseSession,
             includeHistory,
             autoApproveSeverity,
+            notificationsEnabled,
           },
         });
       } else {
@@ -168,13 +173,14 @@ export function SchedulerJobModal({
           reuseSession,
           includeHistory,
           autoApproveSeverity,
+          notificationsEnabled,
         });
       }
       onOpenChange(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save scheduled job');
     }
-  }, [workspaceId, name, prompt, buildScheduleConfig, repeatLimit, preconfigId, editingJob, scheduleKind, createMutation, updateMutation, onOpenChange, autoApproveSeverity, reuseSession, includeHistory]);
+  }, [workspaceId, name, prompt, buildScheduleConfig, repeatLimit, preconfigId, editingJob, scheduleKind, createMutation, updateMutation, onOpenChange, autoApproveSeverity, notificationsEnabled, reuseSession, includeHistory]);
 
   const toggleDay = (day: number) => {
     setWeeklyDays(prev =>
@@ -352,6 +358,21 @@ export function SchedulerJobModal({
               </Label>
             </div>
           )}
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-0.5">
+              <Label htmlFor="job-notifications">Send notifications</Label>
+              <p className="text-xs text-muted-foreground">
+                Allow this job to send completion, failure, and permission request notifications.
+                Each device's notification preferences still apply.
+              </p>
+            </div>
+            <Switch
+              id="job-notifications"
+              checked={notificationsEnabled}
+              onCheckedChange={setNotificationsEnabled}
+            />
+          </div>
 
           <div className="space-y-2">
             <Label>Auto-approve permissions</Label>

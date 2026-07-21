@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   MessageSquare,
   Loader2,
+  Bell,
 } from 'lucide-react';
 import type { ScheduledJob, Session } from '@jean2/sdk';
 import {
@@ -168,6 +169,13 @@ export function ScheduledJobsSection({
                               <div className="flex items-center gap-1.5">
                                 <span className="text-sm font-medium truncate">{job.name}</span>
                                 {getStateIcon(job.state)}
+                                {job.notificationsEnabled && (
+                                  <Bell
+                                    className="size-3 shrink-0 text-muted-foreground"
+                                    role="img"
+                                    aria-label="Notifications enabled"
+                                  />
+                                )}
                               </div>
                               <div className="text-xs text-muted-foreground truncate">
                                 {job.scheduleDisplay} . {getNextRunLabel(job)}
