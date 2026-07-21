@@ -51,6 +51,7 @@ export interface ScheduledJob {
   preconfigId: string | null;
   originSessionId: string | null;
   autoApproveSeverity: AutoApproveSeverity | null;
+  notificationsEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +67,7 @@ export interface CreateScheduledJobInput {
   preconfigId?: string | null;
   originSessionId?: string | null;
   autoApproveSeverity?: AutoApproveSeverity | null;
+  notificationsEnabled?: boolean;
 }
 
 export interface UpdateScheduledJobInput {
@@ -79,4 +81,5 @@ export interface UpdateScheduledJobInput {
   preconfigId?: string | null;
   autoApproveSeverity?: AutoApproveSeverity | null;
   state?: ScheduledJobState;
+  notificationsEnabled?: boolean;
 }
