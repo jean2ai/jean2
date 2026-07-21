@@ -188,7 +188,7 @@ export const CodeBlock: FC<CodeBlockProps> = memo(({
                         </span>
                         <span className="pl-2 flex-1 whitespace-pre overflow-hidden">
                           {line.map((token, tokenKey) => (
-                            <span key={tokenKey} {...getTokenProps({ token })} />
+                            <span key={tokenKey} {...getTokenProps({ token })} className="token" />
                           ))}
                         </span>
                       </div>
