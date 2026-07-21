@@ -100,6 +100,13 @@ export function createTerminalInstance(options?: CreateTerminalOptions): { termi
   return { terminal, fitAddon };
 }
 
+function showTerminalElement(terminal: Terminal | null): void {
+  const element = terminal?.element;
+  if (element) {
+    element.style.visibility = '';
+  }
+}
+
 export interface UseTerminalConnectionOptions {
   terminal: Terminal | null;
   sdkClient: Jean2Client;
@@ -171,10 +178,7 @@ export function useTerminalConnection(
       connectionRef.current = null;
     }
 
-    // Clear terminal on reconnect — server will flush the buffer which duplicates existing content
-    if (sessionId && terminalRef.current) {
-      terminalRef.current.clear();
-    }
+    showTerminalElement(terminalRef.current);
 
     setStatus('connecting');
 
@@ -192,11 +196,68 @@ export function useTerminalConnection(
 
       connectionRef.current = connection;
 
-      // Wire up SDK connection events to callbacks
+      let isRestoringReplay = connection.isReconnect;
+      let replayFallback: ReturnType<typeof setTimeout> | null = null;
+      const replayOutput: string[] = [];
+      const reconnectNotice = connection.isReconnect && connection.session.inAlternateScreen
+        ? '\r\n\x1b[33m[Reconnected — a full-screen application is running. Press Ctrl+C to exit it.]\x1b[0m\r\n'
+        : '';
+
+      const finishReplay = () => {
+        if (!isRestoringReplay) return;
+        isRestoringReplay = false;
+        if (replayFallback) {
+          clearTimeout(replayFallback);
+          replayFallback = null;
+        }
+        if (connectionGenerationRef.current !== generation) return;
+
+        const replay = replayOutput.join('') + reconnectNotice;
+        const replayTerminal = terminalRef.current;
+        if (!replayTerminal) {
+          onOutputRef.current?.(replay);
+          return;
+        }
+
+        const element = replayTerminal.element;
+        if (element) {
+          element.style.visibility = 'hidden';
+        }
+        replayTerminal.reset();
+
+        let revealFallback: ReturnType<typeof setTimeout> | null = null;
+        const reveal = () => {
+          if (revealFallback) {
+            clearTimeout(revealFallback);
+            revealFallback = null;
+          }
+          if (connectionGenerationRef.current === generation && element) {
+            element.style.visibility = '';
+          }
+        };
+
+        if (replay.length === 0) {
+          reveal();
+          return;
+        }
+        replayTerminal.write(replay, reveal);
+        revealFallback = setTimeout(reveal, 5000);
+      };
+
       connection.on('output', (data: Uint8Array) => {
         if (connectionGenerationRef.current !== generation) return;
-        onOutputRef.current?.(new TextDecoder().decode(data));
+        const decoded = new TextDecoder().decode(data);
+        if (isRestoringReplay) {
+          replayOutput.push(decoded);
+          return;
+        }
+        onOutputRef.current?.(decoded);
       });
+
+      if (isRestoringReplay) {
+        replayFallback = setTimeout(finishReplay, 5000);
+      }
+      connection.on('replay_complete', finishReplay);
 
       connection.on('exit', (exitCode: number) => {
         if (connectionGenerationRef.current !== generation) return;
@@ -229,7 +290,6 @@ export function useTerminalConnection(
         onExitRef.current?.(connection.exitCode ?? 0);
       } else if (connection.isReconnect && connection.session.inAlternateScreen) {
         setStatus('connected');
-        onOutputRef.current?.('\r\n\x1b[33m[Reconnected — a full-screen application is running. Press Ctrl+C to exit it.]\x1b[0m\r\n');
       } else {
         setStatus('connected');
       }
