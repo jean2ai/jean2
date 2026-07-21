@@ -98,7 +98,7 @@ export function AppearancePanel() {
             <button
               type="button"
               onClick={() => setChatFinishSoundEnabled(!chatFinishSoundEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatFinishSoundEnabled ? 'bg-[var(--switch-checked)]' : 'bg-muted'}`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatFinishSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}
@@ -113,7 +113,7 @@ export function AppearancePanel() {
             <button
               type="button"
               onClick={() => setPermissionSoundEnabled(!permissionSoundEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-primary' : 'bg-muted'}`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${permissionSoundEnabled ? 'bg-[var(--switch-checked)]' : 'bg-muted'}`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${permissionSoundEnabled ? 'translate-x-6' : 'translate-x-1'}`}

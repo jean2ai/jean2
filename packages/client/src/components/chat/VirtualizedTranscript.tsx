@@ -71,6 +71,24 @@ function getTextContent(parts: Part[]): string {
     .join('');
 }
 
+/**
+ * Double single newlines for markdown line breaks in user messages,
+ * but preserve original formatting inside fenced code blocks.
+ */
+function formatInvertedText(text: string): string {
+  const segments = text.split(/```/);
+  return segments
+    .map((segment, i) => {
+      if (i % 2 === 1) {
+        // Inside a fenced code block — preserve as-is, re-add fences
+        return '```' + segment + '```';
+      }
+      // Outside code blocks — double single newlines for markdown rendering
+      return segment.replace(/\n(?!\n)/g, '\n\n');
+    })
+    .join('');
+}
+
 function CompactionInProgressBanner() {
   return (
     <div className="flex items-center gap-2 text-sm font-medium text-foreground bg-muted rounded-lg px-3 py-2 border border-border shadow-sm">
@@ -175,7 +193,7 @@ const MessageParts = memo(function MessageParts({
         switch (part.type) {
           case 'text': {
             const text = inverted && part.text
-              ? part.text.replace(/\n(?!\n)/g, '\n\n')
+              ? formatInvertedText(part.text)
               : (part.text || '...');
             return (
               <div key={part.id} className="min-w-0">
@@ -448,7 +466,7 @@ const MessageRow = memo(function MessageRow({
             pendingAskRequests={pendingAskRequests}
             onAskResponse={onAskResponse}
             onNavigateToSubagent={onNavigateToSubagent}
-            inverted={item.message.role === 'user'}
+            inverted={item.message.role === 'user' && !item.isQueued}
             serverUrl={serverUrl}
           />
         )}

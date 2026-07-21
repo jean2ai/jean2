@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { MessageWithParts } from '@jean2/sdk';
 import { VirtualizedTranscript } from './VirtualizedTranscript';
 import {
   createUserMessageWithParts,
@@ -259,5 +260,76 @@ export const WithPendingPermission: Story = {
 export const AutoFollowDisabled: Story = {
   args: {
     autoFollow: false,
+  },
+};
+
+// =============================================================================
+// User Messages with Code Blocks — current rendering bug
+// =============================================================================
+// The VirtualizedTranscript applies a newline-doubling regex to user message text:
+//   part.text.replace(/\n(?!\n)/g, '\n\n')
+// This runs on the ENTIRE string including inside code blocks, double-spacing
+// every line inside fenced code. These stories reproduce the real-world issue
+// so we can validate fixes and prevent regressions.
+
+const userCodeBlockConversation: MessageWithParts[] = [
+  {
+    message: {
+      id: mockId('msg'),
+      sessionId: session.id,
+      role: 'user' as const,
+      createdAt: Date.now(),
+    },
+    parts: [
+      createTextPart(
+        {},
+        'The deploy failed, here is the log:\n\n```text\n2025-03-15T09:42:11.890Z ERROR 18234 --- [app-server] [         worker-1] db.migrate : Migration "add-user-table" failed\nDatabaseException: ERROR: relation "users" already exists\n  Position: 214 [Failed SQL: (0)\n--changeset app:add-user-table splitStatements:false\n\ncreate table users (\n    id bigint primary key,\n    email varchar(255) unique,\n    created_at timestamp default now()\n);\n```\n',
+      ),
+    ],
+  },
+];
+
+export const UserMessageWithCodeBlock: Story = {
+  args: {
+    messagesWithParts: userCodeBlockConversation,
+    displayItems: userCodeBlockConversation.map((mwp) => ({
+      message: mwp.message,
+      parts: mwp.parts,
+    })),
+  },
+};
+
+const assistantCodeBlockConversation: MessageWithParts[] = [
+  createUserMessageWithParts('Show me the migration SQL', session.id),
+  {
+    message: {
+      id: mockId('msg'),
+      sessionId: session.id,
+      role: 'assistant' as const,
+      status: 'completed' as const,
+      modelId: 'claude-3.5-sonnet',
+      providerId: 'anthropic',
+      tokens: { prompt: 100, completion: 100 },
+      cost: 0.001,
+      completedAt: Date.now(),
+      createdAt: Date.now(),
+    },
+    parts: [
+      createTextPart(
+        {},
+        'Here is the migration:\n\n```sql\ncreate table users (\n    id bigint primary key,\n    email varchar(255) unique,\n    created_at timestamp default now()\n);\n```\n',
+      ),
+    ],
+  },
+];
+
+export const AssistantMessageWithCodeBlock: Story = {
+  name: 'Assistant Message With Code Block (control)',
+  args: {
+    messagesWithParts: assistantCodeBlockConversation,
+    displayItems: assistantCodeBlockConversation.map((mwp) => ({
+      message: mwp.message,
+      parts: mwp.parts,
+    })),
   },
 };

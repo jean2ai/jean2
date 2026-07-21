@@ -26,7 +26,7 @@ function ToggleSwitch({ enabled, onClick, disabled }: {
       onClick={onClick}
       disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        enabled ? 'bg-primary' : 'bg-muted'
+        enabled ? 'bg-[var(--switch-checked)]' : 'bg-muted'
       } ${disabled ? 'opacity-50' : ''}`}
     >
       <span

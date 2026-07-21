@@ -12,6 +12,8 @@ import {
   codeBlocksMarkdown,
   shortMarkdown,
   generateLongMarkdown,
+  logOutputMarkdown,
+  userCodeSnippetMarkdown,
 } from '../../../.storybook/mocks/mockMarkdown';
 
 const userMessage = createUserMessage({ role: 'user' });
@@ -324,4 +326,53 @@ export const ConversationWithQueuedMessages: Story = {
       </MessageBubble>
     </div>
   ),
+};
+
+// =============================================================================
+// User Messages with Markdown — realistic pasted content (inverted bubbles)
+// =============================================================================
+
+export const UserWithLogOutput: Story = {
+  name: 'User — Pasted Log/Error Output',
+  args: {
+    message: userMessage,
+    textContent: "The deploy failed, here is the log:\n\n```text\n2025-03-15T09:42:11.890Z ERROR 18234 --- [app-server] [         worker-1] db.migrate : Migration \"add-user-table\" failed\nDatabaseException: ERROR: relation \"users\" already exists\n  Position: 214 [Failed SQL: (0)\n--changeset app:add-user-table splitStatements:false\n\ncreate table users (\n    id bigint primary key,\n    email varchar(255) unique,\n    created_at timestamp default now()\n);\n```",
+    children: <MarkdownRenderer inverted>{logOutputMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const UserWithCodeError: Story = {
+  name: 'User — Code Error + Question',
+  args: {
+    message: userMessage,
+    textContent: userCodeSnippetMarkdown,
+    children: <MarkdownRenderer inverted>{userCodeSnippetMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const UserWithRichMarkdown: Story = {
+  name: 'User — Rich Markdown',
+  args: {
+    message: userMessage,
+    textContent: richMarkdown,
+    children: <MarkdownRenderer inverted>{richMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const UserWithCodeBlocks: Story = {
+  name: 'User — Code Blocks',
+  args: {
+    message: userMessage,
+    textContent: codeBlocksMarkdown,
+    children: <MarkdownRenderer inverted>{codeBlocksMarkdown}</MarkdownRenderer>,
+  },
+};
+
+export const UserWithLongMarkdown: Story = {
+  name: 'User — Long Markdown',
+  args: {
+    message: userMessage,
+    textContent: generateLongMarkdown(10),
+    children: <MarkdownRenderer inverted>{generateLongMarkdown(10)}</MarkdownRenderer>,
+  },
 };

@@ -207,6 +207,41 @@ export function generateLongMarkdown(sections = 20): string {
   return lines.join('\n');
 }
 
+/** User-pasted log/error output (plain text code block, multi-line) */
+export const logOutputMarkdown = [
+  'The deploy failed, here is the log:',
+  '',
+  '```text',
+  '2025-03-15T09:42:11.890Z ERROR 18234 --- [app-server] [         worker-1] db.migrate : Migration "add-user-table" failed',
+  'DatabaseException: ERROR: relation "users" already exists',
+  '  Position: 214 [Failed SQL: (0)',
+  '--changeset app:add-user-table splitStatements:false',
+  '',
+  'create table users (',
+  '    id bigint primary key,',
+  '    email varchar(255) unique,',
+  '    created_at timestamp default now()',
+  ');',
+  '```',
+].join('\n');
+
+/** Short user message with a bash code block */
+export const userCodeSnippetMarkdown = [
+  'I am getting this error when I run the build:',
+  '',
+  '```bash',
+  '$ npm run build',
+  '',
+  '> build',
+  '> tsc --noEmit',
+  '',
+  'src/utils/parser.ts(42,5): error TS2345: Argument of type \'string\' is not assignable to parameter of type \'number\'.',
+  'Found 1 error in src/utils/parser.ts:42',
+  '```',
+  '',
+  'Any idea what is going wrong?',
+].join('\n');
+
 // =============================================================================
 // Presets
 // =============================================================================
@@ -219,4 +254,6 @@ export const markdownPresets = {
   short: shortMarkdown,
   empty: emptyMarkdown,
   long: generateLongMarkdown(),
+  logOutput: logOutputMarkdown,
+  userCodeSnippet: userCodeSnippetMarkdown,
 } as const;

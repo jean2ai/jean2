@@ -246,6 +246,7 @@
 :root,
 .light.neutral,
 .neutral {
+  --switch-checked: var(--primary);
   --chart-1: oklch(0.55 0.12 250);
   --chart-2: oklch(0.6 0.12 180);
   --chart-3: oklch(0.65 0.2 145);
@@ -263,6 +264,7 @@
 }
 
 .dark.neutral {
+  --switch-checked: oklch(0.45 0 0);
   --chart-1: oklch(0.6 0.15 250);
   --chart-2: oklch(0.65 0.12 180);
   --chart-3: oklch(0.7 0.15 145);
