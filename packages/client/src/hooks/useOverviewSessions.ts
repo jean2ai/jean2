@@ -115,7 +115,12 @@ export function useOverviewSessions({
     }
     const workspaceIdSet = new Set(workspaceIds);
     for (const session of allSessions) {
-      if (workspaceIdSet.has(session.workspaceId) && !session.parentId && session.status === 'active') {
+      if (
+        workspaceIdSet.has(session.workspaceId)
+        && !session.parentId
+        && session.status === 'active'
+        && !session.metadata?.scheduledJobId
+      ) {
         grouped[session.workspaceId].push(session);
       }
     }
