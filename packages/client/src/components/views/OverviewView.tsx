@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useViewRefs } from '@/contexts/ViewRefsContext';
 import { useSessionManager } from '@/contexts/SessionManagerContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -7,6 +7,7 @@ import { WorkspaceBoardToolbar } from '@/components/app/WorkspaceBoardToolbar';
 import { AppPanels } from '@/components/app/AppPanels';
 import { useSidebarData } from '@/hooks/useSidebarData';
 import { useOverviewSessions } from '@/hooks/useOverviewSessions';
+import { useOverviewGroups } from '@/hooks/useOverviewGroups';
 import { useInvalidateWorkspaceTags } from '@/hooks/queries';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionBoardStore } from '@/stores/sessionBoardStore';
@@ -22,6 +23,23 @@ export default function OverviewView() {
   const { sidebarRef, chatInputRef, terminalPanelRef } = useViewRefs();
   const updateSession = useSessionStore(s => s.updateSession);
   const invalidateWorkspaceTags = useInvalidateWorkspaceTags();
+
+  const activeServer = sidebarData.activeServer;
+
+  const overviewGroups = useOverviewGroups(
+    activeServer?.id,
+    sidebarData.workspaces,
+  );
+
+  // Use active group workspace IDs for the overview query.
+  // When not hydrated yet, use empty array to avoid briefly fetching stars.
+  const overviewWorkspaceIds = useMemo(
+    () =>
+      overviewGroups.isHydrated
+        ? overviewGroups.activeWorkspaceIds
+        : [],
+    [overviewGroups.isHydrated, overviewGroups.activeWorkspaceIds],
+  );
 
   const openSessionIds = useSessionBoardStore(s => s.openSessionIds);
   const hasMultipleOpenSessions = openSessionIds.length > 1;
@@ -45,7 +63,7 @@ export default function OverviewView() {
     loadingMoreWorkspace,
   } = useOverviewSessions({
     sdkClient: sessionManager.sdkClient,
-    workspaceIds: sidebarData.favoritedWorkspaceIds,
+    workspaceIds: overviewWorkspaceIds,
     connected: sidebarData.connected,
   });
 
@@ -86,9 +104,14 @@ export default function OverviewView() {
       sessionDerivedValues={sidebarData.sessionDerivedValues}
       currentSession={sidebarData.currentSession}
       currentSessionId={sidebarData.currentSessionId}
-      favoritedWorkspaceIds={sidebarData.favoritedWorkspaceIds}
+      workspaceIds={overviewWorkspaceIds}
       workspaces={sidebarData.workspaces}
       activeWorkspace={sidebarData.activeWorkspace}
+      isHydrated={overviewGroups.isHydrated}
+      groups={overviewGroups.groups}
+      activeGroup={overviewGroups.activeGroup}
+      groupActions={overviewGroups.actions}
+      serverId={activeServer?.id ?? ''}
       onResumeSession={resumeSession}
       onOpenAlongside={openAlongside}
       onCloseSession={closeSession}

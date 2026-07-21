@@ -26,6 +26,7 @@ import { useAskStore, type PendingAskRequest } from '@/stores/askStore';
 import { useCompletionStore } from '@/stores/completionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useConnectionStore } from '@/stores/connectionStore';
+import { useOverviewGroupsStore } from '@/stores/overviewGroupsStore';
 
 import { toast } from 'sonner';
 import { queryClient } from '@/components/providers/QueryProvider';
@@ -563,6 +564,7 @@ export function useServerSessionManager({
     }
 
     removeFromQuickConnectionsByWorkspace(id);
+    useOverviewGroupsStore.getState().removeWorkspaceFromAllGroups(_serverId, id);
 
     if (currentSession && (currentSession.workspaceId === id || deletedSessions.includes(currentSession.id))) {
       setCurrentSession(null);

@@ -22,6 +22,7 @@ import {
 import type { SavedServer, QuickConnection } from '@jean2/sdk';
 import { normalizeServerUrl } from '@/config/auth';
 import { checkLocalhostNoAuth } from '@/lib/validateServerAuth';
+import { useOverviewGroupsStore } from '@/stores/overviewGroupsStore';
 
 interface ServerContextValue {
   servers: SavedServer[];
@@ -133,6 +134,8 @@ export const ServerProvider = ({ children }: ServerProviderProps) => {
     setServers(getSavedServers());
     // Refresh quick connections as they may have been cleaned up
     setQuickConnections(getQuickConnections());
+    // Remove overview groups for the deleted server
+    useOverviewGroupsStore.getState().removeServerGroups(id);
   }, []);
 
   const addToQuickConnections = useCallback((

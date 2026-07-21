@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Folder, Box, ChevronRight, Plus, Tag, Archive, MoreHorizontal } from 'lucide-react';
+import { Folder, Box, ChevronRight, Plus, Tag, Archive, MoreHorizontal, Layers } from 'lucide-react';
 import type { Session, Workspace } from '@jean2/sdk';
 import {
   SidebarGroup,
@@ -24,8 +24,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SessionMenuButton, type ChildrenMap, type SessionDerivedValuesMap } from './SessionMenuButton';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { OverviewGroupSelector } from './OverviewGroupSelector';
 import { useTagCollapseState } from '@/hooks/useTagCollapseState';
 import { useWorkspaceCollapseState } from '@/hooks/useWorkspaceCollapseState';
+import type { OverviewGroup } from '@/config/overviewGroupsTypes';
+import type { StoreActions } from '@/hooks/useOverviewGroups';
 
 interface WorkspaceOverviewProps {
   sessionsByWorkspace: Record<string, Session[]>;
@@ -36,9 +39,14 @@ interface WorkspaceOverviewProps {
   sessionDerivedValues: SessionDerivedValuesMap;
   currentSession: Session | null;
   currentSessionId: string | null;
-  favoritedWorkspaceIds: string[];
+  workspaceIds: string[];
   workspaces: Workspace[];
   activeWorkspace: Workspace | null;
+  isHydrated: boolean;
+  groups: OverviewGroup[];
+  activeGroup: OverviewGroup | null;
+  groupActions: StoreActions;
+  serverId: string;
   onResumeSession: (sessionId: string) => void;
   onOpenAlongside?: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
@@ -64,9 +72,14 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   sessionDerivedValues,
   currentSession,
   currentSessionId,
-  favoritedWorkspaceIds,
+  workspaceIds,
   workspaces,
   activeWorkspace,
+  isHydrated,
+  groups,
+  activeGroup,
+  groupActions,
+  serverId,
   onResumeSession,
   onOpenAlongside,
   onCloseSession,
@@ -85,12 +98,12 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
   const { isTagOpen, toggleTag } = useTagCollapseState();
   const [archiveTagDialog, setArchiveTagDialog] = useState<{ workspaceId: string; tagName: string } | null>(null);
 
-  const favoritedWorkspaces = useMemo(() => {
+  const orderedWorkspaces = useMemo(() => {
     const workspaceMap = new Map(workspaces.map((w) => [w.id, w]));
-    return favoritedWorkspaceIds
+    return workspaceIds
       .map((id) => workspaceMap.get(id))
       .filter((w): w is Workspace => w !== undefined);
-  }, [workspaces, favoritedWorkspaceIds]);
+  }, [workspaces, workspaceIds]);
 
   const activeWorkspaceId = activeWorkspace?.id ?? '';
   const { isWorkspaceOpen, toggleWorkspace } = useWorkspaceCollapseState(
@@ -124,13 +137,37 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
     />
   );
 
-  if (favoritedWorkspaces.length === 0) {
+  if (!isHydrated) {
     return (
       <SidebarGroup>
         <SidebarGroupLabel>Overview</SidebarGroupLabel>
         <SidebarGroupContent>
-          <div className="px-2 py-8 text-center text-sm text-muted-foreground">
-            Star a workspace to see it here
+          <div className="px-2 py-4">
+            <div className="h-5 w-32 rounded bg-muted animate-pulse" />
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  }
+
+  if (groups.length === 0) {
+    return (
+      <SidebarGroup>
+        <SidebarGroupLabel>Overview</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div className="px-2 py-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">No overview groups</p>
+            <p className="text-xs text-muted-foreground">
+              Create a group to choose and order the repositories shown here.
+            </p>
+            <OverviewGroupSelector
+              serverId={serverId}
+              groups={groups}
+              activeGroup={activeGroup}
+              workspaces={workspaces}
+              isHydrated={isHydrated}
+              actions={groupActions}
+            />
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -139,135 +176,164 @@ export const WorkspaceOverview = React.memo(function WorkspaceOverview({
 
   return (
     <>
-      {favoritedWorkspaces.map((workspace) => {
-        const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
-        const activeSessions = sessionsByWorkspace[workspace.id] || [];
-        const tagGroups = tagGroupsByWorkspace[workspace.id] ?? new Map<string, Session[]>();
-        const orderedTagNames = orderedTagNamesByWorkspace[workspace.id] ?? [];
-        const ungroupedSessions = tagGroups.get('__ungrouped__') ?? [];
-        const hasTags = orderedTagNames.length > 0;
+      <OverviewGroupSelector
+        serverId={serverId}
+        groups={groups}
+        activeGroup={activeGroup}
+        workspaces={workspaces}
+        isHydrated={isHydrated}
+        actions={groupActions}
+      />
 
-        const isWsOpen = isWorkspaceOpen(workspace.id);
+      {orderedWorkspaces.length === 0 ? (
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <div className="px-2 py-6 text-center space-y-2">
+              <Layers className="size-5 mx-auto text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No repositories in this group</p>
+              <p className="text-xs text-muted-foreground">
+                Edit this group to add repositories.
+              </p>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : (
+        <>
+          {orderedWorkspaces.map((workspace) => {
+            const isCurrentSessionWorkspace = currentSession?.workspaceId === workspace.id;
+            const activeSessions = sessionsByWorkspace[workspace.id] || [];
+            const tagGroups = tagGroupsByWorkspace[workspace.id] ?? new Map<string, Session[]>();
+            const orderedTagNames = orderedTagNamesByWorkspace[workspace.id] ?? [];
+            const ungroupedSessions = tagGroups.get('__ungrouped__') ?? [];
+            const hasTags = orderedTagNames.length > 0;
+            const isWsOpen = isWorkspaceOpen(workspace.id);
 
-        return (
-          <Collapsible
-            key={workspace.id}
-            open={isWsOpen}
-            onOpenChange={(open) => toggleWorkspace(workspace.id, open)}
-            className="group/collapsible"
-          >
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full">
-                  <span className="flex items-center gap-2">
-                    <ChevronRight className="size-3 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    {workspace.isVirtual ? (
-                      <Box className="size-3.5" />
-                    ) : (
-                      <Folder className="size-3.5" />
-                    )}
-                    <span className={isCurrentSessionWorkspace ? "truncate text-sidebar-foreground font-medium" : "truncate"}>{workspace.name}</span>
-                  </span>
-                  <Badge variant="secondary">{activeSessions.length}</Badge>
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        onClick={() => onCreateSessionInWorkspace(workspace.id)}
-                        disabled={!connected}
-                        className="w-full"
+            return (
+              <Collapsible
+                key={workspace.id}
+                open={isWsOpen}
+                onOpenChange={(open) => toggleWorkspace(workspace.id, open)}
+                className="group/collapsible"
+              >
+                <SidebarGroup>
+                  <SidebarGroupLabel asChild>
+                    <CollapsibleTrigger className="flex w-full min-w-0 items-center justify-between">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <ChevronRight className="size-3 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        {workspace.isVirtual ? (
+                          <Box className="size-3.5 shrink-0" />
+                        ) : (
+                          <Folder className="size-3.5 shrink-0" />
+                        )}
+                        <span className={isCurrentSessionWorkspace ? 'truncate text-sidebar-foreground font-medium' : 'truncate'}>{workspace.name}</span>
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        aria-label={`${activeSessions.length} sessions`}
                       >
-                        <Plus className="size-4" data-icon="inline-start" />
-                        <span>New Chat</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                  <SidebarSeparator />
-                  {isWsOpen && (
-                    <>
-                      {activeSessions.length === 0 ? (
-                        <div className="px-2 py-1 text-xs text-muted-foreground">
-                          (no active sessions)
-                        </div>
-                      ) : hasTags ? (
+                        {activeSessions.length}
+                      </Badge>
+                    </CollapsibleTrigger>
+                  </SidebarGroupLabel>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            onClick={() => onCreateSessionInWorkspace(workspace.id)}
+                            disabled={!connected}
+                            className="w-full"
+                          >
+                            <Plus className="size-4" data-icon="inline-start" />
+                            <span>New Chat</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                      <SidebarSeparator />
+                      {isWsOpen && (
                         <>
-                          {orderedTagNames.map(tagName => {
-                            const sessions = tagGroups.get(tagName) ?? [];
-                            const isTagGroupOpen = isTagOpen(tagName);
-                            return (
-                              <Collapsible key={tagName} open={isTagGroupOpen} onOpenChange={(open) => toggleTag(tagName, open)} className="group/tag-collapsible">
-                                <div className="flex items-center px-2 py-1 text-xs font-medium text-muted-foreground">
-                                  <CollapsibleTrigger asChild>
-                                    <button className="flex items-center gap-1 hover:text-foreground transition-colors">
-                                      <ChevronRight className="size-3 transition-transform group-data-[state=open]/tag-collapsible:rotate-90" />
-                                      <Tag className="size-3" />
-                                      {tagName}
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <Badge variant="secondary" className="ml-auto text-[10px]">{sessions.length}</Badge>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type="button"
-                                        onClick={e => e.stopPropagation()}
-                                        className="p-0.5 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-opacity opacity-0 group-hover/tag-collapsible:opacity-100"
-                                        title="Tag actions"
-                                      >
-                                        <MoreHorizontal className="size-3.5" />
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="min-w-48">
-                                      <DropdownMenuItem onClick={e => { e.stopPropagation(); setArchiveTagDialog({ workspaceId: workspace.id, tagName }); }}>
-                                        <Archive className="size-4" />
-                                        Archive all
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                                {isTagGroupOpen && (
-                                  <CollapsibleContent>
-                                    <SidebarMenu>
-                                      {sessions.map(session => renderSessionButton(session, workspace.id))}
-                                    </SidebarMenu>
-                                  </CollapsibleContent>
-                                )}
-                              </Collapsible>
-                            );
-                          })}
-                          {ungroupedSessions.length > 0 && (
+                          {activeSessions.length === 0 ? (
+                            <div className="px-2 py-1 text-xs text-muted-foreground">
+                              (no active sessions)
+                            </div>
+                          ) : hasTags ? (
+                            <>
+                              {orderedTagNames.map(tagName => {
+                                const sessions = tagGroups.get(tagName) ?? [];
+                                const isTagGroupOpen = isTagOpen(tagName);
+                                return (
+                                  <Collapsible key={tagName} open={isTagGroupOpen} onOpenChange={(open) => toggleTag(tagName, open)} className="group/tag-collapsible">
+                                    <div className="flex items-center px-2 py-1 text-xs font-medium text-muted-foreground">
+                                      <CollapsibleTrigger asChild>
+                                        <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                                          <ChevronRight className="size-3 transition-transform group-data-[state=open]/tag-collapsible:rotate-90" />
+                                          <Tag className="size-3" />
+                                          {tagName}
+                                        </button>
+                                      </CollapsibleTrigger>
+                                      <Badge variant="secondary" className="ml-auto text-[10px]">{sessions.length}</Badge>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <button
+                                            type="button"
+                                            onClick={e => e.stopPropagation()}
+                                            className="p-0.5 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-opacity opacity-0 group-hover/tag-collapsible:opacity-100"
+                                            title="Tag actions"
+                                          >
+                                            <MoreHorizontal className="size-3.5" />
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="min-w-48">
+                                          <DropdownMenuItem onClick={e => { e.stopPropagation(); setArchiveTagDialog({ workspaceId: workspace.id, tagName }); }}>
+                                            <Archive className="size-4" />
+                                            Archive all
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                    {isTagGroupOpen && (
+                                      <CollapsibleContent>
+                                        <SidebarMenu>
+                                          {sessions.map(session => renderSessionButton(session, workspace.id))}
+                                        </SidebarMenu>
+                                      </CollapsibleContent>
+                                    )}
+                                  </Collapsible>
+                                );
+                              })}
+                              {ungroupedSessions.length > 0 && (
+                                <SidebarMenu>
+                                  {ungroupedSessions.map(session => renderSessionButton(session, workspace.id))}
+                                </SidebarMenu>
+                              )}
+                            </>
+                          ) : (
                             <SidebarMenu>
-                              {ungroupedSessions.map(session => renderSessionButton(session, workspace.id))}
+                              {activeSessions.map(session => renderSessionButton(session, workspace.id))}
                             </SidebarMenu>
                           )}
+                          {hasMoreByWorkspace?.[workspace.id] && onLoadMoreWorkspace && (
+                            <div className="px-2 py-2">
+                              <button
+                                type="button"
+                                onClick={() => onLoadMoreWorkspace(workspace.id)}
+                                disabled={loadingMoreWorkspace === workspace.id}
+                                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center py-1.5 rounded-md hover:bg-sidebar-accent disabled:opacity-50"
+                              >
+                                {loadingMoreWorkspace === workspace.id ? 'Loading more...' : 'Load more sessions'}
+                              </button>
+                            </div>
+                          )}
                         </>
-                      ) : (
-                        <SidebarMenu>
-                          {activeSessions.map(session => renderSessionButton(session, workspace.id))}
-                        </SidebarMenu>
                       )}
-                      {hasMoreByWorkspace?.[workspace.id] && onLoadMoreWorkspace && (
-                        <div className="px-2 py-2">
-                          <button
-                            type="button"
-                            onClick={() => onLoadMoreWorkspace(workspace.id)}
-                            disabled={loadingMoreWorkspace === workspace.id}
-                            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors text-center py-1.5 rounded-md hover:bg-sidebar-accent disabled:opacity-50"
-                          >
-                            {loadingMoreWorkspace === workspace.id ? 'Loading more...' : 'Load more sessions'}
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        );
-      })}
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            );
+          })}
+        </>
+      )}
 
       <ConfirmationDialog
         open={archiveTagDialog !== null}

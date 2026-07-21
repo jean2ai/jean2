@@ -141,17 +141,14 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
   }, [sdkClient, sidebarData.activeWorkspace?.id, invalidateWorkspaceTags, updateSession]);
 
   const sidebarHeader = (
-    <SidebarHeader>
+    <SidebarHeader className="p-1">
       {switcher ?? (hasCapability('multiView') && (
-      <div className="p-2 space-y-2">
         <WorkspaceSwitcher
           workspaces={sidebarData.workspaces}
           activeWorkspace={sidebarData.activeWorkspace}
           onSelectWorkspace={selectWorkspace}
           onCreateVirtualWorkspace={handleCreateVirtualWorkspace}
           onCreatePhysicalWorkspace={handleCreatePhysicalWorkspace}
-          isWorkspaceFavorited={sidebarData.isWorkspaceFavorited}
-          onToggleFavorite={sidebarData.handleToggleWorkspaceFavorite}
           onDeleteWorkspace={deleteWorkspace}
           onRenameWorkspace={renameWorkspace}
           onUpdateWorkspacePaths={updateWorkspacePaths}
@@ -160,20 +157,21 @@ export default function WorkspaceView({ switcher, defaultPreconfigId }: Workspac
           deletingWorkspaceId={deletingWorkspaceId}
           isUpdatingWorkspace={isUpdatingWorkspace}
         />
-      </div>
       ))}
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            onClick={() => createSession(newChatPreconfigId)}
-            disabled={!sidebarData.connected}
-            className="w-full"
-          >
-            <Plus className="size-4" data-icon="inline-start" />
-            <span>New Chat</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
+      <div className="px-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => createSession(newChatPreconfigId)}
+              disabled={!sidebarData.connected}
+              className="w-full"
+            >
+              <Plus className="size-4" data-icon="inline-start" />
+              <span>New Chat</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </div>
     </SidebarHeader>
   );
 

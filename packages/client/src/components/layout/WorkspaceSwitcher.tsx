@@ -1,6 +1,6 @@
 import type { Jean2Client } from '@jean2/sdk';
 import { useState, useEffect, useRef } from 'react';
-import { Check, ChevronsUpDown, Folder, Box, Plus, Star, MoreHorizontal, Trash2, Pencil, FolderSymlink, Loader2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Folder, Box, Plus, MoreHorizontal, Trash2, Pencil, FolderSymlink, Loader2 } from 'lucide-react';
 import type { Workspace } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { FolderPickerDialog } from '@/components/modals/FolderPickerDialog';
@@ -34,8 +34,6 @@ interface WorkspaceSwitcherProps {
   onSelectWorkspace: (workspace: Workspace) => void;
   onCreateVirtualWorkspace: () => void;
   onCreatePhysicalWorkspace: (path: string) => void;
-  isWorkspaceFavorited: (workspaceId: string) => boolean;
-  onToggleFavorite: (workspaceId: string, workspaceName: string) => void;
   onDeleteWorkspace: (id: string) => void;
   onRenameWorkspace: (id: string, name: string) => void;
   onUpdateWorkspacePaths: (workspaceId: string, additionalPaths: string[]) => void;
@@ -51,8 +49,6 @@ export function WorkspaceSwitcher({
   onSelectWorkspace,
   onCreateVirtualWorkspace,
   onCreatePhysicalWorkspace,
-  isWorkspaceFavorited,
-  onToggleFavorite,
   onDeleteWorkspace,
   onRenameWorkspace,
   onUpdateWorkspacePaths,
@@ -167,20 +163,6 @@ export function WorkspaceSwitcher({
                     )}
                   </div>
                   <div className="ml-auto flex items-center gap-1">
-                    <button
-                      className="p-1 rounded hover:bg-secondary transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite(workspace.id, workspace.name);
-                      }}
-                      title={isWorkspaceFavorited(workspace.id) ? 'Remove from favorites' : 'Add to favorites'}
-                    >
-                      {isWorkspaceFavorited(workspace.id) ? (
-                        <Star className="size-4 fill-primary text-primary" />
-                      ) : (
-                        <Star className="size-4 text-muted-foreground" />
-                      )}
-                    </button>
                     <Check
                       className={cn(
                         'size-4',

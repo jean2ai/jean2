@@ -1,12 +1,23 @@
 import { platform } from '@/platform';
 
-function localStorageGet<T>(key: string): T | null {
+export interface StorageEntry<T> {
+  exists: boolean;
+  value: T | null;
+}
+
+function localStorageGetEntry<T>(key: string): StorageEntry<T> {
+  const item = localStorage.getItem(key);
+  if (item === null) return { exists: false, value: null };
+
   try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
+    return { exists: true, value: JSON.parse(item) as T };
   } catch {
-    return null;
+    return { exists: true, value: null };
   }
+}
+
+function localStorageGet<T>(key: string): T | null {
+  return localStorageGetEntry<T>(key).value;
 }
 
 export const storage = {
@@ -15,6 +26,14 @@ export const storage = {
       return platform.storage.get<T>(key);
     }
     return localStorageGet<T>(key);
+  },
+
+  async getEntry<T>(key: string): Promise<StorageEntry<T>> {
+    if (platform.storage) {
+      const value = await platform.storage.get<T>(key);
+      return { exists: value !== null, value };
+    }
+    return localStorageGetEntry<T>(key);
   },
 
   async set<T>(key: string, value: T): Promise<void> {
@@ -50,4 +69,5 @@ export const STORAGE_KEYS = {
   THEME: 'jean2-theme',
   ACTIVE_WORKSPACE_ID: 'activeWorkspaceId',
   CLIENT_ID: 'jean2_client_id',
+  OVERVIEW_GROUPS: 'jean2_overview_groups',
 } as const;

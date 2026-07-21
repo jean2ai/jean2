@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useParams } from '@tanstack/react-router';
 import type { Session, Workspace, SavedServer, QuickConnection } from '@jean2/sdk';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -27,7 +27,6 @@ export interface UseSidebarDataReturn {
 
   // Derived values
   activeServer: SavedServer | null;
-  favoritedWorkspaceIds: string[];
   childrenMap: ChildrenMap;
   sessionDerivedValues: SessionDerivedValuesMap;
   sessions: Session[];
@@ -36,10 +35,6 @@ export interface UseSidebarDataReturn {
   scheduledSessionsByJob: Map<string, Session[]>;
   tagGroups: Map<string, Session[]>;
   orderedTagNames: string[];
-
-  // Helper functions
-  isWorkspaceFavorited: (workspaceId: string) => boolean;
-  handleToggleWorkspaceFavorite: (workspaceId: string, workspaceName: string) => void;
 }
 
 export const useSidebarData = (): UseSidebarDataReturn => {
@@ -65,15 +60,6 @@ export const useSidebarData = (): UseSidebarDataReturn => {
   // Derive activeServer from ServerContext and URL params
   const { servers, quickConnections, addToQuickConnections, removeFromQuickConnections } = useServerContext();
   const activeServer = serverId ? servers.find(s => s.id === serverId) ?? null : null;
-
-  // Derive favoritedWorkspaceIds
-  const favoritedWorkspaceIds = useMemo(
-    () =>
-      quickConnections
-        .filter(conn => conn.serverId === activeServer?.id && conn.workspaceId)
-        .map(conn => conn.workspaceId!),
-    [quickConnections, activeServer?.id],
-  );
 
   // Derive workspaceSessions (was the old `sessions` prop)
   const sessions = useMemo(
@@ -199,32 +185,6 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     return entries.map(e => e.tag);
   }, [tagGroups]);
 
-  const isWorkspaceFavorited = useCallback(
-    (workspaceId: string) => {
-      return quickConnections.some(
-        conn => conn.workspaceId === workspaceId && conn.serverId === activeServer?.id,
-      );
-    },
-    [quickConnections, activeServer?.id],
-  );
-
-  const handleToggleWorkspaceFavorite = useCallback(
-    (workspaceId: string, workspaceName: string) => {
-      if (!activeServer) return;
-
-      const existing = quickConnections.find(
-        conn => conn.workspaceId === workspaceId && conn.serverId === activeServer.id,
-      );
-
-      if (existing) {
-        removeFromQuickConnections(existing.id);
-      } else {
-        addToQuickConnections(activeServer.id, activeServer.name, workspaceId, workspaceName);
-      }
-    },
-    [activeServer, quickConnections, removeFromQuickConnections, addToQuickConnections],
-  );
-
   return {
     allSessions,
     currentSession,
@@ -239,7 +199,6 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     addToQuickConnections,
     removeFromQuickConnections,
     activeServer,
-    favoritedWorkspaceIds,
     childrenMap,
     sessionDerivedValues,
     sessions,
@@ -248,7 +207,5 @@ export const useSidebarData = (): UseSidebarDataReturn => {
     scheduledSessionsByJob,
     tagGroups,
     orderedTagNames,
-    isWorkspaceFavorited,
-    handleToggleWorkspaceFavorite,
   };
 };

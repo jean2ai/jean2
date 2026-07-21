@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { useLoaderData, useParams } from '@tanstack/react-router';
 import { clearSessionState } from '@/stores/sessionStore';
 import { useServerDataStore } from '@/stores/serverDataStore';
+import { useOverviewGroupsStore } from '@/stores/overviewGroupsStore';
 import type { CriticalServerData } from '@/lib/fetchServerData';
 import { fetchSecondaryServerData } from '@/lib/fetchServerData';
 import { queryClient } from '@/components/providers/QueryProvider';
@@ -22,12 +23,18 @@ export function StoreHydrator({ children }: StoreHydratorProps) {
   const params = useParams({ from: '/server/$serverId', strict: false } as unknown as Parameters<typeof useParams>[0]);
   const serverId = params.serverId as string | undefined;
 
-  const { servers } = useServerContext();
+  const { servers, quickConnections, isHydrated: isServerContextHydrated } = useServerContext();
   const activeServer = servers.find(s => s.id === serverId) ?? null;
   const serverUrl = activeServer?.url ?? null;
   const apiToken = activeServer?.token ?? undefined;
 
   const secondaryLoadedRef = useRef<string | null>(null);
+
+  // Wait for quick connections to load before running first-time migration.
+  useEffect(() => {
+    if (!isServerContextHydrated) return;
+    void useOverviewGroupsStore.getState().hydrate(quickConnections);
+  }, [isServerContextHydrated, quickConnections]);
 
   useLayoutEffect(() => {
     if (!data) return;
