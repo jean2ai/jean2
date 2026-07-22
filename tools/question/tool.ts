@@ -31,6 +31,7 @@ interface QuestionInput {
 
 export const definition: ToolDefinition = {
   name: 'question',
+  capabilities: ['interactive-user-input'],
   description:
     'Ask the user structured questions and get typed answers back as tool results. ' +
     'Use this when you need user input to make decisions, gather preferences, or clarify requirements. ' +
