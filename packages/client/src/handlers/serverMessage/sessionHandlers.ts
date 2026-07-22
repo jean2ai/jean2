@@ -334,6 +334,10 @@ export function handleSessionUpdated(
     setVariantForSession(session.id, session.selectedVariant);
   }
 
+  if (session.compacting) {
+    usePendingOperationsStore.getState().acknowledgeOperation(session.id, 'compact');
+  }
+
   if (session.workspaceId) {
     invalidateSessionsAndTagsForWorkspace(session.workspaceId);
   }

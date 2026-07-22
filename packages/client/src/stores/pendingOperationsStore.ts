@@ -15,6 +15,7 @@ export interface PendingOperation {
   sessionId: string;
   messageId?: string;
   startedAt: number;
+  acknowledgedAt?: number;
 }
 
 const OPERATION_TIMEOUT_MS = 60_000;
@@ -32,6 +33,7 @@ const OPERATION_LABELS: Record<PendingOperationType, string> = {
 interface PendingOperationsState {
   operations: PendingOperation[];
   startOperation: (op: PendingOperation) => void;
+  acknowledgeOperation: (sessionId: string, type: PendingOperationType) => void;
   clearOperation: (sessionId: string, type: PendingOperationType) => void;
   clearSessionOperations: (sessionId: string) => void;
   isOperationPending: (sessionId: string, type: PendingOperationType) => boolean;
@@ -49,6 +51,16 @@ export const usePendingOperationsStore = create<PendingOperationsState>((set, ge
       );
       return { operations: [...filtered, op] };
     });
+  },
+
+  acknowledgeOperation: (sessionId, type) => {
+    set((state) => ({
+      operations: state.operations.map((op) =>
+        op.sessionId === sessionId && op.type === type && op.acknowledgedAt === undefined
+          ? { ...op, acknowledgedAt: Date.now() }
+          : op,
+      ),
+    }));
   },
 
   clearOperation: (sessionId, type) => {
@@ -78,7 +90,7 @@ export const usePendingOperationsStore = create<PendingOperationsState>((set, ge
   cleanupStaleOperations: () => {
     const now = Date.now();
     const stale = get().operations.filter(
-      (op) => now - op.startedAt > OPERATION_TIMEOUT_MS,
+      (op) => op.acknowledgedAt === undefined && now - op.startedAt > OPERATION_TIMEOUT_MS,
     );
     if (stale.length > 0) {
       for (const op of stale) {
