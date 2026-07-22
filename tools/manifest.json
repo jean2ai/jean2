@@ -12,6 +12,7 @@
     "discord-read-messages",
     "discord-send-message",
     "edit",
+    "edit-range",
     "file-to-markdown",
     "glob",
     "git-worktree",
