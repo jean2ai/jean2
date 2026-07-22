@@ -23,7 +23,7 @@ export function useCreatePreconfig(sdkClient: Jean2Client | null) {
     mutationFn: (body: Record<string, unknown>) =>
       sdkClient!.http.preconfigs.create(body),
     onSuccess: () => {
-      if (sdkClient) syncPreconfigsToStoreAndCache(sdkClient, queryClient);
+      if (sdkClient) return syncPreconfigsToStoreAndCache(sdkClient, queryClient);
     },
   });
 }

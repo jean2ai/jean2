@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import type { Jean2Client, ModelWithStatus } from '@jean2/sdk';
 import { usePreconfigsQuery, useCreatePreconfig, useUpdatePreconfig, useDeletePreconfig, useToolsQuery } from '@/hooks/queries';
-import { Layers, Plus, Pencil, Trash2, ArrowLeft, Loader2, Star, Check, X, Cpu, ChevronsUpDown } from 'lucide-react';
+import { Layers, Plus, Pencil, Copy, Trash2, ArrowLeft, Loader2, Star, Check, X, Cpu, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,18 @@ const MODE_OPTIONS = [
   { value: 'both', label: 'Both' },
 ];
 
+function getDuplicateName(name: string, existingNames: string[]): string {
+  const names = new Set(existingNames);
+  const copyName = `${name} Copy`;
+  if (!names.has(copyName)) return copyName;
+
+  let copyNumber = 2;
+  while (names.has(`${copyName} ${copyNumber}`)) {
+    copyNumber += 1;
+  }
+  return `${copyName} ${copyNumber}`;
+}
+
 interface PreconfigForm {
   name: string;
   description: string;
@@ -100,6 +112,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [availableTools, setAvailableTools] = useState<{ name: string; description: string }[]>([]);
   const [customToolInput, setCustomToolInput] = useState('');
   const [toolSearch, setToolSearch] = useState('');
@@ -223,6 +236,37 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
       setError(err instanceof Error ? err.message : 'Failed to save preconfig');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDuplicate = async (preconfig: Preconfig) => {
+    if (duplicatingId !== null) return;
+
+    const name = getDuplicateName(preconfig.name, preconfigs.map(({ name }) => name));
+    setDuplicatingId(preconfig.id);
+    setError(null);
+    try {
+      await createPreconfigMut.mutateAsync({
+        name,
+        description: preconfig.description,
+        systemPrompt: preconfig.systemPrompt,
+        mode: preconfig.mode,
+        model: preconfig.model,
+        provider: preconfig.provider,
+        variant: preconfig.variant,
+        tools: preconfig.tools,
+        settings: preconfig.settings,
+        canSpawnSubagents: preconfig.canSpawnSubagents ?? false,
+        skills: preconfig.skills,
+        format: 'md',
+      });
+      toast.success(`Duplicated preconfig as ${name}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to duplicate preconfig';
+      setError(message);
+      toast.error('Failed to duplicate preconfig', { description: message });
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -733,6 +777,17 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
                   title="Edit preconfig"
                 >
                   <Pencil className="size-3" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={() => handleDuplicate(preconfig)}
+                  disabled={duplicatingId !== null}
+                  title="Duplicate preconfig"
+                >
+                  {duplicatingId === preconfig.id
+                    ? <Loader2 className="size-3 animate-spin" />
+                    : <Copy className="size-3" />}
                 </Button>
                 {!preconfig.isDefault && (
                   <Button
