@@ -552,7 +552,6 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const shortName = workspaceName || workspacePath.split('/').pop() || 'ws';
   const activeTab = tabs.find(t => t.serverSessionId === activeTabServerId);
     
-  // eslint-disable-next-line react-hooks/refs
   const activeCached = activeTabServerId ? terminalCacheRef.current.get(activeTabServerId) : null;
 
   const statusIndicator = (status: TerminalStatus) => {

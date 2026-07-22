@@ -15,7 +15,7 @@ const ERROR_LABELS = {
 
 export function RetryStatus({ sessionId }: RetryStatusProps) {
   const retry = useChatRetryStore((state) => state.retryBySessionId[sessionId]);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!retry?.retryAt) return;
@@ -25,7 +25,7 @@ export function RetryStatus({ sessionId }: RetryStatusProps) {
 
   if (!retry) return null;
 
-  const secondsRemaining = retry.retryAt
+  const secondsRemaining = retry.retryAt && now > 0
     ? Math.max(0, Math.ceil((retry.retryAt - now) / 1_000))
     : null;
   const statusText = retry.status === 'scheduled' && secondsRemaining !== null

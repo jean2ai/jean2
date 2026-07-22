@@ -249,8 +249,11 @@ export function CodeMirrorEditor({
 
   // Latest props in refs so imperative handlers read fresh values.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
   const lastEmittedRef = useRef<string>(value);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   /**
    * Build the full extension array, reusing the provided Compartment instances
@@ -342,7 +345,6 @@ export function CodeMirrorEditor({
       readOnlyCompartmentRef.current = null;
       gitDiffControllerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // External document identity change: reset the whole state via setState
@@ -378,7 +380,6 @@ export function CodeMirrorEditor({
     }
     appliedGitDiffRef.current = gitDiff;
     appliedGitDiffVisibilityRef.current = showGitDiff;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId]);
 
   // Theme changes: reconfigure the theme compartment.
@@ -444,7 +445,6 @@ export function CodeMirrorEditor({
     }
     appliedGitDiffRef.current = gitDiff;
     appliedGitDiffVisibilityRef.current = showGitDiff;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   // Replace decorations only when the authoritative diff or visibility changes.
