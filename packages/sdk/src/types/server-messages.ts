@@ -21,6 +21,7 @@ import type {
   SessionForkedMessage,
   SessionStateMessage,
   ChatUsageMessage,
+  ChatRetryMessage,
   CompactionCompleteMessage,
   PermissionListMessage,
   PermissionRevokedMessage,
@@ -124,6 +125,7 @@ export interface SdkEventMap {
     model: ChatUsageMessage['model'],
     variant: ChatUsageMessage['variant'],
   ];
+  'chat.retry': [message: ChatRetryMessage];
   'compaction.complete': [
     sessionId: CompactionCompleteMessage['sessionId'],
     tokensUsed: CompactionCompleteMessage['tokensUsed'],
@@ -283,6 +285,9 @@ export function routeServerMessage(
       break;
     case 'chat.usage':
       emitter.emit('chat.usage', msg.sessionId, msg.usage, msg.model, msg.variant);
+      break;
+    case 'chat.retry':
+      emitter.emit('chat.retry', msg);
       break;
     case 'compaction.complete':
       emitter.emit('compaction.complete', msg.sessionId, msg.tokensUsed);

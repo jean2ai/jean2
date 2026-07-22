@@ -162,7 +162,7 @@ export interface AssistantMessage extends MessageBase {
   error?: string;
   // Compaction-related metadata
   summary?: boolean; // true if this message contains a compaction summary
-  mode?: 'chat' | 'compaction' | 'compact_failed'; // 'compaction' if summary, 'compact_failed' if compaction failed
+  mode?: 'chat' | 'compaction' | 'compact_failed' | 'retry_failed';
   parentId?: string; // Parent message ID for task lineage (links summary to compacted messages)
   // Structured output metadata (when response format was used)
   structuredOutput?: StructuredOutputData;

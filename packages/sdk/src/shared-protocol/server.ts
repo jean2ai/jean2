@@ -125,6 +125,21 @@ export interface ChatUsageMessage {
   variant?: string;
 }
 
+export type ChatRetryStatus = 'scheduled' | 'started' | 'exhausted' | 'cancelled';
+export type ChatRetryErrorType = 'rate_limit' | 'server_error' | 'timeout' | 'network';
+
+export interface ChatRetryMessage {
+  type: 'chat.retry';
+  sessionId: string;
+  status: ChatRetryStatus;
+  retryNumber: number;
+  maxRetries: number;
+  errorType: ChatRetryErrorType;
+  message: string;
+  delayMs?: number;
+  retryAt?: number;
+}
+
 // Permission grant management (persisted grants only)
 export interface PermissionListMessage {
   type: 'permission.list';
@@ -413,6 +428,7 @@ export type ServerMessage =
   | SessionControlUpdatedMessage
   | SessionActionRejectedMessage
   | ChatUsageMessage
+  | ChatRetryMessage
   | ErrorMessage
   | SessionClosedMessage
   | SessionUpdatedMessage
