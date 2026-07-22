@@ -108,6 +108,11 @@
       "category": "filesystem"
     },
     {
+      "name": "edit-range",
+      "description": "Performs revision-aware range edits using line numbers.",
+      "category": "filesystem"
+    },
+    {
       "name": "file-to-markdown",
       "description": "Converts files to Markdown format. Supports PDF, Microsoft Office (.docx, .xlsx, .pptx), LibreOffice (.odt, .ods, .odp), and ZIP archives. Does not support .7z archives.",
       "category": "filesystem"
