@@ -4,8 +4,18 @@ import { createApp } from '@/app';
 import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 
-async function json(res: Response): Promise<any> {
-  return res.json();
+interface ResponseFormatResponse {
+  formats: unknown[];
+  error: string;
+  format: {
+    id: string;
+    name: string;
+    description: string;
+  };
+}
+
+async function json(res: Response): Promise<ResponseFormatResponse> {
+  return res.json() as Promise<ResponseFormatResponse>;
 }
 
 describe('Response Formats Routes', () => {

@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { streamChatWithRetry } from '@/core/retry';
 import type { StreamChatFn, StreamChatEvent } from '@/core/retry';
 import type { ChatOptions } from '@/core/agent';
@@ -71,11 +72,13 @@ async function collect(gen: AsyncGenerator<StreamChatEvent>): Promise<StreamChat
 
 describe('streamChatWithRetry', () => {
   beforeEach(() => {
+    setupTestDatabase();
     mockSetTimeout();
   });
 
   afterEach(() => {
     restoreSetTimeout();
+    resetTestDatabase();
   });
 
   test('yields events from successful stream', async () => {
@@ -104,7 +107,18 @@ describe('streamChatWithRetry', () => {
 
     const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
-    expect(events).toHaveLength(1);
+    expect(events.map((event) => event.type)).toEqual([
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+      'message.created',
+    ]);
+    expect(
+      events
+        .filter((event) => event.type === 'chat.retry')
+        .map((event) => event.status),
+    ).toEqual(['scheduled', 'started', 'scheduled', 'started']);
     expect(callCount).toBe(3);
   });
 
@@ -122,10 +136,25 @@ describe('streamChatWithRetry', () => {
 
     const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
-    expect(events).toHaveLength(1);
-    const errorEvent = events[0] as { type: string; code: string };
-    expect(errorEvent.type).toBe('error.rate_limit');
-    expect(errorEvent.code).toBe('rate_limit');
+    expect(events).toHaveLength(8);
+    expect(events.slice(0, -2).map((event) => event.type)).toEqual([
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+      'chat.retry',
+    ]);
+    const exhaustedEvent = events.at(-2);
+    expect(exhaustedEvent?.type).toBe('chat.retry');
+    if (exhaustedEvent?.type === 'chat.retry') {
+      expect(exhaustedEvent.status).toBe('exhausted');
+    }
+    const errorEvent = events.at(-1);
+    expect(errorEvent?.type).toBe('error.rate_limit');
+    if (errorEvent?.type === 'error.rate_limit') {
+      expect(errorEvent.code).toBe('rate_limit');
+    }
     expect(callCount).toBe(4);
   });
 
@@ -158,9 +187,13 @@ describe('streamChatWithRetry', () => {
 
     const events = await collect(streamChatWithRetry(makeOptions(), mockStream));
 
-    expect(events).toHaveLength(1);
-    const errorEvent = events[0] as { type: string; code: string };
-    expect(errorEvent.type).toBe('error.server');
+    expect(events).toHaveLength(8);
+    const exhaustedEvent = events.at(-2);
+    expect(exhaustedEvent?.type).toBe('chat.retry');
+    if (exhaustedEvent?.type === 'chat.retry') {
+      expect(exhaustedEvent.status).toBe('exhausted');
+    }
+    expect(events.at(-1)?.type).toBe('error.server');
     expect(callCount).toBe(4);
   });
 

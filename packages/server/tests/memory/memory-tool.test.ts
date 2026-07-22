@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import type { PermissionAsk } from '@jean2/sdk';
 import { mkdtempSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -106,7 +107,7 @@ describe('memory tool', () => {
         { action: 'list', target: 'memory' },
         testDir,
         'high',
-        askFn as any,
+        askFn,
       );
       expect(askCalled).toBe(false);
     });
@@ -309,7 +310,7 @@ describe('memory tool', () => {
         { action: 'add', target: 'memory', content: 'Fact' },
         testDir,
         'none',
-        askFn as any,
+        askFn,
       );
 
       expect(result.success).toBe(true);
@@ -324,7 +325,7 @@ describe('memory tool', () => {
         { action: 'add', target: 'memory', content: 'Fact' },
         testDir,
         'medium',
-        askFn as any,
+        askFn,
       );
 
       expect(result.success).toBe(true);
@@ -338,7 +339,7 @@ describe('memory tool', () => {
         { action: 'add', target: 'memory', content: 'Fact' },
         testDir,
         'high',
-        askFn as any,
+        askFn,
       );
 
       expect(result.success).toBe(false);
@@ -346,21 +347,21 @@ describe('memory tool', () => {
     });
 
     test('passes correct permission ask structure', async () => {
-      let capturedAsk: any = null;
-      const askFn = async (ask: any) => { capturedAsk = ask; return true; };
+      let capturedAsk: PermissionAsk | undefined;
+      const askFn = async (ask: PermissionAsk) => { capturedAsk = ask; return true; };
 
       await executeMemoryTool(
         { action: 'add', target: 'user', content: 'Pref' },
         testDir,
         'medium',
-        askFn as any,
+        askFn,
       );
 
-      expect(capturedAsk).not.toBeNull();
-      expect(capturedAsk.type).toBe('permission');
-      expect(capturedAsk.risk).toBe('medium');
-      expect(capturedAsk.resource).toBe('file');
-      expect(capturedAsk.action).toBe('write');
+      expect(capturedAsk).toBeDefined();
+      expect(capturedAsk?.type).toBe('permission');
+      expect(capturedAsk?.risk).toBe('medium');
+      expect(capturedAsk?.resource).toBe('file');
+      expect(capturedAsk?.action).toBe('write');
     });
   });
 

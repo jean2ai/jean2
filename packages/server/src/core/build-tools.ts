@@ -6,6 +6,7 @@ import { join } from 'path';
 import { buildExternalTools } from './tool-builders/external-tools';
 import { buildWorkspaceTools } from './tool-builders/workspace-tools';
 import { buildAgentTools } from './tool-builders/agent-tools';
+import { resolveToolExecutionScopes } from './tool-capabilities';
 import type { ToolMap } from './tool-builders/types';
 
 export interface BuildToolsOptions {
@@ -53,6 +54,9 @@ export async function buildAiSdkTools(
     return current;
   })();
 
+  // Resolve execution scopes for capability filtering (separate from ask-routing root)
+  const executionScopes = resolveToolExecutionScopes(sessionId);
+
   const canSpawn = canSpawnSubagents === true
     || (Array.isArray(canSpawnSubagents) && canSpawnSubagents.length > 0);
   const allowedSubagentIds = Array.isArray(canSpawnSubagents) ? canSpawnSubagents : undefined;
@@ -71,6 +75,7 @@ export async function buildAiSdkTools(
     workspaceId,
     workspacePath,
     rootSessionId,
+    executionScopes,
     modelId,
     providerId,
     additionalPaths,

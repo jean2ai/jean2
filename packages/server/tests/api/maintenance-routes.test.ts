@@ -7,8 +7,19 @@ import { seedWorkspace, seedSession } from '#tests/seed';
 import { createMessage } from '@/store/messages';
 import { createTestUserMessage } from '#tests/factories';
 
-async function json(res: Response): Promise<any> {
-  return res.json();
+interface MaintenanceResponse {
+  pageCountBefore: number;
+  pageSizeBefore: number;
+  reclaimedBytes: number;
+  success: boolean;
+  stats: {
+    orphanedMessages: number;
+  };
+  pageSizeAfter: number;
+}
+
+async function json(res: Response): Promise<MaintenanceResponse> {
+  return res.json() as Promise<MaintenanceResponse>;
 }
 
 describe('Maintenance Routes', () => {

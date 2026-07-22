@@ -5,8 +5,20 @@ import { setupTestDatabase, resetTestDatabase } from '#tests/db';
 import { setupTestDataDir, resetTestDataDir } from '#tests/test-dir';
 import { seedWorkspace } from '#tests/seed';
 
-async function json(res: Response): Promise<any> {
-  return res.json();
+interface SchedulerResponse {
+  jobs: unknown[];
+  error: string;
+  job: {
+    id: string;
+    name: string;
+    state: string;
+    notificationsEnabled: boolean;
+  };
+  details: Array<{ path: string }>;
+}
+
+async function json(res: Response): Promise<SchedulerResponse> {
+  return res.json() as Promise<SchedulerResponse>;
 }
 
 describe('Scheduler Routes', () => {

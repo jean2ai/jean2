@@ -12,9 +12,27 @@ export interface ToolRegistryConfig {
   versionUrlTemplate: string;
 }
 
+export interface ToolCategoryMetadata {
+  label: string;
+  description?: string;
+  order?: number;
+}
+
+export interface ToolCapabilityMetadata {
+  label: string;
+  description?: string;
+}
+
+export interface ToolRepositoryMetadata {
+  categories?: Record<string, ToolCategoryMetadata>;
+  capabilities?: Record<string, ToolCapabilityMetadata>;
+}
+
 export interface ToolCatalogEntry {
   name: string;
   description: string;
+  category?: string;
+  capabilities?: string[];
   envVars?: ToolEnvVar[];
   hasSecurity?: boolean;
 }
@@ -24,6 +42,8 @@ export interface RepositoryTool {
   description: string;
   version: string;
   artifactUrl: string;
+  category?: string;
+  capabilities?: string[];
   envVars?: ToolEnvVar[];
   hasSecurity?: boolean;
 }
@@ -33,6 +53,7 @@ export interface ToolRepository {
   format: 'source';
   registry: ToolRegistryConfig;
   tools: ToolCatalogEntry[];
+  metadata?: ToolRepositoryMetadata;
   envConfig?: Record<string, unknown>;
 }
 
@@ -76,6 +97,115 @@ function validateToolEnvVars(tool: Record<string, unknown>, idx: string): void {
   }
 }
 
+function validateMetadataCategories(
+  categories: Record<string, unknown>,
+  prefix: string,
+): void {
+  for (const [categoryId, value] of Object.entries(categories)) {
+    if (!categoryId) {
+      throw new RepositorySchemaError(`${prefix} contains an empty category id`);
+    }
+    if (!value || typeof value !== 'object') {
+      throw new RepositorySchemaError(`${prefix}.${categoryId} must be an object`);
+    }
+    const category = value as Record<string, unknown>;
+    const catIdx = `${prefix}.${categoryId}`;
+    if (typeof category.label !== 'string' || !category.label) {
+      throw new RepositorySchemaError(`${catIdx}.label is required`);
+    }
+    if (category.description !== undefined && typeof category.description !== 'string') {
+      throw new RepositorySchemaError(`${catIdx}.description must be a string`);
+    }
+    if (category.order !== undefined && (typeof category.order !== 'number' || !Number.isFinite(category.order))) {
+      throw new RepositorySchemaError(`${catIdx}.order must be a finite number`);
+    }
+  }
+}
+
+function validateMetadataCapabilities(
+  capabilities: Record<string, unknown>,
+  prefix: string,
+): void {
+  for (const [capabilityId, value] of Object.entries(capabilities)) {
+    if (!capabilityId) {
+      throw new RepositorySchemaError(`${prefix} contains an empty capability id`);
+    }
+    if (!value || typeof value !== 'object') {
+      throw new RepositorySchemaError(`${prefix}.${capabilityId} must be an object`);
+    }
+    const capability = value as Record<string, unknown>;
+    const capIdx = `${prefix}.${capabilityId}`;
+    if (typeof capability.label !== 'string' || !capability.label) {
+      throw new RepositorySchemaError(`${capIdx}.label is required`);
+    }
+    if (capability.description !== undefined && typeof capability.description !== 'string') {
+      throw new RepositorySchemaError(`${capIdx}.description must be a string`);
+    }
+  }
+}
+
+function validateMetadata(metadata: Record<string, unknown>): void {
+  const prefix = 'metadata';
+  if (metadata.categories !== undefined) {
+    if (!metadata.categories || typeof metadata.categories !== 'object' || Array.isArray(metadata.categories)) {
+      throw new RepositorySchemaError(`${prefix}.categories must be an object`);
+    }
+    validateMetadataCategories(
+      metadata.categories as Record<string, unknown>,
+      `${prefix}.categories`,
+    );
+  }
+  if (metadata.capabilities !== undefined) {
+    if (!metadata.capabilities || typeof metadata.capabilities !== 'object' || Array.isArray(metadata.capabilities)) {
+      throw new RepositorySchemaError(`${prefix}.capabilities must be an object`);
+    }
+    validateMetadataCapabilities(
+      metadata.capabilities as Record<string, unknown>,
+      `${prefix}.capabilities`,
+    );
+  }
+}
+
+function validateToolCategoryAndCapabilities(
+  tool: Record<string, unknown>,
+  idx: string,
+  categories: Record<string, unknown> | undefined,
+  capabilities: Record<string, unknown> | undefined,
+): void {
+  if (tool.category !== undefined) {
+    if (typeof tool.category !== 'string' || !tool.category) {
+      throw new RepositorySchemaError(`${idx}.category must be a non-empty string`);
+    }
+    if (categories && !Object.hasOwn(categories, tool.category)) {
+      throw new RepositorySchemaError(
+        `${idx}.category references undefined category "${tool.category}"`,
+      );
+    }
+  }
+  if (tool.capabilities !== undefined) {
+    if (!Array.isArray(tool.capabilities)) {
+      throw new RepositorySchemaError(`${idx}.capabilities must be an array`);
+    }
+    const seen = new Set<string>();
+    for (let k = 0; k < tool.capabilities.length; k++) {
+      const cap = tool.capabilities[k];
+      const capIdx = `${idx}.capabilities[${k}]`;
+      if (typeof cap !== 'string' || !cap) {
+        throw new RepositorySchemaError(`${capIdx} must be a non-empty string`);
+      }
+      if (seen.has(cap)) {
+        throw new RepositorySchemaError(`${capIdx} duplicates capability "${cap}"`);
+      }
+      seen.add(cap);
+      if (capabilities && !Object.hasOwn(capabilities, cap)) {
+        throw new RepositorySchemaError(
+          `${capIdx} references undefined capability "${cap}"`,
+        );
+      }
+    }
+  }
+}
+
 function validateRepositoryShape(data: unknown): ToolRepository {
   if (!data || typeof data !== 'object') {
     throw new RepositorySchemaError('expected a JSON object');
@@ -112,6 +242,22 @@ function validateRepositoryShape(data: unknown): ToolRepository {
     throw new RepositorySchemaError('tools must be an array');
   }
 
+  let metadataCategories: Record<string, unknown> | undefined;
+  let metadataCapabilities: Record<string, unknown> | undefined;
+  if (repo.metadata !== undefined) {
+    if (!repo.metadata || typeof repo.metadata !== 'object' || Array.isArray(repo.metadata)) {
+      throw new RepositorySchemaError('metadata must be an object');
+    }
+    validateMetadata(repo.metadata as Record<string, unknown>);
+    const m = repo.metadata as Record<string, unknown>;
+    if (m.categories !== undefined) {
+      metadataCategories = m.categories as Record<string, unknown>;
+    }
+    if (m.capabilities !== undefined) {
+      metadataCapabilities = m.capabilities as Record<string, unknown>;
+    }
+  }
+
   for (let i = 0; i < repo.tools.length; i++) {
     const tool = repo.tools[i] as Record<string, unknown>;
     const idx = `tools[${i}]`;
@@ -127,6 +273,7 @@ function validateRepositoryShape(data: unknown): ToolRepository {
     }
 
     validateToolEnvVars(tool, idx);
+    validateToolCategoryAndCapabilities(tool, idx, metadataCategories, metadataCapabilities);
   }
 
   return data as ToolRepository;
@@ -213,6 +360,8 @@ export async function fetchRepositoryWithVersions(): Promise<RepositoryTool[]> {
         description: tool.description,
         version,
         artifactUrl,
+        category: tool.category,
+        capabilities: tool.capabilities,
         envVars: tool.envVars,
         hasSecurity: tool.hasSecurity,
       } satisfies RepositoryTool;

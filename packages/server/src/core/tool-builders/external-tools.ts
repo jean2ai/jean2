@@ -7,6 +7,7 @@ import { interruptManager } from '../interrupt';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from '../subagent';
 import { truncateToolResult } from '@/utils/truncate-tool-result';
+import { isToolAllowedInContext, type ToolExecutionScope } from '../tool-capabilities';
 import type { ToolMap } from './types';
 import type { BroadcastFn } from '../broadcast';
 
@@ -19,6 +20,7 @@ export interface ExternalToolsOptions {
   workspaceId: string | undefined;
   workspacePath: string | undefined;
   rootSessionId: string;
+  executionScopes: ReadonlySet<ToolExecutionScope>;
   modelId?: string;
   providerId?: string;
   additionalPaths?: string[];
@@ -34,6 +36,7 @@ export async function buildExternalTools(options: ExternalToolsOptions): Promise
     workspaceId,
     workspacePath,
     rootSessionId,
+    executionScopes,
     modelId,
     providerId,
     additionalPaths,
@@ -92,6 +95,10 @@ export async function buildExternalTools(options: ExternalToolsOptions): Promise
     if (!loadedTool) continue;
 
     const { definition } = loadedTool;
+
+    if (!isToolAllowedInContext(definition.capabilities, executionScopes)) {
+      continue;
+    }
 
     tools[name] = tool({
       description: definition.description,

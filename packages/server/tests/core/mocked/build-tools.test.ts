@@ -1,8 +1,8 @@
 import { describe, test, expect, mock, afterEach } from 'bun:test';
-import type { ToolResult } from '@jean2/sdk';
+import type { ToolResult, Session } from '@jean2/sdk';
 import type { BuildToolsOptions } from '@/core/build-tools';
 
-function createMockLoadedTool(name: string) {
+function createMockLoadedTool(name: string, capabilities?: string[]) {
   return {
     definition: {
       name,
@@ -12,6 +12,7 @@ function createMockLoadedTool(name: string) {
         properties: { input: { type: 'string' } },
       },
       timeout: 60000,
+      ...(capabilities ? { capabilities } : {}),
     },
     runtime: 'bun',
     scriptPath: '/mock/tool.ts',
@@ -24,6 +25,8 @@ async function setupMocks(opts: {
   canSpawnSubagent?: boolean;
   skillTool?: { name: string; tool: unknown } | null;
   mcpTools?: Record<string, unknown>;
+  sessions?: Record<string, Partial<Session>>;
+  sessionNotFound?: boolean;
 }) {
   let getToolCallIndex = 0;
   const getToolReturns = opts.getToolReturns ?? [];
@@ -66,7 +69,13 @@ async function setupMocks(opts: {
 
   mock.module('@/store', () => ({
     transitionToolToRunningByCallId: mock(() => null),
-    getSession: mock(() => ({ id: 'sess-1' })),
+    getSession: mock((id: string) => {
+      if (opts.sessionNotFound) return null;
+      if (opts.sessions && opts.sessions[id]) {
+        return { id, parentId: null, metadata: null, ...opts.sessions[id] } as Session;
+      }
+      return { id, parentId: null, metadata: null } as Session;
+    }),
     getWorkspace: mock(() => ({
       id: 'ws-1',
       path: '/workspace',
@@ -373,6 +382,190 @@ describe('build-tools', () => {
       expect(tools).toHaveProperty('read-file');
       expect(tools).toHaveProperty('task');
       expect(Object.keys(tools)).toHaveLength(2);
+    });
+  });
+
+  describe('capability filtering', () => {
+    test('includes question tool in a normal top-level interactive session', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'top-1': { parentId: null, metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'top-1',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('excludes question tool when current session has a parent', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'parent-1': { parentId: null, metadata: null },
+          'child-1': { parentId: 'parent-1', metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'child-1',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).not.toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('excludes question tool when root session has metadata.scheduledJobId', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'sched-1': { parentId: null, metadata: { scheduledJobId: 'job-42' } },
+        },
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'sched-1',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).not.toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('excludes question tool from a child whose root is scheduled', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'sched-1': { parentId: null, metadata: { scheduledJobId: 'job-42' } },
+          'child-1': { parentId: 'sched-1', metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'child-1',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).not.toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('keeps a tool without capabilities available in all scopes', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'sched-1': { parentId: null, metadata: { scheduledJobId: 'job-1' } },
+          'child-1': { parentId: 'sched-1', metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'child-1',
+        toolNames: ['read-file'],
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('keeps tools with unknown capabilities available', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'child-1': { parentId: 'parent-1', metadata: null },
+          'parent-1': { parentId: null, metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('read-file', ['some-future-capability']),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'child-1',
+        toolNames: ['read-file'],
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('keeps non-question tools available in restricted scopes', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'sched-1': { parentId: null, metadata: { scheduledJobId: 'job-1' } },
+          'child-1': { parentId: 'sched-1', metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('read-file'),
+          createMockLoadedTool('grep'),
+          createMockLoadedTool('ls'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'child-1',
+        toolNames: ['read-file', 'grep', 'ls'],
+      }));
+
+      expect(tools).toHaveProperty('read-file');
+      expect(tools).toHaveProperty('grep');
+      expect(tools).toHaveProperty('ls');
+    });
+
+    test('uses unrestricted top-level fallback when session record is missing', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessionNotFound: true,
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'gone',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
+    });
+
+    test('parent-cycle protection returns a deterministic scope set', async () => {
+      const { buildAiSdkTools } = await setupMocks({
+        sessions: {
+          'a': { parentId: 'a', metadata: null },
+        },
+        getToolReturns: [
+          createMockLoadedTool('question', ['interactive-user-input']),
+          createMockLoadedTool('read-file'),
+        ],
+      });
+
+      const tools = await buildAiSdkTools(defaultOptions({
+        sessionId: 'a',
+        rootSessionId: 'a',
+        toolNames: ['question', 'read-file'],
+      }));
+
+      expect(tools).not.toHaveProperty('question');
+      expect(tools).toHaveProperty('read-file');
     });
   });
 });
