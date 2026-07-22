@@ -124,6 +124,64 @@ export function MessageBubble({
 
   const showPinButton = canPin && onTogglePin && !isQueued;
   const showEditButton = canEdit && onEdit && !isQueued && isUser;
+  const showAssistantFork = message.role === 'assistant' && canFork && Boolean(onFork);
+
+  const renderAssistantActions = () => (
+    <>
+      {showAssistantFork && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowForkConfirm(true)}
+          disabled={isForking}
+          className="size-5 text-muted-foreground hover:text-foreground"
+          title="Fork from this response"
+        >
+          {isForking ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <GitBranch className="size-3" />
+          )}
+        </Button>
+      )}
+      {showPinButton && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onTogglePin}
+          disabled={isPinningMessage}
+          className={cn(
+            'size-5',
+            isPinned
+              ? 'text-primary hover:text-primary/80'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+          title={isPinningMessage ? 'Updating...' : isPinned ? 'Unpin message' : 'Pin message'}
+        >
+          {isPinningMessage ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : isPinned ? (
+            <PinOff className="size-3" />
+          ) : (
+            <Pin className="size-3" />
+          )}
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleCopy}
+        className="size-5 text-muted-foreground hover:text-foreground"
+        title="Copy response"
+      >
+        {copied ? (
+          <Check className="size-3" />
+        ) : (
+          <Copy className="size-3" />
+        )}
+      </Button>
+    </>
+  );
 
   return (
     <div
@@ -196,41 +254,7 @@ export function MessageBubble({
           <>
             <Bot className="size-3" />
             {message.role}
-            {showPinButton && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onTogglePin}
-                disabled={isPinningMessage}
-                className={cn(
-                  'size-5',
-                  isPinned
-                    ? 'text-primary hover:text-primary/80'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-                title={isPinningMessage ? 'Updating...' : isPinned ? 'Unpin message' : 'Pin message'}
-              >
-                {isPinningMessage ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : isPinned ? (
-                  <PinOff className="size-3" />
-                ) : (
-                  <Pin className="size-3" />
-                )}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCopy}
-              className="size-5 text-muted-foreground hover:text-foreground"
-            >
-              {copied ? (
-                <Check className="size-3" />
-              ) : (
-                <Copy className="size-3" />
-              )}
-            </Button>
+            {renderAssistantActions()}
           </>
         )}
       </div>
@@ -310,6 +334,12 @@ export function MessageBubble({
         </div>
       )}
 
+      {showAssistantFork && (
+        <div className="flex items-center gap-1.5 pt-1">
+          {renderAssistantActions()}
+        </div>
+      )}
+
       <ConfirmationDialog
         open={showRevertConfirm || isReverting}
         onOpenChange={(open) => { if (!isReverting) setShowRevertConfirm(open); }}
@@ -331,9 +361,13 @@ export function MessageBubble({
       <ConfirmationDialog
         open={showForkConfirm || isForking}
         onOpenChange={(open) => { if (!isForking) setShowForkConfirm(open); }}
-        title="Fork Conversation"
-        description="This will create a new session with messages up to and including this point. The original session will be unchanged."
-        confirmLabel="Fork"
+        title={isUser ? 'Fork Conversation' : 'Fork from this response?'}
+        description={
+          isUser
+            ? 'This will create a new session with messages up to and including this point. The original session will be unchanged.'
+            : 'Create a new session that includes this response and everything before it. The original session will remain unchanged.'
+        }
+        confirmLabel={isUser ? 'Fork' : 'Create fork'}
         cancelLabel="Cancel"
         onConfirm={() => {
           onFork?.();

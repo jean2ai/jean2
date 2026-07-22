@@ -428,6 +428,10 @@ const MessageRow = memo(function MessageRow({
   }
 
   const canRevert = !item.isQueued && item.message.role === 'user';
+  const canFork = !item.isQueued && (
+    (item.message.role === 'user' && revertMessageId !== null) ||
+    (isAssistantMessage(item.message) && item.message.status === 'completed')
+  );
   const isClearAll = revertMessageId === item.message.id;
 
   return (
@@ -439,8 +443,8 @@ const MessageRow = memo(function MessageRow({
         onRemove={item.isQueued ? () => onRemoveFromQueue(item.queueId!) : undefined}
         canRevert={canRevert && revertMessageId !== null}
         onRevert={revertMessageId ? () => onRevert?.(sessionId, revertMessageId) : undefined}
-        canFork={canRevert && revertMessageId !== null}
-        onFork={revertMessageId ? () => onFork?.(sessionId, item.message.id) : undefined}
+        canFork={canFork}
+        onFork={canFork && onFork ? () => onFork(sessionId, item.message.id) : undefined}
         canEdit={canRevert && !item.isQueued}
         onEdit={onEditMessage ? (content) => onEditMessage(sessionId, item.message.id, content) : undefined}
         isClearAll={isClearAll}
@@ -823,6 +827,12 @@ export function VirtualizedTranscript({
     targetMessageId,
   ]);
 
+  const listExtraData = useMemo(() => ({
+    pendingAskRequests,
+    pinnedMessageIds,
+    isPinningMessage,
+  }), [pendingAskRequests, pinnedMessageIds, isPinningMessage]);
+
   const header = (
     <>
       {isLoadingOlder && (
@@ -864,7 +874,7 @@ export function VirtualizedTranscript({
     <LegendList
       ref={listRef}
       data={displayItems}
-      extraData={pendingAskRequests}
+      extraData={listExtraData}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       estimatedItemSize={100}
