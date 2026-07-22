@@ -10,6 +10,7 @@ import { useSessionControlStore, type ActionRejection } from '@/stores/sessionCo
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import { useSessionStore, type SessionNavigationIntent } from '@/stores/sessionStore';
 import { useTranscriptPagination } from '@/hooks/useTranscriptPagination';
+import { RetryStatus } from './RetryStatus';
 
 export interface DisplayItem {
   message: import('@jean2/sdk').Message;
@@ -288,6 +289,8 @@ export function ChatView({
           )}
         </button>
       </div>
+
+      {session.status === 'active' && <RetryStatus sessionId={session.id} />}
 
       {session.status === 'active' && !session.parentId && (
         <MessageInput

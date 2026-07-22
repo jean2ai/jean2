@@ -1,4 +1,4 @@
-import type { Jean2Client, SessionInterruptResult, SessionControlState } from '@jean2/sdk';
+import type { ChatRetryMessage, Jean2Client, SessionInterruptResult, SessionControlState } from '@jean2/sdk';
 import type { RefObject } from 'react';
 import type { Session, Message, Part, MessageWithParts, PermissionGrant, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
@@ -8,6 +8,8 @@ import { permissionQueueHandlers } from '@/handlers/serverMessage';
 import { providerHandlers } from '@/handlers/serverMessage';
 import { askHandlers } from '@/handlers/serverMessage';
 import { controlHandlers } from '@/handlers/serverMessage';
+import { useChatRetryStore } from '@/stores/chatRetryStore';
+import { useConnectionStore } from '@/stores/connectionStore';
 
 type CtxRef = RefObject<SessionHandlersContext | null>;
 
@@ -28,6 +30,9 @@ export function subscribeToServerEvents(
     sessionHandlers['session.created']({ type: 'session.created', session: session as Session }, ctx()!);
   });
   add('session.resumed', (session: unknown, messages: unknown, usage: unknown, isRunning: unknown, control: unknown, transcript: unknown) => {
+    if (!isRunning) {
+      useChatRetryStore.getState().clearRetry((session as Session).id);
+    }
     sessionHandlers['session.resumed'](
       {
         type: 'session.resumed',
@@ -45,12 +50,14 @@ export function subscribeToServerEvents(
     );
   });
   add('session.closed', (sessionId: unknown) => {
+    useChatRetryStore.getState().clearRetry(sessionId as string);
     sessionHandlers['session.closed']({ type: 'session.closed', sessionId: sessionId as string }, ctx()!);
   });
   add('session.reopened', (session: unknown) => {
     sessionHandlers['session.reopened']({ type: 'session.reopened', session: session as Session }, ctx()!);
   });
   add('session.deleted', (sessionId: unknown) => {
+    useChatRetryStore.getState().clearRetry(sessionId as string);
     sessionHandlers['session.deleted']({ type: 'session.deleted', sessionId: sessionId as string }, ctx()!);
   });
   add('session.updated', (session: unknown) => {
@@ -60,6 +67,7 @@ export function subscribeToServerEvents(
     sessionHandlers['session.renamed']({ type: 'session.renamed', session: session as Session }, ctx()!);
   });
   add('session.interrupted', (sessionId: unknown, result: unknown) => {
+    useChatRetryStore.getState().clearRetry(sessionId as string);
     sessionHandlers['session.interrupted']({ type: 'session.interrupted', sessionId: sessionId as string, result: result as SessionInterruptResult }, ctx()!);
   });
   add('session.reverted', (sessionId: unknown, revertedTo: unknown, removed: unknown) => {
@@ -103,6 +111,15 @@ export function subscribeToServerEvents(
   });
   add('chat.usage', (sessionId: unknown, usage: unknown, model: unknown) => {
     messagePartHandlers['chat.usage']({ type: 'chat.usage', sessionId: sessionId as string, usage: usage as SessionUsage, model: model as string }, ctx()!);
+  });
+  add('chat.retry', (message: unknown) => {
+    const retryMessage = message as ChatRetryMessage;
+    useChatRetryStore.getState().applyRetry(retryMessage);
+    if (retryMessage.status === 'scheduled' || retryMessage.status === 'started') {
+      useConnectionStore.getState().addStreamingSession(retryMessage.sessionId);
+    } else {
+      useConnectionStore.getState().removeStreamingSession(retryMessage.sessionId);
+    }
   });
   add('compaction.complete', (sessionId: unknown, tokensUsed: unknown) => {
     messagePartHandlers['compaction.complete']({ type: 'compaction.complete', sessionId: sessionId as string, tokensUsed: tokensUsed as { prompt: number; completion: number } }, ctx()!);

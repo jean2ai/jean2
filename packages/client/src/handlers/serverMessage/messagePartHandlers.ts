@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { toast } from 'sonner';
 import { usePendingOperationsStore } from '@/stores/pendingOperationsStore';
 import { useSessionBoardStore } from '@/stores/sessionBoardStore';
+import { useChatRetryStore } from '@/stores/chatRetryStore';
 
 const FILE_MUTATING_TOOLS = new Set([
   'edit', 'multiedit', 'write-file', 'apply-patch', 'shell',
@@ -79,6 +80,7 @@ export function handleMessageUpdated(
     playChatFinishSound,
     currentSessionIdRef,
     acknowledgeNotification,
+    clearCompletion,
   } = ctx;
 
   // Write to any session that has content loaded (multi-pane safe)
@@ -105,6 +107,12 @@ export function handleMessageUpdated(
 
   if ('status' in message && message.status !== 'streaming') {
     removeStreamingSession(message.sessionId);
+    useChatRetryStore.getState().clearRetry(message.sessionId);
+
+    if (message.role === 'assistant' && message.mode === 'retry_failed') {
+      clearCompletion(message.sessionId);
+      return;
+    }
 
     const session = sessionsRef.current.find(s => s.id === message.sessionId);
     const isTopLevel = session && session.parentId === null;
