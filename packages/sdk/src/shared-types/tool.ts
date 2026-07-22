@@ -53,6 +53,7 @@ export interface ToolDefinition {
   outputSchema?: Record<string, unknown>;
   timeout?: number;
   env?: string[];
+  capabilities?: string[];
 }
 
 // ===========================================
