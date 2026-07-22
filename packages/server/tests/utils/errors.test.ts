@@ -59,6 +59,34 @@ describe('classifyApiError', () => {
     expect(result.retryAfterMs).toBe(60000);
   });
 
+  test('extracts retryAfterMs from an HTTP-date header', () => {
+    const retryAt = new Date(Date.now() + 60_000).toUTCString();
+    const error = Object.assign(new Error('rate limited'), {
+      status: 429,
+      responseHeaders: { 'Retry-After': retryAt },
+    });
+    const result = classifyApiError(error);
+    expect(result.retryAfterMs).toBeGreaterThanOrEqual(58_000);
+    expect(result.retryAfterMs).toBeLessThanOrEqual(60_000);
+  });
+
+  test('classifies exhausted usage quota as non-retryable', () => {
+    const error = Object.assign(new Error('usage limit has been reached'), {
+      status: 429,
+      data: { error: { type: 'usage_limit_reached' } },
+    });
+    const result = classifyApiError(error);
+    expect(result.type).toBe(ApiErrorType.Quota);
+    expect(result.retryable).toBe(false);
+  });
+
+  test('classifies transient network errors as retryable', () => {
+    const error = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+    const result = classifyApiError(error);
+    expect(result.type).toBe(ApiErrorType.Network);
+    expect(result.retryable).toBe(true);
+  });
+
   test('classifies 401 as auth error (non-retryable)', () => {
     const error = Object.assign(new Error('unauthorized'), { status: 401 });
     const result = classifyApiError(error);

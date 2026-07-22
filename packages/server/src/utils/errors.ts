@@ -16,6 +16,8 @@ export enum ApiErrorType {
   RateLimit = 'rate_limit',
   ServerError = 'server_error',
   Timeout = 'timeout',
+  Network = 'network',
+  Quota = 'quota',
   Authentication = 'authentication',
   ContextOverflow = 'context_overflow',
   InvalidRequest = 'invalid_request',
@@ -100,12 +102,17 @@ function getRetryAfterMsFromHeaders(headers: HeaderGetter | Record<string, strin
     return undefined;
   }
 
-  const retryAfterSeconds = parseInt(retryAfter, 10);
-  if (isNaN(retryAfterSeconds)) {
+  const retryAfterSeconds = Number(retryAfter);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isNaN(retryAt)) {
     return undefined;
   }
 
-  return retryAfterSeconds * 1000;
+  return Math.max(0, retryAt - Date.now());
 }
 
 function getRetryAfterMsFromError(error: AiSdkError): number | undefined {
@@ -141,6 +148,30 @@ function isUsageLimitError(error: AiSdkError, message: string): boolean {
   return lower.includes('usage limit has been reached') || lower.includes('usage_limit_reached');
 }
 
+const TRANSIENT_NETWORK_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EAI_AGAIN',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'EPIPE',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_SOCKET',
+]);
+
+function isTransientNetworkError(error: AiSdkError, message: string): boolean {
+  if (error.code && TRANSIENT_NETWORK_CODES.has(error.code)) {
+    return true;
+  }
+
+  const lower = message.toLowerCase();
+  return lower.includes('fetch failed')
+    || lower.includes('network error')
+    || lower.includes('socket hang up')
+    || lower.includes('connection reset')
+    || lower.includes('connection closed');
+}
+
 export function classifyApiError(error: unknown): ClassifiedError {
   const message = getErrorMessage(error);
 
@@ -158,7 +189,25 @@ export function classifyApiError(error: unknown): ClassifiedError {
 
     const status = getStatusCode(aiError);
 
-    if (aiError.isRateLimitError || status === 429 || isUsageLimitError(aiError, message)) {
+    if (isTransientNetworkError(aiError, message)) {
+      return {
+        type: ApiErrorType.Network,
+        retryable: true,
+        message,
+        originalError: error,
+      };
+    }
+
+    if (isUsageLimitError(aiError, message)) {
+      return {
+        type: ApiErrorType.Quota,
+        retryable: false,
+        message,
+        originalError: error,
+      };
+    }
+
+    if (aiError.isRateLimitError || status === 429) {
       const retryAfterMs = getRetryAfterMsFromError(aiError) ?? 60000;
       return {
         type: ApiErrorType.RateLimit,

@@ -22,6 +22,10 @@ class InterruptManager {
   private sessionContexts = new Map<string, SessionAbortContext>();
 
   registerSession(sessionId: string): AbortController {
+    if (this.sessionContexts.has(sessionId)) {
+      throw new Error(`Session ${sessionId} already has an active execution`);
+    }
+
     const controller = new AbortController();
     const context: SessionAbortContext = {
       sessionId,

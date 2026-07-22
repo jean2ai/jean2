@@ -152,7 +152,9 @@ export async function executeChildSession(options: {
         structuredOutput = event.message.structuredOutput as StructuredOutputData;
       }
       updateMessage(event.message.id, event.message, { syncFts: false });
-      notifyTerminalMessage(event.message, childSessionId);
+      if (event.message.mode !== 'retry_failed') {
+        notifyTerminalMessage(event.message, childSessionId);
+      }
       broadcastToSessionFn(event);
     } else if (event.type === 'usage') {
       const currentSession = getSession(childSessionId);
@@ -170,8 +172,10 @@ export async function executeChildSession(options: {
         model: event.model,
         variant: event.variant ?? undefined,
       });
+    } else if (event.type === 'chat.retry') {
+      broadcastToSessionFn(event);
     } else if (event.type === 'error.rate_limit') {
-      console.warn(`[Child Session ${childSessionId}] Rate limited, retrying in ${event.retryAfterMs}ms...`);
+      console.warn(`[Child Session ${childSessionId}] Rate limited after retries: ${event.message}`);
     } else if (event.type === 'error.server') {
       console.warn(`[Child Session ${childSessionId}] Server error: ${event.message}`);
     } else if (event.type === 'error.timeout') {

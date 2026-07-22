@@ -70,7 +70,7 @@ export async function convertToAiSdkMessages(
 
     const hasCompactionTrigger = parts.some(p => p.type === 'compaction');
 
-    if (msg.role === 'assistant' && msg.mode === 'compact_failed') {
+    if (msg.role === 'assistant' && (msg.mode === 'compact_failed' || msg.mode === 'retry_failed')) {
       continue;
     }
 

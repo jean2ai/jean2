@@ -38,6 +38,7 @@ export interface ChatOptions {
   compactionPolicy?: CompactionPolicy;
   broadcastFn?: BuildToolsOptions['broadcastFn'];
   responseFormat?: ResponseFormat;
+  retryAbortController?: AbortController;
 }
 
 function collectInterruptedToolPartEvents(
@@ -72,8 +73,8 @@ export interface ChatResult {
 export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | ErrorEvent> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, maxSteps, compactionPolicy } = options;
 
-  // Register session with interrupt manager
-  const abortController = interruptManager.registerSession(_sessionId);
+  const managesSessionLifecycle = !options.retryAbortController;
+  const abortController = options.retryAbortController ?? interruptManager.registerSession(_sessionId);
 
   // Initialize MCP for workspace
   if (workspacePath) {
@@ -86,7 +87,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
   // Check if this is a main session (not a subagent) and set runningAt
   const session = getSession(_sessionId);
   const isMainSession = session && !session.parentId;
-  if (isMainSession) {
+  if (isMainSession && managesSessionLifecycle) {
     const updatedSession = updateSession(_sessionId, { runningAt: new Date().toISOString() });
     if (updatedSession) {
       broadcastSessionUpdated(updatedSession);
@@ -300,13 +301,15 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
 
     throw classified;
   } finally {
-    interruptManager.unregisterSession(_sessionId);
-    rejectPendingAsksBySession(_sessionId);
+    if (managesSessionLifecycle) {
+      interruptManager.unregisterSession(_sessionId);
+      rejectPendingAsksBySession(_sessionId);
 
-    if (isMainSession) {
-      const updatedSession = updateSession(_sessionId, { runningAt: null });
-      if (updatedSession) {
-        broadcastSessionUpdated(updatedSession);
+      if (isMainSession) {
+        const updatedSession = updateSession(_sessionId, { runningAt: null });
+        if (updatedSession) {
+          broadcastSessionUpdated(updatedSession);
+        }
       }
     }
   }

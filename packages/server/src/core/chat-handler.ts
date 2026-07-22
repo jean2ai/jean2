@@ -231,6 +231,7 @@ async function runSingleChatTurn(
   };
 
   let pendingCompaction = false;
+  let retryCancelled = false;
   const effectiveProvider = isSandboxActive() ? 'sandbox' : provider;
 
   try {
@@ -254,7 +255,7 @@ async function runSingleChatTurn(
 
         case 'message.updated':
           updateMessage(event.message.id, event.message, { syncFts: false });
-          if (event.message.role === 'assistant') {
+          if (event.message.role === 'assistant' && event.message.mode !== 'retry_failed') {
             notifyTerminalMessage(event.message, sessionId);
           }
           ctx.broadcastToSession(sessionId, event);
@@ -292,12 +293,20 @@ async function runSingleChatTurn(
           pendingCompaction = true;
           break;
 
+        case 'chat.retry':
+          ctx.broadcastToSession(sessionId, event);
+          if (event.status === 'cancelled') {
+            retryCancelled = true;
+          }
+          break;
+
         case 'error.rate_limit':
           ctx.send(ws, {
             type: 'error.rate_limit',
             code: 'rate_limit',
             message: event.message,
             retryAfterMs: event.retryAfterMs,
+            sessionId,
           });
           return {
             streamCompleted: false,
@@ -317,6 +326,7 @@ async function runSingleChatTurn(
             code: 'server_error',
             message: event.message,
             retryAfterMs: event.retryAfterMs,
+            sessionId,
           });
           return {
             streamCompleted: false,
@@ -336,6 +346,7 @@ async function runSingleChatTurn(
             code: 'timeout',
             message: event.message,
             retryAfterMs: event.retryAfterMs,
+            sessionId,
           });
           return {
             streamCompleted: false,
@@ -347,6 +358,24 @@ async function runSingleChatTurn(
             errorMessage: event.message,
             errorType: 'timeout',
             retryAfterMs: event.retryAfterMs,
+          };
+
+        case 'error':
+          ctx.send(ws, {
+            type: 'error',
+            code: event.code,
+            message: event.message,
+            sessionId,
+          });
+          return {
+            streamCompleted: false,
+            interrupted: false,
+            needsAutoCompaction: false,
+            contextOverflow: false,
+            isFatal: true,
+            isQueueDrainable: false,
+            errorMessage: event.message,
+            errorType: 'server',
           };
 
         case 'error.auth':
@@ -407,8 +436,8 @@ async function runSingleChatTurn(
     })();
 
     return {
-      streamCompleted: true,
-      interrupted: wasInterrupted,
+      streamCompleted: !retryCancelled,
+      interrupted: wasInterrupted || retryCancelled,
       needsAutoCompaction: pendingCompaction,
       contextOverflow: false,
       isFatal: false,
