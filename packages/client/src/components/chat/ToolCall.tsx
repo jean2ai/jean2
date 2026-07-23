@@ -1,6 +1,7 @@
-import { memo, useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, Pause } from 'lucide-react';
-import type { ToolPart, AnyVisualization, AskResponse, Session } from '@jean2/sdk';
+import { memo, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, ExternalLink, Copy, Check, Wrench, Loader2, CheckCircle, XCircle, Clock, Pause, Download } from 'lucide-react';
+import type { ToolPart, AnyVisualization, AskResponse, Session, ToolOutputReference } from '@jean2/sdk';
+import { isToolOutputReference } from '@jean2/sdk';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { VisualizationRenderer } from '@/components/visualizations';
@@ -8,6 +9,7 @@ import { AskQuestion } from './AskQuestion';
 import type { PendingAskRequest } from '@/stores/askStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { RENDER_BUDGETS } from '@/lib/renderBudgets';
+import { useToolOutputOriginal, describeCompressionSavings } from '@/hooks/useToolOutputOriginal';
 
 interface LazyOutputProps {
   content: string;
@@ -49,6 +51,7 @@ interface ToolCallProps {
   pendingAskRequests: PendingAskRequest[];
   onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
+  sessionId?: string;
 }
 
 function getStatusIcon(status: string) {
@@ -93,6 +96,12 @@ function extractVisualization(output: unknown): AnyVisualization | undefined {
   return undefined;
 }
 
+function extractReference(output: unknown): ToolOutputReference | null {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return null;
+  if (!isToolOutputReference(output)) return null;
+  return output;
+}
+
 function getDescendantSessionIds(parentId: string, sessions: Session[]): Set<string> {
   const descendants = new Set<string>();
   const queue = [parentId];
@@ -112,9 +121,10 @@ function getDescendantSessionIds(parentId: string, sessions: Session[]): Set<str
 
 const areToolCallPropsEqual = (
   prev: ToolCallProps,
-  next: ToolCallProps
+  next: ToolCallProps,
 ): boolean => {
   if (prev.part !== next.part) return false;
+  if (prev.sessionId !== next.sessionId) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.onAskResponse !== next.onAskResponse) return false;
   if (prev.pendingAskRequests !== next.pendingAskRequests) return false;
@@ -122,11 +132,110 @@ const areToolCallPropsEqual = (
   return true;
 };
 
+interface CompressedOutputSectionProps {
+  reference: ToolOutputReference;
+  sessionId?: string;
+  fallbackOutput: unknown;
+  onCopy: (text: string) => void;
+  copied: boolean;
+}
+
+function CompressedOutputSection({
+  reference,
+  sessionId,
+  fallbackOutput,
+  onCopy,
+  copied,
+}: CompressedOutputSectionProps) {
+  const retrievalId = reference.retrievalId;
+  const { loading, error, data, reload } = useToolOutputOriginal({
+    sessionId: sessionId ?? '',
+    retrievalId,
+    enabled: false,
+  });
+  const [hasRequested, setHasRequested] = useState(false);
+  const savings = describeCompressionSavings(reference);
+
+  const handleLoad = () => {
+    if (!hasRequested) setHasRequested(true);
+    reload();
+  };
+
+  const renderOutput = (output: unknown) => {
+    if (typeof output === 'string') return output;
+    try {
+      return JSON.stringify(output, null, 2);
+    } catch {
+      return String(output);
+    }
+  };
+
+  const handleCopyExact = () => {
+    onCopy(renderOutput(data?.output ?? fallbackOutput));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex flex-col gap-0.5">
+          <div className="text-xs uppercase text-muted-foreground">Output sent to model</div>
+          <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-muted font-mono uppercase">
+              {reference.strategy}
+            </span>
+            <span>
+              {reference.originalChars.toLocaleString()} → {reference.modelChars.toLocaleString()} chars ({savings} smaller)
+            </span>
+            <span className="text-warning">Incomplete, exact output available</span>
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleCopyExact}
+          className="size-6"
+          title={data ? 'Copy exact output' : 'Copy output sent to model'}
+        >
+          {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
+        </Button>
+      </div>
+      <pre className="text-xs bg-success/10 border border-success/20 rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words">
+        {renderOutput(fallbackOutput)}
+      </pre>
+      <div className="mt-2 flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLoad}
+          disabled={loading || !sessionId}
+          className="text-xs h-7"
+          title={sessionId ? undefined : 'Session is unavailable'}
+        >
+          <Download className="size-3" data-icon="inline-start" />
+          {loading ? 'Loading…' : hasRequested ? 'Reload exact output' : 'Load exact output'}
+        </Button>
+        {hasRequested && error && (
+          <span className="text-xs text-destructive">{error}</span>
+        )}
+      </div>
+      {data && (
+        <div className="mt-2">
+          <LazyOutput
+            content={renderOutput(data.output)}
+            className="text-xs bg-background border rounded-md p-2 overflow-x-auto whitespace-pre-wrap break-words"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const ToolCall = memo(function ToolCall({
   part,
   pendingAskRequests,
   onAskResponse,
   onNavigateToSubagent,
+  sessionId,
 }: ToolCallProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -146,36 +255,38 @@ export const ToolCall = memo(function ToolCall({
   const serializedOutput = useMemo((): string | null => {
     if (!isOpen) return null;
     if (status !== 'completed' || !('output' in state)) return null;
-    return typeof state.output === 'string'
-      ? state.output
-      : JSON.stringify(state.output, null, 2);
+    const output = state.output;
+    if (typeof output === 'string') return output;
+    try {
+      return JSON.stringify(output, null, 2);
+    } catch {
+      return String(output);
+    }
   }, [status, state, isOpen]);
 
-  // Extract visualization at component level to render outside collapsible
   const visualization = status === 'completed' && 'output' in state
     ? extractVisualization(state.output)
     : undefined;
 
-  // Extract taskSessionId first so it's available for ask matching
+  const reference = status === 'completed' && 'output' in state
+    ? extractReference(state.output)
+    : null;
+
   const taskSessionId = extractTaskSessionId(part);
 
-  // Get sessions from store for descendant matching
   const sessions = useSessionStore((s) => s.sessions);
 
-  // Collect all relevant pending asks for this tool call
   const allPendingAsks: PendingAskRequest[] = [];
 
   if (status === 'pending' || status === 'running') {
-    // Direct ask for this tool call
     const directAsk = pendingAskRequests.find((r) => r.toolCallId === part.callId);
     if (directAsk) {
       allPendingAsks.push(directAsk);
     }
 
-    // For task tools, also surface asks from the child session and its descendants
     if (taskSessionId) {
       const descendantIds = getDescendantSessionIds(taskSessionId, sessions);
-      descendantIds.add(taskSessionId); // Include the child session itself
+      descendantIds.add(taskSessionId);
       const childAsks = pendingAskRequests.filter(
         (r) => {
           const isChildOrDescendant = r.originSessionId && descendantIds.has(r.originSessionId);
@@ -187,15 +298,26 @@ export const ToolCall = memo(function ToolCall({
     }
   }
 
-  const handleCopyOutput = async () => {
-    if ('output' in state) {
-      const output = typeof state.output === 'string'
-        ? state.output
-        : JSON.stringify(state.output, null, 2);
-      await navigator.clipboard.writeText(output);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleCopyOutput = async (content?: string) => {
+    if (!('output' in state) && content === undefined) return;
+
+    let output = content;
+    if (output === undefined && 'output' in state) {
+      if (typeof state.output === 'string') {
+        output = state.output;
+      } else {
+        try {
+          output = JSON.stringify(state.output, null, 2);
+        } catch {
+          output = String(state.output);
+        }
+      }
     }
+    if (output === undefined) return;
+
+    await navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const truncatedArgs = (() => {
@@ -273,15 +395,25 @@ export const ToolCall = memo(function ToolCall({
               </Button>
             )}
 
-            {/* Output - always show raw (visualization shown separately below) */}
-            {status === 'completed' && serializedOutput !== null && (
+            {/* Output */}
+            {status === 'completed' && reference && (
+              <CompressedOutputSection
+                key={reference.retrievalId}
+                reference={reference}
+                sessionId={sessionId}
+                fallbackOutput={state.output}
+                onCopy={handleCopyOutput}
+                copied={copied}
+              />
+            )}
+            {status === 'completed' && !reference && serializedOutput !== null && (
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-xs uppercase text-muted-foreground">Output</div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={handleCopyOutput}
+                    onClick={() => handleCopyOutput()}
                     className="size-6"
                   >
                     {copied ? (

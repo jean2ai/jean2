@@ -179,6 +179,7 @@ const MessageParts = memo(function MessageParts({
   onNavigateToSubagent,
   inverted = false,
   serverUrl,
+  sessionId,
 }: {
   parts: Part[];
   pendingAskRequests: PendingAskRequest[];
@@ -186,6 +187,7 @@ const MessageParts = memo(function MessageParts({
   onNavigateToSubagent?: (sessionId: string) => void;
   inverted?: boolean;
   serverUrl?: string;
+  sessionId?: string;
 }) {
   return (
     <>
@@ -220,6 +222,7 @@ const MessageParts = memo(function MessageParts({
                 pendingAskRequests={pendingAskRequests}
                 onAskResponse={onAskResponse}
                 onNavigateToSubagent={onNavigateToSubagent}
+                sessionId={sessionId}
               />
             );
 
@@ -286,6 +289,7 @@ const MessageParts = memo(function MessageParts({
   if (prev.inverted !== next.inverted) return false;
   if (prev.onNavigateToSubagent !== next.onNavigateToSubagent) return false;
   if (prev.serverUrl !== next.serverUrl) return false;
+  if (prev.sessionId !== next.sessionId) return false;
 
   return prev.pendingAskRequests === next.pendingAskRequests;
 
@@ -299,6 +303,7 @@ const StructuredOutputMessage = memo(function StructuredOutputMessage({
   onAskResponse,
   onNavigateToSubagent,
   serverUrl,
+  sessionId,
 }: {
   parts: Part[];
   structuredOutput: StructuredOutputData;
@@ -306,6 +311,7 @@ const StructuredOutputMessage = memo(function StructuredOutputMessage({
   onAskResponse: (toolCallId: string, response: AskResponse, requestId?: string) => void;
   onNavigateToSubagent?: (sessionId: string) => void;
   serverUrl?: string;
+  sessionId?: string;
 }) {
   const [rawOpen, setRawOpen] = useState(false);
 
@@ -338,6 +344,7 @@ const StructuredOutputMessage = memo(function StructuredOutputMessage({
                 onNavigateToSubagent={onNavigateToSubagent}
                 inverted={false}
                 serverUrl={serverUrl}
+                sessionId={sessionId}
               />
             </div>
           </CollapsibleContent>
@@ -463,6 +470,7 @@ const MessageRow = memo(function MessageRow({
             onAskResponse={onAskResponse}
             onNavigateToSubagent={onNavigateToSubagent}
             serverUrl={serverUrl}
+            sessionId={sessionId}
           />
         ) : (
           <MessageParts
@@ -472,6 +480,7 @@ const MessageRow = memo(function MessageRow({
             onNavigateToSubagent={onNavigateToSubagent}
             inverted={item.message.role === 'user' && !item.isQueued}
             serverUrl={serverUrl}
+            sessionId={sessionId}
           />
         )}
       </MessageBubble>
