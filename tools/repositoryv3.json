@@ -55,7 +55,8 @@
     {
       "name": "apply-patch",
       "description": "Apply unified diff patches to files atomically.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "browser-discover-elements",
@@ -105,7 +106,8 @@
     {
       "name": "edit",
       "description": "Performs string replacements in files with fuzzy matching support.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "edit-range",
@@ -125,7 +127,8 @@
     {
       "name": "glob",
       "description": "Find files matching a glob pattern. Returns matching file paths sorted by modification time.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "gmail-draft",
@@ -165,17 +168,20 @@
     {
       "name": "grep",
       "description": "Search for text patterns in files using regular expressions.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "ls",
       "description": "List directory contents with tree formatting.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "multiedit",
       "description": "Performs multiple string replacements in a single file atomically.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "question",
@@ -186,12 +192,14 @@
     {
       "name": "read-file",
       "description": "Read a file or directory from the filesystem.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     },
     {
       "name": "shell",
       "description": "Execute a shell command in a persistent session.",
-      "category": "system"
+      "category": "system",
+      "recommended": true
     },
     {
       "name": "tavily-crawl",
@@ -245,6 +253,7 @@
       "name": "todoread",
       "description": "Read the current task list for the session from SQLite database.",
       "category": "workflow",
+      "recommended": true,
       "hasSecurity": false,
       "envVars": [
         {
@@ -258,6 +267,7 @@
       "name": "todowrite",
       "description": "Update the task list for the current session in SQLite database.",
       "category": "workflow",
+      "recommended": true,
       "envVars": [
         {
           "name": "TODOS_DB_PATH",
@@ -269,12 +279,14 @@
     {
       "name": "webfetch",
       "description": "Fetch content from a URL and convert to readable format.",
-      "category": "web"
+      "category": "web",
+      "recommended": true
     },
     {
       "name": "write-file",
       "description": "Write content to a file, creating it if it doesn't exist or overwriting if it does.",
-      "category": "filesystem"
+      "category": "filesystem",
+      "recommended": true
     }
   ],
   "envConfig": {

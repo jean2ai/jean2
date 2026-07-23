@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -24,6 +24,7 @@ function createValidRegistry(tempDir: string): ToolRepository {
       {
         name: 'test-tool',
         description: 'A test tool',
+        recommended: true,
       },
       {
         name: 'tool-with-env',
@@ -79,7 +80,9 @@ describe('tool-repository', () => {
       expect(repo.tools).toHaveLength(2);
       expect(repo.registry.baseUrl).toBe('https://example.com/releases/download');
       expect(repo.tools[0].name).toBe('test-tool');
+      expect(repo.tools[0].recommended).toBe(true);
       expect(repo.tools[1].name).toBe('tool-with-env');
+      expect(repo.tools[1].recommended).toBeUndefined();
     });
 
     test('rejects wrong version', async () => {
@@ -192,6 +195,15 @@ describe('tool-repository', () => {
 
       await expect(fetchRepository()).rejects.toThrow('tools[0].envVars must be an array');
     });
+
+    test('rejects a non-boolean recommended value', async () => {
+      setLocalRegistry({
+        ...createValidRegistry(tempDir),
+        tools: [{ name: 'tool', description: 'desc', recommended: 'yes' }],
+      });
+
+      await expect(fetchRepository()).rejects.toThrow('tools[0].recommended must be a boolean');
+    });
   });
 
   describe('fetchRepositoryWithVersions', () => {
@@ -205,9 +217,7 @@ describe('tool-repository', () => {
       expect(tools[0].artifactUrl).toBe(
         'https://example.com/releases/download/tool-test-tool%2Fv1.0.0/test-tool.tar.gz',
       );
-
-
-
+      expect(tools[0].recommended).toBe(true);
 
       expect(tools[1].name).toBe('tool-with-env');
       expect(tools[1].version).toBe('2.0.0');
@@ -256,6 +266,31 @@ describe('tool-repository', () => {
 
       const envVars = await collectEnvVars('nonexistent');
       expect(envVars).toHaveLength(0);
+    });
+  });
+
+  describe('checked-in repository recommendations', () => {
+    test('marks the bundled preconfig baseline as recommended', () => {
+      const repositoryPath = join(import.meta.dir, '../../../../tools/repositoryv3.json');
+      const repository = JSON.parse(readFileSync(repositoryPath, 'utf8')) as ToolRepository;
+      const recommended = repository.tools
+        .filter((tool) => tool.recommended === true)
+        .map((tool) => tool.name);
+
+      expect(recommended).toEqual([
+        'apply-patch',
+        'edit',
+        'glob',
+        'grep',
+        'ls',
+        'multiedit',
+        'read-file',
+        'shell',
+        'todoread',
+        'todowrite',
+        'webfetch',
+        'write-file',
+      ]);
     });
   });
 

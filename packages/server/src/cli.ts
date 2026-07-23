@@ -509,6 +509,9 @@ async function runToolsCommandFromCLI(args: string[]): Promise<void> {
       case '--all':
         toolsArgs.flags.all = true;
         break;
+      case '--recommended':
+        toolsArgs.flags.recommended = true;
+        break;
       case '--force':
       case '-f':
         toolsArgs.flags.force = true;

@@ -33,6 +33,7 @@ export interface ToolCatalogEntry {
   description: string;
   category?: string;
   capabilities?: string[];
+  recommended?: boolean;
   envVars?: ToolEnvVar[];
   hasSecurity?: boolean;
 }
@@ -44,6 +45,7 @@ export interface RepositoryTool {
   artifactUrl: string;
   category?: string;
   capabilities?: string[];
+  recommended?: boolean;
   envVars?: ToolEnvVar[];
   hasSecurity?: boolean;
 }
@@ -271,6 +273,9 @@ function validateRepositoryShape(data: unknown): ToolRepository {
     if (tool.hasSecurity !== undefined && typeof tool.hasSecurity !== 'boolean') {
       throw new RepositorySchemaError(`${idx}.hasSecurity must be a boolean`);
     }
+    if (tool.recommended !== undefined && typeof tool.recommended !== 'boolean') {
+      throw new RepositorySchemaError(`${idx}.recommended must be a boolean`);
+    }
 
     validateToolEnvVars(tool, idx);
     validateToolCategoryAndCapabilities(tool, idx, metadataCategories, metadataCapabilities);
@@ -362,6 +367,7 @@ export async function fetchRepositoryWithVersions(): Promise<RepositoryTool[]> {
         artifactUrl,
         category: tool.category,
         capabilities: tool.capabilities,
+        recommended: tool.recommended,
         envVars: tool.envVars,
         hasSecurity: tool.hasSecurity,
       } satisfies RepositoryTool;
