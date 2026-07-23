@@ -22,6 +22,11 @@ export interface Preconfig {
    */
   canSpawnSubagents?: boolean | string[] | null;
   /**
+   * Allows one immediate self-delegation when subagent spawning is enabled.
+   * Defaults to false. The same preconfig can never repeat later in the ancestry chain.
+   */
+  allowSelfAsSubagent?: boolean;
+  /**
    * Controls which skills this preconfig can access.
    * - undefined or null: All available skills (default for backward compatibility)
    * - []: No skills available

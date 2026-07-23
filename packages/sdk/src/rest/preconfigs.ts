@@ -24,6 +24,7 @@ interface CreateOptions {
   settings?: Record<string, unknown> | null;
   mode?: PreconfigMode;
   canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   skills?: string[] | null;
   /** Storage format for the preconfig. If 'md', stores as markdown file. */
   format?: 'md';
@@ -42,6 +43,7 @@ interface UpdateOptions {
   isDefault?: boolean;
   mode?: PreconfigMode;
   canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   skills?: string[] | null;
 }
 
