@@ -100,6 +100,9 @@ export interface StepPart extends PartBase {
   tokens?: {
     prompt: number;
     completion: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    noCache?: number;
   };
   cost?: number;
 }
@@ -156,6 +159,9 @@ export interface AssistantMessage extends MessageBase {
   tokens: {
     prompt: number;
     completion: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    noCache?: number;
   };
   cost: number;
   completedAt?: number;

@@ -45,6 +45,9 @@ export interface SessionResumedMessage {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    noCacheTokens: number;
   };
   isRunning?: boolean;
   control?: SessionControlState;
@@ -120,6 +123,9 @@ export interface ChatUsageMessage {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens: number;
+    noCacheTokens: number;
   };
   model: string;
   variant?: string;
@@ -170,6 +176,9 @@ export interface CompactionCompleteMessage {
   tokensUsed: {
     prompt: number;
     completion: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    noCache?: number;
   };
 }
 

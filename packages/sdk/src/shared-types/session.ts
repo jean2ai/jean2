@@ -19,6 +19,9 @@ export interface Session {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  noCacheTokens?: number;
   parentId: string | null;    // ID of parent session (null for top-level)
   agentName: string | null;   // Name of the agent/preconfig running this session
   subagentStatus?: SubagentStatus | null;  // Status for subagent sessions only
