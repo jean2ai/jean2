@@ -43,6 +43,7 @@ interface Preconfig {
   isDefault: boolean;
   mode?: 'primary' | 'subagent' | 'both';
   canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   skills?: string[] | null;
 }
 
@@ -76,6 +77,7 @@ interface PreconfigForm {
   temperature: string;
   canSpawnSubagentsMode: 'all' | 'none' | 'specific';
   canSpawnSubagentsList: string[];
+  allowSelfAsSubagent: boolean;
   skills: string[];
   isDefault: boolean;
 }
@@ -92,6 +94,7 @@ const emptyForm: PreconfigForm = {
   temperature: '',
   canSpawnSubagentsMode: 'none',
   canSpawnSubagentsList: [],
+  allowSelfAsSubagent: false,
   skills: [],
   isDefault: false,
 };
@@ -176,6 +179,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
           ? 'none'
           : 'specific',
       canSpawnSubagentsList: Array.isArray(preconfig.canSpawnSubagents) ? preconfig.canSpawnSubagents : [],
+      allowSelfAsSubagent: preconfig.allowSelfAsSubagent ?? false,
       skills: preconfig.skills ?? [],
       isDefault: preconfig.isDefault,
     });
@@ -220,6 +224,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
         tools: form.tools.length > 0 ? form.tools : null,
         settings,
         canSpawnSubagents,
+        allowSelfAsSubagent: form.allowSelfAsSubagent,
         skills: form.skills.length > 0 ? form.skills : null,
         isDefault: form.isDefault,
         format: 'md',
@@ -257,6 +262,7 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
         tools: preconfig.tools,
         settings: preconfig.settings,
         canSpawnSubagents: preconfig.canSpawnSubagents ?? false,
+        allowSelfAsSubagent: preconfig.allowSelfAsSubagent ?? false,
         skills: preconfig.skills,
         format: 'md',
       });
@@ -646,6 +652,27 @@ export function PreconfigsPanel({ sdkClient }: PanelProps) {
                 )}
               </div>
             )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="allow-self-as-subagent" className="text-sm">Allow Self as Subagent</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Allows this preconfig to delegate once to a new agent using the same preconfig. It cannot repeat again in that subagent chain.
+              </p>
+              {form.canSpawnSubagentsMode === 'none' && (
+                <p className="text-[10px] text-muted-foreground">Enable subagent spawning first.</p>
+              )}
+              {form.mode === 'primary' && (
+                <p className="text-[10px] text-muted-foreground">This setting has no effect while the mode is Primary.</p>
+              )}
+            </div>
+            <Switch
+              id="allow-self-as-subagent"
+              checked={form.allowSelfAsSubagent}
+              disabled={form.canSpawnSubagentsMode === 'none'}
+              onCheckedChange={(checked) => setForm({ ...form, allowSelfAsSubagent: checked })}
+            />
           </div>
 
           <Separator className="my-1" />
