@@ -166,6 +166,10 @@ export function validatePreconfigData(data: Record<string, unknown>): string[] {
     }
   }
 
+  if (data.allowSelfAsSubagent !== undefined && typeof data.allowSelfAsSubagent !== 'boolean') {
+    errors.push('allowSelfAsSubagent must be a boolean');
+  }
+
   if (data.skills !== undefined && data.skills !== null && !Array.isArray(data.skills)) {
     errors.push('skills must be an array or null');
   }

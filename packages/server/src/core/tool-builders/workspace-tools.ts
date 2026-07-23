@@ -17,6 +17,8 @@ export interface WorkspaceToolsOptions {
   rootSessionId: string;
   sessionId: string;
   canSpawn: boolean;
+  canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   allowedSubagentIds?: string[];
   broadcastFn?: AskBroadcastFn;
   agentId?: string | null;
@@ -31,7 +33,8 @@ export async function buildWorkspaceTools(options: WorkspaceToolsOptions): Promi
     rootSessionId,
     sessionId,
     canSpawn,
-    allowedSubagentIds,
+    canSpawnSubagents,
+    allowSelfAsSubagent,
     broadcastFn,
     agentId,
     allowedSkills,
@@ -88,35 +91,41 @@ export async function buildWorkspaceTools(options: WorkspaceToolsOptions): Promi
   // ── Workflow tool ─────────────────────────────────────────
   const workflowSettings = workspace.settings?.workflow;
   if (workflowSettings?.enabled && canSpawn) {
-    const workflowDefinition = await getWorkflowToolDefinition(allowedSubagentIds);
-    tools['workflow'] = tool({
-      description: workflowDefinition.description,
-      inputSchema: jsonSchema(workflowDefinition.inputSchema),
-      execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
-        const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
-        try {
-          const workflowInput = {
-            prompt: args.prompt as string,
-            ...(args.description ? { description: args.description as string } : {}),
-            ...(args.subtasks ? { subtasks: args.subtasks as WorkflowInput['subtasks'] } : {}),
-            ...(args.leafPreconfigId ? { leafPreconfigId: args.leafPreconfigId as string } : {}),
-            ...(args.outputSchema ? { outputSchema: args.outputSchema as Record<string, unknown> } : {}),
-          } as WorkflowInput;
-
-          const result = await executeWorkflow(workflowInput, {
-            sessionId,
-            workspaceId,
-            workspacePath,
-            abortSignal: toolAbortController.signal,
-            allowedSubagentIds,
-          });
-
-          return result as WorkflowResult;
-        } finally {
-          interruptManager.unregisterToolExecution(sessionId, toolCallId);
-        }
-      },
+    const workflowDefinition = await getWorkflowToolDefinition({
+      sessionId,
+      canSpawnSubagents,
+      allowSelfAsSubagent,
     });
+    if (workflowDefinition) {
+      tools['workflow'] = tool({
+        description: workflowDefinition.description,
+        inputSchema: jsonSchema(workflowDefinition.inputSchema),
+        execute: async (args: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
+          const toolAbortController = interruptManager.registerToolExecution(sessionId, toolCallId);
+          try {
+            const workflowInput = {
+              prompt: args.prompt as string,
+              ...(args.description ? { description: args.description as string } : {}),
+              ...(args.subtasks ? { subtasks: args.subtasks as WorkflowInput['subtasks'] } : {}),
+              ...(args.leafPreconfigId ? { leafPreconfigId: args.leafPreconfigId as string } : {}),
+              ...(args.outputSchema ? { outputSchema: args.outputSchema as Record<string, unknown> } : {}),
+            } as WorkflowInput;
+
+            const result = await executeWorkflow(workflowInput, {
+              sessionId,
+              workspaceId,
+              workspacePath,
+              abortSignal: toolAbortController.signal,
+              allowedSubagentIds: workflowDefinition.allowedSubagentIds,
+            });
+
+            return result as WorkflowResult;
+          } finally {
+            interruptManager.unregisterToolExecution(sessionId, toolCallId);
+          }
+        },
+      });
+    }
   }
 
   // ── Skill management tool ─────────────────────────────────

@@ -190,6 +190,7 @@ function parsePreconfigMd(content: string): Preconfig {
     isDefault: data.isDefault ?? false,
     mode: data.mode,
     canSpawnSubagents: data.canSpawnSubagents,
+    allowSelfAsSubagent: data.allowSelfAsSubagent ?? false,
     skills: data.skills ?? null,
   };
 }
@@ -302,7 +303,8 @@ export async function listPreconfigs(): Promise<Preconfig[]> {
     }
     try {
       const content = await readFile(join(getPreconfigsDir(), file), 'utf-8');
-      preconfigs.push(JSON.parse(content) as Preconfig);
+      const parsed = JSON.parse(content) as Preconfig;
+      preconfigs.push({ ...parsed, allowSelfAsSubagent: parsed.allowSelfAsSubagent ?? false });
     } catch (e) {
       console.error(`Failed to read preconfig ${file}:`, e);
     }
@@ -340,7 +342,8 @@ export async function getPreconfig(id: string): Promise<Preconfig | null> {
   const jsonPath = getPreconfigJsonPath(resolvedId);
   try {
     const content = await readFile(jsonPath, 'utf-8');
-    return JSON.parse(content) as Preconfig;
+    const parsed = JSON.parse(content) as Preconfig;
+    return { ...parsed, allowSelfAsSubagent: parsed.allowSelfAsSubagent ?? false };
   } catch (_e) {
     return null;
   }
@@ -358,6 +361,7 @@ export async function createPreconfig(
   const newPreconfig: Preconfig = {
     ...preconfig,
     id,
+    allowSelfAsSubagent: preconfig.allowSelfAsSubagent ?? false,
   };
 
   if (format === 'md') {

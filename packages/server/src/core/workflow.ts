@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ToolDefinition, WorkflowInput, WorkflowResult, WorkflowSubtask } from '@jean2/sdk';
 import { executeSubagent, canSpawnSubagent, type SubagentInput, type SubagentOutput } from './subagent';
+import { resolveEffectiveSubagentTargets } from './subagent-policy';
 import { decomposeTask } from './workflow-decomposer';
 import { synthesizeResults, type LeafResult } from './workflow-synthesizer';
 import type { BroadcastFn, BroadcastSessionFn } from './broadcast';
@@ -81,6 +82,31 @@ export async function executeWorkflow(
       subtaskCount: 0,
       error: 'Maximum subagent depth reached. Cannot spawn workflow agents.',
     };
+  }
+
+  if (input.leafPreconfigId && options.allowedSubagentIds && !options.allowedSubagentIds.includes(input.leafPreconfigId)) {
+    return {
+      workflow_id: workflowId,
+      result: '',
+      subtaskCount: 0,
+      error: `Subagent type "${input.leafPreconfigId}" is not allowed for this workflow.`,
+    };
+  }
+
+  if (input.subtasks && options.allowedSubagentIds) {
+    const invalidTarget = input.subtasks.find((subtask) => {
+      const target = subtask.preconfigId || 'explore';
+      return !options.allowedSubagentIds!.includes(target);
+    });
+    if (invalidTarget) {
+      const target = invalidTarget.preconfigId || 'explore';
+      return {
+        workflow_id: workflowId,
+        result: '',
+        subtaskCount: 0,
+        error: `Subagent type "${target}" is not allowed for this workflow.`,
+      };
+    }
   }
 
   // ── Phase 1: Decompose (or use provided subtasks) ──────────────────────
@@ -276,12 +302,25 @@ export async function executeWorkflow(
  * Build the workflow tool definition for the AI SDK.
  * Gated by canSpawnSubagents — same as the task tool.
  */
-export async function getWorkflowToolDefinition(
-  allowedSubagentIds?: string[],
-): Promise<ToolDefinition> {
-  const subagentList = allowedSubagentIds && allowedSubagentIds.length > 0
-    ? allowedSubagentIds.join(', ')
-    : 'all available subagent types';
+export interface WorkflowToolDefinition extends ToolDefinition {
+  allowedSubagentIds: string[];
+}
+
+export async function getWorkflowToolDefinition(options: {
+  sessionId: string;
+  canSpawnSubagents: boolean | string[] | null | undefined;
+  allowSelfAsSubagent?: boolean;
+}): Promise<WorkflowToolDefinition | null> {
+  const subagents = await resolveEffectiveSubagentTargets({
+    sessionId: options.sessionId,
+    canSpawnSubagents: options.canSpawnSubagents,
+    allowSelfAsSubagent: options.allowSelfAsSubagent,
+    maximumDepthReached: !canSpawnSubagent(options.sessionId),
+  });
+  if (subagents.length === 0) return null;
+
+  const allowedSubagentIds = subagents.map((subagent) => subagent.id);
+  const subagentList = allowedSubagentIds.join(', ');
 
   return {
     name: 'workflow',
@@ -326,7 +365,11 @@ Parameters:
             type: 'object',
             properties: {
               prompt: { type: 'string', description: 'The self-contained prompt for this subtask' },
-              preconfigId: { type: 'string', description: 'Agent type (preconfig ID) to use for this subtask' },
+              preconfigId: {
+                type: 'string',
+                description: 'Agent type (preconfig ID) to use for this subtask',
+                enum: allowedSubagentIds,
+              },
               outputSchema: {
                 type: 'object',
                 additionalProperties: true,
@@ -339,6 +382,7 @@ Parameters:
         leafPreconfigId: {
           type: 'string',
           description: 'Force all leaf agents to use this agent type. Overrides per-subtask assignments.',
+          enum: allowedSubagentIds,
         },
         outputSchema: {
           type: 'object',
@@ -358,5 +402,6 @@ Parameters:
         error: { type: 'string' },
       },
     },
+    allowedSubagentIds,
   };
 }

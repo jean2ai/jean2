@@ -5,6 +5,14 @@ import { createSession, getSession, updateSession } from '@/store';
 import { resolveModelId, resolveProviderId } from './provider-utils';
 import { getWorkspaceAutoApproveSeverity } from '@/store/workspaces';
 import { executeChildSession } from './child-session';
+import {
+  collectSubagentAncestry,
+  evaluateSubagentTarget,
+  getSubagentResumeError,
+  isSubagentSpawningDisabled,
+  isValidSubagentPreconfig,
+  resolveEffectiveSubagentTargets,
+} from './subagent-policy';
 
 import { broadcastEvent, broadcastSessionCreated, broadcastSessionUpdated, broadcastToSessionEvent, type BroadcastSessionFn, type BroadcastFn } from './broadcast';
 import { randomUUID } from 'crypto';
@@ -22,15 +30,7 @@ const MAX_SUBAGENT_DEPTH = 2;
  * Child of child = depth 2
  */
 function computeSessionDepth(sessionId: string): number {
-  let depth = 0;
-  let currentSession = getSession(sessionId);
-
-  while (currentSession?.parentId) {
-    depth++;
-    currentSession = getSession(currentSession.parentId);
-  }
-
-  return depth;
+  return collectSubagentAncestry(sessionId).depth;
 }
 
 export function canSpawnSubagent(sessionId: string): boolean {
@@ -65,13 +65,19 @@ export interface SubagentOutput {
   structuredResult?: Record<string, unknown>;
 }
 
-export async function getSubagentToolDefinition(allowedSubagentIds?: string[]): Promise<ToolDefinition> {
-  let subagents = await listSubagentPreconfigs();
+export async function getSubagentToolDefinition(options: {
+  sessionId: string;
+  canSpawnSubagents: boolean | string[] | null | undefined;
+  allowSelfAsSubagent?: boolean;
+}): Promise<ToolDefinition | null> {
+  const subagents = await resolveEffectiveSubagentTargets({
+    sessionId: options.sessionId,
+    canSpawnSubagents: options.canSpawnSubagents,
+    allowSelfAsSubagent: options.allowSelfAsSubagent,
+    maximumDepthReached: !canSpawnSubagent(options.sessionId),
+  });
 
-  if (allowedSubagentIds && allowedSubagentIds.length > 0) {
-    const allowedSet = new Set(allowedSubagentIds);
-    subagents = subagents.filter(s => allowedSet.has(s.id));
-  }
+  if (subagents.length === 0) return null;
 
   const agentList = subagents
     .map((a) => `- ${a.id}: ${a.description ?? 'This subagent should only be called manually by the user.'}`)
@@ -203,12 +209,41 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
     };
   }
 
-  // Validate subagent_type against allowed list
-  if (allowedSubagentIds && allowedSubagentIds.length > 0 && !allowedSubagentIds.includes(subagent_type)) {
+  if (parentPreconfig && isSubagentSpawningDisabled(parentPreconfig.canSpawnSubagents)) {
     return {
       task_id: '',
       result: '',
-      error: `Subagent type "${subagent_type}" is not allowed for this agent. Allowed types: ${allowedSubagentIds.join(', ')}`,
+      error: 'Subagent spawning is disabled for this agent.',
+    };
+  }
+
+  // Validate subagent_type against the effective allowed list
+  const configuredAllowedIds = Array.isArray(parentPreconfig?.canSpawnSubagents)
+    ? [...parentPreconfig.canSpawnSubagents]
+    : allowedSubagentIds ? [...allowedSubagentIds] : undefined;
+  if (parentSession?.preconfigId && parentPreconfig?.allowSelfAsSubagent) {
+    configuredAllowedIds?.push(parentSession.preconfigId);
+  }
+  if (configuredAllowedIds && !configuredAllowedIds.includes(subagent_type)) {
+    return {
+      task_id: '',
+      result: '',
+      error: `Subagent type "${subagent_type}" is not allowed for this agent. Allowed types: ${configuredAllowedIds.join(', ')}`,
+    };
+  }
+
+  const ancestry = collectSubagentAncestry(sessionId);
+  const policy = evaluateSubagentTarget({
+    targetPreconfigId: subagent_type,
+    currentPreconfigId: parentSession?.preconfigId ?? null,
+    ancestryPreconfigIds: ancestry.preconfigIds,
+    allowSelfAsSubagent: parentPreconfig?.allowSelfAsSubagent === true,
+  });
+  if (!policy.allowed) {
+    return {
+      task_id: '',
+      result: '',
+      error: policy.error,
     };
   }
 
@@ -240,17 +275,28 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       };
     }
 
+    if (!isValidSubagentPreconfig(subagentPreconfig)) {
+      return {
+        task_id: '',
+        result: '',
+        error: `Preconfig "${subagent_type}" cannot be used as a subagent.`,
+      };
+    }
+
     if (task_id) {
       childSession = getSession(task_id);
       if (!childSession) {
         childSession = null;
-      } else if (childSession.parentId !== sessionId) {
-        return {
-          task_id: '',
-          result: '',
-          error: 'Invalid task_id: does not belong to this session',
-        };
       } else {
+        const resumeError = getSubagentResumeError(childSession, sessionId, subagent_type);
+        if (resumeError) {
+          return {
+            task_id: '',
+            result: '',
+            error: resumeError,
+          };
+        }
+
         resumeFromHistory = true;
         updateSession(childSession.id, { subagentStatus: 'running' });
         // Notify caller of the child session ID for resumed sessions too

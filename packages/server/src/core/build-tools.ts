@@ -18,6 +18,7 @@ export interface BuildToolsOptions {
   modelId?: string;
   providerId?: string;
   canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   allowedSkills?: string[] | null;
   broadcastFn?: import('@/tools/ask-user-api').AskBroadcastFn;
   additionalPaths?: string[];
@@ -37,6 +38,7 @@ export async function buildAiSdkTools(
     modelId,
     providerId,
     canSpawnSubagents,
+    allowSelfAsSubagent,
     allowedSkills,
     broadcastFn,
     additionalPaths,
@@ -69,6 +71,7 @@ export async function buildAiSdkTools(
   const externalTools = await buildExternalTools({
     toolNames,
     canSpawnSubagents,
+    allowSelfAsSubagent,
     broadcastFn,
     broadcast,
     sessionId,
@@ -90,6 +93,8 @@ export async function buildAiSdkTools(
       rootSessionId,
       sessionId,
       canSpawn,
+      canSpawnSubagents,
+      allowSelfAsSubagent,
       allowedSubagentIds,
       broadcastFn,
       agentId,

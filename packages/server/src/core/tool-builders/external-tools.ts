@@ -14,6 +14,7 @@ import type { BroadcastFn } from '../broadcast';
 export interface ExternalToolsOptions {
   toolNames: string[];
   canSpawnSubagents?: boolean | string[] | null;
+  allowSelfAsSubagent?: boolean;
   broadcastFn?: AskBroadcastFn;
   broadcast: BroadcastFn;
   sessionId: string;
@@ -30,6 +31,7 @@ export async function buildExternalTools(options: ExternalToolsOptions): Promise
   const {
     toolNames,
     canSpawnSubagents,
+    allowSelfAsSubagent,
     broadcastFn,
     broadcast,
     sessionId,
@@ -48,12 +50,19 @@ export async function buildExternalTools(options: ExternalToolsOptions): Promise
     || (Array.isArray(canSpawnSubagents) && canSpawnSubagents.length > 0);
   const shouldIncludeTask = canSpawnSubagent(sessionId) && !toolNames.includes('task') && canSpawn;
   const allowedSubagentIds = Array.isArray(canSpawnSubagents) ? canSpawnSubagents : undefined;
-  const builtInAgentTools = shouldIncludeTask ? ['task'] : [];
+  const subagentDefinition = shouldIncludeTask
+    ? await getSubagentToolDefinition({
+      sessionId,
+      canSpawnSubagents,
+      allowSelfAsSubagent,
+    })
+    : null;
+  const builtInAgentTools = subagentDefinition ? ['task'] : [];
   const effectiveToolNames = [...toolNames, ...builtInAgentTools];
 
   for (const name of effectiveToolNames) {
     if (name === 'task') {
-      const subagentDefinition = await getSubagentToolDefinition(allowedSubagentIds);
+      if (!subagentDefinition) continue;
 
       tools[name] = tool({
         description: subagentDefinition.description,

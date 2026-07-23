@@ -48,6 +48,7 @@ export function registerConfigRoutes(app: Hono): void {
         isDefault: false,
         mode: body.mode as 'primary' | 'subagent' | 'both' | undefined,
         canSpawnSubagents: body.canSpawnSubagents as boolean | string[] | undefined,
+        allowSelfAsSubagent: body.allowSelfAsSubagent,
         skills: body.skills ?? null,
       }, format);
       return c.json({ preconfig }, 201);
@@ -82,6 +83,9 @@ export function registerConfigRoutes(app: Hono): void {
         isDefault: body.isDefault as boolean | undefined,
         mode: body.mode as 'primary' | 'subagent' | 'both' | undefined,
         canSpawnSubagents: body.canSpawnSubagents as boolean | string[] | null | undefined,
+        ...(body.allowSelfAsSubagent !== undefined
+          ? { allowSelfAsSubagent: body.allowSelfAsSubagent }
+          : {}),
         skills: body.skills,
       });
       return c.json({ preconfig });

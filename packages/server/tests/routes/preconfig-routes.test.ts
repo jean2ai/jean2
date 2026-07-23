@@ -1,0 +1,72 @@
+import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { Hono } from 'hono';
+
+const createValidatedPreconfig = mock(async (data: Record<string, unknown>) => ({
+  ...data,
+  id: 'created-preconfig',
+}));
+const updateValidatedPreconfig = mock(async (id: string, data: Record<string, unknown>) => ({
+  ...data,
+  id,
+}));
+
+mock.module('@/configuration/preconfigs', () => ({
+  listValidatedPreconfigs: mock(async () => []),
+  createValidatedPreconfig,
+  updateValidatedPreconfig,
+  deleteValidatedPreconfig: mock(async () => undefined),
+}));
+
+const { registerConfigRoutes } = await import('@/routes/config');
+
+describe('preconfig routes', () => {
+  afterEach(() => {
+    createValidatedPreconfig.mockClear();
+    updateValidatedPreconfig.mockClear();
+    mock.restore();
+  });
+
+  test('forwards allowSelfAsSubagent on create and update', async () => {
+    const app = new Hono();
+    registerConfigRoutes(app);
+
+    const createResponse = await app.request('/api/preconfigs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Self delegating',
+        allowSelfAsSubagent: true,
+      }),
+    });
+
+    expect(createResponse.status).toBe(201);
+    expect(createValidatedPreconfig).toHaveBeenCalledTimes(1);
+    expect(createValidatedPreconfig.mock.calls[0]?.[0]).toMatchObject({
+      name: 'Self delegating',
+      allowSelfAsSubagent: true,
+    });
+
+    const updateResponse = await app.request('/api/preconfigs/existing-preconfig', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ allowSelfAsSubagent: false }),
+    });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateValidatedPreconfig).toHaveBeenCalledTimes(1);
+    expect(updateValidatedPreconfig.mock.calls[0]?.[0]).toBe('existing-preconfig');
+    expect(updateValidatedPreconfig.mock.calls[0]?.[1]).toMatchObject({
+      allowSelfAsSubagent: false,
+    });
+
+    const partialUpdateResponse = await app.request('/api/preconfigs/existing-preconfig', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Renamed' }),
+    });
+
+    expect(partialUpdateResponse.status).toBe(200);
+    expect(updateValidatedPreconfig).toHaveBeenCalledTimes(2);
+    expect(updateValidatedPreconfig.mock.calls[1]?.[1]).not.toHaveProperty('allowSelfAsSubagent');
+  });
+});

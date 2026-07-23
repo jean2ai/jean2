@@ -114,6 +114,7 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     modelId: resolvedModelId,
     providerId: resolvedProviderId,
     canSpawnSubagents: preconfig.canSpawnSubagents,
+    allowSelfAsSubagent: preconfig.allowSelfAsSubagent,
     allowedSkills: preconfig.skills,
     broadcastFn: options.broadcastFn,
     additionalPaths: effectiveAdditionalPaths,

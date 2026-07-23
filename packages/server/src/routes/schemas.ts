@@ -130,6 +130,7 @@ export const createPreconfigSchema = z.object({
   settings: z.record(z.string(), z.unknown()).nullable().optional(),
   mode: z.string().optional(),
   canSpawnSubagents: z.union([z.boolean(), z.array(z.string())]).optional(),
+  allowSelfAsSubagent: z.boolean().optional(),
   skills: z.array(z.string()).nullable().optional(),
   format: z.enum(['md']).optional(),
 }).loose();
@@ -145,6 +146,7 @@ export const updatePreconfigSchema = z.object({
   settings: z.record(z.string(), z.unknown()).nullable().optional(),
   mode: z.string().optional(),
   canSpawnSubagents: z.union([z.boolean(), z.array(z.string())]).nullable().optional(),
+  allowSelfAsSubagent: z.boolean().optional(),
   skills: z.array(z.string()).nullable().optional(),
 }).loose();
 
