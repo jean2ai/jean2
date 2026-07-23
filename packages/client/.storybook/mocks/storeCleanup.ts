@@ -22,7 +22,14 @@ export function resetAllStores(): void {
   useSessionStore.setState({
     currentSession: null,
     sessions: [],
-    sessionUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    sessionUsage: {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      noCacheTokens: 0,
+    },
     currentModel: 'gpt-4o',
     selectedVariant: null,
     compactionSuccess: false,

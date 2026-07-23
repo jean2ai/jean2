@@ -16,6 +16,9 @@ export type SessionUsage = {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  noCacheTokens: number;
 };
 
 export type ModelInfo = {

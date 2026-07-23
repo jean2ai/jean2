@@ -74,7 +74,14 @@ export function handleSessionCreated(
         partIdIndexRef.current.delete(partId);
       }
     }
-    ctx.setUsageForSession(session.id, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+    ctx.setUsageForSession(session.id, {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      noCacheTokens: 0,
+    });
     ctx.setModelForSession(session.id, session.selectedModel || defaultModel);
     ctx.setVariantForSession(session.id, session.selectedVariant ?? null);
 
@@ -194,7 +201,14 @@ export function handleSessionResumed(
     }
   }
 
-  const restoredUsage = usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const restoredUsage = usage ?? {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: 0,
+  };
   const restoredModel = session.selectedModel || defaultModel;
   setUsageForSession(session.id, restoredUsage);
   setModelForSession(session.id, restoredModel);
@@ -423,7 +437,14 @@ export function handleSessionForked(
   }
   usePendingOperationsStore.getState().clearSessionOperations(msg.originalSessionId);
 
-  ctx.setUsageForSession(forkedSession.id, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+  ctx.setUsageForSession(forkedSession.id, {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: 0,
+  });
   ctx.navigateToSession(forkedSession.id);
   ctx.resumeSessionAfterCreate(forkedSession.id);
   sessionAccessTimesRef.current.set(forkedSession.id, Date.now());

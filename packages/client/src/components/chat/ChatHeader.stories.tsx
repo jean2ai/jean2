@@ -28,6 +28,9 @@ const defaultUsage = {
   promptTokens: 2500,
   completionTokens: 1800,
   totalTokens: 4300,
+  cacheReadTokens: 1600,
+  cacheWriteTokens: 200,
+  noCacheTokens: 700,
 };
 
 const meta = {
@@ -115,6 +118,9 @@ export const HighTokenUsage: Story = {
       promptTokens: 85000,
       completionTokens: 32000,
       totalTokens: 117000,
+      cacheReadTokens: 60000,
+      cacheWriteTokens: 5000,
+      noCacheTokens: 20000,
     },
   },
 };
@@ -125,6 +131,9 @@ export const NearLimit: Story = {
       promptTokens: 92000,
       completionTokens: 6000,
       totalTokens: 98000,
+      cacheReadTokens: 80000,
+      cacheWriteTokens: 2000,
+      noCacheTokens: 10000,
     },
   },
 };
@@ -143,6 +152,13 @@ export const WithVariants: Story = {
 export const MinimalHeader: Story = {
   args: {
     session: createSession({ title: 'Quick chat' }),
-    usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    usage: {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      noCacheTokens: 0,
+    },
   },
 };

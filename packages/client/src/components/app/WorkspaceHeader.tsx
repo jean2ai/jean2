@@ -49,7 +49,14 @@ export function WorkspaceHeader() {
   const usageBySessionId = useSessionStore(s => s.usageBySessionId);
   const modelBySessionId = useSessionStore(s => s.modelBySessionId);
   const variantBySessionId = useSessionStore(s => s.variantBySessionId);
-  const sessionUsage = (currentSession ? usageBySessionId[currentSession.id] : undefined) ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const sessionUsage = (currentSession ? usageBySessionId[currentSession.id] : undefined) ?? {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: 0,
+  };
   const currentModel = currentSession ? modelBySessionId[currentSession.id] ?? '' : '';
   const selectedVariant = currentSession ? variantBySessionId[currentSession.id] ?? null : null;
   const currentSessionMessages = useSessionStore((s) =>

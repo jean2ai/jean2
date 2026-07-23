@@ -59,7 +59,14 @@ const defaultSessionState = (): SessionStoreDefaults => {
   return {
     currentSession: session,
     sessions: [session],
-    sessionUsage: { promptTokens: 500, completionTokens: 200, totalTokens: 700 },
+    sessionUsage: {
+      promptTokens: 500,
+      completionTokens: 200,
+      totalTokens: 700,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      noCacheTokens: 0,
+    },
     currentModel: 'claude-3.5-sonnet',
     selectedVariant: null,
     compactionSuccess: false,

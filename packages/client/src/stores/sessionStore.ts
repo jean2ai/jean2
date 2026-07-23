@@ -6,9 +6,19 @@ export type SessionUsage = {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  noCacheTokens: number;
 };
 
-const DEFAULT_USAGE: SessionUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+const DEFAULT_USAGE: SessionUsage = {
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  noCacheTokens: 0,
+};
 
 export type SessionNavigationIntent =
   | { mode: 'follow' }

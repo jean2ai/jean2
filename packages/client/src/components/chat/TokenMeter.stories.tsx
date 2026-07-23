@@ -8,7 +8,12 @@ const meta = {
     layout: 'centered',
   },
   args: {
+    promptTokens: 4200,
+    completionTokens: 800,
     totalTokens: 5000,
+    cacheReadTokens: 3000,
+    cacheWriteTokens: 200,
+    noCacheTokens: 1000,
     contextWindow: 200000,
     modelName: 'Claude 3.5 Sonnet',
   },

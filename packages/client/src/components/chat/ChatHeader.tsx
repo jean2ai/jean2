@@ -8,6 +8,7 @@ import { TokenMeter } from './TokenMeter';
 import { ModelVariantConfigSelector } from './ModelVariantConfigSelector';
 import { SessionControlButton } from './SessionControlButton';
 import { useSessionControlStore } from '@/stores/sessionControlStore';
+import type { SessionUsage } from '@/stores/sessionStore';
 
 import { useClientIdentityStore } from '@/stores/clientIdentityStore';
 import {useIsCompact, useIsMobile} from '@/hooks/use-mobile';
@@ -26,11 +27,7 @@ interface ChatHeaderProps {
   preconfigs: Preconfig[];
   models: Model[];
   defaultModel: string;
-  usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
+  usage: SessionUsage;
   modelName: string;
   onChangePreconfig: (preconfigId: string) => void;
   onChangeModel: (modelId: string, providerId: string) => void;
@@ -191,6 +188,9 @@ export function ChatHeader({
               promptTokens={usage.promptTokens}
               completionTokens={usage.completionTokens}
               totalTokens={usage.totalTokens}
+              cacheReadTokens={usage.cacheReadTokens}
+              cacheWriteTokens={usage.cacheWriteTokens}
+              noCacheTokens={usage.noCacheTokens}
               contextWindow={contextWindow}
               modelName={modelName}
               compact={isMobile}

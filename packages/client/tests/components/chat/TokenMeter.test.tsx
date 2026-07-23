@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
 import { TokenMeter } from '@/components/chat/TokenMeter';
@@ -41,6 +41,36 @@ describe('TokenMeter', () => {
     expect(screen.getByText('1.5k/10.0k')).toBeInTheDocument();
     await userEvent.click(screen.getByText('1.5k/10.0k'));
     expect(screen.getByText('15%')).toBeInTheDocument();
+  });
+
+  it('shows all token usage details in the tooltip', async () => {
+    render(
+      <TokenMeter
+        promptTokens={1200}
+        completionTokens={300}
+        totalTokens={1500}
+        cacheReadTokens={800}
+        cacheWriteTokens={100}
+        noCacheTokens={300}
+        contextWindow={10000}
+        modelName="Test Model"
+      />,
+    );
+
+    await userEvent.hover(screen.getByRole('button', { name: 'Token usage: 15% of context window' }));
+
+    const tooltip = await screen.findByRole('tooltip');
+    const tooltipContent = within(tooltip);
+
+    expect(tooltipContent.getByText('Test Model')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Prompt tokens')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Completion tokens')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Total tokens')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Cache read')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Cache write')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Not cached')).toBeInTheDocument();
+    expect(tooltipContent.getByText('Context window')).toBeInTheDocument();
+    expect(tooltipContent.getByText('10,000')).toBeInTheDocument();
   });
 
   it('renders SVG ring indicator', () => {

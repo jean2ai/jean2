@@ -74,7 +74,14 @@ export function SessionPaneHeader({
 
   if (!session) return null;
 
-  const sessionUsage = usageBySessionId[sessionId] ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+  const sessionUsage = usageBySessionId[sessionId] ?? {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    noCacheTokens: 0,
+  };
   const currentModel = modelBySessionId[sessionId] ?? '';
   const selectedVariant = variantBySessionId[sessionId] ?? null;
   const currentModelInfo = models.find(m => m.id === currentModel);

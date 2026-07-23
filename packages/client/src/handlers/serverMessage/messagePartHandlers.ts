@@ -1,5 +1,5 @@
 import { getTerminalNotificationEventId } from '@jean2/sdk';
-import type { Message, Part, ToolPart } from '@jean2/sdk';
+import type { CompactionCompleteMessage, Message, Part, ToolPart } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from './types';
 import { useSessionStore } from '@/stores/sessionStore';
 import { queryClient } from '@/components/providers/QueryProvider';
@@ -295,12 +295,15 @@ export function handleChatUsage(
     promptTokens: usage.promptTokens,
     completionTokens: usage.completionTokens,
     totalTokens: usage.totalTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    noCacheTokens: usage.noCacheTokens,
   });
   setModelForSession(sessionId, model);
 }
 
 export function handleCompactionComplete(
-  msg: { type: 'compaction.complete'; sessionId: string; tokensUsed: { prompt: number; completion: number } },
+  msg: { type: 'compaction.complete'; sessionId: string; tokensUsed: CompactionCompleteMessage['tokensUsed'] },
   ctx: SessionHandlersContext,
 ): void {
   const { sessionId } = msg;

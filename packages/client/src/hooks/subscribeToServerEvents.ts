@@ -1,4 +1,4 @@
-import type { ChatRetryMessage, Jean2Client, SessionInterruptResult, SessionControlState } from '@jean2/sdk';
+import type { ChatRetryMessage, CompactionCompleteMessage, Jean2Client, SessionInterruptResult, SessionControlState } from '@jean2/sdk';
 import type { RefObject } from 'react';
 import type { Session, Message, Part, MessageWithParts, PermissionGrant, QueuedMessage, Ask } from '@jean2/sdk';
 import type { SessionHandlersContext, SessionUsage } from '@/handlers/serverMessage';
@@ -122,7 +122,7 @@ export function subscribeToServerEvents(
     }
   });
   add('compaction.complete', (sessionId: unknown, tokensUsed: unknown) => {
-    messagePartHandlers['compaction.complete']({ type: 'compaction.complete', sessionId: sessionId as string, tokensUsed: tokensUsed as { prompt: number; completion: number } }, ctx()!);
+    messagePartHandlers['compaction.complete']({ type: 'compaction.complete', sessionId: sessionId as string, tokensUsed: tokensUsed as CompactionCompleteMessage['tokensUsed'] }, ctx()!);
   });
 
   add('permission.list', (workspaceId: unknown, grants: unknown) => {
