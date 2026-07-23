@@ -23,6 +23,9 @@ interface SessionRow {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  no_cache_tokens: number;
   parent_id: string | null;
   agent_name: string | null;
   subagent_status: string | null;
@@ -101,7 +104,7 @@ export function listSessions(status?: SessionStatus): Session[] {
   return rows.map(mapRowToSession);
 }
 
-export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags' | 'autoApproveSeverity' | 'agentId'>>): Session | null {
+export function updateSession(id: string, updates: Partial<Pick<Session, 'title' | 'status' | 'metadata' | 'preconfigId' | 'selectedModel' | 'selectedProvider' | 'selectedVariant' | 'promptTokens' | 'completionTokens' | 'totalTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'noCacheTokens' | 'parentId' | 'agentName' | 'subagentStatus' | 'runningAt' | 'compacting' | 'tags' | 'autoApproveSeverity' | 'agentId'>>): Session | null {
   const db = getDatabase();
   const now = new Date().toISOString();
   
@@ -147,6 +150,18 @@ export function updateSession(id: string, updates: Partial<Pick<Session, 'title'
   if (updates.totalTokens !== undefined) {
     setClauses.push('total_tokens = ?');
     values.push(updates.totalTokens);
+  }
+  if (updates.cacheReadTokens !== undefined) {
+    setClauses.push('cache_read_tokens = ?');
+    values.push(updates.cacheReadTokens);
+  }
+  if (updates.cacheWriteTokens !== undefined) {
+    setClauses.push('cache_write_tokens = ?');
+    values.push(updates.cacheWriteTokens);
+  }
+  if (updates.noCacheTokens !== undefined) {
+    setClauses.push('no_cache_tokens = ?');
+    values.push(updates.noCacheTokens);
   }
   if (updates.parentId !== undefined) {
     setClauses.push('parent_id = ?');
@@ -324,6 +339,9 @@ function mapRowToSession(row: SessionRow): Session {
     promptTokens: row.prompt_tokens ?? undefined,
     completionTokens: row.completion_tokens ?? undefined,
     totalTokens: row.total_tokens ?? undefined,
+    cacheReadTokens: row.cache_read_tokens ?? undefined,
+    cacheWriteTokens: row.cache_write_tokens ?? undefined,
+    noCacheTokens: row.no_cache_tokens ?? undefined,
     parentId: row.parent_id ?? null,
     agentName: row.agent_name ?? null,
     subagentStatus: row.subagent_status as SubagentStatus | null ?? null,

@@ -43,7 +43,14 @@ describe('step-handlers', () => {
       resolvedModelId: 'gpt-4o',
       variant: undefined,
       needsCompaction: false,
-      latestUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      latestUsage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        noCacheTokens: 0,
+      },
       ...overrides,
     };
   }
@@ -111,11 +118,26 @@ describe('step-handlers', () => {
       callbacks.onStepFinish({
         stepNumber: 0,
         finishReason: 'stop',
-        usage: { inputTokens: 200, outputTokens: 100, totalTokens: 300 },
+        usage: {
+          inputTokens: 200,
+          outputTokens: 100,
+          totalTokens: 300,
+          inputTokenDetails: {
+            cacheReadTokens: 120,
+            cacheWriteTokens: 10,
+            noCacheTokens: 80,
+          },
+        },
       });
 
       const step = ctx.stepParts[0] as StepPart;
-      expect(step.tokens).toEqual({ prompt: 200, completion: 100 });
+      expect(step.tokens).toEqual({
+        prompt: 200,
+        completion: 100,
+        cacheRead: 120,
+        cacheWrite: 10,
+        noCache: 80,
+      });
     });
 
     test('defaults token counts to 0 when no usage', () => {
@@ -126,7 +148,13 @@ describe('step-handlers', () => {
       callbacks.onStepFinish({ stepNumber: 0, finishReason: 'stop' });
 
       const step = ctx.stepParts[0] as StepPart;
-      expect(step.tokens).toEqual({ prompt: 0, completion: 0 });
+      expect(step.tokens).toEqual({
+        prompt: 0,
+        completion: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        noCache: 0,
+      });
     });
 
     test('maps finishReason stop correctly', () => {
@@ -199,13 +227,25 @@ describe('step-handlers', () => {
       callbacks.onStepFinish({
         stepNumber: 0,
         finishReason: 'stop',
-        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        usage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150,
+          inputTokenDetails: {
+            cacheReadTokens: 60,
+            cacheWriteTokens: 5,
+            noCacheTokens: 40,
+          },
+        },
       });
 
       expect(ctx.latestUsage).toEqual({
         promptTokens: 100,
         completionTokens: 50,
         totalTokens: 150,
+        cacheReadTokens: 60,
+        cacheWriteTokens: 5,
+        noCacheTokens: 40,
       });
     });
 
@@ -220,6 +260,9 @@ describe('step-handlers', () => {
         promptTokens: 0,
         completionTokens: 0,
         totalTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        noCacheTokens: 0,
       });
     });
   });
@@ -356,6 +399,9 @@ describe('step-handlers', () => {
         promptTokens: 200,
         completionTokens: 100,
         totalTokens: 300,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        noCacheTokens: 0,
       });
     });
   });

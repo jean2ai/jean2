@@ -1,15 +1,16 @@
+import type { LanguageModelUsage } from 'ai';
 import { extractJsonFromText } from '../structured-output';
 import type { StructuredOutputData, ResponseFormat } from '@jean2/sdk';
 
 export interface FinalizationData {
-  usageData: { inputTokens?: number; outputTokens?: number } | null;
+  usageData: LanguageModelUsage | null;
   structuredOutputData: StructuredOutputData | undefined;
 }
 
 export interface FinalizationOptions {
   result: {
-    totalUsage: PromiseLike<{ inputTokens?: number; outputTokens?: number; totalTokens?: number }>;
-    usage: PromiseLike<{ inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined>;
+    totalUsage: PromiseLike<LanguageModelUsage>;
+    usage: PromiseLike<LanguageModelUsage | undefined>;
     output: PromiseLike<unknown>;
   };
   responseFormat?: ResponseFormat;
@@ -20,7 +21,7 @@ export interface FinalizationOptions {
 export async function extractFinalizationData(options: FinalizationOptions): Promise<FinalizationData> {
   const { result, responseFormat, usePromptBasedStructuredOutput, accumulatedText } = options;
 
-  let usageData: { inputTokens?: number; outputTokens?: number } | null = null;
+  let usageData: LanguageModelUsage | null = null;
   let structuredOutputData: StructuredOutputData | undefined;
 
   try {

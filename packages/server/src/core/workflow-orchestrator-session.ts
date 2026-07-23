@@ -165,6 +165,9 @@ export async function runOrchestratorSession(
       tokens: {
         prompt: streamUsage?.inputTokens ?? 0,
         completion: streamUsage?.outputTokens ?? 0,
+        cacheRead: streamUsage?.inputTokenDetails.cacheReadTokens ?? 0,
+        cacheWrite: streamUsage?.inputTokenDetails.cacheWriteTokens ?? 0,
+        noCache: streamUsage?.inputTokenDetails.noCacheTokens ?? 0,
       },
       cost: 0,
       createdAt: Date.now(),

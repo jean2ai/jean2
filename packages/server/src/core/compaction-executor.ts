@@ -22,6 +22,9 @@ export interface CompactionExecutorResult {
     tokensUsed: {
       prompt: number;
       completion: number;
+      cacheRead?: number;
+      cacheWrite?: number;
+      noCache?: number;
     };
     summaryMessageId: string;
     textParts: Array<{ id: string; messageId: string; createdAt: number; type: string; text: string }>;
@@ -131,6 +134,9 @@ export async function executeCompaction(
       promptTokens: result.tokensUsed.prompt,
       completionTokens: result.tokensUsed.completion,
       totalTokens: result.tokensUsed.prompt + result.tokensUsed.completion,
+      cacheReadTokens: result.tokensUsed.cacheRead ?? 0,
+      cacheWriteTokens: result.tokensUsed.cacheWrite ?? 0,
+      noCacheTokens: result.tokensUsed.noCache ?? 0,
       compacting: false,
     });
     if (completedSession) broadcastSessUpdate(completedSession);

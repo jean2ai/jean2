@@ -285,6 +285,9 @@ async function runSingleChatTurn(
             promptTokens: event.usage.promptTokens,
             completionTokens: event.usage.completionTokens,
             totalTokens: event.usage.totalTokens,
+            cacheReadTokens: event.usage.cacheReadTokens,
+            cacheWriteTokens: event.usage.cacheWriteTokens,
+            noCacheTokens: event.usage.noCacheTokens,
           });
           break;
         }

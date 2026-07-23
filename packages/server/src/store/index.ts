@@ -164,6 +164,9 @@ export function initializeSchema(db: Database): void {
       prompt_tokens INTEGER DEFAULT 0,
       completion_tokens INTEGER DEFAULT 0,
       total_tokens INTEGER DEFAULT 0,
+      cache_read_tokens INTEGER DEFAULT 0,
+      cache_write_tokens INTEGER DEFAULT 0,
+      no_cache_tokens INTEGER DEFAULT 0,
       parent_id TEXT,
       agent_name TEXT,
       subagent_status TEXT,
@@ -195,6 +198,9 @@ export function initializeSchema(db: Database): void {
       agent TEXT,
       tokens_prompt INTEGER DEFAULT 0,
       tokens_completion INTEGER DEFAULT 0,
+      tokens_cache_read INTEGER DEFAULT 0,
+      tokens_cache_write INTEGER DEFAULT 0,
+      tokens_no_cache INTEGER DEFAULT 0,
       cost REAL DEFAULT 0,
       completed_at INTEGER,
       error TEXT,
@@ -501,6 +507,24 @@ export function initializeSchema(db: Database): void {
     db.run('ALTER TABLE sessions ADD COLUMN agent_id TEXT');
   } catch {
     // Column already exists
+  }
+
+  // Migrate: add cache token columns to sessions if missing
+  for (const column of ['cache_read_tokens', 'cache_write_tokens', 'no_cache_tokens']) {
+    try {
+      db.run(`ALTER TABLE sessions ADD COLUMN ${column} INTEGER DEFAULT 0`);
+    } catch {
+      // Column already exists
+    }
+  }
+
+  // Migrate: add cache token columns to messages if missing
+  for (const column of ['tokens_cache_read', 'tokens_cache_write', 'tokens_no_cache']) {
+    try {
+      db.run(`ALTER TABLE messages ADD COLUMN ${column} INTEGER DEFAULT 0`);
+    } catch {
+      // Column already exists
+    }
   }
 
   // ── Web Push tables ──────────────────────────────────────────

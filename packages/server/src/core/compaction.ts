@@ -120,6 +120,9 @@ export interface CompactionTaskResult {
   tokensUsed: {
     prompt: number;
     completion: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    noCache?: number;
   };
 }
 
@@ -353,7 +356,13 @@ function markToolsAsCompacted(
 export interface GenerateSummaryFn {
   (prompt: string, policy: CompactionPolicy, sessionId: string): Promise<{
     text: string;
-    usage: { prompt: number; completion: number };
+    usage: {
+      prompt: number;
+      completion: number;
+      cacheRead?: number;
+      cacheWrite?: number;
+      noCache?: number;
+    };
     effectiveModelId: string;
     effectiveProviderId: string;
   }>;
@@ -370,7 +379,13 @@ async function defaultGenerateSummary(
   sessionId: string,
 ): Promise<{
   text: string;
-  usage: { prompt: number; completion: number };
+  usage: {
+    prompt: number;
+    completion: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    noCache?: number;
+  };
   effectiveModelId: string;
   effectiveProviderId: string;
 }> {
@@ -415,6 +430,9 @@ async function defaultGenerateSummary(
     usage: {
       prompt: streamUsage.inputTokens ?? 0,
       completion: streamUsage.outputTokens ?? 0,
+      cacheRead: streamUsage.inputTokenDetails.cacheReadTokens ?? 0,
+      cacheWrite: streamUsage.inputTokenDetails.cacheWriteTokens ?? 0,
+      noCache: streamUsage.inputTokenDetails.noCacheTokens ?? 0,
     },
     effectiveModelId,
     effectiveProviderId,
@@ -526,6 +544,9 @@ export async function processCompactionTask(
     tokens: {
       prompt: usage.prompt,
       completion: usage.completion,
+      cacheRead: usage.cacheRead ?? 0,
+      cacheWrite: usage.cacheWrite ?? 0,
+      noCache: usage.noCache ?? 0,
     },
     cost: 0,
     summary: true,

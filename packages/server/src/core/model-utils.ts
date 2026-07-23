@@ -132,6 +132,7 @@ export async function getModelWithMetadata(
         model: openai.responses(model) as unknown as LanguageModel,
         providerOptions: {
           openai: {
+            promptCacheKey: options.sessionId,
             store: false,
           },
         },

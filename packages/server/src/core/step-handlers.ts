@@ -3,6 +3,26 @@ import { createPart, updatePart } from '@/store';
 import { createStepPart } from './part-utils';
 import { randomUUID } from 'crypto';
 
+interface StepUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  inputTokenDetails?: {
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    noCacheTokens?: number;
+  };
+}
+
+export interface UsageEventData {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  noCacheTokens: number;
+}
+
 export interface StepCallbacksContext {
   messageId: string;
   sessionId: string;
@@ -14,12 +34,12 @@ export interface StepCallbacksContext {
   resolvedModelId: string | undefined;
   variant: string | undefined;
   needsCompaction: boolean;
-  latestUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  latestUsage: UsageEventData;
 }
 
 export type CallbackEvent = MessageEvent | {
   type: 'usage';
-  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  usage: UsageEventData;
   model: string;
   variant: string | null;
 };
@@ -42,12 +62,15 @@ export function createStepCallbacks(ctx: StepCallbacksContext) {
       }
       createPart(startedStepPart, ctx.sessionId);
     },
-    onStepFinish: (stepFinishEvent: { stepNumber: number; finishReason: string | null; usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }; totalUsage?: { inputTokens: number; outputTokens: number; totalTokens: number } }) => {
+    onStepFinish: (stepFinishEvent: { stepNumber: number; finishReason: string | null; usage?: StepUsage; totalUsage?: StepUsage }) => {
       const stepNumber = stepFinishEvent.stepNumber + 1;
 
       const stepUsage = stepFinishEvent.usage;
       const stepPromptTokens = stepUsage?.inputTokens ?? 0;
       const stepCompletionTokens = stepUsage?.outputTokens ?? 0;
+      const stepCacheReadTokens = stepUsage?.inputTokenDetails?.cacheReadTokens ?? 0;
+      const stepCacheWriteTokens = stepUsage?.inputTokenDetails?.cacheWriteTokens ?? 0;
+      const stepNoCacheTokens = stepUsage?.inputTokenDetails?.noCacheTokens ?? 0;
 
       if (ctx.isMainSession && ctx.contextWindow) {
         const latestStepInputTokens = stepUsage?.inputTokens ?? 0;
@@ -82,6 +105,9 @@ export function createStepCallbacks(ctx: StepCallbacksContext) {
         tokens: {
           prompt: stepPromptTokens,
           completion: stepCompletionTokens,
+          cacheRead: stepCacheReadTokens,
+          cacheWrite: stepCacheWriteTokens,
+          noCache: stepNoCacheTokens,
         },
       };
 
@@ -105,6 +131,9 @@ export function createStepCallbacks(ctx: StepCallbacksContext) {
         ctx.latestUsage.promptTokens = stepUsage.inputTokens ?? 0;
         ctx.latestUsage.completionTokens = stepUsage.outputTokens ?? 0;
         ctx.latestUsage.totalTokens = stepUsage.totalTokens ?? 0;
+        ctx.latestUsage.cacheReadTokens = stepUsage.inputTokenDetails?.cacheReadTokens ?? 0;
+        ctx.latestUsage.cacheWriteTokens = stepUsage.inputTokenDetails?.cacheWriteTokens ?? 0;
+        ctx.latestUsage.noCacheTokens = stepUsage.inputTokenDetails?.noCacheTokens ?? 0;
 
         if (ctx.yieldFn) {
           ctx.yieldFn({
@@ -113,6 +142,9 @@ export function createStepCallbacks(ctx: StepCallbacksContext) {
               promptTokens: ctx.latestUsage.promptTokens,
               completionTokens: ctx.latestUsage.completionTokens,
               totalTokens: ctx.latestUsage.totalTokens,
+              cacheReadTokens: ctx.latestUsage.cacheReadTokens,
+              cacheWriteTokens: ctx.latestUsage.cacheWriteTokens,
+              noCacheTokens: ctx.latestUsage.noCacheTokens,
             },
             model: ctx.resolvedModelId ?? 'gpt-4o',
             variant: ctx.variant ?? null,

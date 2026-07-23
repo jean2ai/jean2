@@ -9,7 +9,7 @@ import { rejectPendingAsksBySession } from '@/tools/ask-user-api';
 import { broadcastSessionUpdated } from './broadcast';
 import { getModelWithMetadata } from './model-utils';
 
-import { createStepCallbacks, type CallbackEvent } from './step-handlers';
+import { createStepCallbacks, type CallbackEvent, type UsageEventData } from './step-handlers';
 import { createStreamHandlers } from './stream-handlers';
 import { convertToAiSdkMessages } from './message-utils';
 import { buildAiSdkTools, type BuildToolsOptions } from './build-tools';
@@ -70,7 +70,7 @@ export interface ChatResult {
   toolCalls: ToolPart[];
 }
 
-export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | ErrorEvent> {
+export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageEvent | { type: 'usage'; usage: UsageEventData; model: string; variant: string | null } | { type: 'needs_compaction'; sessionId: string } | ErrorEvent> {
   const { sessionId: _sessionId, preconfig, messages, modelId, providerId, variant, workspacePath, workspaceId, maxSteps, compactionPolicy } = options;
 
   const managesSessionLifecycle = !options.retryAbortController;
@@ -167,7 +167,14 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     resolvedModelId,
     variant,
     needsCompaction: false,
-    latestUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    latestUsage: {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      noCacheTokens: 0,
+    },
   };
 
   const { experimental_onStepStart, onStepFinish } = createStepCallbacks(stepCtx);
@@ -329,6 +336,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     tokens: {
       prompt: usageData?.inputTokens ?? 0,
       completion: usageData?.outputTokens ?? 0,
+      cacheRead: usageData?.inputTokenDetails.cacheReadTokens ?? 0,
+      cacheWrite: usageData?.inputTokenDetails.cacheWriteTokens ?? 0,
+      noCache: usageData?.inputTokenDetails.noCacheTokens ?? 0,
     },
     ...(structuredOutputData ? { structuredOutput: structuredOutputData } : {}),
   };
@@ -345,6 +355,9 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
         promptTokens: stepCtx.latestUsage.promptTokens,
         completionTokens: stepCtx.latestUsage.completionTokens,
         totalTokens: stepCtx.latestUsage.totalTokens,
+        cacheReadTokens: stepCtx.latestUsage.cacheReadTokens,
+        cacheWriteTokens: stepCtx.latestUsage.cacheWriteTokens,
+        noCacheTokens: stepCtx.latestUsage.noCacheTokens,
       },
       model: resolvedModelId || 'gpt-4o',
       variant: variant || null,

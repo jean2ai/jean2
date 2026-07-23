@@ -222,6 +222,7 @@ const codexProvider: ConnectableProvider = {
       providerOptions: {
         openai: {
           instructions: options.systemPrompt || 'You are a helpful assistant.',
+          promptCacheKey: options.sessionId,
           store: false,
         },
       },

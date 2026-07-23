@@ -798,7 +798,13 @@ describe('messages store', () => {
         status: 'completed',
         modelId: 'claude-4',
         providerId: 'anthropic',
-        tokens: { prompt: 500, completion: 250 },
+        tokens: {
+          prompt: 500,
+          completion: 250,
+          cacheRead: 300,
+          cacheWrite: 50,
+          noCache: 150,
+        },
         cost: 0.02,
         agent: 'coder',
       }, 1000);
@@ -810,7 +816,13 @@ describe('messages store', () => {
         expect(msg.status).toBe('completed');
         expect(msg.modelId).toBe('claude-4');
         expect(msg.providerId).toBe('anthropic');
-        expect(msg.tokens).toEqual({ prompt: 500, completion: 250 });
+        expect(msg.tokens).toEqual({
+          prompt: 500,
+          completion: 250,
+          cacheRead: 300,
+          cacheWrite: 50,
+          noCache: 150,
+        });
         expect(msg.cost).toBe(0.02);
         expect(msg.agent).toBe('coder');
       }

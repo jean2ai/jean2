@@ -1,4 +1,5 @@
 import type { ChatOptions } from './agent';
+import type { UsageEventData } from './step-handlers';
 import {
   classifyApiError,
   ApiErrorType,
@@ -36,7 +37,7 @@ import { broadcastSessionUpdated } from './broadcast';
 
 export type StreamChatEvent =
   | MessageEvent
-  | { type: 'usage'; usage: { promptTokens: number; completionTokens: number; totalTokens: number }; model: string; variant: string | null }
+  | { type: 'usage'; usage: UsageEventData; model: string; variant: string | null }
   | { type: 'needs_compaction'; sessionId: string }
   | ChatRetryMessage
   | RateLimitErrorMessage

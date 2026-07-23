@@ -27,6 +27,9 @@ interface MessageRow {
   agent: string | null;
   tokens_prompt: number;
   tokens_completion: number;
+  tokens_cache_read: number;
+  tokens_cache_write: number;
+  tokens_no_cache: number;
   cost: number;
   completed_at: number | null;
   error: string | null;
@@ -73,6 +76,9 @@ function rowToMessage(row: MessageRow): Message {
       tokens: {
         prompt: row.tokens_prompt,
         completion: row.tokens_completion,
+        cacheRead: row.tokens_cache_read,
+        cacheWrite: row.tokens_cache_write,
+        noCache: row.tokens_no_cache,
       },
       cost: row.cost,
       completedAt: row.completed_at ?? undefined,
@@ -99,6 +105,9 @@ function messageToRow(message: Message, sequence?: number): MessageRow {
     agent: null,
     tokens_prompt: 0,
     tokens_completion: 0,
+    tokens_cache_read: 0,
+    tokens_cache_write: 0,
+    tokens_no_cache: 0,
     cost: 0,
     completed_at: null,
     error: null,
@@ -118,6 +127,9 @@ function messageToRow(message: Message, sequence?: number): MessageRow {
       agent: message.agent ?? null,
       tokens_prompt: message.tokens.prompt,
       tokens_completion: message.tokens.completion,
+      tokens_cache_read: message.tokens.cacheRead ?? 0,
+      tokens_cache_write: message.tokens.cacheWrite ?? 0,
+      tokens_no_cache: message.tokens.noCache ?? 0,
       cost: message.cost,
       completed_at: message.completedAt ?? null,
       error: message.error ?? null,
@@ -179,9 +191,9 @@ export function createMessage(message: Message): Message {
     `
     INSERT INTO messages (
       id, session_id, sequence, role, created_at, status, model_id, provider_id,
-      agent, tokens_prompt, tokens_completion, cost, completed_at, error,
-      summary, mode, parent_id, structured_output
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      agent, tokens_prompt, tokens_completion, tokens_cache_read, tokens_cache_write,
+      tokens_no_cache, cost, completed_at, error, summary, mode, parent_id, structured_output
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       row.id,
@@ -195,6 +207,9 @@ export function createMessage(message: Message): Message {
       row.agent,
       row.tokens_prompt,
       row.tokens_completion,
+      row.tokens_cache_read,
+      row.tokens_cache_write,
+      row.tokens_no_cache,
       row.cost,
       row.completed_at,
       row.error,
@@ -235,8 +250,8 @@ export function updateMessage(
     `
     UPDATE messages SET
       status = ?, model_id = ?, provider_id = ?, agent = ?,
-      tokens_prompt = ?, tokens_completion = ?, cost = ?,
-      completed_at = ?, error = ?,
+      tokens_prompt = ?, tokens_completion = ?, tokens_cache_read = ?,
+      tokens_cache_write = ?, tokens_no_cache = ?, cost = ?, completed_at = ?, error = ?,
       summary = ?, mode = ?, parent_id = ?, structured_output = ?
     WHERE id = ?
   `,
@@ -247,6 +262,9 @@ export function updateMessage(
       row.agent,
       row.tokens_prompt,
       row.tokens_completion,
+      row.tokens_cache_read,
+      row.tokens_cache_write,
+      row.tokens_no_cache,
       row.cost,
       row.completed_at,
       row.error,
