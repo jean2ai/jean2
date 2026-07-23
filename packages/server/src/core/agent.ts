@@ -20,6 +20,7 @@ import { classifyApiError } from '@/utils/errors';
 import { createErrorEvent, type ErrorEvent } from './error-handling';
 import type { CompactionPolicy } from './compaction';
 import { buildSystemMessage } from './stream/system-message';
+import { resolveEffectiveSubagentTargets } from './subagent-policy';
 import { computeAutoThreshold } from './stream/compaction-threshold';
 import { buildStreamConfig } from './stream/stream-config';
 import { extractFinalizationData } from './stream/finalization';
@@ -121,12 +122,21 @@ export async function* streamChat(options: ChatOptions): AsyncGenerator<MessageE
     agentId: preconfig.id,
   });
 
+  const selfDelegationAvailable = Boolean(aiTools.task)
+    && preconfig.allowSelfAsSubagent === true
+    && (await resolveEffectiveSubagentTargets({
+      sessionId: _sessionId,
+      canSpawnSubagents: preconfig.canSpawnSubagents,
+      allowSelfAsSubagent: true,
+    })).some(candidate => candidate.id === preconfig.id);
+
   // Build system message
   const systemMessage = await buildSystemMessage({
     preconfig,
     workspacePath,
     workspaceId,
     additionalPaths: effectiveAdditionalPaths,
+    selfDelegationAvailable,
   });
 
   const { model, useProviderInstructions, omitMaxOutputTokens, providerOptions: baseProviderOptions } =

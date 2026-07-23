@@ -8,6 +8,7 @@ import {
   getSubagentResumeError,
   isSubagentSpawningDisabled,
   isValidSubagentPreconfig,
+  isValidSubagentTargetPreconfig,
 } from '@/core/subagent-policy';
 
 function evaluate(options: {
@@ -66,6 +67,14 @@ describe('subagent ancestry policy', () => {
     expect(isValidSubagentPreconfig({ mode: 'both' })).toBe(true);
     expect(isValidSubagentPreconfig({ mode: 'primary' })).toBe(false);
     expect(isValidSubagentPreconfig({})).toBe(false);
+  });
+
+  test('allows a primary preconfig only as its own opted-in subagent', () => {
+    const primary = { id: 'A', mode: 'primary' as const };
+
+    expect(isValidSubagentTargetPreconfig(primary, 'A', true)).toBe(true);
+    expect(isValidSubagentTargetPreconfig(primary, 'A', false)).toBe(false);
+    expect(isValidSubagentTargetPreconfig(primary, 'B', true)).toBe(false);
   });
 
   test('keeps disabled spawn permissions disabled at runtime', () => {

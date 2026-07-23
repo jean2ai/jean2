@@ -1,6 +1,6 @@
 import type { Preconfig, Session } from '@jean2/sdk';
 import { getSession } from '@/store';
-import { listSubagentPreconfigs } from './preconfig';
+import { listPreconfigs } from './preconfig';
 
 export type SubagentPolicyReason =
   | 'allowed'
@@ -31,6 +31,15 @@ export interface ResolveSubagentTargetsOptions {
 export function isValidSubagentPreconfig(preconfig: Pick<Preconfig, 'mode'>): boolean {
   const mode = preconfig.mode ?? 'primary';
   return mode === 'subagent' || mode === 'both';
+}
+
+export function isValidSubagentTargetPreconfig(
+  preconfig: Pick<Preconfig, 'id' | 'mode'>,
+  currentPreconfigId: string | null,
+  allowSelfAsSubagent: boolean,
+): boolean {
+  return isValidSubagentPreconfig(preconfig)
+    || (allowSelfAsSubagent && preconfig.id === currentPreconfigId);
 }
 
 export function isSubagentSpawningDisabled(
@@ -156,8 +165,12 @@ export async function resolveEffectiveSubagentTargets(
     ? [...new Set([...configuredIds, ...(currentPreconfigId && allowSelfAsSubagent ? [currentPreconfigId] : [])])]
     : undefined;
 
-  const candidates = await listSubagentPreconfigs();
-  return candidates.filter((candidate) => evaluateSubagentTarget({
+  const candidates = await listPreconfigs();
+  return candidates.filter((candidate) => isValidSubagentTargetPreconfig(
+    candidate,
+    currentPreconfigId,
+    allowSelfAsSubagent,
+  ) && evaluateSubagentTarget({
     targetPreconfigId: candidate.id,
     currentPreconfigId,
     ancestryPreconfigIds: ancestry.preconfigIds,

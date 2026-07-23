@@ -10,7 +10,7 @@ import {
   evaluateSubagentTarget,
   getSubagentResumeError,
   isSubagentSpawningDisabled,
-  isValidSubagentPreconfig,
+  isValidSubagentTargetPreconfig,
   resolveEffectiveSubagentTargets,
 } from './subagent-policy';
 
@@ -275,7 +275,11 @@ export async function executeSubagent(input: SubagentInput): Promise<SubagentOut
       };
     }
 
-    if (!isValidSubagentPreconfig(subagentPreconfig)) {
+    if (!isValidSubagentTargetPreconfig(
+      subagentPreconfig,
+      parentSession?.preconfigId ?? null,
+      parentPreconfig?.allowSelfAsSubagent === true,
+    )) {
       return {
         task_id: '',
         result: '',

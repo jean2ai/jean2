@@ -13,6 +13,7 @@ export interface SystemMessageOptions {
   workspacePath?: string;
   workspaceId?: string;
   additionalPaths?: string[];
+  selfDelegationAvailable?: boolean;
 }
 
 export async function buildSystemMessage(options: SystemMessageOptions): Promise<string> {
@@ -44,6 +45,12 @@ SKILLS:
 - Use "agent_skill_manage" for personal workflows you've refined across projects.
 
 Before saving, use list to check existing entries and avoid duplicates.`;
+  }
+
+  if (options.selfDelegationAvailable) {
+    systemMessage = systemMessage + '\n\n' + `SELF-DELEGATION:
+- You may use the task tool with subagent_type "${preconfig.id}" to delegate work to a fresh instance of yourself.
+- This permission applies only to the immediate child. Reusing "${preconfig.id}" later in the same ancestry chain is blocked.`;
   }
 
   // Add instructions (global first, then project)
