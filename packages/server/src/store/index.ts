@@ -571,6 +571,38 @@ export function initializeSchema(db: Database): void {
   // Initialize FTS table for session search
   initializeFts(db);
   migrateFtsForAgents(db);
+
+  // =============================================================================
+  // Tool output compression artifacts (reversible compression)
+  // =============================================================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tool_output_artifacts (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      part_id TEXT NOT NULL,
+      call_id TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      strategy TEXT NOT NULL,
+      source_hash TEXT NOT NULL,
+      original_json TEXT NOT NULL,
+      model_output_json TEXT NOT NULL,
+      original_chars INTEGER NOT NULL,
+      model_chars INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      applied INTEGER NOT NULL,
+      compression_duration_ms INTEGER NOT NULL,
+      model_retrieval_count INTEGER NOT NULL DEFAULT 0,
+      user_retrieval_count INTEGER NOT NULL DEFAULT 0,
+      last_retrieved_at INTEGER,
+
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+      UNIQUE(session_id, call_id)
+    )
+  `);
+
+  db.run('CREATE INDEX IF NOT EXISTS idx_tool_output_artifacts_session_created ON tool_output_artifacts(session_id, created_at DESC)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_tool_output_artifacts_part ON tool_output_artifacts(part_id)');
 }
 
 /**
@@ -748,3 +780,6 @@ export * from './scheduled-jobs';
 
 // Re-export web push store
 export * from './web-push';
+
+// Re-export tool output compression artifacts
+export * from './tool-output-artifacts';

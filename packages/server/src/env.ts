@@ -278,3 +278,57 @@ export function getPermissionTimeoutMs(): number {
   const parsed = parseInt(process.env.JEAN2_PERMISSION_TIMEOUT_MS || '1800000', 10);
   return Number.isFinite(parsed) && parsed >= 60_000 ? parsed : 1800000;
 }
+
+// =============================================================================
+// Tool Output Compression
+// =============================================================================
+
+export type ToolOutputCompressionMode = 'off' | 'observe' | 'active';
+
+function readCompressionMode(): ToolOutputCompressionMode {
+  const raw = process.env.JEAN2_TOOL_OUTPUT_COMPRESSION_MODE?.toLowerCase();
+  if (raw === 'observe' || raw === 'active') return raw;
+  return 'off';
+}
+
+export function getToolOutputCompressionMode(): ToolOutputCompressionMode {
+  return readCompressionMode();
+}
+
+function readPositiveInt(envKey: string, fallback: number): number {
+  const parsed = parseInt(process.env[envKey] || String(fallback), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function getToolOutputMinChars(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_MIN_CHARS', 12000);
+}
+
+export function getToolOutputTargetChars(): number {
+  return Math.max(512, readPositiveInt('JEAN2_TOOL_OUTPUT_TARGET_CHARS', 10000));
+}
+
+export function getToolOutputMinSavingsRatio(): number {
+  const parsed = parseFloat(process.env.JEAN2_TOOL_OUTPUT_MIN_SAVINGS_RATIO || '0.20');
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 1 ? parsed : 0.20;
+}
+
+export function getToolOutputRetrievalDefaultLimit(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_RETRIEVAL_DEFAULT_LIMIT', 50);
+}
+
+export function getToolOutputRetrievalMaxLimit(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_RETRIEVAL_MAX_LIMIT', 200);
+}
+
+export function getToolOutputRetrievalMaxChars(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_RETRIEVAL_MAX_CHARS', 20000);
+}
+
+export function getToolOutputQueryMaxChars(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_QUERY_MAX_CHARS', 500);
+}
+
+export function getToolOutputContextMaxLines(): number {
+  return readPositiveInt('JEAN2_TOOL_OUTPUT_CONTEXT_MAX_LINES', 5);
+}

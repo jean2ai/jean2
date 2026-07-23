@@ -1,7 +1,6 @@
 import { dynamicTool, jsonSchema, type Tool, type JSONSchema7 } from 'ai';
 import { CallToolResultSchema, type Tool as MCPToolDef } from '@modelcontextprotocol/sdk/types.js';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { truncateToolResult } from '@/utils/truncate-tool-result';
 
 type TextContent = { type: 'text'; text: string };
 type ImageContent = { type: 'image'; data: string; mimeType: string };
@@ -20,7 +19,7 @@ export async function convertMcpTool(
   client: Client,
   serverName: string,
   timeout: number,
-  sessionId: string,
+  _sessionId: string,
 ): Promise<Tool> {
   const inputSchema = mcpTool.inputSchema;
   const schema: JSONSchema7 = {
@@ -50,7 +49,7 @@ export async function convertMcpTool(
         },
       ) as McpToolResult;
 
-      return truncateToolResult(result, sessionId, _toolName);
+      return result;
     },
   });
 }

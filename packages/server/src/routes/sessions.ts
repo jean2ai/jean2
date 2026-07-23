@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import { validate } from './validate';
-import type { SessionStatus } from '@jean2/sdk';
+import type { SessionStatus, ToolOutputOriginalResponse } from '@jean2/sdk';
 import {
   createSession,
   getSession,
@@ -13,6 +13,9 @@ import {
   listTagsByWorkspace,
   listLatestMessagesWithPartsPage,
   listMessagesWithPartsBeforeSequence,
+  getToolOutputArtifact,
+  parseArtifactJson,
+  recordToolOutputRetrieval,
 } from '@/store';
 import {
   getAttachmentByKey,
@@ -276,5 +279,51 @@ export function registerSessionRoutes(app: Hono): void {
         'Cache-Control': 'private, max-age=86400',
       },
     });
+  });
+
+  app.get('/api/sessions/:id/tool-outputs/:retrievalId', async (c) => {
+    const sessionId = c.req.param('id');
+    const retrievalId = c.req.param('retrievalId');
+
+    if (!/^j2out_[a-f0-9]{24}$/.test(retrievalId)) {
+      throw new NotFoundError('Tool output artifact not found');
+    }
+
+    const session = getSession(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const artifact = getToolOutputArtifact(sessionId, retrievalId);
+    if (!artifact) {
+      throw new NotFoundError('Tool output artifact not found');
+    }
+
+    const output = parseArtifactJson(artifact.originalJson, retrievalId);
+
+    const retrievedAt = Date.now();
+    recordToolOutputRetrieval(sessionId, retrievalId, 'user', retrievedAt);
+
+    const response: ToolOutputOriginalResponse = {
+      artifact: {
+        id: artifact.id,
+        sessionId: artifact.sessionId,
+        partId: artifact.partId,
+        callId: artifact.callId,
+        toolName: artifact.toolName,
+        strategy: artifact.strategy,
+        sourceHash: artifact.sourceHash,
+        originalChars: artifact.originalChars,
+        modelChars: artifact.modelChars,
+        createdAt: artifact.createdAt,
+        applied: artifact.applied,
+        compressionDurationMs: artifact.compressionDurationMs,
+        modelRetrievalCount: artifact.modelRetrievalCount,
+        userRetrievalCount: artifact.userRetrievalCount + 1,
+        lastRetrievedAt: retrievedAt,
+      },
+      output,
+    };
+    return c.json(response);
   });
 }

@@ -91,10 +91,6 @@ async function setupMocks(opts: {
     broadcastEvent: mock(() => {}),
   }));
 
-  mock.module('@/utils/truncate-tool-result', () => ({
-    truncateToolResult: mock((result: unknown) => result),
-  }));
-
   mock.module('@/memory', () => ({
     memoryToolDefinition: {
       name: 'memory',
@@ -142,20 +138,20 @@ describe('build-tools', () => {
   afterEach(() => mock.restore());
 
   describe('empty tool list', () => {
-    test('returns empty object when no tools and no workspace', async () => {
+    test('returns only retrieve_tool_output when no tools and no workspace', async () => {
       const { buildAiSdkTools } = await setupMocks({});
       const tools = await buildAiSdkTools(defaultOptions({ toolNames: [] }));
-      expect(Object.keys(tools)).toHaveLength(0);
+      expect(Object.keys(tools)).toEqual(['retrieve_tool_output']);
     });
 
-    test('returns empty object when workspace has no skill or mcp tools', async () => {
+    test('returns only retrieve_tool_output when workspace has no skill or mcp tools', async () => {
       const { buildAiSdkTools } = await setupMocks({ skillTool: null, mcpTools: {} });
       const tools = await buildAiSdkTools(defaultOptions({
         toolNames: [],
         workspacePath: '/workspace',
         workspaceId: 'ws-1',
       }));
-      expect(Object.keys(tools)).toHaveLength(0);
+      expect(Object.keys(tools)).toEqual(['retrieve_tool_output']);
     });
   });
 
@@ -174,7 +170,7 @@ describe('build-tools', () => {
 
       expect(tools).toHaveProperty('read-file');
       expect(tools).toHaveProperty('write-file');
-      expect(Object.keys(tools)).toHaveLength(2);
+      expect(Object.keys(tools)).toHaveLength(3);
     });
 
     test('skips tools that are not found', async () => {
@@ -191,7 +187,7 @@ describe('build-tools', () => {
 
       expect(tools).toHaveProperty('read-file');
       expect(tools).not.toHaveProperty('nonexistent');
-      expect(Object.keys(tools)).toHaveLength(1);
+      expect(Object.keys(tools)).toHaveLength(2);
     });
 
     test('created tool has execute function', async () => {
@@ -312,7 +308,7 @@ describe('build-tools', () => {
         workspacePath: undefined,
       }));
 
-      expect(Object.keys(tools)).toHaveLength(0);
+      expect(Object.keys(tools)).toEqual(['retrieve_tool_output']);
     });
   });
 
@@ -344,7 +340,7 @@ describe('build-tools', () => {
         workspacePath: undefined,
       }));
 
-      expect(Object.keys(tools)).toHaveLength(0);
+      expect(Object.keys(tools)).toEqual(['retrieve_tool_output']);
     });
   });
 
@@ -365,7 +361,7 @@ describe('build-tools', () => {
       expect(tools).toHaveProperty('read-file');
       expect(tools).toHaveProperty('agent-browser');
       expect(tools).toHaveProperty('mcp-server');
-      expect(Object.keys(tools)).toHaveLength(3);
+      expect(Object.keys(tools)).toHaveLength(4);
     });
 
     test('combines regular tools with subagent tool', async () => {
@@ -381,7 +377,7 @@ describe('build-tools', () => {
 
       expect(tools).toHaveProperty('read-file');
       expect(tools).toHaveProperty('task');
-      expect(Object.keys(tools)).toHaveLength(2);
+      expect(Object.keys(tools)).toHaveLength(3);
     });
   });
 

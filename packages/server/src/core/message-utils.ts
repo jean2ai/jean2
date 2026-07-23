@@ -1,8 +1,9 @@
-import type { MessageWithParts, CompactionPart, ImagePart, FilePart } from '@jean2/sdk';
+import type { MessageWithParts, CompactionPart, ImagePart, FilePart, ToolOutputReference } from '@jean2/sdk';
 import type { ModelMessage } from 'ai';
 import { isTextPart, isToolPart, isImagePart, isFilePart, parseToolInput } from './part-utils';
 import { stripVisualization } from '@/utils/strip-visualization';
 import { getAttachment } from '@/store';
+import { isToolOutputReference } from '@jean2/sdk';
 
 type AiSdkContent = string | Array<{
   type: 'text' | 'tool-call' | 'tool-result' | 'image' | 'file';
@@ -99,12 +100,36 @@ export async function convertToAiSdkMessages(
           const isSkillTool = toolPart.name === 'skill';
 
           if (isCompacted && !isSkillTool) {
-            toolResultBlocks.push({
-              type: 'tool-result' as const,
-              toolCallId: toolPart.callId,
-              toolName: toolPart.name,
-              output: { type: 'text' as const, value: '[Old tool result content cleared]' },
-            });
+            const reference = stripVisualization(toolPart.state.output);
+            if (isToolOutputReference(reference)) {
+              toolResultBlocks.push({
+                type: 'tool-result' as const,
+                toolCallId: toolPart.callId,
+                toolName: toolPart.name,
+                output: {
+                  type: 'json' as const,
+                  value: {
+                    type: 'jean2-tool-output',
+                    version: 1,
+                    retrievalId: reference.retrievalId,
+                    strategy: reference.strategy,
+                    toolName: reference.toolName,
+                    originalChars: reference.originalChars,
+                    modelChars: reference.modelChars,
+                    complete: false as const,
+                    message:
+                      'Old tool result was compacted into the conversation summary. The original is still retrievable via retrieve_tool_output.',
+                  } satisfies ToolOutputReference,
+                },
+              });
+            } else {
+              toolResultBlocks.push({
+                type: 'tool-result' as const,
+                toolCallId: toolPart.callId,
+                toolName: toolPart.name,
+                output: { type: 'text' as const, value: '[Old tool result content cleared]' },
+              });
+            }
           } else {
             toolResultBlocks.push({
               type: 'tool-result' as const,

@@ -6,7 +6,6 @@ import { createAskApi, rejectPendingAsksByToolCallId, type AskBroadcastFn } from
 import { interruptManager } from '../interrupt';
 import { transitionToolToRunningByCallId } from '@/store';
 import { executeSubagent, getSubagentToolDefinition, canSpawnSubagent, type SubagentInput, type SubagentOutput } from '../subagent';
-import { truncateToolResult } from '@/utils/truncate-tool-result';
 import { isToolAllowedInContext, type ToolExecutionScope } from '../tool-capabilities';
 import type { ToolMap } from './types';
 import type { BroadcastFn } from '../broadcast';
@@ -141,7 +140,7 @@ export async function buildExternalTools(options: ExternalToolsOptions): Promise
             return { error: result.error ?? 'Tool execution failed' };
           }
 
-          const toolOutput = truncateToolResult(result.result, sessionId, name);
+          const toolOutput = result.result;
 
           if (result.visualization && toolOutput && typeof toolOutput === 'object') {
             return { ...toolOutput as Record<string, unknown>, _visualization: result.visualization };

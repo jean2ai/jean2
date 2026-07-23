@@ -7,6 +7,8 @@ import { buildExternalTools } from './tool-builders/external-tools';
 import { buildWorkspaceTools } from './tool-builders/workspace-tools';
 import { buildAgentTools } from './tool-builders/agent-tools';
 import { resolveToolExecutionScopes } from './tool-capabilities';
+import { wrapToolsWithOutputProcessing } from './tool-output/wrap-tools';
+import { buildRetrieveToolOutputTool } from './tool-output/retrieval-tool';
 import type { ToolMap } from './tool-builders/types';
 
 export interface BuildToolsOptions {
@@ -118,5 +120,10 @@ export async function buildAiSdkTools(
     Object.assign(tools, agentTools);
   }
 
-  return tools;
+  // Phase 5: Built-in retrieval tool — always present so oversized tool outputs remain retrievable.
+  tools.retrieve_tool_output = buildRetrieveToolOutputTool({ sessionId });
+
+  // Phase 6: Central output processing wrapper applies to every other tool source.
+  const wrapped = wrapToolsWithOutputProcessing(tools as Record<string, import('ai').Tool<unknown, unknown>>, { sessionId });
+  return wrapped as unknown as ToolMap;
 }
