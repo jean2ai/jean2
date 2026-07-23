@@ -9,6 +9,7 @@ import type {
   ListMessagesResponse,
   TranscriptPageResponse,
 } from '../types/rest-responses';
+import type { ToolOutputOriginalResponse } from '../shared-types/tool-output';
 import type { SessionStatus } from '../types';
 
 interface ListOptions {
@@ -118,5 +119,16 @@ export class SessionsRestNamespace {
       params: { workspaceId },
       signal: options?.signal,
     });
+  }
+
+  async getToolOutput(
+    sessionId: string,
+    retrievalId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<ToolOutputOriginalResponse> {
+    return this.http.get(
+      `/sessions/${encodeURIComponent(sessionId)}/tool-outputs/${encodeURIComponent(retrievalId)}`,
+      { signal: options?.signal },
+    );
   }
 }
