@@ -105,6 +105,8 @@ jean2 tools install --recommended
 jean2 tools install shell --force
 ```
 
+The recommended set provides the tools used by the bundled preconfigs: file reading and editing, file search, shell execution, task tracking, and web fetching. Use `--all` only when every catalog tool is required.
+
 ```bash
 # List available tools
 jean2 tools list

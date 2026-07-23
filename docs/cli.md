@@ -95,7 +95,7 @@ jean2 tools install [names...] [options]
 | Flag | Description |
 |------|-------------|
 | `--all` | Install all tools |
-| `--recommended` | Install recommended tools only |
+| `--recommended` | Install tools marked as recommended in the registry |
 | `--force` | Reinstall even if already installed |
 | `--skip-runtime-check` | Skip runtime compatibility check |
 

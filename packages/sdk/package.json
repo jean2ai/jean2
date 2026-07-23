@@ -1,6 +1,6 @@
 {
   "name": "@jean2/sdk",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
